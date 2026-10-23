@@ -1,0 +1,746 @@
+// Colours, height and decoration come from the theme tokens; the blur (rich tier only) and the header
+// structures (island, two-row, transparent, crest...) are in resources/css/layout-theme-a.css.
+.avd-header,
+.navbar.header {
+    min-height: var(--avd-header-h);
+    border: 0 !important;
+    border-bottom: var(--avd-header-border) !important;
+    background: var(--avd-header-bg);
+    color: var(--avd-header-text);
+    box-shadow: var(--avd-header-shadow);
+    z-index: 1035;
+}
+
+.avd-header-inner {
+    min-height: 56px;
+    flex-wrap: nowrap !important;
+    gap: 0.6rem;
+}
+
+// Until Alpine starts, x-cloak hides the header's content (layout.blade.php: display none). Its box stays
+// instead, only hidden, so the header has its final height from the first paint and main and the sidebar
+// never move down when the content appears (load layout shift). The display is the one it gets afterwards
+// (grid below 992px, further down).
+.avd-header-inner[x-cloak] {
+    display: flex !important;
+    visibility: hidden;
+}
+
+.avd-header-brand-zone {
+    min-width: 0;
+}
+
+.avd-sidebar-toggle,
+.header .navbar-toggler {
+    width: 38px;
+    height: 38px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0 !important;
+    border-radius: 999px;
+    background: transparent;
+    color: inherit;
+    font-size: 17px;
+    box-shadow: none;
+}
+
+.avd-sidebar-toggle:hover,
+.header .navbar-toggler:hover {
+    background: var(--avd-surface-2);
+}
+
+.avd-sidebar-toggle:focus,
+.header .navbar-toggler:focus {
+    box-shadow: 0 0 0 3px var(--avd-brand-soft);
+}
+
+// Keep the sidebar toggle visible through the tablet range (768-991px); the pinned
+// rail only appears at >=992px, so hiding the toggle from 768px left tablets with no
+// way to open the sidebar (and a 260px empty gutter). Align to the 992px rail breakpoint.
+@media (min-width: 992px) {
+    body.has-sidebar .avd-header .avd-sidebar-toggle {
+        display: none;
+    }
+}
+
+.navbar-brand.avd-brand {
+    min-width: 0;
+    color: var(--avd-header-text) !important;
+    font-family: var(--avd-font-display);
+    font-size: 19px;
+    font-weight: var(--avd-display-weight);
+    letter-spacing: var(--avd-display-tracking);
+    line-height: 1;
+}
+
+.navbar-brand.avd-brand.show_sidebar {
+    width: 240px;
+}
+
+.avd-brand-mark {
+    width: 30px;
+    height: 30px;
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: min(var(--avd-r-button), 9px);
+    background: var(--avd-brand-fill);
+    color: var(--avd-on-brand);
+    font-size: 12px;
+}
+
+.avd-brand-logo {
+    max-width: 132px;
+    max-height: 36px;
+    object-fit: contain;
+}
+
+.avd-brand-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.avd-premium-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.25rem 0.55rem;
+    border-radius: 999px;
+    background: rgba(var(--avd-warning-rgb), 0.16);
+    color: var(--avd-warning);
+    font-size: 0.72rem;
+    font-weight: 900;
+}
+
+.avd-header-actions {
+    gap: 0.6rem;
+    flex-wrap: nowrap;
+    margin-inline-start: auto;
+}
+
+.avd-icon-button {
+    width: 38px;
+    height: 38px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: inherit;
+    font-size: 15px;
+}
+
+.avd-icon-button:hover {
+    background: var(--avd-surface-2);
+    color: var(--avd-brand-ink);
+}
+
+.avd-notification-button {
+    position: relative;
+    flex: 0 0 42px;
+    padding: 0;
+    line-height: 1;
+}
+
+.avd-notification-button .fa-bell {
+    color: var(--avd-muted);
+    font-size: 1rem;
+}
+
+.avd-notification-button:hover .fa-bell,
+.avd-notification-button[aria-expanded="true"] .fa-bell {
+    color: var(--avd-brand-ink);
+}
+
+.avd-notification-badge {
+    position: absolute;
+    top: 0.44rem;
+    inset-inline-end: 0.5rem;
+    width: 0.62rem;
+    height: 0.62rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 2px solid var(--avd-surface);
+    border-radius: 999px;
+    background: var(--avd-brand-fill);
+    box-shadow: 0 0 0 4px var(--avd-brand-soft);
+}
+
+.avd-notification-title-dot {
+    width: 0.55rem;
+    height: 0.55rem;
+    display: inline-block;
+    margin-inline-start: 0.42rem;
+    border-radius: 999px;
+    background: var(--avd-brand-fill);
+    box-shadow: 0 0 0 4px var(--avd-brand-soft);
+    vertical-align: middle;
+}
+
+.avd-notifications-panel {
+    width: min(380px, calc(100vw - 0.75rem)) !important;
+    border-inline-start: 1px solid var(--avd-border);
+    background: var(--avd-surface-solid);
+    color: var(--avd-text);
+}
+
+.avd-notifications-header {
+    background: var(--avd-surface);
+}
+
+.avd-upload-btn {
+    max-width: 11rem;
+    min-height: 42px;
+    min-width: 0;
+    border-radius: 999px;
+    padding-inline: 1rem;
+    white-space: nowrap;
+}
+
+// Sign in / Register are the mockup's small header buttons (32px) whichever button style they use.
+.avd-auth-btn,
+.btn.avd-auth-btn {
+    max-width: 10rem;
+    min-height: 32px;
+    min-width: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    white-space: nowrap;
+}
+
+.avd-upload-btn span,
+.avd-auth-btn span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.avd-avatar-button {
+    width: 42px;
+    height: 42px;
+    padding: 0;
+    overflow: hidden;
+    border: 2px solid var(--avd-border);
+    border-radius: 50%;
+    background: transparent;
+}
+
+.avd-avatar-button img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.avd-avatar-button:hover {
+    border-color: var(--avd-brand);
+}
+
+.avd-mobile-search {
+    min-height: 56px;
+}
+
+search-bar {
+    min-width: 0;
+}
+
+.avd-search-wrap {
+    position: relative;
+    isolation: isolate;
+}
+
+.avd-search-wrap .input-group {
+    border: var(--avd-bw) solid var(--avd-border);
+    border-radius: var(--avd-radius-field, var(--avd-radius-control));
+    background: var(--avd-surface-2);
+}
+
+.avd-search-wrap .form-control,
+.avd-search-wrap .btn {
+    height: calc(var(--avd-control-h) - 2 * var(--avd-bw));
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+.avd-search-wrap .form-control {
+    min-width: 0;
+    padding-inline-start: 1.1rem;
+}
+
+.avd-search-wrap .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 54px;
+    width: 54px;
+    color: var(--avd-muted);
+}
+
+.avd-search-wrap:focus-within .input-group {
+    border-color: var(--avd-focus);
+    box-shadow: 0 0 0 3px var(--avd-brand-soft);
+}
+
+// The search pill shows the focus ring as a whole; its field draws no second ring inside it.
+.avd-search-wrap .input-group:has(.form-control:focus-visible) {
+    outline: 2px solid var(--avd-focus);
+    outline-offset: 2px;
+}
+
+.avd-search-wrap .input-group .form-control:focus-visible {
+    outline: 0;
+}
+
+.avd-search-results {
+    position: absolute;
+    top: calc(100% + 0.55rem);
+    inset-inline: 0;
+    z-index: 1100;
+    max-height: min(70vh, 460px);
+    overflow-x: hidden;
+    overflow-y: auto;
+    border: 1px solid var(--avd-border);
+    border-radius: 18px;
+    background: var(--avd-surface-solid);
+    box-shadow: var(--avd-shadow);
+    overscroll-behavior: contain;
+}
+
+.avd-search-result {
+    color: var(--avd-text);
+    transition: background-color 0.16s ease, color 0.16s ease;
+}
+
+.avd-search-result:hover,
+.avd-search-result.selected {
+    background: var(--avd-surface-hover);
+}
+
+.avd-search-thumb {
+    position: relative;
+    width: 96px;
+    aspect-ratio: 16 / 9;
+    flex: 0 0 96px;
+    overflow: hidden;
+    border-radius: 10px;
+    background: var(--avd-surface-soft);
+}
+
+.avd-search-thumb img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 1;
+    transition: opacity 180ms ease;
+}
+
+@media (max-width: 991.98px) {
+    .avd-mobile-search .avd-search-results {
+        position: fixed;
+        top: 112px;
+        inset-inline: 0.75rem;
+        max-height: calc(100dvh - 124px);
+    }
+}
+
+// Sidebar colours come from the theme; its styles (full, rail, floating, hidden) and the floating
+// sidebar's rich-tier blur are in resources/css/layout-theme-a.css.
+#responsive-sidebar.avd-sidebar,
+#responsive-sidebar.avd-back-sidebar {
+    border-inline-end: var(--avd-sidebar-border);
+    background: var(--avd-sidebar-bg);
+    color: var(--avd-sidebar-text);
+}
+
+.avd-sidebar-body {
+    padding: 12px;
+}
+
+.avd-sidebar-section {
+    margin-bottom: 0.8rem;
+    padding-bottom: 0.8rem;
+    border-bottom: 1px solid var(--avd-border);
+}
+
+.avd-sidebar-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 12px 6px;
+    color: var(--avd-sidebar-muted);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.avd-sidebar-link {
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 2px;
+    padding: 0 12px;
+    border-radius: var(--avd-sidebar-item-r) !important;
+    color: var(--avd-sidebar-text) !important;
+    font-size: 14px;
+    font-weight: 500;
+    text-align: start;
+}
+
+.avd-sidebar-link i {
+    width: 20px;
+    color: inherit;
+    font-size: 15px;
+    opacity: 0.9;
+    text-align: center;
+}
+
+.avd-sidebar-link:hover {
+    background: var(--avd-surface-2) !important;
+    color: var(--avd-sidebar-text) !important;
+}
+
+.avd-sidebar-link.menu-selected {
+    background: var(--avd-sidebar-active-bg) !important;
+    color: var(--avd-sidebar-active-text) !important;
+    font-weight: 700;
+}
+
+.avd-sidebar-link.menu-selected::after {
+    content: "";
+    position: absolute;
+    inset-inline-start: 0;
+    top: 9px;
+    bottom: 9px;
+    width: 3px;
+    border-radius: 3px;
+    background: var(--avd-sidebar-active-bar);
+}
+
+.avd-sidebar-dot {
+    width: 8px;
+    height: 8px;
+    display: inline-block;
+    border-radius: 50%;
+    background: var(--avd-brand-fill);
+    box-shadow: 0 0 0 4px var(--avd-brand-soft);
+}
+
+.avd-sidebar-footer {
+    padding: 0.75rem;
+}
+
+.avd-sidebar-controls {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.7rem;
+    align-items: center;
+}
+
+.avd-locale-picker {
+    min-width: 0;
+    position: relative;
+}
+
+.avd-locale-toggle {
+    width: 100%;
+    min-height: 38px;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.48rem;
+    padding: 0.34rem 0.48rem;
+    border: 1px solid var(--avd-border);
+    border-radius: var(--avd-radius-field, var(--avd-radius-control));
+    background: var(--avd-surface-2);
+    color: var(--avd-text);
+    transition: border-color 160ms ease, background-color 160ms ease, box-shadow 180ms ease, transform 180ms var(--avd-ease-out);
+}
+
+.avd-locale-toggle:hover,
+.avd-locale-toggle[aria-expanded="true"] {
+    border-color: rgba(var(--avd-brand-rgb), 0.42);
+    background: var(--avd-surface-hover);
+    box-shadow: 0 0 0 4px var(--avd-brand-soft);
+    transform: translateY(-1px);
+}
+
+.avd-locale-toggle i {
+    color: var(--avd-muted);
+    font-size: 0.78rem;
+    transition: transform 180ms var(--avd-ease-out), color 160ms ease;
+}
+
+.avd-locale-toggle[aria-expanded="true"] i {
+    color: var(--avd-brand-ink);
+    transform: rotate(180deg);
+}
+
+.avd-locale-code,
+.avd-locale-option-code {
+    min-width: 2rem;
+    padding: 0.16rem 0.26rem;
+    border-radius: 8px;
+    background: var(--avd-brand-soft);
+    color: var(--avd-text);
+    font-size: 0.68rem;
+    font-weight: 950;
+    line-height: 1.1;
+    text-align: center;
+    text-transform: uppercase;
+}
+
+.avd-locale-label {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--avd-text);
+    font-size: 0.82rem;
+    font-weight: 850;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.avd-locale-menu {
+    inset: auto auto calc(100% + 0.55rem) 0 !important;
+    transform: none !important;
+    width: min(236px, calc(100vw - 1.5rem));
+    max-height: min(318px, 46vh);
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding: 0.38rem;
+    border: 1px solid var(--avd-border);
+    border-radius: 18px;
+    background: var(--avd-surface-solid);
+    box-shadow: 0 22px 64px rgba(0, 0, 0, 0.24), 0 0 0 1px rgba(var(--avd-brand-rgb), 0.08);
+    scrollbar-width: thin;
+    scrollbar-color: var(--avd-scrollbar-thumb) transparent;
+}
+
+.avd-locale-menu::-webkit-scrollbar {
+    width: 8px;
+}
+
+.avd-locale-menu::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.avd-locale-menu::-webkit-scrollbar-thumb {
+    border: 2px solid transparent;
+    border-radius: 999px;
+    background: var(--avd-scrollbar-thumb);
+    background-clip: content-box;
+}
+
+.avd-locale-form {
+    margin: 0;
+}
+
+.avd-locale-option {
+    min-height: 38px;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) 1rem;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.42rem 0.5rem;
+    border-radius: 12px;
+    color: var(--avd-muted);
+    font-size: 0.84rem;
+    font-weight: 780;
+    white-space: nowrap;
+}
+
+.avd-locale-option:hover,
+.avd-locale-option:focus,
+.avd-locale-option.is-active {
+    background: var(--avd-brand-soft);
+    color: var(--avd-text);
+}
+
+.avd-locale-option-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.avd-locale-option i {
+    color: var(--avd-brand-ink);
+    font-size: 0.8rem;
+}
+
+#account {
+    overflow: hidden;
+    border-inline-start: 1px solid var(--avd-border);
+    background: var(--avd-surface-solid);
+    color: var(--avd-text);
+}
+
+#account .offcanvas-body {
+    min-height: 0;
+    overflow-x: hidden;
+}
+
+#account .list-group-flush.overflow-auto,
+#account .list-group-flush {
+    overflow-x: hidden !important;
+}
+
+#account .avd-account-footer,
+#account .avd-account-footer.list-group-flush {
+    flex-shrink: 0;
+    position: relative;
+    z-index: 3;
+    overflow: visible !important;
+    background: var(--avd-surface-solid);
+}
+
+.avd-account-controls-item {
+    overflow: visible;
+    padding: 0.75rem 0.95rem;
+    background: linear-gradient(135deg, var(--avd-surface), var(--avd-surface-soft)) !important;
+}
+
+.avd-account-controls {
+    width: 100%;
+}
+
+.avd-account-controls--single {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.avd-account-controls--single theme-switch {
+    justify-self: end;
+}
+
+.avd-account-locale-picker {
+    z-index: 4;
+}
+
+.avd-account-locale-menu {
+    width: min(260px, calc(100vw - 2rem));
+    max-height: min(286px, 44vh);
+    z-index: 1190;
+}
+
+#account .avd-locale-toggle {
+    min-height: 42px;
+    border-radius: 16px;
+}
+
+#account .avd-locale-option {
+    min-height: 40px;
+}
+
+@media (max-width: 420px) {
+    #account {
+        width: min(350px, calc(100vw - 0.75rem)) !important;
+    }
+
+    .avd-account-locale-menu {
+        max-height: min(246px, 38vh);
+    }
+}
+
+@media (max-width: 991.98px) {
+    .avd-header,
+    .navbar.header {
+        min-height: 58px;
+    }
+
+    .avd-header-inner,
+    .avd-header-inner[x-cloak] {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+    }
+
+    .avd-header-actions {
+        gap: 0.35rem;
+        justify-self: end;
+        margin-inline-start: 0;
+    }
+
+    .avd-icon-button,
+    .avd-notification-button,
+    .avd-sidebar-toggle,
+    .header .navbar-toggler,
+    .avd-avatar-button {
+        width: 38px;
+        height: 38px;
+        border-radius: 13px;
+    }
+
+    .avd-avatar-button {
+        border-radius: 50%;
+    }
+
+    .avd-notification-button {
+        flex-basis: 38px;
+    }
+
+    .avd-notification-badge {
+        top: 0.4rem;
+        inset-inline-end: 0.46rem;
+    }
+
+    .avd-header .btn {
+        padding-inline: 0.72rem;
+        font-size: 0.82rem;
+    }
+}
+
+@media (max-width: 575.98px) {
+    .avd-upload-btn,
+    .avd-auth-btn {
+        width: 38px;
+        height: 38px;
+        padding-inline: 0 !important;
+        border-radius: 13px;
+    }
+
+    .avd-upload-btn {
+        min-width: 38px;
+        min-height: 38px;
+        justify-content: center;
+    }
+
+    .avd-header-inner {
+        gap: 0.45rem;
+        padding-inline: 0.45rem;
+    }
+
+    .navbar-brand.avd-brand {
+        max-width: 46vw;
+        min-height: 44px;
+        display: inline-flex;
+        align-items: center;
+    }
+
+    .navbar-brand.avd-brand.show_sidebar {
+        width: auto;
+    }
+
+    .avd-brand-mark {
+        width: 32px;
+        height: 32px;
+        border-radius: 12px;
+    }
+
+    .avd-brand-text {
+        display: none;
+    }
+
+    .avd-premium-chip {
+        display: none;
+    }
+}

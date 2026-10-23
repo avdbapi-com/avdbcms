@@ -1,0 +1,4 @@
+// Every Font Awesome solid icon, for the few admin pages that show icons chosen by the owner (categories).
+// Loaded by admin.ts only when the page asks for it (body[data-ad-icons="all"]).
+@import "@fortawesome/fontawesome-free/css/fontawesome.css";
+@import "@fortawesome/fontawesome-free/css/solid.css";

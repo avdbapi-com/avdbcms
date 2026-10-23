@@ -1,0 +1,12 @@
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /api/
+Disallow: /login
+Disallow: /register
+Disallow: /update-locale
+Disallow: /search
+Disallow: /*/search
+Disallow: /*/update-locale
+Crawl-delay: 2
+Sitemap: /sitemap.xml

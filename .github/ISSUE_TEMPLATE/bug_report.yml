@@ -1,0 +1,125 @@
+name: Bug report
+description: Something in AVDBCMS does not work as described in the docs.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a problem. Before you send it:
+        - Search the [open and closed issues](https://github.com/avdbapi-com/avdbcms/issues?q=is%3Aissue) and read [Troubleshooting and error fixes](https://help.avdbapi.com/documentation/avdbcms-error-fixes/) in the help center.
+        - After an update: if the admin **Home** shows **Finish the update**, click **Finish update** first.
+        - **Never post passwords, API or payment keys, the contents of your `.env` file, or emails from `storage/logs/mail.log`.**
+        - Screenshots must be safe for work: crop or blur video posters and titles. On **Tools › Health check**, tab **Server**, also cover your site address, DB Host and DB Name.
+        - A security problem? Do not open an issue: follow the [security policy](https://github.com/avdbapi-com/avdbcms/security/policy).
+  - type: dropdown
+    id: version
+    attributes:
+      label: AVDBCMS version
+      description: 'Shown on Tools › Health check, tab Server, row "AVDBCMS version", and on Tools › Updates.'
+      options:
+        - "1.2.0"
+        - Before 1.2 (a community test package)
+    validations:
+      required: true
+  - type: input
+    id: php
+    attributes:
+      label: PHP version
+      description: 'Tools › Health check, tab Server, box "PHP Settings", row "PHP Version".'
+      placeholder: "8.3.12"
+    validations:
+      required: true
+  - type: input
+    id: database
+    attributes:
+      label: Database and version
+      description: 'Tools › Health check, tab Server, box "Database", row "Version".'
+      placeholder: "MariaDB 10.11.6"
+    validations:
+      required: true
+  - type: dropdown
+    id: server
+    attributes:
+      label: Web server
+      options:
+        - Apache
+        - Nginx or OpenResty
+        - OpenLiteSpeed / LiteSpeed
+        - Caddy
+        - IIS
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: panel
+    attributes:
+      label: Hosting panel
+      options:
+        - aaPanel
+        - CloudPanel
+        - HestiaCP
+        - CyberPanel
+        - 1Panel
+        - Virtualmin / Webmin
+        - cPanel
+        - Plesk
+        - No panel (a server set up by hand)
+        - Docker
+        - Local test machine
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: webroot
+    attributes:
+      label: Your domain points to
+      description: Only if you know it. The installer showed it on its Requirements step, card "Document root".
+      options:
+        - The public folder inside your site folder (public/)
+        - The site folder itself (the folder with artisan)
+        - Not sure
+  - type: input
+    id: look
+    attributes:
+      label: Look and theme
+      description: 'Only if the problem shows on the visitor pages. Appearance › Themes, box "On your site now".'
+      placeholder: "YouTube Spotlight Pro (theme Midnight Spotlight, colour style Hot Pink)"
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you see, and the exact error text if there is one.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open Content › Import videos
+        2. Choose ...
+        3. See ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log lines
+      description: 'The matching lines from Tools › Logs, tab "Site logs" (the file storage/logs/laravel.log), or from your web server error log. Remove passwords, keys and personal data first.'
+      render: text
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched the existing issues and the help center.
+          required: true
+        - label: I removed passwords, keys, .env values and personal data, and my screenshots are safe for work.
+          required: true

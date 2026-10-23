@@ -1,0 +1,24 @@
+/* Hero decoration ticker_scoreboard (Phase B): ships at the end of the token file of the theme whose recipe names it
+   (php artisan avd:themes:build), so it loads with that theme only. Every rule is keyed
+   html[data-avd-hero-deco="ticker_scoreboard"][data-avd-theme] (App\Support\ThemeTokens::heroDecoProblems). */
+html[data-avd-hero-deco="ticker_scoreboard"][data-avd-theme] .avd-tkp {
+    clip-path: polygon(0 0, calc(100% - 18px) 0, 100% 18px, 100% 100%, 0 100%);
+    border-radius: 0;
+}
+html[data-avd-hero-deco="ticker_scoreboard"][data-avd-theme] .avd-tkr {
+    border-radius: 0;
+    clip-path: polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%);
+    padding-inline-start: 14px;
+}
+html[data-avd-hero-deco="ticker_scoreboard"][data-avd-theme] .avd-tkr .avd-rk {
+    font: italic 800 26px/1 var(--avd-font-display);
+}
+html[data-avd-hero-deco="ticker_scoreboard"][data-avd-theme] .avd-tk-head .avd-ttl {
+    font-size: 28px;
+}
+html[data-avd-hero-deco="ticker_scoreboard"][data-avd-theme][dir="rtl"] .avd-tkp {
+    clip-path: polygon(0 18px, 18px 0, 100% 0, 100% 100%, 0 100%);
+}
+html[data-avd-hero-deco="ticker_scoreboard"][data-avd-theme][dir="rtl"] .avd-tkr {
+    clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 100%, 10px 100%);
+}

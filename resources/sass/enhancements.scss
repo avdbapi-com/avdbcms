@@ -1,0 +1,824 @@
+:root,
+[data-bs-theme="light"] {
+    --avd-brand: #ff3d61;
+    --avd-brand-hot: #ff244f;
+    --avd-brand-text: #d1113b;
+    --avd-on-brand: #0f172a;
+    --avd-brand-2: #ff8b5c;
+    --avd-cyan: #18c8d8;
+    --avd-cyan-rgb: 24, 200, 216;
+    --avd-green: #18b981;
+    --avd-brand-rgb: 255, 61, 97;
+    --avd-bg-body: var(--avd-light-bg, #f4f6fb);
+    --avd-surface: rgba(255, 255, 255, 0.92);
+    --avd-surface-solid: #ffffff;
+    --avd-surface-soft: #eef2f8;
+    --avd-surface-hover: #e2e8f2;
+    --avd-elevated: #ffffff;
+    --avd-text: #0f172a;
+    --avd-muted: #445066;
+    --avd-faint: #667085;
+    --avd-border: rgba(15, 23, 42, 0.13);
+    --avd-border-strong: rgba(15, 23, 42, 0.22);
+    --avd-brand-soft: rgba(255, 61, 97, 0.11);
+    --avd-cyan-soft: rgba(var(--avd-cyan-rgb), 0.12);
+    --avd-shadow: 0 22px 56px rgba(16, 24, 40, 0.16);
+    --avd-shadow-soft: 0 10px 28px rgba(16, 24, 40, 0.07);
+    --avd-input-bg: rgba(255, 255, 255, 0.78);
+    --avd-header-bg: rgba(255, 255, 255, 0.78);
+    --avd-sidebar-bg: rgba(255, 255, 255, 0.78);
+    --avd-footer-bg: rgba(255, 255, 255, 0.86);
+    --avd-footer-text: #5d667a;
+    --avd-footer-heading: #111827;
+    --avd-footer-link: #394154;
+    --avd-footer-border: rgba(17, 24, 39, 0.09);
+    --avd-footer-control-bg: rgba(255, 255, 255, 0.78);
+}
+
+.avd-page-kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+    color: var(--avd-kicker-color, var(--avd-brand-text));
+    font-family: var(--avd-font-kicker, inherit);
+    font-size: 11.5px;
+    font-weight: var(--avd-kicker-weight, 900);
+    letter-spacing: var(--avd-kicker-tracking, 0);
+    text-transform: var(--avd-kicker-case, uppercase);
+}
+
+.avd-home-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.avd-home-title {
+    margin: 0;
+    color: var(--avd-text);
+    font-size: 2rem;
+    font-weight: 950;
+    line-height: 1.08;
+}
+
+.avd-home-subtitle {
+    max-width: 54rem;
+    margin: 0.35rem 0 0;
+    color: var(--avd-muted);
+    font-size: 0.95rem;
+}
+
+.avd-feed-shell {
+    position: relative;
+    isolation: isolate;
+    max-width: 100%;
+    overflow-x: clip;
+}
+
+.avd-category-hero {
+    position: relative;
+    min-height: clamp(240px, 31vw, 390px);
+    overflow: hidden;
+    border-radius: 0 0 28px 28px;
+    background: var(--avd-photo-bg, #111827);
+}
+
+.avd-category-hero img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.avd-category-hero-overlay {
+    position: absolute;
+    inset: 0;
+    background:
+        linear-gradient(90deg, rgba(7, 10, 16, 0.80), rgba(7, 10, 16, 0.22)),
+        linear-gradient(0deg, rgba(7, 10, 16, 0.62), transparent 55%);
+}
+
+.avd-category-hero-content {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    min-height: inherit;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-end;
+    gap: 0.85rem;
+    padding: clamp(1.4rem, 4vw, 3rem);
+}
+
+.avd-category-hero h1 {
+    max-width: 820px;
+    margin: 0;
+    color: var(--avd-hero-title, #fff);
+    font-size: clamp(2rem, 4vw, 4rem);
+    font-weight: 950;
+    line-height: 0.98;
+}
+
+.avd-section-card {
+    border: 1px solid var(--avd-border);
+    border-radius: 22px;
+    background: var(--avd-surface);
+    box-shadow: var(--avd-shadow-soft);
+}
+
+.avd-search-panel {
+    max-width: 100%;
+    overflow: hidden;
+}
+
+.avd-search-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    min-width: 0;
+}
+
+.avd-search-panel-title {
+    min-width: 0;
+}
+
+.avd-search-panel-actions {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 0.55rem;
+}
+
+.avd-search-filter-toggle {
+    white-space: nowrap;
+}
+
+.avd-search-result-card {
+    display: flex;
+    width: 100%;
+    min-width: 0;
+}
+
+.avd-search-result-media {
+    flex: 0 0 clamp(220px, 34%, 360px);
+    border-radius: 20px 0 0 20px;
+    box-shadow: none;
+}
+
+.avd-search-result-body {
+    flex: 1 1 auto;
+}
+
+@media (max-width: 575.98px) {
+    #main-container.avd-search-page {
+        box-sizing: border-box;
+        width: auto !important;
+        max-width: none;
+        margin-inline: 1.1rem !important;
+        padding-inline: 0 !important;
+        overflow-x: hidden;
+    }
+
+    .avd-search-page > .row {
+        margin-inline: 0;
+    }
+
+    .avd-search-page > .row > [class*="col-"] {
+        padding-inline: 0;
+    }
+
+    .avd-search-page .avd-section-card {
+        width: calc(100% - 1.25rem);
+        max-width: calc(100% - 1.25rem);
+        margin-inline-end: 1.25rem;
+    }
+
+    .avd-search-page .avd-search-panel {
+        width: 100%;
+        max-width: 100%;
+        margin-inline-end: 0;
+    }
+
+    .avd-search-result-card {
+        flex-direction: column;
+    }
+
+    .avd-search-result-media {
+        width: 100%;
+        flex-basis: auto;
+        border-radius: 18px 18px 0 0;
+    }
+
+    .avd-search-panel-header {
+        align-items: stretch;
+        flex-direction: column;
+        gap: 0.85rem;
+    }
+
+    .avd-search-panel-actions {
+        width: 100%;
+        display: grid;
+        grid-template-columns: 1fr;
+        justify-content: stretch;
+    }
+
+    .avd-search-panel-actions .avd-meta-chip {
+        min-width: 0;
+        justify-content: center;
+    }
+
+    .avd-search-filter-toggle {
+        width: 100%;
+        height: 38px;
+        justify-content: center;
+    }
+}
+
+.min-w-0 {
+    min-width: 0;
+}
+
+.fw-black {
+    font-weight: 950 !important;
+}
+
+.avd-channel-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1.1rem;
+    border: 1px solid var(--avd-border);
+    border-radius: 20px;
+    background: var(--avd-surface);
+    box-shadow: var(--avd-shadow-soft);
+    transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+.avd-channel-card:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--avd-shadow);
+}
+
+.avd-channel-card-avatar {
+    display: block;
+    width: 104px;
+    height: 104px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 20%, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.02) 62%, transparent 100%), var(--avd-surface-soft);
+    object-fit: cover;
+    box-shadow: 0 16px 34px rgba(3, 7, 18, 0.26);
+}
+
+@media (max-width: 767.98px) {
+    .avd-creator-spotlight .row {
+        --bs-gutter-x: 0.5rem;
+        --bs-gutter-y: 0.5rem;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        overflow-y: hidden;
+        margin-inline: 0;
+        padding-bottom: 0.2rem;
+        overscroll-behavior-inline: contain;
+    }
+
+    html[data-avd-rail-scrollbars="hidden"] .avd-creator-spotlight .row::-webkit-scrollbar {
+        display: none;
+    }
+
+    .avd-creator-spotlight .row > [class*="col-"] {
+        flex: 0 0 115px;
+        width: 115px;
+        max-width: 115px;
+        padding-inline: 0 0.25rem;
+    }
+
+    .avd-creator-spotlight .avd-channel-card {
+        min-height: 114px;
+        height: 100%;
+        padding: 0.5rem 0.35rem;
+        border-radius: 14px;
+    }
+
+    .avd-creator-spotlight .avd-channel-card-avatar {
+        width: 46px;
+        height: 46px;
+    }
+
+    .avd-channel-card-avatar {
+        width: 46px;
+        height: 46px;
+    }
+
+    .avd-creator-spotlight .avd-channel-card a {
+        gap: 0.2rem;
+    }
+
+    .avd-creator-spotlight .avd-channel-card strong {
+        font-size: 0.78rem;
+        line-height: 1.15;
+    }
+
+    .avd-creator-spotlight .avd-channel-card .text-sm {
+        font-size: 0.66rem;
+        line-height: 1.15;
+    }
+}
+
+.avd-footer {
+    margin-top: auto;
+    background:
+        radial-gradient(circle at 8% 0%, rgba(var(--avd-brand-rgb), 0.10), transparent 24rem),
+        radial-gradient(circle at 92% 0%, rgba(var(--avd-cyan-rgb), 0.10), transparent 26rem),
+        var(--avd-footer-bg);
+    color: var(--avd-footer-text);
+    font-size: 0.9rem;
+    border-top: 1px solid var(--avd-footer-border);
+    box-shadow: 0 -18px 48px rgba(16, 24, 40, 0.05);
+    /* No content-visibility here: the estimated height made WebKit report
+       'ResizeObserver loop' errors while scrolling near the bottom, and the footer
+       loops are compositor-only and paused offscreen by the motion scheduler anyway. */
+}
+
+.avd-footer-accent {
+    position: relative;
+    height: 3px;
+    overflow: hidden;
+}
+
+/* Same gradient, path and easing as the old background-position shift (220% wide,
+   0% -> 100% -> 0%), but on the compositor: moving a 220%-wide layer by -54.5455% of
+   its own width equals the old -1.2x-width background offset. At rest (no animation)
+   it shows the same first frame as before. */
+.avd-footer-accent::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    inset-inline-start: 0;
+    width: 220%;
+    background: linear-gradient(90deg, var(--avd-brand), var(--avd-brand-2), var(--avd-cyan), var(--avd-brand));
+    animation: avd-accent-shift-x 8s ease infinite;
+}
+
+html[data-avd-perf="lite"] .avd-footer-accent::before {
+    animation: none !important;
+}
+
+@keyframes avd-accent-shift-x {
+    0%,
+    100% {
+        transform: translate3d(0, 0, 0);
+    }
+    50% {
+        transform: translate3d(-54.5455%, 0, 0);
+    }
+}
+
+.avd-footer-inner {
+    padding: 2.35rem 1.25rem 0;
+}
+
+.avd-footer-top,
+.avd-footer-bottom {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.avd-footer-top {
+    padding-bottom: 1.8rem;
+    border-bottom: 1px solid var(--avd-footer-border);
+}
+
+.avd-footer-logo {
+    color: var(--avd-footer-heading);
+    font-size: 1.35rem;
+    font-weight: 950;
+    text-decoration: none;
+}
+
+.avd-footer-logo:hover {
+    color: var(--avd-footer-heading);
+    opacity: 0.86;
+}
+
+.avd-footer-tagline {
+    max-width: 420px;
+    margin: 0.45rem 0 0;
+    color: var(--avd-footer-text);
+}
+
+.avd-footer-social {
+    display: flex;
+    gap: 0.55rem;
+}
+
+.avd-social-btn {
+    width: 40px;
+    height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--avd-footer-border);
+    border-radius: 14px;
+    background: var(--avd-footer-control-bg);
+    color: var(--avd-footer-link);
+    text-decoration: none;
+    box-shadow: 0 8px 22px rgba(16, 24, 40, 0.06);
+    transition: transform 180ms ease, color 180ms ease, background-color 180ms ease, border-color 180ms ease;
+}
+
+.avd-social-btn:hover {
+    border-color: transparent;
+    background: var(--avd-btn-bg, linear-gradient(135deg, var(--avd-brand), var(--avd-brand-2)));
+    color: var(--avd-btn-text, #fff);
+    transform: translateY(-2px);
+}
+
+.avd-footer-links-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.6rem 1.2rem;
+    padding: 2rem 0;
+}
+
+.avd-footer-col h6 {
+    margin: 0 0 0.8rem;
+    color: var(--avd-footer-heading);
+    font-size: 0.72rem;
+    font-weight: 950;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.avd-footer-col ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.avd-footer-col li {
+    margin-bottom: 0.45rem;
+}
+
+.avd-footer-col a {
+    color: var(--avd-footer-link);
+    text-decoration: none;
+}
+
+.avd-footer-col a:hover {
+    color: var(--avd-footer-heading);
+}
+
+.avd-footer-select {
+    width: 100%;
+    min-height: 38px;
+    padding: 0.4rem 0.65rem;
+    border: 1px solid var(--avd-footer-border);
+    border-radius: 12px;
+    background: var(--avd-footer-control-bg);
+    color: var(--avd-footer-heading);
+}
+
+.avd-footer-select option {
+    background: var(--avd-surface-solid);
+    color: var(--avd-text);
+}
+
+/* The language menu names each language after its flag emoji: the system UI font shows it, so a theme font never
+   downloads its symbols subset for the flags (Swiss Grid's Roboto: +20 KB on every page). Keyed on html[data-bs-theme]
+   so it out-ranks layout-theme-a's html[data-avd-typography="on"] select (the theme's body font). */
+html[data-bs-theme] .avd-footer-select,
+html[data-bs-theme] .avd-footer-select option,
+html[data-bs-theme] .ts-wrapper.avd-footer-select .ts-control,
+html[data-bs-theme] .ts-wrapper.avd-footer-select .ts-control > *,
+html[data-bs-theme] .ts-wrapper.avd-footer-select .ts-dropdown {
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.avd-footer-bottom {
+    padding: 1.2rem 0;
+    border-top: 1px solid var(--avd-footer-border);
+    color: var(--avd-footer-text);
+    font-size: 0.8rem;
+}
+
+.avd-footer-bottom-links {
+    display: flex;
+    gap: 1rem;
+}
+
+.avd-footer-bottom-links a {
+    color: var(--avd-footer-link);
+    text-decoration: none;
+}
+
+.avd-footer-bottom-links a:hover {
+    color: var(--avd-footer-heading);
+}
+
+body.has-sidebar .avd-footer {
+    transition: margin-left 180ms ease;
+}
+
+.shortcuts-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    background: rgba(var(--avd-overlay-rgb, 4, 7, 12), 0.84);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 180ms ease, visibility 180ms ease;
+}
+
+.shortcuts-overlay.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+.shortcuts-panel {
+    width: min(620px, 100%);
+    padding: 1.5rem;
+    border: 1px solid var(--avd-border);
+    border-radius: 22px;
+    background: var(--avd-surface-solid);
+    color: var(--avd-text);
+    box-shadow: var(--avd-shadow);
+}
+
+.shortcuts-panel h3 {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    margin: 0 0 1rem;
+    font-size: 1.12rem;
+    font-weight: 950;
+}
+
+.shortcuts-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.55rem 1.2rem;
+}
+
+.shortcut-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.5rem 0;
+    color: var(--avd-muted);
+}
+
+.shortcut-item kbd {
+    min-width: 32px;
+    padding: 0.2rem 0.5rem;
+    border: 1px solid var(--avd-border);
+    border-radius: 8px;
+    background: var(--avd-surface-soft);
+    color: var(--avd-text);
+    text-align: center;
+    box-shadow: none;
+}
+
+.copy-toast {
+    position: fixed;
+    bottom: 1.4rem;
+    left: 50%;
+    z-index: 9999;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.7rem 1rem;
+    border: 1px solid var(--avd-border);
+    border-radius: 999px;
+    background: var(--avd-surface-solid);
+    color: var(--avd-text);
+    box-shadow: var(--avd-shadow);
+    opacity: 0;
+    pointer-events: none;
+    transform: translate(-50%, 1rem);
+    transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.copy-toast.show {
+    opacity: 1;
+    transform: translate(-50%, 0);
+}
+
+.phpdebugbar.phpdebugbar-minimized,
+.phpdebugbar.phpdebugbar-minimized .phpdebugbar-body,
+.phpdebugbar.phpdebugbar-minimized .phpdebugbar-panel {
+    pointer-events: none !important;
+}
+
+.phpdebugbar.phpdebugbar-minimized .phpdebugbar-openhandler,
+.phpdebugbar.phpdebugbar-minimized .phpdebugbar-openhandler * {
+    pointer-events: auto !important;
+}
+
+.back-to-top {
+    position: fixed;
+    inset-inline-end: 1.25rem;
+    inset-inline-end: calc(1rem + env(safe-area-inset-right, 0px));
+    left: auto !important;
+    bottom: 1.25rem;
+    bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+    z-index: 1030;
+    width: 46px;
+    height: 46px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 50%;
+    background: var(--avd-btn-bg, linear-gradient(135deg, var(--avd-brand), var(--avd-brand-2)));
+    color: var(--avd-btn-text, #fff);
+    box-shadow: 0 14px 32px var(--avd-glow, rgba(255, 61, 97, 0.28));
+    opacity: 0;
+    pointer-events: none;
+    transform: translate(0, 14px) scale(0.92);
+    transition: opacity 180ms ease, transform 220ms var(--avd-ease-out), box-shadow 180ms ease;
+}
+
+.back-to-top.visible {
+    opacity: 1;
+    pointer-events: auto;
+    transform: none;
+}
+
+body.theater-mode #responsive-sidebar.show_sidebar {
+    width: 0 !important;
+    min-width: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    border: 0 !important;
+}
+
+body.theater-mode #main-container {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-inline-start: 0 !important;
+    overflow-x: clip !important;
+}
+
+body.theater-mode .avd-watch-layout {
+    --bs-gutter-x: 0;
+    width: 100%;
+    max-width: 100%;
+    margin-inline: 0 !important;
+    overflow-x: clip;
+}
+
+body.theater-mode,
+body.theater-mode .avd-shell,
+body.theater-mode .page-wrapper {
+    overflow-x: hidden;
+}
+
+body.theater-mode .avd-watch-primary {
+    flex: 0 0 100% !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    margin-inline-start: 0 !important;
+    padding-inline: 0 !important;
+}
+
+body.theater-mode .avd-watch-sidebar-col {
+    display: none !important;
+}
+
+body.theater-mode .avd-player-shell {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow: hidden;
+}
+
+body.theater-mode .avd-player-frame {
+    width: 100%;
+    max-width: 100%;
+    border-radius: 0;
+    margin-inline: 0;
+}
+
+body.theater-mode .avd-player-frame .ratio {
+    max-height: 72vh;
+}
+
+body.theater-mode .avd-player-controls,
+body.theater-mode .avd-watch-primary > .px-3 {
+    width: min(100% - 2rem, 1760px);
+    max-width: 100%;
+    margin-inline: auto;
+}
+
+body.theater-mode .avd-action-row,
+body.theater-mode .avd-channel-panel,
+body.theater-mode .avd-description-panel {
+    max-width: 100%;
+    min-width: 0;
+}
+
+@media (max-width: 767.98px) {
+    body.theater-mode .avd-player-controls,
+    body.theater-mode .avd-watch-primary > .px-3 {
+        width: calc(100% - 1.5rem);
+    }
+}
+
+@keyframes avd-gradient-shift {
+    0%,
+    100% {
+        background-position: 0% 50%;
+    }
+    50% {
+        background-position: 100% 50%;
+    }
+}
+
+:focus-visible {
+    outline: 3px solid var(--avd-brand-soft);
+    outline-offset: 2px;
+}
+
+// The footer starts after the pinned sidebar, as the content does (the sidebar pins from 992px).
+@media (min-width: 992px) {
+    body.has-sidebar .avd-footer {
+        margin-inline-start: var(--avd-sidebar-w, 260px);
+    }
+}
+
+@media (min-width: 576px) {
+    .avd-footer-links-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+}
+
+@media (min-width: 1200px) {
+    .avd-footer-inner {
+        padding-inline: 3rem;
+    }
+}
+
+@media (max-width: 767.98px) {
+    .avd-home-topbar {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .avd-home-title {
+        font-size: 1.55rem;
+    }
+
+    .shortcuts-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ==========================================================================
+   MOBILE SMOOTHNESS & OFFSCREEN PERFORMANCE ENGINE
+   ========================================================================== */
+
+.avd-discovery-track,
+.avd-category-tabs,
+.avd-cinema-tray-track,
+.avd-shorts-scroll-track,
+.avd-chips-scroller-wrapper {
+    -webkit-overflow-scrolling: touch !important;
+    scroll-behavior: smooth !important;
+    overscroll-behavior-x: contain !important;
+    touch-action: pan-x pan-y !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .avd-page-kicker i,
+    .avd-badge-pulse,
+    .avd-shimmer-sweep,
+    .avd-ambient-glow {
+        animation: none !important;
+    }
+
+    .avd-video-card,
+    .avd-card-col,
+    .avd-discovery-card,
+    .avd-channel-card,
+    .avd-category-card {
+        transform: none !important;
+        will-change: auto !important;
+    }
+}

@@ -1,0 +1,200 @@
+AVDBCMS
+Copyright (c) 2026 AVDBAPI.COM and the AVDBCMS contributors.
+
+Official sources of AVDBCMS:
+  https://github.com/avdbapi-com/avdbcms
+  https://help.avdbapi.com/
+  https://avdbapi.com
+  https://xvidapi.com
+  https://upload18.org
+  Telegram group: https://t.me/avdb_api
+
+The AVDBCMS work in this package (see LICENSE, Part A) is under the AVDBCMS
+Community License 1.0: free, source-available software that anyone may use,
+copy, change and share, but nobody may sell. Charging other people for
+installing, setting up, running, supporting, changing or handing over AVDBCMS,
+or for hosting plans that come with AVDBCMS installed, also counts as selling;
+running your own website with it (also with ads or premium plans) is allowed.
+Shared copies stay free and carry no money-making code or links of the person
+who shares them. The code of the original open-source project that AVDBCMS is
+based on keeps the MIT License, and third-party parts keep their own licenses
+(LICENSE, Part B). This applies from AVDBCMS 1.2.0.
+
+AVDBCMS files carry no license comment of their own: LICENSE, Part A covers
+them. The files of third-party packages keep their own headers and license
+files.
+
+
+Attributions (MIT): the original project
+----------------------------------------
+
+This product includes code of the original open-source project that AVDBCMS
+is based on: MIT License, Copyright (c) 2024 Anton Bourtnik. The full MIT
+notice is kept word for word in LICENSE, Part B, section B1. AVDBCMS has
+changed and added to that code; the changes and additions are under the
+AVDBCMS Community License 1.0.
+
+
+Attributions (Apache License 2.0)
+---------------------------------
+
+This product includes the AWS SDK for PHP (aws/aws-sdk-php,
+http://aws.amazon.com/php) and the AWS Common Runtime for PHP
+(aws/aws-crt-php), licensed under the Apache License, Version 2.0. Their NOTICE
+files say:
+
+  Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+
+Both NOTICE files stay in their folders (vendor/aws/aws-sdk-php/NOTICE and
+vendor/aws/aws-crt-php/NOTICE) in the release packages.
+
+These other parts are also under the Apache License 2.0 (none of them carries
+a NOTICE file): the PHP packages giggsey/libphonenumber-for-php-lite and
+phpoption/phpoption, and the npm packages hls.js, Tom Select, React Aria, React
+Stately, @internationalized/date, @internationalized/number,
+@internationalized/string, @react-aria/ssr, @react-types/shared, @swc/helpers,
+@orchidjs/sifter and @orchidjs/unicode-variants.
+
+
+Third-party components
+----------------------
+
+The versions below are those of the lock files of this release (composer.lock
+and package-lock.json). The lock files list every package with its license.
+
+PHP packages in vendor/ (release packages only; Composer installs them)
+
+composer.lock lists 139 packages for vendor/: 122 under the MIT License, 6
+under BSD-3-Clause, 4 under the Apache License 2.0, 4 under the GNU LGPL, 2
+under BSD-3-Clause, GPL-2.0 or GPL-3.0 (as you choose) and 1 under ISC. The
+packages for development and tests are not in the release packages. The release
+build installs vendor/ fresh with Composer, so these files are the published
+versions of the packages, without changes. The main ones:
+
+Component                                   Version         License
+Laravel framework (laravel/framework)       12.49.0         MIT
+Laravel Horizon (laravel/horizon)           5.43.0          MIT (also public/vendor/horizon/)
+Laravel Cashier (laravel/cashier)           15.7.1          MIT
+Laravel Sanctum (laravel/sanctum)           4.3.0           MIT
+Laravel Scout (laravel/scout)               10.23.1         MIT
+Laravel Socialite (laravel/socialite)       5.24.2          MIT
+Laravel Tinker (laravel/tinker)             2.11.0          MIT
+Log Viewer (opcodesio/log-viewer)           3.21.1          MIT (also public/vendor/log-viewer/)
+Symfony components and polyfills (symfony/*)  various     MIT
+Guzzle (guzzlehttp/guzzle)                  7.10.0          MIT
+Monolog (monolog/monolog)                   3.10.0          MIT
+Carbon (nesbot/carbon)                      3.11.1          MIT
+Flysystem (league/flysystem)                3.31.0          MIT
+Stripe PHP (stripe/stripe-php)              16.6.0          MIT
+Laravel Excel (maatwebsite/excel)           3.1.67          MIT
+Meilisearch PHP (meilisearch/meilisearch-php)  1.16.1       MIT
+PHP-FFMpeg (php-ffmpeg/php-ffmpeg)          1.4.0           MIT
+Predis (predis/predis)                      2.4.1           MIT
+Pusher PHP Server (pusher/pusher-php-server)  7.2.7         MIT
+Laravel DomPDF (barryvdh/laravel-dompdf)    3.1.1           MIT
+Composer autoloader (vendor/composer/)      -               MIT
+Dompdf (dompdf/dompdf)                      3.1.4           LGPL-2.1
+php-font-lib (dompdf/php-font-lib)          1.0.2           LGPL-2.1 or later
+php-svg-lib (dompdf/php-svg-lib)            1.0.2           LGPL-3.0 or later
+HTML Purifier (ezyang/htmlpurifier)         4.19.0          LGPL-2.1 or later
+AWS SDK for PHP (aws/aws-sdk-php)           3.379.7         Apache-2.0 (NOTICE above)
+AWS Common Runtime for PHP (aws/aws-crt-php)  1.2.7         Apache-2.0 (NOTICE above)
+libphonenumber for PHP, lite
+  (giggsey/libphonenumber-for-php-lite)     9.0.23          Apache-2.0
+PhpOption (phpoption/phpoption)             1.9.5           Apache-2.0
+Nette Schema (nette/schema)                 1.3.5           BSD-3-Clause, GPL-2.0 or GPL-3.0
+Nette Utils (nette/utils)                   4.1.3           BSD-3-Clause, GPL-2.0 or GPL-3.0
+sodium_compat (paragonie/sodium_compat)     2.5.0           ISC
+PHP-JWT (firebase/php-jwt)                  7.0.2           BSD-3-Clause
+CommonMark (league/commonmark)              2.8.2           BSD-3-Clause
+league/config                               1.2.0           BSD-3-Clause
+PHP Parser (nikic/php-parser)               5.7.0           BSD-3-Clause
+CssToInlineStyles
+  (tijsverkoyen/css-to-inline-styles)       2.4.0           BSD-3-Clause
+PHP dotenv (vlucas/phpdotenv)               5.6.3           BSD-3-Clause
+
+JavaScript and CSS packages in the built files (public/build/)
+
+The browser build is made from the source code in resources/ and from npm
+packages. package-lock.json lists 89 packages for it (the build tools not
+counted): 72 under the MIT License, 12 under the Apache License 2.0, 2 under
+BSD-3-Clause, and Font Awesome Free, tslib and tweetnacl (below). Not every one
+of them ends up in the built files; the @types packages, for example, hold only
+type information. The main ones:
+
+Component                                   Version         License
+React and React DOM                         18.3.1          MIT
+Preact                                      10.29.1         MIT
+Bootstrap                                   5.3.8           MIT
+React Bootstrap                             2.10.10         MIT
+Popper (@popperjs/core)                     2.11.8          MIT
+Alpine.js                                   3.15.11         MIT
+Chart.js                                    4.5.1           MIT
+TanStack Query (@tanstack/react-query)      5.99.2          MIT
+i18next, react-i18next, i18next-icu         23.16.8, 14.1.3, 2.4.3   MIT
+Laravel Echo                                1.19.0          MIT
+Pusher JS (pusher-js)                       7.6.0           MIT
+Cropper.js (cropperjs)                      1.6.2           MIT
+SortableJS and react-sortablejs             1.15.7, 6.1.4   MIT
+Resumable.js (resumablejs)                  1.1.0           MIT
+Zod, Zustand, Immer                         3.25.76, 5.0.12, 10.2.0   MIT
+hls.js                                      1.6.16          Apache-2.0
+Tom Select                                  2.6.0           Apache-2.0
+React Aria, React Stately                   3.48.0, 3.46.0  Apache-2.0
+intl-messageformat                          11.2.1          BSD-3-Clause
+react-transition-group                      4.4.5           BSD-3-Clause
+tslib                                       2.8.1           0BSD
+tweetnacl                                   1.0.3           Unlicense
+Font Awesome Free (@fortawesome/fontawesome-free)  6.7.2    icons CC BY 4.0, fonts SIL OFL 1.1,
+                                                            code MIT
+
+Other third-party files in this package
+
+Font Awesome Free fonts      resources/admin/lib/fa-brands.woff, fa-regular.woff and fa-solid.woff (the
+                             icon fonts of the admin): SIL Open Font License 1.1. The built copies in
+                             public/build/assets/ (fa-*.woff, .woff2, .ttf) come from the same package.
+normalize.css 8.0.1          resources/sass/normalize.scss (built into public/build/): MIT License
+                             (github.com/necolas/normalize.css); the file keeps its notice line.
+Bootstrap 3.4.1              public/css/pdf.min.css and css/pdf.min.css (the style of the invoice PDFs):
+                             a build of Bootstrap 3.4.1 (Copyright 2011-2019 Twitter, Inc., MIT License)
+                             with normalize.css 3.0.3 (MIT License); the file keeps their notice lines.
+Laravel Horizon files        public/vendor/horizon/: the published browser files of laravel/horizon (MIT).
+Log Viewer files             public/vendor/log-viewer/: the published browser files of
+                             opcodesio/log-viewer (MIT); app.js.LICENSE.txt in that folder names the
+                             licenses of the code bundled in app.js.
+Umami tracker script         public/vendor/umami/script.js: the tracker script of the Umami web analytics
+                             project (https://github.com/umami-software/umami). The file carries no
+                             license line of its own; see that project for its license.
+Contributor Covenant 2.1     .github/CODE_OF_CONDUCT.md is adapted from it (CC BY 4.0,
+                             https://www.contributor-covenant.org).
+
+The fonts of the themes are not in this package: the pages load them from
+Google Fonts (fonts.googleapis.com).
+
+
+FFmpeg (full release package only)
+----------------------------------
+
+The full release package (avdbcms-X.Y.Z.zip) contains ready-built FFmpeg
+programs in bin/. AVDBCMS runs them as separate programs. They are licensed
+under the GNU General Public License, version 3, and their license and readme
+files stay next to them:
+
+Folder            What it holds                                   License file
+bin/linux-x64/    ffmpeg, ffprobe: static build of FFmpeg 7.0.2   GPLv3.txt, readme.txt
+                  (ffmpeg-7.0.2-amd64-static) by John Van Sickle,
+                  https://johnvansickle.com/ffmpeg/
+bin/linux-arm64/  ffmpeg, ffprobe: static build of FFmpeg 7.0.2   GPLv3.txt, readme.txt
+                  (ffmpeg-7.0.2-arm64-static) by John Van Sickle
+bin/windows/      ffmpeg.exe, ffprobe.exe, ffplay.exe and the     LICENSE.txt
+                  FFmpeg DLL files: FFmpeg build
+                  N-124319-gb801f1fe6d-20260503 (git revision
+                  b801f1fe6d), configured with --enable-gpl and
+                  --enable-version3
+
+The readme.txt files list the libraries built into the Linux programs and their
+versions. Source code: the FFmpeg project publishes the source code of FFmpeg,
+both release 7.0.2 and the git revision named above, at
+https://ffmpeg.org/download.html. bin/README.md explains how AVDBCMS finds
+these programs. The update package (avdbcms-update-X.Y.Z.zip) does not contain
+bin/, and the source code repository holds only bin/README.md there.

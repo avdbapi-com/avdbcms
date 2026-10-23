@@ -1,0 +1,77 @@
+<?php
+
+namespace App\Http\Resources;
+
+use App\Models\Comment;
+use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Http\Request;
+
+/**
+ * @mixin Comment
+ */
+class CommentResource extends JsonResource
+{
+    public static $wrap = null;
+
+    /**
+     * Transform the resource into an array.
+     *
+     * @param Request $request
+     * @return array<string, mixed>
+     */
+    public function toArray(Request $request) : array
+    {
+        return [
+            'id' => $this->id,
+            'class' => Comment::class,
+            'content' => $this->content,
+            'parsed_content' => nl2br($this->parsed_content),
+            'short_content' => nl2br($this->short_content),
+            'is_long' => $this->is_long,
+            'user' => [
+                'id' => $this->user?->id,
+                'username' => $this->user?->username ?? __('Deleted user'),
+                'avatar' => $this->user?->avatar_url,
+                'route' => $this->user?->route,
+                'is_video_author' => $this->user && $this->video?->user ? $this->video->user->is($this->user) : false
+            ],
+            'video_uuid' => $this->video?->uuid,
+            'created_at' => $this->created_at,
+            'is_updated' => $this->is_updated,
+            'likes_count' => $this->likes_count,
+            'dislikes_count' => $this->dislikes_count,
+            $this->mergeWhen(Auth::check(), [
+                'liked_by_auth_user' => $this->resource->liked_by_auth_user,
+                'disliked_by_auth_user' => $this->resource->disliked_by_auth_user,
+                'can_delete' => Auth::user()?->can('delete', $this->resource),
+                'can_update' => Auth::user()?->can('update', $this->resource),
+                'can_report' => Auth::user()?->can('report', $this->resource),
+                'can_pin' => Auth::user()?->can('pin', $this->resource)
+            ]),
+            'is_reply' => $this->is_reply,
+            'parent_id' => $this->whenNotNull($this->parent_id),
+            $this->mergeWhen(!$this->is_reply, [
+                'is_pinned' => $this->is_pinned,
+                'has_replies' => $this->resource->total_replies > 0,
+                'replies_count' => $this->resource->total_replies,
+                'is_video_author_reply' => $this->resource->is_video_author_reply,
+                'is_video_author_like' => $this->resource->is_video_author_like,
+                $this->mergeWhen(($this->is_pinned || $this->resource->is_video_author_reply || $this->resource->is_video_author_like), [
+                    'video_author' => [
+                        'username' => $this->video?->user?->username ?? __('Deleted user'),
+                        'avatar' => $this->video?->user?->avatar_url,
+                    ]
+                ])
+            ]),
+            'reported_at' => $this->when($this->resource->reportByAuthUser, fn() => $this->reportByAuthUser->created_at->diffForHumans()),
+            'replies' => $this->when(!$this->is_reply && $this->resource->total_replies > 0, function () {
+                return [
+                    'data' => CommentResource::collection($this->replies),
+                    'next_page' => $this->when($this->replies->count() < $this->resource->total_replies, 2, null),
+                    'total' => $this->resource->total_replies
+                ];
+            }),
+        ];
+    }
+}

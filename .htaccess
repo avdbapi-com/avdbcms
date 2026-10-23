@@ -1,0 +1,56 @@
+# AVDBCMS root .htaccess fallback for Apache and LiteSpeed.
+#
+# Best production setup:
+#   Point the domain document root to the public/ directory.
+#
+# Shared-host fallback:
+#   If the panel only lets you upload into public_html and cannot point the
+#   domain to public/, this file forwards requests to public/. Nginx, Caddy,
+#   and IIS do not read .htaccess; use docs/server-configs instead.
+#
+# Nginx (aaPanel/CyberPanel/etc.) does not read .htaccess. The root index.php
+# can forward requests that reach PHP, but clean URLs still need try_files.
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Prevent loop once request is rewritten to public/
+    RewriteRule ^public/ - [L]
+
+    # Public-disk files (Storage::url() => /storage/...). They live in
+    # storage/app/public and are reached through the public/storage symlink made
+    # by `php artisan storage:link`. If that symlink is missing (PHP symlink() is
+    # disabled on many panels) the rewritten path matches no file, falls through
+    # public/index.php and Laravel streams the file itself (route storage.fallback).
+    # Nothing else under storage/ is reachable: a path that does not exist under
+    # storage/app/public ends as an application 404.
+    RewriteRule ^storage/(.+)$ public/storage/$1 [L,QSA]
+
+    # Published package assets (Horizon, Log Viewer, Umami: the vendor:publish
+    # target) live in public/vendor. The composer vendor/ source tree is never
+    # served: the request is rewritten into public/, where a missing file ends
+    # as an application 404, and PHP files are refused outright.
+    RewriteRule ^vendor/.*\.php$ - [F,L]
+    RewriteRule ^vendor/(.+)$ public/vendor/$1 [L,QSA]
+
+    # Block access to sensitive files/directories
+    RewriteRule ^\.env - [F,L]
+    RewriteRule ^\.git - [F,L]
+    RewriteRule ^vendor/ - [F,L]
+    RewriteRule ^config/ - [F,L]
+    RewriteRule ^database/ - [F,L]
+    RewriteRule ^resources/ - [F,L]
+    RewriteRule ^routes/ - [F,L]
+    RewriteRule ^storage/ - [F,L]
+    RewriteRule ^artisan - [F,L]
+    RewriteRule ^composer\. - [F,L]
+    RewriteRule ^node_modules/ - [F,L]
+
+    # Keep index.php-style URLs working when the panel cannot use clean URLs.
+    # /index.php/install -> /public/install -> public/.htaccess -> public/index.php
+    RewriteRule ^index\.php/?(.*)$ public/$1 [L,QSA]
+
+    # Forward everything to public/
+    RewriteCond %{REQUEST_URI} !^/public/
+    RewriteRule ^(.*)$ public/$1 [L,QSA]
+</IfModule>

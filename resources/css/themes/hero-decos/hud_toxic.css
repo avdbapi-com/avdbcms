@@ -1,0 +1,54 @@
+/* Hero decoration hud_toxic (Phase B): ships at the end of the token file of the theme whose recipe names it
+   (php artisan avd:themes:build), so it loads with that theme only. Every rule is keyed
+   html[data-avd-hero-deco="hud_toxic"][data-avd-theme] (App\Support\ThemeTokens::heroDecoProblems). */
+html[data-avd-hero-deco="hud_toxic"][data-avd-theme] .avd-hud .avd-panel {
+    clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px);
+}
+html[data-avd-hero-deco="hud_toxic"][data-avd-theme] .avd-hud .avd-feat {
+    clip-path: polygon(0 0, calc(100% - 22px) 0, 100% 22px, 100% 100%, 22px 100%, 0 calc(100% - 22px));
+}
+html[data-avd-hero-deco="hud_toxic"][data-avd-theme] .avd-hazard {
+    height: 8px;
+    background: repeating-linear-gradient(-45deg, var(--avd-accent-fill) 0 8px, var(--avd-pop-ink) 8px 16px);
+    margin-bottom: 8px;
+}
+@media (min-width: 992px) {
+    html[data-avd-hero-deco="hud_toxic"][data-avd-theme] .avd-hud {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 10px;
+    }
+    html[data-avd-hero-deco="hud_toxic"][data-avd-theme] .avd-hud .avd-feat {
+        aspect-ratio: 21 / 6.2;
+    }
+    html[data-avd-hero-deco="hud_toxic"][data-avd-theme] .avd-hud .avd-panel {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr)) auto;
+        align-items: center;
+        gap: 0 14px;
+        padding: 10px 16px;
+    }
+    html[data-avd-hero-deco="hud_toxic"][data-avd-theme] .avd-hud .avd-panel h4 {
+        grid-column: 1 / -1;
+        margin-bottom: 2px;
+    }
+    html[data-avd-hero-deco="hud_toxic"][data-avd-theme] .avd-hud .avd-drow {
+        flex-direction: column;
+        gap: 2px;
+        min-width: 0;
+        padding-block: 2px;
+        padding-inline: 12px 0;
+        border-bottom: 0;
+        border-inline-start: 1px dashed var(--avd-border);
+    }
+    html[data-avd-hero-deco="hud_toxic"][data-avd-theme] .avd-hud .avd-drow b {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    html[data-avd-hero-deco="hud_toxic"][data-avd-theme] .avd-hud .avd-hbtns {
+        margin-top: 0;
+    }
+    html[data-avd-hero-deco="hud_toxic"][data-avd-theme] .avd-hud .avd-mini {
+        display: none;
+    }
+}

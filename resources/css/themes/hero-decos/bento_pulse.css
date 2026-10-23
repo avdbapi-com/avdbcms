@@ -1,0 +1,32 @@
+/* Hero decoration bento_pulse (Phase B): ships at the end of the token file of the theme whose recipe names it
+   (php artisan avd:themes:build), so it loads with that theme only. Every rule is keyed
+   html[data-avd-hero-deco="bento_pulse"][data-avd-theme] (App\Support\ThemeTokens::heroDecoProblems). */
+html[data-avd-hero-deco="bento_pulse"][data-avd-theme] .avd-bt {
+    border-radius: 4px;
+    clip-path: polygon(0 0, calc(100% - 22px) 0, 100% 22px, 100% 100%, 0 100%);
+    border: 0;
+    border-top: 5px solid var(--avd-brand-fill);
+}
+html[data-avd-hero-deco="bento_pulse"][data-avd-theme] .avd-bt:nth-child(2),
+html[data-avd-hero-deco="bento_pulse"][data-avd-theme] .avd-bt:nth-child(4) {
+    border-top-color: var(--avd-brand-2-fill);
+}
+html[data-avd-hero-deco="bento_pulse"][data-avd-theme] .avd-bt .avd-cap2 .avd-htitle {
+    font-style: italic;
+}
+html[data-avd-hero-deco="bento_pulse"][data-avd-theme][dir="rtl"] .avd-bt {
+    clip-path: polygon(0 22px, 22px 0, 100% 0, 100% 100%, 0 100%);
+}
+@media (min-width: 768px) {
+    html[data-avd-hero-deco="bento_pulse"][data-avd-theme] .avd-bento {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        grid-template-rows: 250px 150px;
+    }
+    html[data-avd-hero-deco="bento_pulse"][data-avd-theme] .avd-bento > .avd-bt.big {
+        grid-column: 1 / span 3;
+        grid-row: 1;
+    }
+    html[data-avd-hero-deco="bento_pulse"][data-avd-theme] .avd-bento > .avd-bt.wide {
+        grid-column: span 3;
+    }
+}

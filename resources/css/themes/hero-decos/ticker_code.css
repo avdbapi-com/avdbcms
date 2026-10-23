@@ -1,0 +1,36 @@
+/* Hero decoration ticker_code (Phase B): ships at the end of the token file of the theme whose recipe names it
+   (php artisan avd:themes:build), so it loads with that theme only. Every rule is keyed
+   html[data-avd-hero-deco="ticker_code"][data-avd-theme] (App\Support\ThemeTokens::heroDecoProblems). */
+html[data-avd-hero-deco="ticker_code"][data-avd-theme] .avd-tkp {
+    border-radius: 6px;
+    padding: 0;
+    overflow: hidden;
+}
+html[data-avd-hero-deco="ticker_code"][data-avd-theme] .avd-tkp-h {
+    background: var(--avd-bg-2);
+    padding: 10px 14px;
+    margin: 0;
+    font-family: var(--avd-font-display);
+    text-transform: none;
+    letter-spacing: 0;
+    font-weight: 500;
+    border-bottom: 1px solid var(--avd-border);
+}
+html[data-avd-hero-deco="ticker_code"][data-avd-theme] .avd-tkr {
+    background: transparent;
+    margin: 0;
+    border-radius: 0;
+    padding-block: 8px;
+    padding-inline: 0 14px;
+}
+html[data-avd-hero-deco="ticker_code"][data-avd-theme] .avd-tkr .avd-rk {
+    font: 500 12.5px/1 var(--avd-font-display);
+    color: var(--avd-muted);
+    width: 34px;
+}
+html[data-avd-hero-deco="ticker_code"][data-avd-theme] .avd-tkr .avd-tx span .avd-n {
+    color: var(--avd-x-syn-number);
+}
+html[data-avd-hero-deco="ticker_code"][data-avd-theme] .avd-tkr .avd-tx span .avd-f {
+    color: var(--avd-x-syn-func);
+}

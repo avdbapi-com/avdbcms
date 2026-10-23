@@ -1,0 +1,1113 @@
+:root {
+    // Shared geometry tokens keep the shell legible from phones through living-room
+    // displays without changing any preset's colour language.
+    --avd-header-height: 64px;
+    --avd-page-gutter: clamp(0.75rem, 1.5vw, 2.5rem);
+    --avd-content-max: 2400px;
+    --avd-touch-target: 44px;
+    --avd-brand-gradient: linear-gradient(135deg, var(--avd-brand), var(--avd-brand-2));
+    --avd-brand-contrast: var(--avd-on-brand);
+    --avd-radius-pill: 999px;
+    --avd-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+    --avd-ease-snap: cubic-bezier(0.16, 1, 0.3, 1);
+    --avd-motion-fast: 160ms;
+    --avd-motion-med: 260ms;
+    --avd-motion-slow: 520ms;
+    --avd-radius-control: 12px;
+    --avd-radius-card: 18px;
+    --avd-radius-panel: 22px;
+    --avd-radius-media: 16px;
+    --avd-radius-frame: 18px;
+    --avd-ring-brand: 0 0 0 1px rgba(var(--avd-brand-rgb), 0.18), 0 0 0 5px var(--avd-brand-soft);
+    --avd-glow-brand: 0 14px 34px rgba(var(--avd-brand-rgb), 0.28);
+    --avd-glow-cyan: 0 14px 34px rgba(var(--avd-cyan-rgb), 0.20);
+    --avd-scroll-ratio: 0;
+}
+
+html[data-bs-theme="light"] {
+    color-scheme: light;
+}
+
+html[data-bs-theme="dark"] {
+    color-scheme: dark;
+}
+
+// radius_scale and surface_style act on the theme tokens (layout-theme-a.css); the control and frame
+// radii below are what the hands-off player (its controls and frame) and every dropdown menu keep.
+html[data-avd-radius="compact"] {
+    --avd-radius-control: 8px;
+    --avd-radius-frame: 12px;
+}
+
+html[data-avd-radius="rounded"] {
+    --avd-radius-control: 16px;
+    --avd-radius-frame: 24px;
+}
+
+html[data-avd-density="compact"] {
+    --avd-density-pad: 0.82;
+    --avd-density-gap: 0.82;
+}
+
+html[data-avd-density="relaxed"] {
+    --avd-density-pad: 1.16;
+    --avd-density-gap: 1.18;
+}
+
+html[data-avd-motion="reduced"] {
+    --avd-motion-fast: 110ms;
+    --avd-motion-med: 170ms;
+    --avd-motion-slow: 260ms;
+}
+
+/* html[data-avd-motion="off"] universal (*) rules now live in the layout's inline
+   <style>, emitted only when motion_level is 'off' (@if($motionLevel === 'off')),
+   so default pages no longer test a universal selector on every style recalc. */
+
+// Each control takes its own theme radius (buttons, chips, fields; a field's radius is capped at half
+// its height so a pill input never turns a textarea into an oval). Without a theme file, and inside
+// the player block, they fall back to the control radius.
+html[data-avd-radius] .btn {
+    border-radius: var(--avd-radius-button, var(--avd-radius-control)) !important;
+}
+
+html[data-avd-radius] .avd-tag {
+    border-radius: var(--avd-radius-chip, var(--avd-radius-control)) !important;
+}
+
+html[data-avd-radius] .form-control,
+html[data-avd-radius] .form-select,
+html[data-avd-radius] .avd-footer-select {
+    border-radius: var(--avd-radius-field, var(--avd-radius-control)) !important;
+}
+
+html[data-avd-radius] .dropdown-menu,
+html[data-avd-radius] .avd-player-control {
+    border-radius: var(--avd-radius-control) !important;
+}
+
+html[data-avd-radius] .card,
+html[data-avd-radius] .avd-section-card,
+html[data-avd-radius] .avd-empty-state,
+html[data-avd-radius] .avd-error-state,
+html[data-avd-radius] .shortcuts-panel {
+    border-radius: var(--avd-radius-panel) !important;
+}
+
+html[data-avd-radius] .modal-content,
+html[data-avd-radius] .avd-channel-card,
+html[data-avd-radius] .avd-video-card {
+    border-radius: var(--avd-radius-card) !important;
+}
+
+html[data-avd-radius] .avd-player-frame {
+    border-radius: var(--avd-radius-frame) !important;
+}
+
+html[data-avd-radius] .avd-thumb,
+html[data-avd-radius] .avd-placeholder-thumb,
+html[data-avd-radius] .suggested_video.avd-related-card .avd-thumb {
+    border-radius: var(--avd-radius-media) !important;
+}
+
+.avd-scroll-progress {
+    position: fixed;
+    top: 0;
+    inset-inline-start: 0;
+    z-index: 1040;
+    width: 100%;
+    height: 3px;
+    background: linear-gradient(90deg, var(--avd-brand), var(--avd-brand-2), var(--avd-cyan));
+    box-shadow: 0 0 18px rgba(var(--avd-brand-rgb), 0.38);
+    opacity: 0;
+    pointer-events: none;
+    transform: scaleX(0);
+    transform-origin: left center;
+}
+
+/* Scroll progress on a CSS scroll timeline (motion/scrollChrome.ts sets [data-avd-timeline]
+   only where scroll-driven animations exist and CSS animations are on, and only while the page
+   is scrolled: at the top the bar is invisible, and so needs no animation): the compositor
+   drives it and no script runs per scroll frame. Same output as the script fallback:
+   scaleX = scroll ratio, opacity 0 up to a 1.2% ratio, then 1. The keyframe name must stay
+   out of the motion scheduler's decorative list: a [data-avd-deco] host is paused by the
+   motion gate (off-screen, touch scroll, playback), which would freeze the bar. */
+@supports (animation-timeline: scroll()) {
+    .avd-scroll-progress[data-avd-timeline] {
+        animation: avd-scroll-progress linear both;
+        animation-timeline: scroll(root block);
+    }
+}
+
+@keyframes avd-scroll-progress {
+    0% {
+        opacity: 0;
+        transform: scaleX(0);
+    }
+
+    1.2% {
+        opacity: 0;
+        animation-timing-function: step-start;
+    }
+
+    100% {
+        opacity: 1;
+        transform: scaleX(1);
+    }
+}
+
+.btn,
+.avd-icon-button,
+.avd-sidebar-toggle,
+.avd-avatar-button,
+.avd-tag,
+.avd-sidebar-link,
+.avd-social-btn,
+.avd-player-control,
+.avd-action-pill,
+.avd-meta-chip,
+.avd-status-chip,
+.back-to-top {
+    position: relative;
+    overflow: hidden;
+    /* Stacking context for the ::before (z 0) / children (z 1) / ::after (z -1)
+       layering, without a permanent compositor layer (was translateZ(0)). */
+    isolation: isolate;
+    transition:
+        transform var(--avd-motion-med) var(--avd-ease-out),
+        box-shadow var(--avd-motion-med) var(--avd-ease-out),
+        border-color var(--avd-motion-fast) ease,
+        background-color var(--avd-motion-fast) ease,
+        color var(--avd-motion-fast) ease,
+        opacity var(--avd-motion-fast) ease;
+}
+
+.btn::before,
+.avd-icon-button::before,
+.avd-tag::before,
+.avd-sidebar-link::before,
+.avd-social-btn::before,
+.avd-player-control::before,
+.back-to-top::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    background: linear-gradient(120deg, transparent 0%, rgba(255, 255, 255, 0.26) 45%, transparent 72%);
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(-135%);
+    transition: opacity var(--avd-motion-fast) ease, transform 620ms var(--avd-ease-out);
+}
+
+.btn > *,
+.avd-icon-button > *,
+.avd-tag > *,
+.avd-sidebar-link > *,
+.avd-social-btn > *,
+.avd-player-control > *,
+.back-to-top > * {
+    position: relative;
+    z-index: 1;
+}
+
+.btn:hover::before,
+.avd-icon-button:hover::before,
+.avd-tag:hover::before,
+.avd-sidebar-link:hover::before,
+.avd-social-btn:hover::before,
+.avd-player-control:hover::before,
+.back-to-top:hover::before {
+    opacity: 1;
+    transform: translateX(135%);
+}
+
+.btn:hover,
+.avd-icon-button:hover,
+.avd-sidebar-toggle:hover,
+.avd-avatar-button:hover,
+.avd-social-btn:hover,
+.avd-player-control:hover,
+.back-to-top:hover {
+    transform: translateY(-2px);
+}
+
+.btn:active,
+.avd-icon-button:active,
+.avd-sidebar-toggle:active,
+.avd-social-btn:active,
+.avd-player-control:active,
+.back-to-top:active {
+    transform: translateY(0) scale(0.97);
+}
+
+.back-to-top:not(.visible) {
+    /* 2D form of the old translate3d(): same pixels, no permanent compositor layer
+       while the button waits hidden at the top of every page. */
+    transform: translate(0, 14px) scale(0.92);
+}
+
+.back-to-top {
+    position: fixed;
+    inset-inline-end: 1.25rem;
+    inset-inline-end: calc(1rem + env(safe-area-inset-right, 0px));
+    left: auto !important;
+    bottom: 1.25rem;
+    bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+}
+
+.back-to-top.visible {
+    transform: none;
+}
+
+.back-to-top.visible:hover {
+    transform: translateY(-2px);
+}
+
+.btn i,
+.avd-icon-button i,
+.avd-sidebar-toggle i,
+.avd-tag i,
+.avd-sidebar-link i,
+.avd-player-control i,
+.avd-social-btn i,
+.avd-action-pill i,
+.avd-meta-chip i,
+.avd-status-chip i,
+.back-to-top i {
+    transform-origin: center;
+    transition: transform var(--avd-motion-med) var(--avd-ease-snap), color var(--avd-motion-fast) ease, opacity var(--avd-motion-fast) ease;
+}
+
+.btn:hover i,
+.avd-icon-button:hover i,
+.avd-sidebar-toggle:hover i,
+.avd-tag:hover i,
+.avd-sidebar-link:hover i,
+.avd-player-control:hover i,
+.avd-social-btn:hover i,
+.avd-action-pill:hover i,
+.avd-meta-chip:hover i,
+.avd-status-chip:hover i,
+.back-to-top:hover i {
+    transform: translateY(-1px) scale(1.12);
+}
+
+.btn-primary,
+.avd-tag.active,
+.back-to-top {
+    isolation: isolate;
+}
+
+.btn-primary::after,
+.avd-tag.active::after,
+.back-to-top::after {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    z-index: -1;
+    border-radius: inherit;
+    background: linear-gradient(90deg, var(--avd-brand), var(--avd-brand-2), var(--avd-cyan), var(--avd-brand));
+    background-size: 260% 100%;
+    opacity: 0;
+    filter: blur(14px);
+    transition: opacity var(--avd-motion-med) ease;
+    /* The glow sits at opacity 0 at rest, so an always-running background-position
+       loop never painted a visible pixel; it now runs only while hovered. */
+    animation: none;
+}
+
+.btn-primary:hover::after,
+.avd-tag.active:hover::after,
+.back-to-top:hover::after {
+    opacity: 0.45;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    /* With liquid shimmer on, the layout resets .btn-primary::after's background-size,
+       so the shift could never change a pixel there. */
+    html:not([data-avd-liquid-shimmer="on"]) .btn-primary:hover::after,
+    .avd-tag.active:hover::after,
+    .back-to-top:hover::after {
+        animation: avd-gradient-shift 7s ease infinite;
+    }
+}
+
+.avd-brand-mark {
+    position: relative;
+    overflow: hidden;
+    transition: transform var(--avd-motion-med) var(--avd-ease-out), box-shadow var(--avd-motion-med) var(--avd-ease-out), filter var(--avd-motion-med) ease;
+}
+
+.avd-brand-mark::after {
+    content: "";
+    position: absolute;
+    inset: -40%;
+    background: conic-gradient(from 180deg, transparent, rgba(255, 255, 255, 0.48), transparent 38%);
+    opacity: 0;
+    transform: rotate(-35deg);
+    transition: opacity var(--avd-motion-med) ease, transform 720ms var(--avd-ease-out);
+}
+
+.navbar-brand.avd-brand:hover .avd-brand-mark {
+    transform: translateY(-1px) rotate(-3deg) scale(1.04);
+    filter: saturate(1.08);
+    box-shadow: var(--avd-glow-brand);
+}
+
+.navbar-brand.avd-brand:hover .avd-brand-mark::after {
+    opacity: 1;
+    transform: rotate(55deg);
+}
+
+.avd-header {
+    transition: box-shadow var(--avd-motion-med) ease, background-color var(--avd-motion-med) ease, border-color var(--avd-motion-med) ease;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+}
+
+.avd-header.avd-header-elevated {
+    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.10);
+}
+
+[data-bs-theme="dark"] .avd-header {
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.22);
+}
+
+[data-bs-theme="dark"] .avd-header.avd-header-elevated {
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.34);
+}
+
+.avd-search-wrap .input-group {
+    transition:
+        transform var(--avd-motion-med) var(--avd-ease-out),
+        border-color var(--avd-motion-fast) ease,
+        box-shadow var(--avd-motion-med) ease,
+        background-color var(--avd-motion-fast) ease;
+}
+
+.avd-search-wrap:focus-within .input-group {
+    transform: translateY(-1px);
+}
+
+.avd-search-wrap .btn:hover i {
+    transform: scale(1.16) rotate(-8deg);
+}
+
+.avd-search-results {
+    transform-origin: top center;
+    animation: avd-popover-in 220ms var(--avd-ease-out) both;
+}
+
+.avd-search-result {
+    position: relative;
+    overflow: hidden;
+}
+
+.avd-search-result::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 3px;
+    background: linear-gradient(180deg, var(--avd-brand), var(--avd-cyan));
+    opacity: 0;
+    transform: scaleY(0.35);
+    transform-origin: center;
+    transition: opacity var(--avd-motion-fast) ease, transform var(--avd-motion-med) var(--avd-ease-out);
+}
+
+.avd-search-result:hover::before,
+.avd-search-result.selected::before {
+    opacity: 1;
+    transform: scaleY(1);
+}
+
+.avd-search-result:hover .avd-search-thumb img {
+    transform: scale(1.06);
+}
+
+.avd-search-result:hover {
+    transform: translateX(2px);
+}
+
+.avd-home-title,
+.avd-watch-title {
+    background: linear-gradient(90deg, var(--avd-text) 0%, var(--avd-text) 34%, var(--avd-brand-ink, var(--avd-brand-2)) 50%, var(--avd-accent-ink, var(--avd-cyan)) 62%, var(--avd-text) 78%);
+    background-size: 240% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    /* Bounded on every device: background-position over clipped text repaints on the
+       main thread each frame, so an infinite loop kept the page from ever idling.
+       Two sweeps, then it rests on the loop's own first/last frame (fill: both keeps
+       it in effect for the motion scheduler's catch-up pass). */
+    animation: avd-title-sheen 9s ease-in-out 2 both;
+}
+
+/* One-shot replay on hover (fine pointer). The motion scheduler sets
+   [data-avd-replay] on pointer entry and removes it on the replay's own
+   animationend/animationcancel, so leaving early never cuts the sweep off mid-way
+   (a :hover-bound replay was cancelled, and snapped, on mouse-out). The base sheen
+   stays first in the list (same name, same timing), so it is never restarted; the
+   replay is a separate animation. */
+.avd-home-title[data-avd-replay],
+.avd-watch-title[data-avd-replay] {
+    animation:
+        avd-title-sheen 9s ease-in-out 2 both,
+        avd-title-sheen-replay 3.2s ease-in-out 1;
+}
+
+/* Replay when the title comes back into view: the motion scheduler's
+   IntersectionObserver sets [data-avd-offscreen] on decorated hosts that are more than
+   160px outside the viewport; dropping the animation there and re-adding it on
+   re-entry restarts the sweep from its resting frame (no visible jump). Kept after
+   the replay rule (same specificity) so it also cancels a pending replay. */
+.avd-home-title[data-avd-offscreen],
+.avd-watch-title[data-avd-offscreen] {
+    animation-name: none;
+}
+
+.avd-category-tabs {
+    scroll-behavior: smooth;
+}
+
+[data-avd-home-widget] {
+    transform-origin: center;
+    /* No permanent will-change: the reveal runs as a WAAPI animation, which is
+       promoted to the compositor only while it plays. */
+}
+
+html[data-avd-home-widget-motion="off"] [data-avd-home-widget] {
+    opacity: 1 !important;
+    transform: none !important;
+    will-change: auto;
+}
+
+.avd-tag:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--avd-glow-cyan);
+}
+
+.avd-tag.active {
+    /* Bounded on every device (box-shadow is main-thread paint): three pulses, then
+       fill: both holds the loop's resting frame, which is exactly what an
+       always-running pulse showed between beats. */
+    animation: avd-soft-pulse 3.6s ease-in-out 3 both;
+}
+
+/* One pulse per hover (fine pointer) or keyboard focus (:focus-visible), set as
+   [data-avd-replay] by the motion scheduler and cleared when that pulse ends (see the
+   title rule above). The base pulse stays first in the list (same name, same timing),
+   so it is never restarted; a resting pointer does not keep a loop alive. */
+.avd-tag.active[data-avd-replay] {
+    animation:
+        avd-soft-pulse 3.6s ease-in-out 3 both,
+        avd-soft-pulse-replay 3.6s ease-in-out 1;
+}
+
+/* Replay when the chip comes back into view (see the title rule above). Kept after
+   the replay rule so it also cancels a pending replay. */
+.avd-tag.active[data-avd-offscreen] {
+    animation-name: none;
+}
+
+/* Balanced tier (html[data-avd-tier], set by the layout's <head> tier script): one sweep
+   and two pulses instead of two and three (the replays stay one run), and none of it
+   during the boot. Until the page is idle after load (html[data-avd-boot="idle"], set by
+   the same script) the loops hold, paused, on their first frame, which is the same resting
+   frame they end on, so they never compete with the first feed render on a modest device.
+   Rich keeps the rules above; lite and reduced motion run none (layout TIER 2). */
+html[data-avd-tier="balanced"] .avd-home-title,
+html[data-avd-tier="balanced"] .avd-watch-title {
+    animation-iteration-count: 1;
+}
+
+html[data-avd-tier="balanced"] .avd-tag.active {
+    animation-iteration-count: 2, 1;
+}
+
+html[data-avd-tier="balanced"]:not([data-avd-boot="idle"]) .avd-home-title,
+html[data-avd-tier="balanced"]:not([data-avd-boot="idle"]) .avd-watch-title,
+html[data-avd-tier="balanced"]:not([data-avd-boot="idle"]) .avd-tag.active {
+    animation-play-state: paused;
+}
+
+.avd-sidebar-link {
+    isolation: isolate;
+}
+
+.avd-sidebar-link:hover {
+    transform: translateX(4px);
+}
+
+.avd-sidebar-link.menu-selected i {
+    animation: avd-icon-breathe 2.8s ease-in-out infinite;
+}
+
+.avd-video-card,
+.video-card-modern,
+.avd-related-card,
+.avd-channel-card,
+.avd-channel-panel,
+.avd-description-panel,
+.avd-watch-sidebar-panel,
+.avd-mobile-comments,
+.avd-section-card,
+.avd-empty-state,
+.avd-error-state {
+    transition:
+        transform var(--avd-motion-med) var(--avd-ease-out),
+        box-shadow var(--avd-motion-med) var(--avd-ease-out),
+        border-color var(--avd-motion-med) ease,
+        background-color var(--avd-motion-med) ease;
+}
+
+.avd-video-card,
+.video-card-modern,
+.suggested_video.avd-related-card,
+.avd-channel-card,
+.avd-section-card,
+.avd-channel-panel,
+.avd-description-panel,
+.avd-watch-sidebar-panel {
+    position: relative;
+    isolation: isolate;
+}
+
+.avd-video-card::after,
+.video-card-modern::after,
+.suggested_video.avd-related-card::after,
+.avd-channel-card::after,
+.avd-section-card::after,
+.avd-channel-panel::after,
+.avd-description-panel::after,
+.avd-watch-sidebar-panel::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    border-radius: inherit;
+    /* The pointer-following radial hotspot that sat on top of this layer is now .avd-card-hotspot (below). */
+    background: linear-gradient(135deg, transparent 15%, rgba(var(--avd-cyan-rgb), 0.08), transparent 58%);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--avd-motion-med) ease;
+}
+
+.avd-video-card > *,
+.video-card-modern > *,
+.suggested_video.avd-related-card > *,
+.avd-channel-card > *,
+.avd-section-card > *,
+.avd-channel-panel > *,
+.avd-description-panel > *,
+.avd-watch-sidebar-panel > * {
+    position: relative;
+    z-index: 1;
+}
+
+.avd-spotlight-active::after {
+    opacity: 1;
+}
+
+/* Pointer effect hosts (resources/js/motion/pointerFx.ts: rich tier, hovering fine pointer). Each effect is the
+   radial gradient of a host that covers the card (inset 0, the card's radius), centred by --avd-fx-x/--avd-fx-y,
+   which the script writes on the host itself: only that leaf restyles, and it repaints inside the card's own
+   layer. No compositor layer or clip of their own: under a software compositor (no GPU acceleration) moving
+   500-600px layers through rounded clips cost more per frame than this repaint. The hosts keep the stacking of
+   the gradients they replace: the hover hotspot (formerly the radial layer of the ::after above) under the card
+   content, the spotlight (z 2) and the tilt glare (z 5) over it. The server card template renders the spotlight
+   and glare hosts; the script adds the others on the first hover. Where no script runs (balanced and lite
+   tiers, touch), the hosts keep their centred defaults, the static hover gradients the old rules fell back to
+   there. Admin pages keep the old var()-positioned .avd-card-spotlight rules (layout) for the Theme Studio
+   previews. */
+body:not(.avd-admin) .avd-card-spotlight,
+body:not(.avd-admin) .avd-card-hotspot,
+html[data-avd-tilt-3d="on"] body:not(.avd-admin) .avd-card-glare {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+}
+
+body:not(.avd-admin) .avd-card-hotspot {
+    z-index: 0;
+    background: radial-gradient(circle at var(--avd-fx-x, 50%) var(--avd-fx-y, 50%), rgba(var(--avd-brand-rgb), 0.18), transparent 34%);
+    opacity: 0;
+    transition: opacity var(--avd-motion-med) ease;
+}
+
+body:not(.avd-admin) .avd-card-spotlight {
+    z-index: 2;
+}
+
+/* The 350px primary spotlight of the old [data-avd-card-spotlight="on"] rule, centred on the pointer. */
+html[data-avd-card-spotlight="on"] body:not(.avd-admin) .avd-card-spotlight {
+    background: radial-gradient(350px circle at var(--avd-fx-x, 50%) var(--avd-fx-y, 50%), rgba(var(--avd-primary-rgb, 255, 61, 97), 0.16), transparent 70%);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+html[data-avd-tilt-3d="on"] body:not(.avd-admin) .avd-card-glare {
+    z-index: 5;
+    background: radial-gradient(circle at var(--avd-fx-x, 50%) var(--avd-fx-y, 50%), rgba(255, 255, 255, 0.22) 0%, transparent 60%);
+    opacity: 0;
+    transition: opacity 0.25s ease;
+}
+
+html[data-avd-card-spotlight="on"] .avd-video-card:hover > .avd-card-spotlight,
+html[data-avd-card-spotlight="on"] .avd-bento-card:hover > .avd-card-spotlight,
+html[data-avd-card-spotlight="on"] .studio-preview-card:hover > .avd-card-spotlight,
+html[data-avd-card-spotlight="on"] .studio-card-preview:hover > .avd-card-spotlight,
+html[data-avd-tilt-3d="on"] .avd-video-card:hover > .avd-card-glare,
+body:not(.avd-admin) .avd-spotlight-active > .avd-card-hotspot {
+    opacity: 1;
+}
+
+.avd-video-card:hover,
+.video-card-modern:hover,
+.avd-channel-card:hover,
+.avd-channel-panel:hover,
+.avd-description-panel:hover,
+.avd-watch-sidebar-panel:hover {
+    transform: translateY(-3px);
+}
+
+.avd-video-card:hover .avd-thumb,
+.video-card-modern:hover .thumbnail-hover-container,
+.suggested_video.avd-related-card:hover .avd-thumb {
+    box-shadow: 0 18px 44px rgba(16, 24, 40, 0.18), 0 0 0 1px rgba(var(--avd-brand-rgb), 0.16);
+}
+
+.avd-thumb,
+.thumbnail-hover-container {
+    isolation: isolate;
+    transition: box-shadow var(--avd-motion-med) var(--avd-ease-out), transform var(--avd-motion-med) var(--avd-ease-out);
+}
+
+.avd-thumb::before,
+.thumbnail-hover-container::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    background:
+        linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.20) 48%, transparent 72%),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent 38%);
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(-120%);
+    transition: opacity var(--avd-motion-fast) ease, transform 720ms var(--avd-ease-out);
+}
+
+.avd-video-card:hover .avd-thumb::before,
+.video-card-modern:hover .thumbnail-hover-container::before,
+.suggested_video.avd-related-card:hover .avd-thumb::before {
+    opacity: 1;
+    transform: translateX(120%);
+}
+
+.avd-duration {
+    transition: transform var(--avd-motion-med) var(--avd-ease-out), background-color var(--avd-motion-fast) ease, box-shadow var(--avd-motion-med) ease;
+}
+
+.avd-video-card:hover .avd-duration,
+.suggested_video.avd-related-card:hover .avd-duration {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 18px rgba(var(--avd-shade-rgb, 0, 0, 0), 0.28);
+}
+
+.avd-channel-avatar,
+.channel-avatar,
+.avd-channel-card-avatar {
+    transition: transform var(--avd-motion-med) var(--avd-ease-out), box-shadow var(--avd-motion-med) var(--avd-ease-out), border-color var(--avd-motion-fast) ease;
+}
+
+.avd-video-card:hover .avd-channel-avatar,
+.video-card-modern:hover .channel-avatar,
+.avd-channel-card:hover .avd-channel-card-avatar {
+    transform: translateY(-1px) scale(1.04);
+    border-color: var(--avd-brand);
+    box-shadow: 0 12px 28px rgba(var(--avd-brand-rgb), 0.20);
+}
+
+.avd-video-title,
+.avd-related-title,
+.avd-channel-name,
+.avd-footer-col a,
+.avd-footer-bottom-links a {
+    transition: color var(--avd-motion-fast) ease, transform var(--avd-motion-med) var(--avd-ease-out);
+}
+
+.avd-footer-col a,
+.avd-footer-bottom-links a {
+    display: inline-flex;
+}
+
+.avd-video-card:hover .avd-video-title,
+.suggested_video.avd-related-card:hover .avd-related-title {
+    color: var(--avd-brand-ink);
+}
+
+.avd-player-frame {
+    position: relative;
+    transition: transform var(--avd-motion-med) var(--avd-ease-out), box-shadow var(--avd-motion-slow) var(--avd-ease-out);
+}
+
+.avd-player-frame::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(135deg, rgba(var(--avd-brand-rgb), 0.16), transparent 34%, rgba(var(--avd-cyan-rgb), 0.12));
+    opacity: 0;
+    transition: opacity var(--avd-motion-slow) ease;
+}
+
+.avd-player-frame:hover {
+    box-shadow: 0 26px 82px rgba(0, 0, 0, 0.34), 0 0 0 1px rgba(var(--avd-brand-rgb), 0.18);
+}
+
+.avd-player-frame:hover::after {
+    opacity: 1;
+}
+
+.avd-watch-layout[data-avd-watch-player-style="minimal"] .avd-player-frame:hover {
+    box-shadow: none;
+}
+
+.avd-watch-layout[data-avd-watch-player-style="minimal"] .avd-player-frame::after {
+    display: none;
+}
+
+.avd-watch-layout[data-avd-watch-player-style="soft"] .avd-player-frame:hover {
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.24), 0 0 0 1px rgba(var(--avd-brand-rgb), 0.12);
+}
+
+.avd-action-row .btn:hover,
+.avd-action-row button:hover {
+    box-shadow: var(--avd-glow-cyan);
+}
+
+.modal.show .modal-dialog {
+    animation: avd-modal-in 260ms var(--avd-ease-out) both;
+}
+
+.modal-content {
+    transition: box-shadow var(--avd-motion-med) ease, border-color var(--avd-motion-med) ease;
+}
+
+.modal-content:hover {
+    border-color: rgba(var(--avd-brand-rgb), 0.22);
+    box-shadow: 0 28px 86px rgba(0, 0, 0, 0.28), 0 0 0 1px rgba(var(--avd-brand-rgb), 0.12);
+}
+
+.modal .fa-stack {
+    box-shadow: 0 10px 24px rgba(16, 24, 40, 0.12);
+}
+
+.modal .fa-stack:hover {
+    box-shadow: var(--avd-glow-cyan);
+}
+
+.modal .fa-stack i {
+    transition: transform var(--avd-motion-med) var(--avd-ease-snap);
+}
+
+.modal .fa-stack:hover i {
+    transform: scale(1.1) rotate(-4deg);
+}
+
+.form-control:hover,
+.form-select:hover,
+textarea:hover,
+textarea.form-control:hover {
+    border-color: var(--avd-border-strong);
+}
+
+.form-control:focus,
+.form-select:focus,
+textarea:focus,
+textarea.form-control:focus {
+    transform: translateY(-1px);
+}
+
+.avd-footer {
+    position: relative;
+    overflow: hidden;
+}
+
+.avd-footer::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    /* Keeps the scan above the (now positioned) .avd-footer-accent and still below
+       .avd-footer-inner (z-index 1, later in tree order): the original paint order. */
+    z-index: 1;
+    pointer-events: none;
+    background:
+        linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.12) 48%, transparent 72%),
+        linear-gradient(135deg, rgba(var(--avd-brand-rgb), 0.06), transparent 42%, rgba(var(--avd-cyan-rgb), 0.06));
+    opacity: 0.45;
+    transform: translateX(-80%);
+    animation: avd-surface-scan 14s ease-in-out infinite;
+}
+
+.avd-footer-inner {
+    position: relative;
+    z-index: 1;
+}
+
+.avd-footer-col a:hover,
+.avd-footer-bottom-links a:hover {
+    transform: translateX(3px);
+}
+
+.copy-toast.show {
+    animation: avd-toast-in 260ms var(--avd-ease-out) both;
+}
+
+/* Click burst (motion/pointerFx.ts, rich tier): six rays animated with WAAPI from the click point. */
+.avd-click-burst {
+    position: absolute;
+    z-index: 2;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+}
+
+.avd-click-burst span {
+    position: absolute;
+    top: -1px;
+    left: 0;
+    width: 14px;
+    height: 2px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0.92), rgba(var(--avd-cyan-rgb), 0));
+    box-shadow: 0 0 10px rgba(var(--avd-cyan-rgb), 0.34);
+    rotate: var(--avd-burst-angle);
+    transform-origin: left center;
+}
+
+/* Reveals and image fades run as WAAPI animations (promoted only while they play),
+   so cards, panels and thumbnails no longer hold a permanent will-change layer.
+   The skeleton sweep duration (1.05s) now lives in .avd-placeholder::after (video.scss). */
+
+@keyframes avd-popover-in {
+    0% {
+        opacity: 0;
+        transform: translateY(-8px) scale(0.98);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes avd-modal-in {
+    0% {
+        opacity: 0;
+        transform: translateY(16px) scale(0.97);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+// Rests on the chip's own active shadow (an underline, a hard offset, none...), pulses a soft ring.
+@keyframes avd-soft-pulse {
+    0%,
+    100% {
+        box-shadow: var(--avd-chip-active-shadow, 0 12px 28px rgba(var(--avd-brand-rgb), 0.22));
+    }
+    50% {
+        box-shadow: 0 0 0 5px var(--avd-brand-soft);
+    }
+}
+
+@keyframes avd-icon-breathe {
+    0%,
+    100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.12);
+    }
+}
+
+@keyframes avd-surface-scan {
+    0%,
+    28% {
+        transform: translateX(-86%);
+        opacity: 0;
+    }
+    44% {
+        opacity: 0.48;
+    }
+    64%,
+    100% {
+        transform: translateX(86%);
+        opacity: 0;
+    }
+}
+
+@keyframes avd-title-sheen {
+    0%,
+    24% {
+        background-position: 0% 50%;
+    }
+    52% {
+        background-position: 100% 50%;
+    }
+    100% {
+        background-position: 0% 50%;
+    }
+}
+
+/* Hover / focus replays. Only the peak frame is given: the implicit 0% and
+   100% frames take the underlying value (the base animation's current or resting
+   frame), so a replay starts and ends without a jump. */
+@keyframes avd-title-sheen-replay {
+    50% {
+        background-position: 100% 50%;
+    }
+}
+
+@keyframes avd-soft-pulse-replay {
+    50% {
+        box-shadow: 0 0 0 5px var(--avd-brand-soft);
+    }
+}
+
+@keyframes avd-toast-in {
+    0% {
+        opacity: 0;
+        transform: translate(-50%, 1rem) scale(0.96);
+    }
+    100% {
+        opacity: 1;
+        transform: translate(-50%, 0) scale(1);
+    }
+}
+
+@media (hover: none) {
+    .btn:hover,
+    .avd-icon-button:hover,
+    .avd-sidebar-toggle:hover,
+    .avd-avatar-button:hover,
+    .avd-tag:hover,
+    .avd-sidebar-link:hover,
+    .avd-video-card:hover,
+    .video-card-modern:hover,
+    .avd-channel-panel:hover,
+    .avd-description-panel:hover,
+    .avd-watch-sidebar-panel:hover {
+        transform: none;
+    }
+}
+
+/* Hardware Momentum Scrolling on all horizontal scroll surfaces */
+.avd-category-tabs,
+.avd-slider-track,
+.avd-discovery-track,
+.avd-creator-track,
+.avd-shelf-track,
+.avd-shorts-track,
+.avd-yt-track,
+.avd-cyber-hero-track,
+#avdHeroSliderTrack,
+#category-tabs {
+    -webkit-overflow-scrolling: touch !important;
+    overscroll-behavior-x: contain !important;
+    touch-action: pan-x pan-y !important;
+}
+
+/* Mobile & Touch Performance Boost: 60 FPS Native Touch Physics */
+@media (hover: none) and (pointer: coarse) {
+    .avd-category-tabs,
+    .avd-cinema-tray-track,
+    .avd-shorts-scroll-track,
+    .avd-chips-scroller-wrapper,
+    .avd-shelf-track,
+    .avd-discovery-track,
+    .avd-slider-track,
+    #category-tabs,
+    #avdHeroSliderTrack {
+        scroll-behavior: auto !important;
+    }
+}
+
+/* Containment (no static translateZ(0): content-visibility already gives each card
+   paint containment and its own stacking context; Chrome promotes a card only while
+   it actually animates). */
+.avd-video-card,
+.video-card-modern,
+.avd-discovery-card,
+.avd-cinema-slide,
+.avd-top10-item {
+    content-visibility: auto;
+    contain-intrinsic-size: 320px 240px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .avd-tag.active,
+    .avd-sidebar-link.menu-selected i,
+    .avd-footer::before,
+    .avd-footer-accent::before,
+    .btn-primary::after,
+    .avd-tag.active::after,
+    .back-to-top::after,
+    .avd-home-title,
+    .avd-watch-title {
+        animation: none !important;
+    }
+
+    .avd-scroll-progress {
+        display: none;
+    }
+}
+
+/* Lite tier (html[data-avd-perf="lite"] is the alias of html[data-avd-tier="lite"]): the
+   scroll progress bar is decorative chrome rewritten on every scroll frame. */
+html[data-avd-perf="lite"] .avd-scroll-progress {
+    display: none;
+}
+
+/* ==========================================================================
+   MOTION GATE (perf v2)
+   scrollMotionScheduler marks the host element of every decorative loop with
+   [data-avd-deco] (on animationstart; for pseudo-element loops the host is the
+   originating element), an IntersectionObserver (rootMargin 160px) toggles
+   [data-avd-offscreen] on it, and on touch / lite devices
+   html[data-avd-scroll-active="1"] is set while the page scrolls. One attribute
+   flip pauses the loops, and JS never reads or writes animation state.
+   A layered !important beats every unlayered !important, including the
+   `animation: ... !important` shorthands, whatever their specificity. A paused
+   loop resumes from its paused frame.
+   The element-level selectors skip .avd-pip-active: the watch-page player shell
+   is marked for its halo pseudo-elements, but its own animation is the functional
+   mini-player slide-in, which must never start paused (it would stay invisible).
+   ========================================================================== */
+@layer avd-motion-gate {
+    [data-avd-deco][data-avd-offscreen]:not(.avd-pip-active),
+    [data-avd-deco][data-avd-offscreen]::before,
+    [data-avd-deco][data-avd-offscreen]::after,
+    html[data-avd-scroll-active="1"] [data-avd-deco]:not(.avd-pip-active),
+    html[data-avd-scroll-active="1"] [data-avd-deco]::before,
+    html[data-avd-scroll-active="1"] [data-avd-deco]::after {
+        animation-play-state: paused !important;
+    }
+}
+
+/* The same gate, unlayered, for engines without @layer (Chrome < 99, Safari < 15.4),
+   which drop the block above. :not(#avd-motion-gate) lifts it to id specificity so
+   it still beats the class/attribute-based `animation: ... !important` rules there.
+   On engines with @layer the layered copy already wins, so this one is inert. */
+html:not(#avd-motion-gate) [data-avd-deco][data-avd-offscreen]:not(.avd-pip-active),
+html:not(#avd-motion-gate) [data-avd-deco][data-avd-offscreen]::before,
+html:not(#avd-motion-gate) [data-avd-deco][data-avd-offscreen]::after,
+html[data-avd-scroll-active="1"]:not(#avd-motion-gate) [data-avd-deco]:not(.avd-pip-active),
+html[data-avd-scroll-active="1"]:not(#avd-motion-gate) [data-avd-deco]::before,
+html[data-avd-scroll-active="1"]:not(#avd-motion-gate) [data-avd-deco]::after {
+    animation-play-state: paused !important;
+}

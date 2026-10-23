@@ -1,0 +1,69 @@
+/* Hero decoration split_orbit (Phase B): ships at the end of the token file of the theme whose recipe names it
+   (php artisan avd:themes:build), so it loads with that theme only. Every rule is keyed
+   html[data-avd-hero-deco="split_orbit"][data-avd-theme] (App\Support\ThemeTokens::heroDecoProblems). */
+html[data-avd-hero-deco="split_orbit"][data-avd-theme] .avd-split {
+    background: radial-gradient(600px 300px at 80% 0%, rgba(var(--avd-brand-2-rgb), .18), transparent 70%), var(--avd-surface-1);
+}
+html[data-avd-hero-deco="split_orbit"][data-avd-theme] .avd-orbit {
+    position: absolute;
+    border-radius: 50%;
+    border: 1px solid rgba(var(--avd-brand-rgb), .45);
+    pointer-events: none;
+}
+/* On the cinema-rows home (the Deep Space Theater look) the split spotlight becomes the starfield billboard of the
+   look's mockup (ThemeStructure::CINEMA_BILLBOARD_DECOS): a full-width photo bleeding to the page edges under the glass
+   bar, fading into the starfield (dark mode md+: the chips ride on the fade; phones), the text on the photo's dark end.
+   Only the photo fades, never the text (the layout_fixes rule of billboard_fade). */
+html[data-avd-hero-deco="split_orbit"][data-avd-theme] .avd-bb-track {
+    margin: -1rem calc(-1 * var(--avd-page-gutter)) 0;
+    border-radius: 0;
+}
+html[data-avd-hero-deco="split_orbit"][data-avd-theme] .avd-bb {
+    height: 470px;
+    border-radius: 0;
+    background: transparent;
+}
+html[data-avd-hero-deco="split_orbit"][data-avd-theme] .avd-bb .avd-htitle {
+    font-size: 52px;
+}
+@media (min-width: 768px) {
+    /* billboard_fade's text shade: >= 84% behind the whole text column, so a long title reads on a white poster */
+    html[data-avd-hero-deco="split_orbit"][data-avd-theme] .avd-bb .avd-scrim {
+        background: linear-gradient(90deg, rgba(var(--avd-shade-rgb), .9) 0%, rgba(var(--avd-shade-rgb), .84) 52%, rgba(var(--avd-shade-rgb), .3) 76%, rgba(var(--avd-shade-rgb), 0) 100%);
+    }
+    html[data-avd-hero-deco="split_orbit"][data-avd-theme][data-bs-theme="dark"] .avd-bb > img,
+    html[data-avd-hero-deco="split_orbit"][data-avd-theme][data-bs-theme="dark"] .avd-bb .avd-scrim {
+        -webkit-mask-image: linear-gradient(180deg, #000 55%, transparent 100%);
+        mask-image: linear-gradient(180deg, #000 55%, transparent 100%);
+    }
+    html[data-avd-hero-deco="split_orbit"][data-avd-theme][data-bs-theme="dark"] .avd-hero--billboard .avd-dots {
+        bottom: 96px;
+    }
+    html[data-avd-hero-deco="split_orbit"][data-avd-theme][data-bs-theme="dark"] .avd-hero-zone:has(.avd-hero--billboard) + .avd-chips-scroller-wrapper {
+        margin-top: -64px;
+        position: relative;
+        z-index: 3;
+    }
+    /* Light mode: no starfield to fade into, so the photo stays whole and taller (at 470px its layout lined up with
+       Velvet Lounge's inset billboard in light mode, structure correlation 0.72; at 520px 0.55). */
+    html[data-avd-hero-deco="split_orbit"][data-avd-theme][data-bs-theme="light"] .avd-bb {
+        height: 520px;
+    }
+}
+@media (max-width: 767.98px) {
+    html[data-avd-hero-deco="split_orbit"][data-avd-theme] .avd-bb-track {
+        margin: -12px -12px 0;
+    }
+    html[data-avd-hero-deco="split_orbit"][data-avd-theme] .avd-bb {
+        height: 330px;
+    }
+    /* layout-theme-b's phone title size (keyed with two attributes, the desktop size above would win here) */
+    html[data-avd-hero-deco="split_orbit"][data-avd-theme] .avd-bb .avd-htitle {
+        font-size: 26px;
+    }
+    html[data-avd-hero-deco="split_orbit"][data-avd-theme] .avd-bb > img,
+    html[data-avd-hero-deco="split_orbit"][data-avd-theme] .avd-bb .avd-scrim {
+        -webkit-mask-image: linear-gradient(180deg, #000 55%, transparent 100%);
+        mask-image: linear-gradient(180deg, #000 55%, transparent 100%);
+    }
+}

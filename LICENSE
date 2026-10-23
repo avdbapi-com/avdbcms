@@ -1,0 +1,263 @@
+AVDBCMS Community License 1.0
+==============================
+
+Copyright (c) 2026 AVDBAPI.COM and the AVDBCMS contributors.
+
+Official sources of AVDBCMS:
+  https://github.com/avdbapi-com/avdbcms
+  https://help.avdbapi.com/
+  https://avdbapi.com
+  https://xvidapi.com
+  https://upload18.org
+  Telegram group: https://t.me/avdb_api
+
+This license applies from AVDBCMS 1.2.0, the first public release of
+AVDBCMS. The community test packages from before 1.2.0 are covered in Part A,
+section 7.
+
+Note: this license is written in plain English. It is not legal advice, and the
+owner of AVDBCMS may have it checked by a lawyer.
+
+In short: use it for free, also for your own website that earns money. Copy it,
+change it and share it. Do not sell it, and do not charge other people for
+installing, setting up, running, supporting, changing or handing over AVDBCMS.
+Copies that you share stay free and carry no money-making code or links of
+yours. The code of the original open-source project that AVDBCMS is based on
+keeps its MIT License, and third-party parts keep their own licenses (Part B).
+
+
+PART A. THE AVDBCMS COMMUNITY LICENSE 1.0
+------------------------------------------
+
+1. What this license covers
+
+   "AVDBCMS" in this license means the work of the AVDBCMS project in this
+   package:
+   - the code, themes, looks, texts and other files that AVDBCMS made;
+   - the changes that AVDBCMS made to the files of the original open-source
+     project that AVDBCMS is based on (the changes only, not the original
+     code; see section 7 and Part B, section B1);
+   - the AVDBCMS documentation (README.md, UPGRADE.md, CHANGELOG.md,
+     COMMUNITY_SETUP_GUIDE.md and docs/).
+
+   It does not cover third-party components. They keep their own licenses
+   (see Part B and the file NOTICE).
+
+2. What you may do
+
+   Anyone may, free of charge:
+   - use AVDBCMS, also for your own websites that earn money, for example with
+     ads or premium plans (a website of your own company, or of an organisation
+     that employs you or that you volunteer for without pay, counts as your own
+     website; a customer's or client's website does not, even when you are paid
+     to work on it: a contractor, freelancer or business that is paid to
+     install, set up, run or change AVDBCMS for someone else is not using it
+     for its own website);
+   - copy AVDBCMS;
+   - change AVDBCMS;
+   - share AVDBCMS, changed or unchanged, under the conditions in section 4.
+
+3. What nobody may do: sell AVDBCMS
+
+   Nobody may ask for or take money, or any other payment, for:
+   - copies or downloads of AVDBCMS;
+   - changed versions of AVDBCMS;
+   - AVDBCMS themes or looks, or any part of AVDBCMS;
+   - installation packages that contain AVDBCMS;
+   - access to copies of AVDBCMS (the software itself) behind a paywall (for
+     example a paid download area or a paid membership that is needed to get
+     AVDBCMS), or access to them that is only given in exchange for something
+     else of value (for example watching ads, filling in paid surveys or
+     passing through paid link shorteners);
+   - installing, setting up or handing over AVDBCMS, or a changed version of
+     it, for other people (for example a paid installation or setup service, or
+     a website with AVDBCMS that is built for a customer and handed over);
+   - support for AVDBCMS, or running, customizing or changing AVDBCMS or its
+     themes for other people (for example paid support, paid management of
+     someone else's AVDBCMS website, paid customization or paid changes; what
+     counts as your own website is said in section 2);
+   - hosting plans or other services that come with AVDBCMS installed or set
+     up (a host whose customers install AVDBCMS themselves is fine).
+
+   Charging for any of these counts as selling AVDBCMS. So does earning money
+   with copies of AVDBCMS that you share, through money-making code or links
+   built into them (section 4). Free help is available from the AVDBCMS
+   community: https://t.me/avdb_api
+
+   Allowed: running your own website with AVDBCMS and earning money with that
+   website, for example with ads, premium plans or other paid areas of that
+   website (section 2). The rules above are about AVDBCMS itself, not about
+   the content of your website. You may also sell a website that you have
+   really run yourself (its domain, content and audience), as long as AVDBCMS
+   on it stays free under this license with every notice kept and no price is
+   asked for AVDBCMS itself. Building or setting up AVDBCMS websites in order
+   to sell them is not allowed.
+
+4. Conditions when you share AVDBCMS
+
+   When you share AVDBCMS or a changed version of it:
+   - it must stay free of charge (section 3);
+   - it must not carry money-making code or links of the person who shares it
+     (or of anyone that person works with): no ads, affiliate or referral
+     codes, paid or sold links (backlinks), cryptocurrency miners, or tracking
+     whose data is sold to others, built into the copy. This is not about the
+     notices and links that come with AVDBCMS itself (keep the notices), and
+     running your own website with AVDBCMS, with your own ads on that website,
+     stays allowed (section 2);
+   - it must stay under this same license, and you must include this LICENSE
+     file and the NOTICE file;
+   - you must keep every copyright, license and source notice, including the
+     MIT notice of the original project (Part B, section B1) and the license
+     files of the third-party components;
+   - you must mark your changes: say in the changed files, or in a list that
+     comes with your copy, which files you changed.
+
+5. No warranty
+
+   AVDBCMS is provided "as is", without any warranty. The authors are not
+   liable for any damage or loss that comes from using it.
+
+6. End of your rights
+
+   If you break this license, your rights under it end automatically. People
+   who received AVDBCMS from that person keep their rights, as long as they
+   follow this license.
+
+7. The original MIT project, and copies from before 1.2.0
+
+   AVDBCMS is based on an open-source project published under the MIT
+   License (Copyright (c) 2024 Anton Bourtnik). The code of that project keeps
+   the MIT License wherever it is in AVDBCMS, and its notice is kept word for
+   word in Part B, section B1. For a file that contains code of that project,
+   this license covers only what AVDBCMS added to it and changed in it.
+
+   Before 1.2.0, AVDBCMS was tested in community test packages (12 to 23
+   October 2026). They were not public releases, and their LICENSE file was
+   the MIT License of the original project. A copy of such a package that
+   someone already received keeps the license file it came with. This license
+   applies from AVDBCMS 1.2.0.
+
+8. Contributions
+
+   If you send changes to the AVDBCMS project, you agree that they may be used
+   and shared under this license.
+
+
+PART B. PARTS UNDER THEIR OWN LICENSES
+--------------------------------------
+
+The parts below are not AVDBCMS work and keep their own licenses. The no-sale
+rule in Part A does not apply to them, and nothing in this license takes away a
+right that their own license gives you. The file NOTICE names the main
+components with their versions.
+
+B1. The original open-source project (MIT License)
+
+AVDBCMS is based on an open-source project by Anton Bourtnik. Its code in
+AVDBCMS stays under the MIT License: anyone may use, copy, change, share and
+also sell that original code, as long as the notice below stays with it. The
+no-sale rule in Part A does not apply to that original code; it applies to the
+work that AVDBCMS added and changed (Part A, sections 1 and 7).
+
+The original MIT notice, kept word for word:
+
+MIT License
+
+Copyright (c) 2024 Anton Bourtnik
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+B2. Laravel and the PHP packages in vendor/
+
+AVDBCMS runs on the Laravel framework (version 12, MIT License). The release
+packages contain the PHP packages that Composer installs into vendor/;
+composer.lock lists every one of them with its license. Each package keeps its
+own license, and the license files that come with the packages stay in their
+folders in vendor/. Most of them are under the MIT License. The others are:
+- BSD-3-Clause: firebase/php-jwt, league/commonmark, league/config,
+  nikic/php-parser, tijsverkoyen/css-to-inline-styles, vlucas/phpdotenv;
+- Apache License 2.0: aws/aws-sdk-php, aws/aws-crt-php,
+  giggsey/libphonenumber-for-php-lite, phpoption/phpoption (the two AWS
+  packages carry a NOTICE file; NOTICE repeats it);
+- GNU Lesser General Public License: dompdf/dompdf (LGPL-2.1),
+  dompdf/php-font-lib (LGPL-2.1 or later), dompdf/php-svg-lib (LGPL-3.0 or
+  later), ezyang/htmlpurifier (LGPL-2.1 or later);
+- BSD-3-Clause, GPL-2.0 or GPL-3.0, as you choose: nette/schema, nette/utils;
+- ISC: paragonie/sodium_compat.
+
+The source code repository does not contain vendor/: Composer installs it from
+composer.lock.
+
+B3. JavaScript and CSS packages in the built files (public/build/)
+
+The styles and scripts in public/build/ are built from the source code in
+resources/ together with npm packages (package.json and package-lock.json name
+them). Each package keeps its own license. Most of them are under the MIT
+License, for example React, Preact, Bootstrap, Alpine.js and Chart.js. The
+others are:
+- Apache License 2.0: hls.js, Tom Select, React Aria and React Stately (with
+  their @internationalized, @react-aria and @react-types packages),
+  @swc/helpers and the @orchidjs packages;
+- Font Awesome Free: icons under CC BY 4.0, fonts under the SIL Open Font
+  License 1.1, code under the MIT License;
+- BSD-3-Clause: intl-messageformat, react-transition-group;
+- 0BSD: tslib;
+- Unlicense: tweetnacl.
+
+The Font Awesome Free font files in resources/admin/lib/ (fa-brands.woff,
+fa-regular.woff, fa-solid.woff) are under the SIL Open Font License 1.1.
+resources/sass/normalize.scss starts with normalize.css 8.0.1 (MIT License),
+which is built into public/build/ with the other styles.
+
+B4. Package files in public/vendor/ and public/css/
+
+public/vendor/ holds the browser files of Laravel Horizon (public/vendor/horizon/)
+and of Log Viewer by opcodesio (public/vendor/log-viewer/), both under the MIT
+License, and the tracker script of the Umami web analytics project
+(public/vendor/umami/script.js; see NOTICE).
+
+public/css/pdf.min.css, the style of the invoice PDFs (the same file is in
+css/), is a build of Bootstrap 3.4.1 with normalize.css 3.0.3, both under the
+MIT License; the file keeps their notices.
+
+B5. FFmpeg in bin/ (full release package only)
+
+The full release package (avdbcms-X.Y.Z.zip) contains ready-built FFmpeg
+programs in bin/linux-x64/, bin/linux-arm64/ and bin/windows/: ffmpeg and
+ffprobe, and on Windows also ffplay and the FFmpeg DLL files. AVDBCMS runs
+them as separate programs, for example to read the length of an uploaded video
+and to make thumbnails. They are not AVDBCMS work. They are licensed under the
+GNU General Public License, version 3:
+- bin/linux-x64/ and bin/linux-arm64/: static builds of FFmpeg 7.0.2 made by
+  John Van Sickle (https://johnvansickle.com/ffmpeg/). The license text is
+  GPLv3.txt; readme.txt names the build and every library built into it.
+- bin/windows/: an FFmpeg build of the FFmpeg source code at git revision
+  b801f1fe6d (build N-124319-gb801f1fe6d-20260503), configured with
+  --enable-gpl and --enable-version3. The license text is LICENSE.txt.
+
+Keep these license and readme files whenever you share a package that contains
+bin/. The FFmpeg project publishes the source code of FFmpeg, both release
+7.0.2 and the git revision named above, at https://ffmpeg.org/download.html.
+The update package (avdbcms-update-X.Y.Z.zip) does not contain bin/, and the
+source code repository holds only bin/README.md there, not the FFmpeg programs.
+
+B6. The Code of Conduct
+
+.github/CODE_OF_CONDUCT.md is adapted from the Contributor Covenant, version
+2.1 (https://www.contributor-covenant.org), which is licensed under CC BY 4.0.

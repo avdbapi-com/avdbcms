@@ -1,0 +1,72 @@
+/* Hero decoration banner_pop (Phase B): ships at the end of the token file of the theme whose recipe names it
+   (php artisan avd:themes:build), so it loads with that theme only. Every rule is keyed
+   html[data-avd-hero-deco="banner_pop"][data-avd-theme] (App\Support\ThemeTokens::heroDecoProblems). */
+html[data-avd-hero-deco="banner_pop"][data-avd-theme] .avd-pop-card .avd-ph img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+html[data-avd-hero-deco="banner_pop"][data-avd-theme] .avd-banner {
+    grid-template-columns: 1fr 460px;
+}
+html[data-avd-hero-deco="banner_pop"][data-avd-theme] .avd-htitle {
+    font-size: 54px;
+    line-height: 1;
+}
+html[data-avd-hero-deco="banner_pop"][data-avd-theme] .avd-pop {
+    position: relative;
+    padding: 14px 18px;
+}
+html[data-avd-hero-deco="banner_pop"][data-avd-theme] .avd-pop-card b {
+    display: block;
+    margin-top: 10px;
+    font: 800 16px/1.2 var(--avd-font-display);
+}
+html[data-avd-hero-deco="banner_pop"][data-avd-theme] .avd-pop-card {
+    border: 2px solid var(--avd-x-ink);
+    border-radius: 14px;
+    box-shadow: 6px 6px 0 var(--avd-x-ink);
+    background: var(--avd-surface-1);
+    padding: 10px;
+    transform: rotate(2deg);
+    position: relative;
+}
+html[data-avd-hero-deco="banner_pop"][data-avd-theme] .avd-pop-card .avd-ph {
+    aspect-ratio: 16 / 9;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 2px solid var(--avd-x-ink);
+}
+html[data-avd-hero-deco="banner_pop"][data-avd-theme] .avd-sticker {
+    position: absolute;
+    padding: 8px 12px;
+    border: 2px solid var(--avd-x-ink);
+    border-radius: 999px;
+    font: 800 13px/1 var(--avd-font-display);
+    background: var(--avd-x-pop1);
+    color: var(--avd-pop-ink);
+    box-shadow: 3px 3px 0 var(--avd-x-ink);
+}
+html[data-avd-hero-deco="banner_pop"][data-avd-theme] .avd-sticker:first-of-type {
+    inset-inline-start: -6px;
+    top: 0;
+    transform: rotate(-10deg);
+}
+html[data-avd-hero-deco="banner_pop"][data-avd-theme] .avd-sticker:last-of-type {
+    inset-inline-end: -4px;
+    bottom: -6px;
+    background: var(--avd-x-pop3);
+    transform: rotate(6deg);
+}
+@media (max-width: 767.98px) {
+    html[data-avd-hero-deco="banner_pop"][data-avd-theme] .avd-banner > div:nth-child(2) {
+        display: none;
+    }
+    /* the phone values of layout-theme-b (= the mockup's phone rules), which this decoration's desktop rules out-rank */
+    html[data-avd-hero-deco="banner_pop"][data-avd-theme] .avd-banner {
+        grid-template-columns: 1fr;
+    }
+    html[data-avd-hero-deco="banner_pop"][data-avd-theme] .avd-htitle {
+        font-size: 26px;
+    }
+}

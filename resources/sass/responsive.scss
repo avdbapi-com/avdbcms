@@ -1,0 +1,397 @@
+// Shared layout constraints. Theme colors, motion and density remain selectable.
+html {
+    min-block-size: 100%;
+    text-size-adjust: 100%;
+    -webkit-tap-highlight-color: rgba(var(--avd-brand-rgb), 0.18);
+}
+
+body.avd-app,
+body.avd-embed-shell,
+.page-wrapper {
+    min-block-size: 100svh;
+    min-block-size: 100dvh;
+}
+
+body.avd-app {
+    overflow-x: clip;
+    overscroll-behavior-x: none;
+}
+
+body.avd-app #main-container {
+    box-sizing: border-box;
+    padding-inline: var(--avd-page-gutter);
+}
+
+body.avd-app :is(h1, h2, h3, h4, h5, h6) {
+    text-wrap: balance;
+    scroll-margin-block-start: calc(var(--avd-header-height) + 1rem);
+}
+
+body.avd-app :is(a, button, input, select, textarea, summary) {
+    touch-action: manipulation;
+}
+
+.avd-footer-inner {
+    padding-inline: max(var(--avd-page-gutter), env(safe-area-inset-left, 0px));
+    padding-inline-end: max(var(--avd-page-gutter), env(safe-area-inset-right, 0px));
+    padding-block-end: max(1.2rem, env(safe-area-inset-bottom, 0px));
+}
+
+.avd-footer-select {
+    min-block-size: var(--avd-touch-target);
+}
+
+.avd-header-inner {
+    padding-inline-start: max(0.5rem, env(safe-area-inset-left, 0px));
+    padding-inline-end: max(0.5rem, env(safe-area-inset-right, 0px));
+}
+
+.back-to-top {
+    right: auto;
+    left: auto !important;
+    inset-inline-end: calc(1rem + env(safe-area-inset-right, 0px));
+    inset-block-end: calc(1rem + env(safe-area-inset-bottom, 0px));
+}
+
+html[dir="rtl"] .back-to-top {
+    inset-inline-end: calc(1rem + env(safe-area-inset-left, 0px));
+}
+
+html[dir="rtl"] .avd-footer-inner {
+    padding-inline-start: max(var(--avd-page-gutter), env(safe-area-inset-right, 0px));
+    padding-inline-end: max(var(--avd-page-gutter), env(safe-area-inset-left, 0px));
+}
+
+@media (min-width: 768px) {
+    body.avd-app #main-container {
+        padding-inline: clamp(1rem, 1.75vw, 3rem);
+    }
+}
+
+@media (min-width: 1920px) {
+    :root {
+        --avd-page-gutter: clamp(2rem, 3vw, 5rem);
+    }
+
+    body.avd-app #main-container {
+        max-inline-size: var(--avd-content-max);
+        margin-inline: auto;
+        padding-inline: var(--avd-page-gutter);
+    }
+
+    body.avd-app.has-sidebar #main-container {
+        // The pinned sidebar sits on the start edge (the right in RTL): the content starts after it.
+        margin-inline-start: var(--avd-sidebar-w, 260px);
+        margin-inline-end: auto;
+    }
+
+    .avd-header-inner {
+        max-inline-size: var(--avd-content-max);
+        margin-inline: auto;
+    }
+}
+
+@media (min-width: 2560px) {
+    :root {
+        --avd-page-gutter: clamp(3rem, 4vw, 7rem);
+    }
+
+    .avd-footer-inner {
+        max-inline-size: var(--avd-content-max);
+        margin-inline: auto;
+    }
+}
+
+@media (min-width: 768px) and (max-height: 800px) {
+    :root {
+        --avd-header-height: 56px;
+    }
+
+    .avd-header,
+    .navbar.header {
+        min-block-size: var(--avd-header-height);
+    }
+
+    .avd-header-inner {
+        min-block-size: 52px;
+    }
+
+    .avd-shell {
+        min-block-size: calc(100dvh - var(--avd-header-height));
+    }
+}
+
+@media (hover: none), (pointer: coarse) {
+    body.avd-app :is(.form-control, .form-select, textarea, .avd-footer-select) {
+        min-block-size: var(--avd-touch-target);
+    }
+}
+.avd-auth-page {
+    padding-block: 1.5rem;
+}
+
+.avd-auth-panel {
+    inline-size: 100%;
+    max-inline-size: 64rem;
+    margin-inline: auto;
+    overflow-wrap: anywhere;
+}
+
+.avd-auth-password .form-control {
+    padding-inline-end: 3.5rem;
+}
+
+.avd-auth-page .form-floating > label {
+    inset-inline-start: 0;
+    inset-inline-end: auto;
+    max-inline-size: 100%;
+}
+
+html[dir="rtl"] .avd-auth-page .form-floating > label {
+    transform-origin: top right;
+}
+
+.avd-auth-password .form-control.is-invalid {
+    background-image: none;
+}
+
+.avd-auth-password-toggle {
+    position: absolute;
+    inset-inline-end: 0.375rem;
+    top: 0.375rem;
+    inline-size: 44px;
+    block-size: 44px;
+    z-index: 5;
+    border: 0;
+    border-radius: 0.5rem;
+    background: transparent;
+    color: var(--avd-text);
+    display: grid;
+    place-items: center;
+}
+
+.avd-auth-password-toggle:focus-visible {
+    outline: 2px solid var(--avd-brand);
+    outline-offset: 1px;
+}
+
+@media (max-width: 767.98px) {
+    .avd-auth-page :is(.form-control, .form-select) {
+        font-size: max(1rem, 16px) !important;
+    }
+
+    .avd-auth-page .form-check {
+        min-block-size: 44px;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding-inline-start: 0;
+    }
+
+    .avd-auth-page .form-check-input {
+        float: none;
+        flex-shrink: 0;
+        margin: 0;
+    }
+
+    .avd-auth-page .form-check-label {
+        padding-block: 0.75rem;
+    }
+}
+
+.avd-card-body > *,
+.avd-video-card,
+.avd-channel-card,
+.avd-detail-panel {
+    min-inline-size: 0;
+}
+
+.avd-channel-avatar,
+.avd-channel-avatar-img,
+.avd-avatar-button img {
+    aspect-ratio: 1;
+    flex-shrink: 0;
+    object-fit: cover;
+}
+
+.avd-thumb img {
+    display: block;
+}
+
+.avd-avatar-media {
+    display: block;
+    aspect-ratio: 1;
+    object-fit: cover;
+    flex: 0 0 auto;
+}
+
+.avd-video-author-avatar,
+.avd-video-author-avatar-link {
+    inline-size: 52px;
+    block-size: 52px;
+}
+
+.avd-subscribe-host {
+    display: inline-flex;
+    max-inline-size: 100%;
+    min-inline-size: 0;
+}
+
+.avd-video-author-summary,
+.avd-subscription-card-link,
+.avd-channel-copy,
+.avd-card-horizontal,
+.avd-card-horizontal-thumb,
+.avd-playlist-manager-thumb {
+    min-inline-size: 0;
+}
+
+.avd-video-author-panel {
+    flex-wrap: wrap;
+}
+
+.avd-video-author-summary {
+    flex-basis: 12rem;
+}
+
+.avd-video-author-action {
+    margin-inline-start: auto;
+    max-inline-size: 100%;
+}
+
+.avd-subscribe-button .avd-subscribe-label {
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+.avd-app .btn > :is(.fa, .fas, .far, .fab, .fa-solid, .fa-regular, .fa-brands) {
+    flex-shrink: 0;
+    line-height: 1;
+}
+
+// The overlay uses a dark scrim even in light themes. Its text must contrast
+// with that scrim, rather than inherit the surrounding light-theme text color.
+html[data-avd-card-layout="card_glass_overlay"] .avd-video-card .avd-card-body {
+    --avd-text: #fff;
+    --avd-muted: #e2e8f0;
+}
+
+@media (max-width: 767.98px) {
+    .avd-app .btn {
+        max-inline-size: 100%;
+        min-block-size: 44px;
+        white-space: normal;
+        overflow-wrap: anywhere;
+    }
+
+    .avd-app :is(.avd-icon-btn, .avd-icon-button, .avd-avatar-button) {
+        min-inline-size: 44px;
+        min-block-size: 44px;
+    }
+
+    html[data-avd-typography="on"] .btn-sm {
+        font-size: calc(0.875rem * var(--avd-font-scale-ui, 1));
+    }
+
+    // A two-column thumbnail has too little room for an absolute text overlay.
+    // Keep the glass surface but let the metadata contribute to card height.
+    html[data-avd-card-layout="card_glass_overlay"][data-avd-mobile-video-columns="2"] .avd-video-card .avd-card-body {
+        position: static;
+        padding: 0.65rem 0.35rem;
+        background: var(--avd-surface);
+        --avd-text: inherit;
+        --avd-muted: inherit;
+    }
+
+    html[data-avd-card-layout="card_glass_overlay"][data-avd-mobile-video-columns="2"] .avd-video-card .avd-thumb {
+        padding-bottom: 0;
+    }
+
+    html[data-avd-card-layout="card_horizontal_strip"] .avd-video-grid.row > .col {
+        flex: 0 0 100%;
+        width: 100%;
+    }
+
+    html[data-avd-card-layout="card_horizontal_strip"] .avd-video-card {
+        display: flex;
+        flex-direction: row;
+        align-items: flex-start;
+        gap: 0.75rem;
+    }
+
+    html[data-avd-card-layout="card_horizontal_strip"] .avd-video-card > .avd-thumb {
+        flex: 0 0 36%;
+        inline-size: 36%;
+        max-inline-size: 140px;
+        margin: 0;
+    }
+
+    html[data-avd-card-layout="card_horizontal_strip"] .avd-video-card > .avd-card-body {
+        flex: 1 1 0;
+        min-inline-size: 0;
+        margin: 0;
+        padding: 0.25rem;
+    }
+
+    .avd-subscription-card-row {
+        padding-inline: 1rem !important;
+    }
+
+    .avd-video-author-panel {
+        gap: 0.75rem !important;
+    }
+
+    .avd-subscribe-button {
+        white-space: normal !important;
+        max-inline-size: 100%;
+    }
+
+    body.avd-app #main-container {
+        padding-inline: max(0.75rem, env(safe-area-inset-left, 0px));
+        padding-inline-end: max(0.75rem, env(safe-area-inset-right, 0px));
+    }
+
+    .avd-header-actions {
+        gap: 0.25rem;
+    }
+}
+
+@media (hover: none), (pointer: coarse) {
+    .avd-app :is(.btn.rounded-circle, .avd-icon-button, .avd-avatar-button, .avd-slider-arrow, .avd-billboard-arrow, .avd-billboard-cta-save, .avd-shelf-nav, .avd-notification-button, .avd-sidebar-toggle, .avd-header .navbar-toggler, .avd-upload-btn, .avd-auth-btn) {
+        min-inline-size: 44px;
+        min-block-size: 44px;
+        flex-shrink: 0;
+    }
+
+    .avd-card-menu {
+        opacity: 1;
+        transform: none;
+    }
+
+    .avd-card-menu .btn {
+        width: 44px;
+        height: 44px;
+    }
+
+    .avd-video-card:hover,
+    .avd-video-card:hover .avd-thumb img,
+    .avd-channel-card:hover,
+    .avd-channel-card:hover .avd-channel-card-avatar {
+        transform: none !important;
+    }
+}
+
+// Hero slider dots: keep the slim visual bar but expand the tap target to ~45px
+// tall on touch devices so it is reliably tappable (WCAG 2.5.5). Pure overlay —
+// the inline-styled 7px bar and its JS width animation are left untouched.
+@media (pointer: coarse) {
+    .avd-slider-indicators .avd-dot {
+        position: relative;
+    }
+
+    .avd-slider-indicators .avd-dot::after {
+        content: "";
+        position: absolute;
+        inset: -19px -7px;
+    }
+}

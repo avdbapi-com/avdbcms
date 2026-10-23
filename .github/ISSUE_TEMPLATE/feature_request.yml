@@ -1,0 +1,58 @@
+name: Feature request
+description: Suggest an idea or an improvement for AVDBCMS.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the idea. One idea per request makes it easier to discuss and plan.
+        Please check the [open requests](https://github.com/avdbapi-com/avdbcms/issues?q=is%3Aissue+label%3Aenhancement) first.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: The part of the admin that the idea is about, or the pages your visitors see.
+      options:
+        - "Visitor pages: what your visitors see"
+        - "Home: the admin start page"
+        - "Content: videos, imports, categories, tags, playlists, info pages"
+        - "Community: reports, comments, messages, announcements"
+        - "Members: accounts, verification, blocking, logins"
+        - "Money: ads, premium plans, subscribers, payments"
+        - "Appearance: themes, looks, layouts, logo, colours"
+        - "Settings: site basics, sign-ups, email, Google, security, languages"
+        - "Tools: health check, backups, background jobs, logs, updates"
+        - Installer
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What is hard or impossible today? Who runs into it?
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: Your idea
+      description: How should AVDBCMS solve it?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Workarounds or alternatives
+      description: What do you do today instead?
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched the existing requests.
+          required: true
+        - label: This request is safe for work (no adult wording or imagery).
+          required: true

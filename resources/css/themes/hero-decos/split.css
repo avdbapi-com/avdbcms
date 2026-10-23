@@ -1,0 +1,11 @@
+/* Hero decoration split (Phase B): ships at the end of the token file of the theme whose recipe names it
+   (php artisan avd:themes:build), so it loads with that theme only. Every rule is keyed
+   html[data-avd-hero-deco="split"][data-avd-theme] (App\Support\ThemeTokens::heroDecoProblems). */
+@media (min-width: 768px) {
+    html[data-avd-hero-deco="split"][data-avd-theme] .avd-split {
+        grid-template-columns: 1fr 1.35fr;
+    }
+    html[data-avd-hero-deco="split"][data-avd-theme] .avd-split .avd-info {
+        order: -1;
+    }
+}

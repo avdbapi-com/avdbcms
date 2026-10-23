@@ -1,0 +1,1468 @@
+.avd-channel-page {
+    --channel-accent: var(--avd-brand);
+    --channel-accent-2: var(--avd-brand-2);
+    --channel-on-accent: #fff;
+    --channel-action-ink: #111827;
+    --channel-hero-a: rgba(18, 24, 38, 0.92);
+    --channel-hero-b: rgba(14, 36, 45, 0.88);
+    --channel-hero-text: #f8fafc;
+    --channel-hero-muted: rgba(248, 250, 252, 0.84);
+    --channel-hero-faint: rgba(248, 250, 252, 0.72);
+    --channel-hero-chip-bg: rgba(8, 12, 20, 0.54);
+    --channel-hero-chip-border: rgba(255, 255, 255, 0.18);
+    --channel-card: var(--avd-surface);
+    --channel-card-soft: var(--avd-surface-soft);
+    --channel-line: var(--avd-border);
+    --channel-gap: 1rem;
+    min-height: calc(100vh - 64px);
+    padding-bottom: 2rem;
+    color: var(--avd-text);
+}
+
+.avd-channel-page[data-channel-accent="coral"] {
+    --channel-accent: #ff6177;
+    --channel-accent-2: #ff9161;
+}
+
+.avd-channel-page[data-channel-accent="cyan"] {
+    --channel-accent: #38d7e8;
+    --channel-accent-2: #4f8dff;
+}
+
+.avd-channel-page[data-channel-accent="violet"] {
+    --channel-accent: #a78bfa;
+    --channel-accent-2: #f472b6;
+}
+
+.avd-channel-page[data-channel-accent="amber"] {
+    --channel-accent: #fbbf24;
+    --channel-accent-2: #fb7185;
+}
+
+.avd-channel-page[data-channel-accent="emerald"] {
+    --channel-accent: #34d399;
+    --channel-accent-2: #22d3ee;
+}
+
+.avd-channel-page[data-channel-accent="rose"] {
+    --channel-accent: #fb7185;
+    --channel-accent-2: #f0abfc;
+}
+
+.avd-channel-page[data-channel-theme="sunrise"] {
+    --channel-hero-a: rgba(70, 28, 38, 0.92);
+    --channel-hero-b: rgba(74, 50, 20, 0.86);
+}
+
+.avd-channel-page[data-channel-theme="ocean"] {
+    --channel-hero-a: rgba(10, 33, 55, 0.94);
+    --channel-hero-b: rgba(6, 68, 82, 0.84);
+}
+
+.avd-channel-page[data-channel-theme="forest"] {
+    --channel-hero-a: rgba(11, 44, 36, 0.94);
+    --channel-hero-b: rgba(39, 54, 28, 0.84);
+}
+
+.avd-channel-page[data-channel-theme="candy"] {
+    --channel-hero-a: rgba(55, 30, 61, 0.92);
+    --channel-hero-b: rgba(26, 55, 70, 0.86);
+}
+
+.avd-channel-page[data-channel-theme="graphite"] {
+    --channel-hero-a: rgba(19, 22, 29, 0.96);
+    --channel-hero-b: rgba(37, 42, 52, 0.88);
+}
+
+.avd-channel-shell {
+    width: min(100% - 1.5rem, 1540px);
+    margin-inline: auto;
+}
+
+.avd-channel-hero {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    min-height: 350px;
+    border-bottom: 1px solid var(--channel-line);
+    background:
+        linear-gradient(115deg, var(--channel-hero-a), var(--channel-hero-b)),
+        var(--avd-bg-body);
+    color: var(--channel-hero-text);
+}
+
+.avd-channel-banner-wrap,
+.avd-channel-banner,
+.avd-channel-banner-pattern {
+    position: absolute;
+    inset: 0;
+}
+
+.avd-channel-banner {
+    z-index: -3;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0.48;
+    filter: saturate(1.06) contrast(1.02);
+}
+
+.avd-channel-banner-pattern {
+    z-index: -1;
+    pointer-events: none;
+    background:
+        linear-gradient(90deg, rgba(0, 0, 0, 0.52), transparent 46%, rgba(0, 0, 0, 0.22)),
+        linear-gradient(135deg, rgba(255, 255, 255, 0.07) 0 1px, transparent 1px 16px);
+}
+
+.avd-channel-page[data-channel-pattern="clean"] .avd-channel-banner-pattern {
+    background: linear-gradient(90deg, rgba(0, 0, 0, 0.56), transparent 52%, rgba(0, 0, 0, 0.16));
+}
+
+.avd-channel-page[data-channel-pattern="grid"] .avd-channel-banner-pattern {
+    background:
+        linear-gradient(90deg, rgba(0, 0, 0, 0.5), transparent 52%, rgba(0, 0, 0, 0.2)),
+        linear-gradient(rgba(255, 255, 255, 0.055) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.055) 1px, transparent 1px);
+    background-size: auto, 42px 42px, 42px 42px;
+}
+
+.avd-channel-page[data-channel-pattern="diagonal"] .avd-channel-banner-pattern {
+    background:
+        linear-gradient(90deg, rgba(0, 0, 0, 0.5), transparent 52%, rgba(0, 0, 0, 0.2)),
+        repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.065) 0 1px, transparent 1px 18px);
+}
+
+.avd-channel-page[data-channel-pattern="waves"] .avd-channel-banner-pattern {
+    background:
+        linear-gradient(90deg, rgba(0, 0, 0, 0.5), transparent 52%, rgba(0, 0, 0, 0.2)),
+        repeating-linear-gradient(100deg, rgba(255, 255, 255, 0.06) 0 2px, transparent 2px 24px);
+}
+
+.avd-channel-page[data-channel-banner="minimal"] .avd-channel-banner {
+    opacity: 0.22;
+    filter: grayscale(0.3) saturate(0.9);
+}
+
+.avd-channel-page[data-channel-banner="poster"] .avd-channel-banner {
+    transform: scale(1.04);
+}
+
+.avd-channel-page[data-channel-banner="split"] .avd-channel-banner {
+    width: 54%;
+    inset-inline: auto 0;
+    border-inline-start: 1px solid rgba(var(--avd-glint-rgb, 255, 255, 255), 0.12);
+}
+
+.avd-channel-page[data-channel-banner="mosaic"] .avd-channel-banner {
+    opacity: 0.36;
+    filter: saturate(1.2) contrast(1.08);
+}
+
+.avd-channel-page[data-channel-shape="soft-arc"] .avd-channel-hero {
+    border-end-end-radius: 42px;
+}
+
+.avd-channel-page[data-channel-shape="angled"] .avd-channel-hero {
+    clip-path: polygon(0 0, 100% 0, 100% 92%, 0 100%);
+}
+
+.avd-channel-page[data-channel-shape="framed"] .avd-channel-hero {
+    width: min(100% - 1.5rem, 1540px);
+    min-height: 330px;
+    margin: 1rem auto 0;
+    border: 1px solid var(--channel-line);
+    border-radius: 22px;
+}
+
+.avd-channel-hero > .avd-channel-shell {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    min-height: 350px;
+    align-items: end;
+    justify-content: space-between;
+    gap: 1.25rem;
+    padding-block: 3rem 2rem;
+}
+
+.avd-channel-identity {
+    display: flex;
+    min-width: 0;
+    align-items: end;
+    gap: 1.25rem;
+}
+
+.avd-channel-avatar-wrap {
+    position: relative;
+    flex: 0 0 auto;
+    width: 8.4rem;
+    height: 8.4rem;
+    display: grid;
+    place-items: center;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--channel-accent), var(--channel-accent-2));
+    box-shadow: 0 22px 56px rgba(0, 0, 0, 0.34);
+}
+
+.avd-channel-avatar-img {
+    width: calc(100% - 0.7rem);
+    height: calc(100% - 0.7rem);
+    border-radius: inherit;
+    object-fit: cover;
+    background: var(--avd-surface);
+}
+
+.avd-channel-page[data-channel-avatar="glow"] .avd-channel-avatar-wrap {
+    box-shadow: 0 0 0 5px rgba(255, 255, 255, 0.08), 0 0 36px color-mix(in srgb, var(--channel-accent), transparent 36%);
+}
+
+.avd-channel-page[data-channel-avatar="square"] .avd-channel-avatar-wrap,
+.avd-channel-page[data-channel-avatar="square"] .avd-channel-avatar-img {
+    border-radius: 24px;
+}
+
+.avd-channel-page[data-channel-avatar="badge"] .avd-channel-avatar-wrap::after {
+    content: "\f005";
+    position: absolute;
+    inset-inline-end: 0.2rem;
+    bottom: 0.32rem;
+    width: 2rem;
+    height: 2rem;
+    display: grid;
+    place-items: center;
+    border: 2px solid var(--avd-bg-body);
+    border-radius: 50%;
+    background: var(--channel-accent);
+    color: var(--channel-on-accent);
+    font-family: "Font Awesome 6 Free";
+    font-weight: 900;
+    font-size: 0.78rem;
+}
+
+.avd-channel-page[data-channel-avatar="none"] .avd-channel-avatar-wrap {
+    background: transparent;
+    border-color: transparent;
+    box-shadow: none;
+}
+
+.avd-channel-copy {
+    min-width: 0;
+}
+
+.avd-channel-kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin-bottom: 0.42rem;
+    color: var(--channel-accent);
+    font-size: 0.78rem;
+    font-weight: 950;
+    text-shadow: 0 2px 14px rgba(0, 0, 0, 0.36);
+    text-transform: uppercase;
+}
+
+.avd-channel-title {
+    max-width: 52rem;
+    margin: 0;
+    overflow-wrap: anywhere;
+    color: var(--channel-hero-text);
+    font-size: 3rem;
+    font-weight: 950;
+    letter-spacing: 0;
+    line-height: 1.02;
+    text-shadow: 0 2px 22px rgba(0, 0, 0, 0.38);
+}
+
+.avd-channel-tagline {
+    max-width: 56rem;
+    margin: 0.55rem 0 0;
+    color: var(--channel-hero-muted);
+    font-size: 1rem;
+    line-height: 1.55;
+    text-shadow: 0 1px 14px rgba(0, 0, 0, 0.34);
+}
+
+.avd-channel-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.55rem;
+    margin-top: 1rem;
+}
+
+.avd-channel-stats span {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    min-height: 2.25rem;
+    padding: 0.42rem 0.7rem;
+    border: 1px solid var(--channel-hero-chip-border);
+    border-radius: 999px;
+    background: var(--channel-hero-chip-bg);
+    color: var(--channel-hero-text);
+    font-size: 0.88rem;
+    font-weight: 800;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.18);
+}
+
+.avd-channel-stats i {
+    color: var(--channel-accent);
+}
+
+.avd-channel-page[data-channel-stats="bar"] .avd-channel-stats {
+    gap: 0;
+    width: fit-content;
+    overflow: hidden;
+    border: 1px solid var(--channel-hero-chip-border);
+    border-radius: 14px;
+}
+
+.avd-channel-page[data-channel-stats="bar"] .avd-channel-stats span {
+    border: 0;
+    border-radius: 0;
+    border-inline-end: 1px solid var(--channel-hero-chip-border);
+}
+
+.avd-channel-page[data-channel-stats="minimal"] .avd-channel-stats span {
+    padding-inline: 0;
+    border: 0;
+    background: transparent;
+}
+
+.avd-channel-actions {
+    display: flex;
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.65rem;
+}
+
+.avd-channel-actions .btn-outline-secondary {
+    border-color: rgba(255, 255, 255, 0.46);
+    background: rgba(255, 255, 255, 0.92);
+    color: var(--channel-action-ink);
+}
+
+.avd-channel-actions .btn-outline-secondary:hover,
+.avd-channel-actions .btn-outline-secondary:focus {
+    border-color: rgba(255, 255, 255, 0.72);
+    background: var(--channel-on-accent);
+    color: var(--channel-action-ink);
+}
+
+.avd-channel-actions .btn-dark {
+    border-color: rgba(255, 255, 255, 0.18);
+    background: rgba(8, 12, 20, 0.78);
+    color: var(--channel-on-accent);
+}
+
+.avd-channel-info-strip {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.85rem;
+    margin-block: 1rem;
+}
+
+.avd-channel-info-card,
+.avd-channel-panel,
+.avd-channel-featured,
+.avd-channel-section,
+.avd-channel-playlist,
+.avd-channel-empty {
+    border: 1px solid var(--channel-line);
+    background: var(--channel-card);
+    box-shadow: var(--avd-shadow-soft);
+}
+
+.avd-channel-info-card {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 0.85rem;
+    padding: 0.9rem;
+    border-radius: 16px;
+}
+
+.avd-channel-info-card i {
+    width: 2.3rem;
+    height: 2.3rem;
+    display: grid;
+    flex: 0 0 auto;
+    place-items: center;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--channel-accent), transparent 80%);
+    color: var(--channel-accent);
+}
+
+.avd-channel-info-card span,
+.avd-channel-section-heading span,
+.avd-channel-meta-line,
+.avd-channel-playlist-head p,
+.avd-channel-info-list span {
+    color: var(--avd-muted);
+}
+
+.avd-channel-info-card strong {
+    display: block;
+    overflow: hidden;
+    color: var(--avd-text);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.avd-channel-tabs-wrap {
+    position: sticky;
+    top: 64px;
+    z-index: 5;
+    margin-bottom: 1rem;
+    overflow-x: auto;
+    border: 1px solid var(--channel-line);
+    border-radius: 18px;
+    /* No backdrop blur: under this ~.85-.87 fill it barely shows, yet the sticky bar
+       re-ran a 14px blur pass on every scroll frame of the channel page.
+       Plain surface fill first: a color-mix() value that holds var() is only rejected at
+       render time where color-mix is missing (Safari < 16.2, Chrome < 111, Firefox < 113),
+       which left the bar fully transparent there. The mix itself is gated below. */
+    background: var(--avd-surface);
+}
+
+@supports (background: color-mix(in srgb, red, red)) {
+    .avd-channel-tabs-wrap {
+        background: color-mix(in srgb, var(--avd-surface), transparent 8%);
+    }
+}
+
+.avd-channel-tabs {
+    flex-wrap: nowrap;
+    gap: 0.25rem;
+    padding: 0.45rem;
+    white-space: nowrap;
+}
+
+.avd-channel-tabs .nav-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    border: 0;
+    border-radius: 12px;
+    color: var(--avd-muted);
+    font-weight: 850;
+}
+
+.avd-channel-tabs .nav-link.active {
+    background: linear-gradient(135deg, var(--channel-accent), var(--channel-accent-2));
+    color: var(--channel-on-accent);
+}
+
+.avd-channel-content {
+    padding-bottom: 2rem;
+}
+
+.avd-channel-section,
+.avd-channel-featured,
+.avd-channel-panel,
+.avd-channel-empty {
+    margin-bottom: 1rem;
+    padding: 1rem;
+    border-radius: 18px;
+}
+
+.avd-channel-page[data-channel-surface="solid"] {
+    --channel-card: var(--avd-surface-solid);
+}
+
+.avd-channel-page[data-channel-surface="outlined"] .avd-channel-info-card,
+.avd-channel-page[data-channel-surface="outlined"] .avd-channel-panel,
+.avd-channel-page[data-channel-surface="outlined"] .avd-channel-featured,
+.avd-channel-page[data-channel-surface="outlined"] .avd-channel-section,
+.avd-channel-page[data-channel-surface="outlined"] .avd-channel-playlist {
+    background: transparent;
+    box-shadow: none;
+}
+
+.avd-channel-page[data-channel-surface="soft"] {
+    --channel-card: var(--channel-card-soft);
+}
+
+.avd-channel-section-heading,
+.avd-channel-playlist-head {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.avd-channel-section-heading h2,
+.avd-channel-playlist-head h3,
+.avd-channel-panel h2 {
+    margin: 0;
+    font-size: 1.18rem;
+    font-weight: 950;
+    letter-spacing: 0;
+}
+
+.avd-channel-section-heading span {
+    display: inline-flex;
+    margin-bottom: 0.18rem;
+    color: var(--channel-accent);
+    font-size: 0.74rem;
+    font-weight: 950;
+    text-transform: uppercase;
+}
+
+.avd-channel-featured-grid {
+    --bs-gutter-x: var(--channel-gap);
+    --bs-gutter-y: var(--channel-gap);
+    align-items: stretch;
+}
+
+.avd-channel-featured-grid > .col {
+    flex: 0 0 100%;
+    max-width: 100%;
+    width: 100%;
+    min-width: 0;
+}
+
+.avd-channel-featured .avd-video-card {
+    height: 100%;
+    border-color: color-mix(in srgb, var(--channel-accent), transparent 70%);
+}
+
+.avd-channel-video-grid {
+    --bs-gutter-x: var(--channel-gap);
+    --bs-gutter-y: var(--channel-gap);
+}
+
+.avd-channel-video-grid > .col {
+    flex: 0 0 100%;
+    max-width: 100%;
+    width: 100%;
+    min-width: 0;
+}
+
+@media (min-width: 576px) {
+    .avd-channel-featured-grid > .col {
+        flex-basis: 50%;
+        max-width: 50%;
+        width: 50%;
+    }
+
+    .avd-channel-video-grid > .col {
+        flex-basis: 50%;
+        max-width: 50%;
+        width: 50%;
+    }
+}
+
+@media (min-width: 992px) {
+    .avd-channel-featured[data-channel-featured-columns="1"] .avd-channel-featured-grid > .col {
+        flex-basis: 100%;
+        max-width: 100%;
+        width: 100%;
+    }
+
+    .avd-channel-featured[data-channel-featured-columns="2"] .avd-channel-featured-grid > .col {
+        flex-basis: 50%;
+        max-width: 50%;
+        width: 50%;
+    }
+
+    .avd-channel-featured[data-channel-featured-columns="3"] .avd-channel-featured-grid > .col {
+        flex-basis: 33.333333%;
+        max-width: 33.333333%;
+        width: 33.333333%;
+    }
+
+    .avd-channel-featured[data-channel-featured-columns="4"] .avd-channel-featured-grid > .col {
+        flex-basis: 25%;
+        max-width: 25%;
+        width: 25%;
+    }
+
+    .avd-channel-featured[data-channel-featured-columns="5"] .avd-channel-featured-grid > .col {
+        flex-basis: 20%;
+        max-width: 20%;
+        width: 20%;
+    }
+
+    .avd-channel-featured[data-channel-featured-columns="6"] .avd-channel-featured-grid > .col {
+        flex-basis: 16.666667%;
+        max-width: 16.666667%;
+        width: 16.666667%;
+    }
+
+    .avd-channel-featured[data-channel-featured-layout="hero"] .avd-channel-featured-grid > .col:first-child {
+        flex-basis: min(100%, 50%);
+        max-width: min(100%, 50%);
+        width: min(100%, 50%);
+    }
+
+    .avd-channel-video-grid > .col {
+        flex-basis: 33.333333%;
+        max-width: 33.333333%;
+        width: 33.333333%;
+    }
+}
+
+@media (max-width: 767.98px) {
+    .avd-channel-page:not([data-channel-layout="poster"]) .avd-channel-hero,
+    .avd-channel-page:not([data-channel-layout="poster"]) .avd-channel-hero > .avd-channel-shell {
+        min-height: 360px;
+    }
+}
+
+@media (min-width: 1400px) {
+    .avd-channel-video-grid > .col {
+        flex-basis: 25%;
+        max-width: 25%;
+        width: 25%;
+    }
+}
+
+.avd-channel-featured[data-channel-featured-layout="rail"] .avd-channel-featured-grid {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    padding-bottom: 0.35rem;
+    scrollbar-width: thin;
+}
+
+.avd-channel-featured[data-channel-featured-layout="rail"] .avd-channel-featured-grid > .col {
+    flex: 0 0 min(82vw, 22rem);
+    max-width: min(82vw, 22rem);
+    width: auto;
+}
+
+.avd-channel-featured[data-channel-featured-columns="1"] .avd-channel-featured-grid > .col,
+.avd-channel-featured[data-channel-featured-layout="hero"][data-channel-featured-columns="1"] .avd-channel-featured-grid > .col:first-child {
+    flex-basis: 100%;
+    max-width: 100%;
+    width: 100%;
+}
+
+.avd-channel-featured[data-channel-featured-layout="compact"] .avd-video-card .avd-card-body {
+    gap: 0.6rem;
+    padding: 0.75rem;
+}
+
+.avd-channel-featured[data-channel-featured-layout="compact"] .avd-video-title {
+    font-size: 0.95rem;
+}
+
+.avd-channel-latest .avd-video-card,
+.avd-channel-playlists .avd-video-card {
+    height: 100%;
+}
+
+.avd-channel-page .avd-channel-latest .avd-video-card,
+.avd-channel-page .avd-channel-playlists .avd-video-card {
+    display: block;
+}
+
+.avd-channel-page .avd-channel-latest .avd-card-body,
+.avd-channel-page .avd-channel-playlists .avd-card-body {
+    padding: 1rem;
+}
+
+.avd-channel-latest[data-channel-latest-layout="rail"] .avd-channel-latest-grid {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    padding-bottom: 0.35rem;
+    scrollbar-width: thin;
+}
+
+.avd-channel-latest[data-channel-latest-layout="rail"] .avd-channel-latest-grid > .col {
+    flex: 0 0 min(82vw, 22rem);
+    max-width: min(82vw, 22rem);
+    width: auto;
+}
+
+.avd-channel-latest[data-channel-latest-layout="compact"] .avd-card-body,
+.avd-channel-playlists[data-channel-playlists-layout="compact"] .avd-card-body {
+    gap: 0.6rem;
+    padding: 0.75rem;
+}
+
+.avd-channel-latest[data-channel-latest-layout="compact"] .avd-video-title,
+.avd-channel-playlists[data-channel-playlists-layout="compact"] .avd-video-title {
+    font-size: 0.95rem;
+}
+
+.avd-channel-playlist-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--channel-gap);
+}
+
+.avd-channel-playlists[data-channel-playlists-layout="rail"] .avd-channel-playlist-grid {
+    display: flex;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    padding-bottom: 0.35rem;
+    scrollbar-width: thin;
+}
+
+.avd-channel-playlists[data-channel-playlists-layout="rail"] .avd-channel-playlist {
+    flex: 0 0 min(86vw, 28rem);
+}
+
+.avd-channel-playlists[data-channel-playlists-layout="compact"] .avd-channel-playlist {
+    padding: 0.75rem;
+}
+
+.avd-channel-page[data-channel-video-layout="compact"] .avd-channel-video-grid {
+    --channel-gap: 0.7rem;
+}
+
+@media (min-width: 1200px) {
+    .avd-channel-page[data-channel-video-layout="compact"] .avd-channel-video-grid > .col {
+        flex-basis: 20%;
+        max-width: 20%;
+        width: 20%;
+    }
+}
+
+.avd-channel-page[data-channel-video-layout="list"] .avd-channel-video-grid > .col {
+    flex-basis: 100%;
+    max-width: 100%;
+    width: 100%;
+}
+
+.avd-channel-page[data-channel-video-layout="list"] .avd-video-card {
+    display: grid;
+    grid-template-columns: minmax(14rem, 22rem) minmax(0, 1fr);
+    gap: 1rem;
+    align-items: center;
+}
+
+.avd-channel-page[data-channel-video-layout="list"] .avd-card-body {
+    padding: 0;
+}
+
+.avd-channel-page[data-channel-video-layout] .avd-channel-latest .avd-video-card,
+.avd-channel-page[data-channel-video-layout] .avd-channel-playlists .avd-video-card {
+    display: block;
+    grid-template-columns: none;
+    gap: 0;
+}
+
+.avd-channel-page[data-channel-video-layout] .avd-channel-latest .avd-card-body,
+.avd-channel-page[data-channel-video-layout] .avd-channel-playlists .avd-card-body {
+    padding: 1rem;
+}
+
+.avd-channel-page[data-channel-video-layout] .avd-channel-latest[data-channel-latest-layout="compact"] .avd-card-body,
+.avd-channel-page[data-channel-video-layout] .avd-channel-playlists[data-channel-playlists-layout="compact"] .avd-card-body {
+    padding: 0.75rem;
+}
+
+@media (min-width: 992px) {
+    .avd-channel-page[data-channel-video-layout="showcase"] .avd-channel-video-grid > .col:first-child {
+        flex-basis: 50%;
+        max-width: 50%;
+        width: 50%;
+    }
+
+    .avd-channel-page .avd-channel-latest[data-channel-latest-columns="1"] .avd-channel-latest-grid > .col,
+    .avd-channel-page .avd-channel-playlists[data-channel-playlist-video-columns="1"] .avd-channel-playlist-video-grid > .col {
+        flex-basis: 100%;
+        max-width: 100%;
+        width: 100%;
+    }
+
+    .avd-channel-page .avd-channel-latest[data-channel-latest-columns="2"] .avd-channel-latest-grid > .col,
+    .avd-channel-page .avd-channel-playlists[data-channel-playlist-video-columns="2"] .avd-channel-playlist-video-grid > .col {
+        flex-basis: 50%;
+        max-width: 50%;
+        width: 50%;
+    }
+
+    .avd-channel-page .avd-channel-latest[data-channel-latest-columns="3"] .avd-channel-latest-grid > .col,
+    .avd-channel-page .avd-channel-playlists[data-channel-playlist-video-columns="3"] .avd-channel-playlist-video-grid > .col {
+        flex-basis: 33.333333%;
+        max-width: 33.333333%;
+        width: 33.333333%;
+    }
+
+    .avd-channel-page .avd-channel-latest[data-channel-latest-columns="4"] .avd-channel-latest-grid > .col,
+    .avd-channel-page .avd-channel-playlists[data-channel-playlist-video-columns="4"] .avd-channel-playlist-video-grid > .col {
+        flex-basis: 25%;
+        max-width: 25%;
+        width: 25%;
+    }
+
+    .avd-channel-page .avd-channel-latest[data-channel-latest-columns="5"] .avd-channel-latest-grid > .col,
+    .avd-channel-page .avd-channel-playlists[data-channel-playlist-video-columns="5"] .avd-channel-playlist-video-grid > .col {
+        flex-basis: 20%;
+        max-width: 20%;
+        width: 20%;
+    }
+
+    .avd-channel-page .avd-channel-latest[data-channel-latest-columns="6"] .avd-channel-latest-grid > .col,
+    .avd-channel-page .avd-channel-playlists[data-channel-playlist-video-columns="6"] .avd-channel-playlist-video-grid > .col {
+        flex-basis: 16.666667%;
+        max-width: 16.666667%;
+        width: 16.666667%;
+    }
+
+    .avd-channel-latest[data-channel-latest-layout="showcase"] .avd-channel-latest-grid > .col:first-child {
+        flex-basis: min(100%, 50%);
+        max-width: min(100%, 50%);
+        width: min(100%, 50%);
+    }
+
+    .avd-channel-playlists[data-channel-playlists-layout="grid"][data-channel-playlists-columns="2"] .avd-channel-playlist-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .avd-channel-playlists[data-channel-playlists-layout="grid"][data-channel-playlists-columns="3"] .avd-channel-playlist-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .avd-channel-playlists[data-channel-playlists-layout="grid"][data-channel-playlists-columns="4"] .avd-channel-playlist-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+}
+
+.avd-channel-playlist {
+    padding: 1rem;
+    border-radius: 18px;
+}
+
+.avd-channel-playlist + .avd-channel-playlist {
+    margin-top: 1rem;
+}
+
+.avd-channel-panel {
+    height: 100%;
+}
+
+.avd-channel-info-list {
+    display: grid;
+    gap: 0.72rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.avd-channel-info-list li {
+    display: grid;
+    gap: 0.22rem;
+    min-width: 0;
+    padding-bottom: 0.72rem;
+    border-bottom: 1px solid var(--channel-line);
+}
+
+.avd-channel-info-list li:last-child {
+    border-bottom: 0;
+    padding-bottom: 0;
+}
+
+.avd-channel-info-list strong,
+.avd-channel-info-list a {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    color: var(--avd-text);
+    font-weight: 850;
+}
+
+.avd-channel-empty {
+    color: var(--avd-muted);
+    font-weight: 850;
+    text-align: center;
+}
+
+.avd-channel-page[data-channel-layout="studio"] .avd-channel-hero > .avd-channel-shell {
+    align-items: center;
+}
+
+.avd-channel-page[data-channel-layout="poster"] .avd-channel-hero {
+    min-height: 460px;
+}
+
+.avd-channel-page[data-channel-layout="poster"] .avd-channel-hero > .avd-channel-shell {
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+}
+
+.avd-channel-page[data-channel-layout="poster"] .avd-channel-identity,
+.avd-channel-page[data-channel-layout="poster"] .avd-channel-actions {
+    align-items: center;
+    justify-content: center;
+}
+
+.avd-channel-page[data-channel-layout="poster"] .avd-channel-identity {
+    flex-direction: column;
+}
+
+.avd-channel-page[data-channel-layout="split"] .avd-channel-hero > .avd-channel-shell {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(16rem, 0.36fr);
+    align-items: center;
+}
+
+.avd-channel-page[data-channel-layout="compact"] .avd-channel-hero,
+.avd-channel-page[data-channel-layout="compact"] .avd-channel-hero > .avd-channel-shell {
+    min-height: 260px;
+}
+
+.avd-channel-page[data-channel-layout="compact"] .avd-channel-avatar-wrap {
+    width: 6.5rem;
+    height: 6.5rem;
+}
+
+.avd-channel-page[data-channel-layout="compact"] .avd-channel-title {
+    font-size: 2.35rem;
+}
+
+.avd-channel-page[data-channel-density="compact"] {
+    --channel-gap: 0.72rem;
+}
+
+.avd-channel-page[data-channel-density="compact"] .avd-channel-section,
+.avd-channel-page[data-channel-density="compact"] .avd-channel-featured,
+.avd-channel-page[data-channel-density="compact"] .avd-channel-panel {
+    padding: 0.8rem;
+}
+
+.avd-channel-page[data-channel-density="spacious"] {
+    --channel-gap: 1.25rem;
+}
+
+.avd-channel-page[data-channel-density="spacious"] .avd-channel-section,
+.avd-channel-page[data-channel-density="spacious"] .avd-channel-featured,
+.avd-channel-page[data-channel-density="spacious"] .avd-channel-panel {
+    padding: 1.35rem;
+}
+
+.avd-channel-page[data-channel-effects="off"] *,
+.avd-channel-page[data-channel-effects="off"] *::before,
+.avd-channel-page[data-channel-effects="off"] *::after {
+    animation: none !important;
+    transition: none !important;
+    filter: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    box-shadow: none !important;
+}
+
+html[data-avd-css-animations="on"] .avd-channel-page[data-channel-motion="float"] .avd-channel-avatar-wrap {
+    animation: avd-channel-float 5s ease-in-out infinite;
+}
+
+/* Stat-chip pulse on the compositor: the old loop animated border-color (main-thread
+   restyle + repaint of every chip each frame). The chip border now rests on the old
+   keyframes' colour and an accent-bordered overlay cross-fades on top via opacity. */
+html[data-avd-css-animations="on"] .avd-channel-page[data-channel-motion="pulse"] .avd-channel-stats span {
+    position: relative;
+    animation: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    /* Only while the pulse can run; otherwise the chip keeps its own border colour, as
+       it did whenever the old loop was disabled (effects off, reduced motion, lite). */
+    html[data-avd-css-animations="on"]:not([data-avd-perf="lite"]) .avd-channel-page[data-channel-motion="pulse"]:not([data-channel-effects="off"]) .avd-channel-stats span {
+        border-color: rgba(255, 255, 255, 0.15);
+    }
+}
+
+html[data-avd-css-animations="on"] .avd-channel-page[data-channel-motion="pulse"] .avd-channel-stats span::after {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    border-style: inherit;
+    border-width: inherit;
+    border-color: color-mix(in srgb, var(--channel-accent), transparent 30%);
+    border-radius: inherit;
+    opacity: 0;
+    pointer-events: none;
+    animation: avd-channel-pulse-o 3.6s ease-in-out infinite;
+}
+
+/* Without color-mix the overlay's border colour is rejected at render time and falls
+   back to currentColor (a full-strength white ring pulsing every 3.6s). Those engines
+   also dropped the old keyframes' color-mix step and showed a constant .15 border, so
+   keep exactly that: no overlay. */
+@supports not (color: color-mix(in srgb, red, red)) {
+    html[data-avd-css-animations="on"] .avd-channel-page[data-channel-motion="pulse"] .avd-channel-stats span::after {
+        content: none;
+    }
+}
+
+html[data-avd-css-animations="on"] .avd-channel-page[data-channel-motion="sweep"] .avd-channel-hero::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background: linear-gradient(110deg, transparent 15%, rgba(255, 255, 255, 0.14) 45%, transparent 62%);
+    transform: translateX(-100%);
+    animation: avd-channel-sweep 8s ease-in-out infinite;
+}
+
+html[data-avd-css-animations="on"] .avd-channel-page[data-channel-motion="gentle"] .avd-channel-section,
+html[data-avd-css-animations="on"] .avd-channel-page[data-channel-motion="gentle"] .avd-channel-featured {
+    animation: avd-channel-rise 480ms ease both;
+}
+
+/* Lite devices (html[data-avd-perf="lite"]): no infinite channel-hero loops. Each
+   rests on its loop's own first frame (avatar in place, sweep parked off the clipped
+   hero, pulse overlay transparent). The one-shot "gentle" rise is kept. */
+html[data-avd-perf="lite"][data-avd-css-animations] .avd-channel-page[data-channel-motion="float"] .avd-channel-avatar-wrap,
+html[data-avd-perf="lite"][data-avd-css-animations] .avd-channel-page[data-channel-motion="sweep"] .avd-channel-hero::after,
+html[data-avd-perf="lite"][data-avd-css-animations] .avd-channel-page[data-channel-motion="pulse"] .avd-channel-stats span::after {
+    animation: none !important;
+}
+
+@keyframes avd-channel-float {
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-6px);
+    }
+}
+
+@keyframes avd-channel-pulse-o {
+    0%,
+    100% {
+        opacity: 0;
+    }
+    50% {
+        opacity: 1;
+    }
+}
+
+@keyframes avd-channel-sweep {
+    0%,
+    35% {
+        transform: translateX(-100%);
+    }
+    70%,
+    100% {
+        transform: translateX(100%);
+    }
+}
+
+@keyframes avd-channel-rise {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.avd-switch-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+    gap: 0.75rem;
+}
+
+.avd-switch-card {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 0.6rem;
+    min-height: 3.35rem;
+    padding: 0.7rem 0.85rem;
+    border: 1px solid var(--avd-border);
+    border-radius: 14px;
+    background: var(--avd-surface-soft);
+}
+
+@media (max-width: 991.98px) {
+    .avd-channel-hero > .avd-channel-shell,
+    .avd-channel-page[data-channel-layout="split"] .avd-channel-hero > .avd-channel-shell {
+        display: flex;
+        flex-direction: column;
+        align-items: start;
+        justify-content: flex-end;
+    }
+
+    .avd-channel-actions {
+        justify-content: flex-start;
+    }
+
+    .avd-channel-info-strip {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 767.98px) {
+    .avd-channel-hero,
+    .avd-channel-hero > .avd-channel-shell,
+    .avd-channel-page[data-channel-layout="poster"] .avd-channel-hero,
+    .avd-channel-page[data-channel-layout="compact"] .avd-channel-hero {
+        min-height: 410px;
+    }
+
+    .avd-channel-identity {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .avd-channel-avatar-wrap {
+        width: 6.75rem;
+        height: 6.75rem;
+    }
+
+    .avd-channel-title {
+        font-size: 2.15rem;
+    }
+
+    .avd-channel-page[data-channel-video-layout="list"] .avd-video-card {
+        display: block;
+    }
+
+    .avd-channel-section-heading,
+    .avd-channel-playlist-head {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .avd-channel-tabs-wrap {
+        top: 56px;
+    }
+}
+
+@media (max-width: 575.98px) {
+    .avd-channel-page {
+        --channel-gap: 0.85rem;
+        padding-bottom: 1.4rem;
+        overflow-x: hidden;
+    }
+
+    .avd-channel-shell {
+        width: min(100vw - 1.5rem, 1540px);
+        max-width: calc(100vw - 1.5rem);
+    }
+
+    .avd-channel-page[data-channel-shape="framed"] .avd-channel-hero {
+        width: min(100vw - 1.5rem, 1540px);
+        max-width: calc(100vw - 1.5rem);
+    }
+
+    .avd-channel-hero,
+    .avd-channel-hero > .avd-channel-shell,
+    .avd-channel-page[data-channel-layout="poster"] .avd-channel-hero,
+    .avd-channel-page[data-channel-layout="compact"] .avd-channel-hero {
+        min-height: 390px;
+    }
+
+    .avd-channel-hero > .avd-channel-shell {
+        gap: 1rem;
+        padding-block: 2rem 1.25rem;
+    }
+
+    .avd-channel-title {
+        font-size: 2rem;
+    }
+
+    .avd-channel-tagline {
+        font-size: 0.94rem;
+        line-height: 1.5;
+    }
+
+    .avd-channel-actions {
+        width: 100%;
+    }
+
+    .avd-channel-actions .btn,
+    .avd-channel-actions subscribe-button {
+        flex: 1 1 8rem;
+    }
+
+    .avd-channel-info-card,
+    .avd-channel-section,
+    .avd-channel-featured,
+    .avd-channel-panel,
+    .avd-channel-playlist,
+    .avd-channel-empty {
+        border-radius: 16px;
+    }
+
+    .avd-channel-section,
+    .avd-channel-featured,
+    .avd-channel-panel,
+    .avd-channel-playlist {
+        padding: 0.85rem;
+    }
+
+    .avd-channel-tabs-wrap {
+        border-radius: 16px;
+    }
+
+    .avd-channel-tabs {
+        gap: 0.18rem;
+        padding: 0.36rem;
+    }
+
+    .avd-channel-tabs .nav-link {
+        min-height: 40px;
+        padding: 0.48rem 0.66rem;
+        border-radius: 11px;
+        font-size: 0.82rem;
+    }
+
+    .avd-channel-page .avd-video-card {
+        padding: 0.4rem;
+        border-radius: 17px;
+    }
+
+    .avd-channel-page .avd-thumb {
+        border-radius: 14px;
+    }
+
+    .avd-channel-page .avd-card-body,
+    .avd-channel-page .avd-channel-latest .avd-card-body,
+    .avd-channel-page .avd-channel-playlists .avd-card-body {
+        grid-template-columns: 34px minmax(0, 1fr);
+        gap: 0.62rem;
+        min-height: 76px;
+        padding: 0.72rem 0.5rem 0.3rem;
+    }
+
+    .avd-channel-page .avd-channel-avatar {
+        width: 34px;
+        height: 34px;
+    }
+
+    .avd-channel-featured-grid,
+    .avd-channel-latest-grid,
+    .avd-channel-video-grid,
+    .avd-channel-playlist-video-grid {
+        margin-inline: 0;
+    }
+
+    .avd-channel-featured-grid > .col,
+    .avd-channel-latest-grid > .col,
+    .avd-channel-video-grid > .col,
+    .avd-channel-playlist-video-grid > .col {
+        padding-inline: 0;
+    }
+
+    .avd-channel-playlists[data-channel-playlists-layout="rail"] .avd-channel-playlist,
+    .avd-channel-featured[data-channel-featured-layout="rail"] .avd-channel-featured-grid > .col,
+    .avd-channel-latest[data-channel-latest-layout="rail"] .avd-channel-latest-grid > .col {
+        flex-basis: min(88vw, 21rem);
+        max-width: min(88vw, 21rem);
+    }
+}
+
+/* Profile/channel page polish:
+   the video-layout selector is for the Videos tab only. Home sections have
+   their own featured/latest layout controls, so keep those cards stable. */
+.avd-channel-page .avd-video-card .avd-card-body {
+    grid-template-columns: minmax(0, 1fr);
+    min-height: 72px;
+    padding: 0.78rem 0.35rem 0.28rem;
+}
+
+.avd-channel-page .avd-video-card .avd-card-body > a:first-child,
+.avd-channel-page .avd-video-card .avd-card-body > .avd-channel-avatar {
+    display: none;
+}
+
+.avd-channel-page .avd-video-card .avd-channel-name {
+    display: none;
+}
+
+.avd-channel-page .avd-video-card .avd-video-title {
+    min-height: calc(0.95rem * 1.34 * 2);
+    font-size: 0.95rem;
+    line-height: 1.34;
+}
+
+.avd-channel-page .avd-video-card .avd-video-meta {
+    margin-top: 0.18rem;
+}
+
+.avd-channel-page #videos .avd-video-grid {
+    --bs-gutter-x: var(--channel-gap);
+    --bs-gutter-y: var(--channel-gap);
+    margin-top: 0;
+    align-items: stretch;
+}
+
+.avd-channel-page #videos .avd-video-grid > .col {
+    display: flex;
+    min-width: 0;
+}
+
+.avd-channel-page #videos .avd-video-grid .avd-video-card {
+    width: 100%;
+}
+
+.avd-channel-page[data-channel-video-layout="list"] .avd-channel-featured .avd-video-card,
+.avd-channel-page[data-channel-video-layout="list"] .avd-channel-latest .avd-video-card,
+.avd-channel-page[data-channel-video-layout="list"] .avd-channel-playlists .avd-video-card {
+    display: block;
+    grid-template-columns: none;
+    gap: 0;
+}
+
+.avd-channel-page[data-channel-video-layout="list"] .avd-channel-featured .avd-card-body,
+.avd-channel-page[data-channel-video-layout="list"] .avd-channel-latest .avd-card-body,
+.avd-channel-page[data-channel-video-layout="list"] .avd-channel-playlists .avd-card-body {
+    padding: 0.78rem 0.35rem 0.28rem;
+}
+
+.avd-channel-page[data-channel-video-layout="list"] #videos .avd-video-grid {
+    gap: 0;
+}
+
+.avd-channel-page[data-channel-video-layout="list"] #videos .avd-video-grid > .col {
+    flex: 0 0 100%;
+    max-width: 100%;
+    width: 100%;
+}
+
+.avd-channel-page[data-channel-video-layout="list"] #videos .avd-video-card {
+    display: grid;
+    grid-template-columns: minmax(12rem, 21rem) minmax(0, 1fr);
+    gap: 1rem;
+    align-items: center;
+    min-height: 9.5rem;
+    padding: 0.55rem;
+}
+
+.avd-channel-page[data-channel-video-layout="list"] #videos .avd-thumb {
+    height: 100%;
+    min-height: 8.4rem;
+}
+
+.avd-channel-page[data-channel-video-layout="list"] #videos .avd-card-body {
+    align-content: center;
+    min-height: 0;
+    padding: 0.45rem 0.55rem 0.45rem 0;
+}
+
+.avd-channel-page[data-channel-video-layout="list"] #videos .avd-video-title {
+    min-height: auto;
+    font-size: 1.02rem;
+    -webkit-line-clamp: 3;
+}
+
+.avd-channel-page[data-channel-video-layout="compact"] #videos .avd-video-grid {
+    --channel-gap: 0.72rem;
+}
+
+@media (min-width: 1200px) {
+    .avd-channel-page[data-channel-video-layout="compact"] #videos .avd-video-grid > .col {
+        flex-basis: 20%;
+        max-width: 20%;
+        width: 20%;
+    }
+}
+
+@media (min-width: 992px) {
+    .avd-channel-featured[data-channel-featured-layout="hero"] .avd-channel-featured-grid > .col:not(:first-child),
+    .avd-channel-latest[data-channel-latest-layout="showcase"] .avd-channel-latest-grid > .col:not(:first-child) {
+        flex-basis: 50%;
+        max-width: 50%;
+        width: 50%;
+    }
+
+    .avd-channel-page[data-channel-video-layout="showcase"] #videos .avd-video-grid > .col:first-child {
+        flex-basis: 50%;
+        max-width: 50%;
+        width: 50%;
+    }
+}
+
+@media (max-width: 767.98px) {
+    .avd-channel-page[data-channel-video-layout="list"] #videos .avd-video-card {
+        display: block;
+        min-height: 0;
+    }
+
+    .avd-channel-page[data-channel-video-layout="list"] #videos .avd-thumb {
+        min-height: 0;
+    }
+
+    .avd-channel-page[data-channel-video-layout="list"] #videos .avd-card-body {
+        padding: 0.72rem 0.5rem 0.3rem;
+    }
+}
+
+@media (max-width: 575.98px) {
+    .avd-channel-page .avd-video-card .avd-card-body,
+    .avd-channel-page .avd-channel-latest .avd-card-body,
+    .avd-channel-page .avd-channel-playlists .avd-card-body {
+        grid-template-columns: minmax(0, 1fr);
+        min-height: 68px;
+        padding: 0.68rem 0.45rem 0.28rem;
+    }
+}
+
+/* Channel page refresh: keep generated collection profiles tidy and avoid
+   oversized two-column hero cards on channel home pages. */
+.avd-channel-page:not([data-channel-layout="poster"]) .avd-channel-hero,
+.avd-channel-page:not([data-channel-layout="poster"]) .avd-channel-hero > .avd-channel-shell {
+    min-height: clamp(260px, 25vw, 330px);
+}
+
+.avd-channel-page[data-channel-shape="framed"]:not([data-channel-layout="poster"]) .avd-channel-hero {
+    min-height: clamp(240px, 23vw, 310px);
+}
+
+.avd-channel-page:not([data-channel-layout="poster"]) .avd-channel-hero > .avd-channel-shell {
+    align-items: center;
+    padding-block: clamp(1.35rem, 3vw, 2.4rem);
+}
+
+.avd-channel-page:not([data-channel-layout="poster"]) .avd-channel-identity {
+    align-items: center;
+}
+
+.avd-channel-page:not([data-channel-layout="poster"]) .avd-channel-avatar-wrap {
+    width: clamp(5.9rem, 9vw, 7.4rem);
+    height: clamp(5.9rem, 9vw, 7.4rem);
+}
+
+.avd-channel-page:not([data-channel-layout="poster"]) .avd-channel-title {
+    font-size: clamp(2rem, 3.4vw, 3rem);
+}
+
+@media (min-width: 992px) {
+    .avd-channel-featured[data-channel-featured-layout="hero"] .avd-channel-featured-grid,
+    .avd-channel-latest[data-channel-latest-layout="showcase"] .avd-channel-latest-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1.18fr) minmax(17rem, 0.82fr);
+        gap: var(--channel-gap);
+        margin-inline: 0;
+    }
+
+    .avd-channel-featured[data-channel-featured-layout="hero"] .avd-channel-featured-grid > .col,
+    .avd-channel-latest[data-channel-latest-layout="showcase"] .avd-channel-latest-grid > .col {
+        width: auto;
+        max-width: none;
+        min-width: 0;
+        padding-inline: 0;
+        flex: none;
+    }
+
+    .avd-channel-featured[data-channel-featured-layout="hero"] .avd-channel-featured-grid > .col:first-child,
+    .avd-channel-latest[data-channel-latest-layout="showcase"] .avd-channel-latest-grid > .col:first-child {
+        grid-row: span 2;
+    }
+
+    .avd-channel-featured[data-channel-featured-layout="hero"] .avd-channel-featured-grid > .col:not(:first-child) .avd-video-card,
+    .avd-channel-latest[data-channel-latest-layout="showcase"] .avd-channel-latest-grid > .col:not(:first-child) .avd-video-card {
+        height: 100%;
+    }
+
+    .avd-channel-featured[data-channel-featured-layout="hero"] .avd-channel-featured-grid > .col:not(:first-child) .avd-video-title,
+    .avd-channel-latest[data-channel-latest-layout="showcase"] .avd-channel-latest-grid > .col:not(:first-child) .avd-video-title {
+        min-height: auto;
+        -webkit-line-clamp: 2;
+    }
+}

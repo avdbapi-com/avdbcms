@@ -1,0 +1,90 @@
+#!/usr/bin/env php
+<?php
+
+define('LARAVEL_START', microtime(true));
+/*
+|--------------------------------------------------------------------------
+| Run As The Web User
+|--------------------------------------------------------------------------
+|
+| Hosting panels and administrators often run "php artisan ..." as root.
+| Files created that way (caches, compiled views, logs) end up owned by
+| root and the web server can no longer write them, which breaks the site.
+| When started as root, drop to the owner of the storage/ directory first.
+| Set AVDBCMS_KEEP_ROOT=1 (or the older AVDBCLIP_KEEP_ROOT=1) in the environment to keep running as root.
+|
+*/
+
+if (PHP_SAPI === 'cli' && function_exists('posix_geteuid') && posix_geteuid() === 0 && getenv('AVDBCMS_KEEP_ROOT') === false && getenv('AVDBCLIP_KEEP_ROOT') === false) {
+    $avdbUid = @fileowner(__DIR__.'/storage');
+    $avdbGid = @filegroup(__DIR__.'/storage');
+
+    if (is_int($avdbUid) && $avdbUid > 0 && is_int($avdbGid) && function_exists('posix_setuid') && function_exists('posix_setgid')) {
+        $avdbUser = function_exists('posix_getpwuid') ? posix_getpwuid($avdbUid) : false;
+
+        if (is_array($avdbUser) && function_exists('posix_initgroups')) {
+            @posix_initgroups($avdbUser['name'], $avdbGid);
+        }
+
+        if (@posix_setgid($avdbGid) && @posix_setuid($avdbUid)) {
+            $avdbHome = is_array($avdbUser) && ! empty($avdbUser['dir']) && @is_writable($avdbUser['dir'])
+                ? $avdbUser['dir']
+                : sys_get_temp_dir();
+
+            putenv('HOME='.$avdbHome);
+            $_SERVER['HOME'] = $_ENV['HOME'] = $avdbHome;
+        }
+    }
+
+    unset($avdbUid, $avdbGid, $avdbUser, $avdbHome);
+}
+
+
+/*
+|--------------------------------------------------------------------------
+| Register The Auto Loader
+|--------------------------------------------------------------------------
+|
+| Composer provides a convenient, automatically generated class loader
+| for our application. We just need to utilize it! We'll require it
+| into the script here so that we do not have to worry about the
+| loading of any of our classes manually. It's great to relax.
+|
+*/
+
+require __DIR__.'/vendor/autoload.php';
+
+$app = require_once __DIR__.'/bootstrap/app.php';
+
+/*
+|--------------------------------------------------------------------------
+| Run The Artisan Application
+|--------------------------------------------------------------------------
+|
+| When we run the console application, the current CLI command will be
+| executed in this console and the response sent back to a terminal
+| or another output device for the developers. Here goes nothing!
+|
+*/
+
+$kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
+
+$status = $kernel->handle(
+    $input = new Symfony\Component\Console\Input\ArgvInput,
+    new Symfony\Component\Console\Output\ConsoleOutput
+);
+
+/*
+|--------------------------------------------------------------------------
+| Shutdown The Application
+|--------------------------------------------------------------------------
+|
+| Once Artisan has finished running, we will fire off the shutdown events
+| so that any final work may be done by the application before we shut
+| down the process. This is the last thing to happen to the request.
+|
+*/
+
+$kernel->terminate($input, $status);
+
+exit($status);

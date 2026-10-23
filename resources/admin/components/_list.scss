@@ -1,0 +1,542 @@
+// Home, the list pages (tables with their toolbar, bulk bar, row menus and pager; list items on phones) and the
+// consoles' deferred sections. Imported by _legacy.scss.
+
+// ---------- Home
+.ad-home-update { margin-bottom: var(--s5); }
+.ad-home-grow { flex: 1 1 auto; min-width: 0; }
+
+.ad-home-top {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+    gap: 20px;
+    align-items: start;
+
+    &.is-single { grid-template-columns: minmax(0, 1fr); }
+}
+
+.ad-home-progress {
+    flex: none;
+    width: 160px;
+    height: 6px;
+    border: 0;
+    border-radius: 3px;
+    background: var(--surface-3);
+    appearance: none;
+    overflow: hidden;
+
+    &::-webkit-progress-bar { background: var(--surface-3); border-radius: 3px; }
+    &::-webkit-progress-value { background: var(--ok); border-radius: 3px; }
+    &::-moz-progress-bar { background: var(--ok); border-radius: 3px; }
+}
+
+.ad-home-week { margin: 28px 0 10px; }
+.ad-home-bottom { margin-top: 28px; align-items: start; }
+.ad-home-quote { display: block; color: var(--text) !important; font-size: var(--fs-md) !important; }
+.ad-home-when { flex: none; min-width: 96px; text-align: end; }
+
+.ad-home-metrics.is-earnings-off .ad-metric:last-child .ad-metric-value strong {
+    font-size: 20px;
+    line-height: 30px;
+    color: var(--text-2);
+}
+
+// A form button that reads as a link ("Hide this list").
+.ad-linkbtn {
+    border: 0;
+    padding: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+
+    &:hover { color: var(--text); }
+}
+
+// ---------- list pages: toolbar filters, rows, pager
+.ad-filter {
+    display: flex;
+    flex: 1 1 auto;
+    flex-wrap: wrap;
+    gap: var(--s2);
+    align-items: center;
+    min-width: 0;
+
+    .ad-select { width: auto; max-width: 220px; height: 34px; }
+}
+
+.ad-search-field {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+
+    > .ad-i {
+        position: absolute;
+        inset-inline-start: 10px;
+        color: var(--text-3);
+        pointer-events: none;
+    }
+
+    .ad-input { padding-inline-start: 32px; }
+}
+
+.ad-filter-more {
+    position: relative;
+
+    > summary { list-style: none; }
+    > summary::-webkit-details-marker { display: none; }
+    &[open] > summary { background: var(--surface-2); }
+}
+
+.ad-filter-pop {
+    position: absolute;
+    z-index: 30;
+    inset-inline-start: 0;
+    top: calc(100% + 6px);
+    display: grid;
+    gap: 6px;
+    width: 260px;
+    padding: var(--s3);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    box-shadow: var(--shadow-overlay);
+
+    .ad-input { width: 100%; }
+}
+
+.ad-bulk {
+    flex-wrap: wrap;
+
+    .ad-select { width: auto; height: 30px; font-size: var(--fs-sm); }
+}
+
+.ad-bulk-group { display: inline-flex; gap: 4px; align-items: center; }
+
+.ad-vid { display: flex; gap: var(--s3); align-items: center; min-width: 0; }
+
+.ad-thumb {
+    position: relative;
+    display: block;
+    flex: none;
+    width: 96px;
+    height: 54px;
+    border-radius: var(--r-xs);
+    overflow: hidden;
+    background: var(--surface-3);
+
+    img { display: block; width: 100%; height: 100%; object-fit: cover; }
+}
+
+.ad-dur,
+.ad-thumb > i {
+    position: absolute;
+    inset-inline-end: 4px;
+    bottom: 4px;
+    padding: 0 4px;
+    border-radius: 3px;
+    background: rgba(0, 0, 0, .78);
+    color: #fff;
+    font: 600 10.5px/16px var(--font);
+}
+
+.ad-thumb > i { font-style: normal; }
+
+// The main column takes the room the other columns leave and cuts long titles: the table never gets wider than
+// its box (tablets, a narrow window).
+// A long list's row boxes carry no class: the cell styles them as .ad-check.
+.ad-table td.is-check > input[type="checkbox"] { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); vertical-align: middle; cursor: pointer; }
+
+.ad-table td.c-main { width: 100%; max-width: 0; }
+.ad-table td.is-date { white-space: nowrap; color: var(--text-2); }
+
+// A long list's rows use short tags inside .ad-vid: <p> = .ad-vid-text, its <a> = .ad-vid-title, <small> = .ad-vid-sub.
+.ad-vid-text,
+.ad-vid > p { min-width: 0; display: block; flex: 1 1 auto; margin: 0; }
+
+.ad-vid-title,
+.ad-vid > p > a,
+.ad-table td.c-main > p > a {
+    display: block;
+    max-width: min(420px, 100%);
+    overflow: hidden;
+    color: var(--text) !important;
+    font-weight: 600;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    text-decoration: none !important;
+
+    &:hover { text-decoration: underline !important; }
+}
+
+.ad-vid-sub,
+.ad-vid > p > small,
+.ad-table td.c-main > p > small {
+    display: block;
+    max-width: min(420px, 100%);
+    overflow: hidden;
+    color: var(--text-2);
+    font-size: var(--fs-sm);
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.ad-table td.is-num a { color: inherit; }
+.ad-table td.c-main > p { margin: 0; }
+
+// A link inside a sentence is underlined (not told apart by its colour alone).
+.ad-note a { text-decoration: underline; text-underline-offset: 2px; }
+
+// A section of a page that folds open (the form of "New announcement").
+.ad-fold > summary { cursor: pointer; list-style: none; }
+.ad-fold > summary::-webkit-details-marker { display: none; }
+.ad-fold > summary::after { content: '+'; margin-inline-start: auto; color: var(--text-2); font-size: var(--fs-lg); }
+.ad-fold[open] > summary::after { content: '\2212'; }
+.ad-phone-only { display: none !important; }
+.ad-vid > .ad-avatar { flex: none; }
+
+// Why a row's state is what it is (e.g. a public video that is not shown), under its status: .ad-why, or any
+// <small> of the status cell that is not the phones' second line.
+.ad-why,
+.ad-table td.c-meta > small:not(.ad-phone-only) { display: block; max-width: 220px; margin-top: 2px; color: var(--text-2); font-size: var(--fs-xs); line-height: 1.35; }
+
+// Row menus: the box is made next to its button when it first opens (modules/list-rows.ts), anchored to the cell;
+// the button of a long list carries no icon markup - its three dots are drawn here.
+.ad-table td.is-actions { position: relative; }
+
+.ad-iconbtn.is-more::before {
+    content: '';
+    width: 18px;
+    height: 18px;
+    background: currentColor;
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='5' cy='12' r='2'/%3E%3Ccircle cx='12' cy='12' r='2'/%3E%3Ccircle cx='19' cy='12' r='2'/%3E%3C/svg%3E") center / contain no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='5' cy='12' r='2'/%3E%3Ccircle cx='12' cy='12' r='2'/%3E%3Ccircle cx='19' cy='12' r='2'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+@media (forced-colors: active) {
+    .ad-iconbtn.is-more::before { forced-color-adjust: none; background: ButtonText; }
+}
+
+// Comments: author, text (two lines), the latest replies under a disclosure.
+.ad-comment-author { display: block; font-weight: 600; }
+
+.ad-comment-text {
+    display: -webkit-box;
+    max-width: 560px;
+    overflow: hidden;
+    color: var(--text);
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+
+.ad-comment-video {
+    display: block;
+    max-width: 240px;
+    overflow: hidden;
+    color: var(--text-2);
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.ad-replies {
+    margin-top: 4px;
+    font-size: var(--fs-sm);
+
+    // Text colour (the link colour is too light on a hovered row in dark mode), underlined as something to open.
+    > summary {
+        width: max-content;
+        color: var(--text);
+        font-weight: 600;
+        text-decoration: underline;
+        text-underline-offset: 2px;
+        cursor: pointer;
+    }
+
+    ul {
+        margin: 6px 0;
+        padding: 0;
+        list-style: none;
+        border-inline-start: 2px solid var(--border);
+    }
+
+    li {
+        display: flex;
+        gap: var(--s2);
+        align-items: baseline;
+        justify-content: space-between;
+        padding: 3px var(--s3);
+        color: var(--text-2);
+
+        b { color: var(--text); }
+    }
+}
+
+.ad-table td:has(> .ad-comment-author) { padding-block: var(--s2); }
+
+.ad-pager-size .ad-select { width: auto; height: 32px; font-size: var(--fs-sm); }
+
+// The same pager under an old view's table (<x-admin.pagination> in the new admin).
+.ad-legacy-pager {
+    margin-top: var(--s3);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+}
+.ad-pager .ad-pages .is-gap { min-width: 20px; border: 0; }
+
+// ---------- record pages (one video): the form's sections, the poster and facts beside them
+.ad-record {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    gap: 20px;
+    align-items: start;
+}
+
+.ad-record-main,
+.ad-record-side {
+    display: grid;
+    gap: 20px;
+    min-width: 0;
+}
+
+.ad-record-fields {
+    display: grid;
+    gap: var(--s4);
+
+    &.is-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .ad-field { padding: 0; border: 0; }
+    .ad-textarea { min-height: 140px; }
+}
+
+// Switch rows straight in a panel (as in a settings section).
+.ad-record .ad-panel > .ad-toggle-row { padding: var(--s4) var(--s5); }
+.ad-record .ad-panel > .ad-toggle-row + .ad-toggle-row { border-top: 1px solid var(--border); }
+
+.ad-record-poster {
+    position: relative;
+    display: block;
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+    border-radius: var(--r-lg) var(--r-lg) 0 0;
+    background: var(--surface-3);
+
+    img { display: block; width: 100%; height: 100%; object-fit: cover; }
+}
+
+.ad-facts {
+    margin: 0;
+    padding: var(--s3) var(--s5);
+
+    > div {
+        display: flex;
+        gap: var(--s3);
+        justify-content: space-between;
+        padding: 6px 0;
+        border-top: 1px solid var(--border);
+        font-size: var(--fs-sm);
+
+        &:first-child { border-top: 0; }
+    }
+
+    dt { color: var(--text-2); font-weight: 400; }
+    dd { margin: 0; text-align: end; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+}
+
+// A field with a preview in front of it (a category's icon).
+.ad-input-icon {
+    display: flex;
+    gap: var(--s2);
+    align-items: center;
+
+    .ad-input { flex: 1 1 auto; min-width: 0; }
+}
+
+// A new record has no save bar: its form ends with Cancel / Create.
+.ad-record-actions {
+    display: flex;
+    gap: var(--s2);
+    justify-content: flex-end;
+}
+
+// Lists put in order with Up / Down buttons (modules/list-order.ts).
+.ad-order-list {
+    margin: 0;
+
+    li { gap: var(--s2); }
+    .ad-iconbtn:disabled { opacity: .35; cursor: default; }
+}
+
+.ad-i.is-up { transform: rotate(180deg); }
+
+// Code in a field (an info page's HTML).
+.ad-textarea.ad-code { font-family: var(--font-mono, ui-monospace, monospace); font-size: var(--fs-sm); }
+
+// A language's flag before its name; its translated share as a meter and a number.
+.ad-flag { flex: none; width: 28px; font-size: 22px; line-height: 1; text-align: center; }
+
+.ad-table td.ad-cover {
+    min-width: 180px;
+
+    .ad-meter { display: inline-block; width: 96px; margin-inline-end: var(--s2); vertical-align: middle; }
+    span { color: var(--text-2); font-size: var(--fs-sm); white-space: nowrap; }
+}
+
+// Two short lines in a cell (a sender's name and email); an unread message's subject in bold.
+.ad-cell-two {
+    margin: 0;
+
+    b, small { display: block; max-width: 220px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+    small { color: var(--text-2); font-size: var(--fs-sm); }
+}
+
+.ad-vid > p > a.is-unread,
+p > a.is-unread { font-weight: 700; }
+
+// A message's text as it was written.
+.ad-message { white-space: pre-wrap; overflow-wrap: anywhere; }
+
+// Tags: the name with its address, a "Rename" box that opens in the row, and the "Add tag" form of the toolbar.
+.ad-tag-name { margin: 0; }
+.ad-tag-name code { margin-inline-start: var(--s2); color: var(--text-2); font-size: var(--fs-xs); }
+
+.ad-rename {
+    margin-top: 2px;
+    font-size: var(--fs-sm);
+
+    > summary { width: max-content; color: var(--text-2); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+    > form { margin-top: var(--s2); }
+    .ad-input { height: 30px; }
+}
+
+.ad-table td:has(> .ad-rename[open]) { max-width: none; }
+.ad-add { flex: 0 1 auto; }
+
+// ---------- translation editor (100 strings per page)
+.ad-translate .ad-table td {
+    height: auto;
+    padding-block: var(--s2);
+    vertical-align: top;
+}
+
+.ad-translate-source {
+    width: 45%;
+
+    label { display: block; font-weight: 500; overflow-wrap: anywhere; }
+    code { max-width: none; white-space: normal; overflow-wrap: anywhere; }
+}
+
+.ad-translate-field .ad-textarea { width: 100%; min-height: 36px; resize: vertical; }
+.ad-translate tr.is-missing .ad-textarea { border-color: var(--warn); }
+
+.ad-translate-save {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    display: flex;
+    gap: var(--s3);
+    align-items: center;
+    justify-content: flex-end;
+    margin-top: var(--s3);
+    padding: var(--s3) var(--s4);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    box-shadow: var(--shadow-overlay);
+}
+
+// ---------- consoles (Cache & storage, Background jobs ...)
+.ad-console-block { margin-bottom: var(--s5); }
+.ad-console-note { margin: var(--s2) 0 0; }
+
+.ad-meter {
+    display: block;
+    width: 100%;
+    height: 10px;
+    border: 0;
+    border-radius: 5px;
+    background: var(--surface-3);
+    appearance: none;
+
+    &::-webkit-meter-bar { background: var(--surface-3); border: 0; border-radius: 5px; height: 10px; }
+    &::-webkit-meter-optimum-value,
+    &::-webkit-meter-suboptimum-value,
+    &::-webkit-meter-even-less-good-value { border-radius: 5px; background: var(--ok); }
+    &.is-warn::-webkit-meter-suboptimum-value, &.is-warn::-webkit-meter-optimum-value { background: var(--warn); }
+    &.is-danger::-webkit-meter-even-less-good-value, &.is-danger::-webkit-meter-suboptimum-value { background: var(--danger); }
+    &::-moz-meter-bar { border-radius: 5px; background: var(--ok); }
+    &.is-warn::-moz-meter-bar { background: var(--warn); }
+    &.is-danger::-moz-meter-bar { background: var(--danger); }
+}
+
+// ---------- deferred sections (filled after the page appears from the status probes)
+[data-ad-defer-probes] .ad-home-checking .ad-sym .ad-i { opacity: .7; }
+
+.ad-skeleton {
+    display: inline-block;
+    width: 5em;
+    height: .9em;
+    border-radius: 4px;
+    background: var(--surface-3);
+    vertical-align: middle;
+}
+
+[data-ad-busy][aria-busy="true"] .ad-btn { opacity: .7; cursor: progress; }
+
+@media (max-width: 1199.98px) {
+    .ad-home-top { grid-template-columns: minmax(0, 1fr); }
+    .ad-record { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 767.98px) {
+    .ad-home-progress { width: 88px; }
+    .ad-home-when { min-width: 0; }
+
+    .ad-record-fields.is-3 { grid-template-columns: minmax(0, 1fr); }
+    .ad-filter .ad-search-field { flex: 1 1 100%; }
+    .ad-filter .ad-search-field .ad-input { width: 100%; }
+    .ad-filter .ad-spacer { display: none; }
+    .ad-pager .ad-pages { width: 100%; justify-content: center; margin-inline-start: 0; }
+    .ad-phone-only { display: inline !important; }
+
+    // Rows become two-line list items: [box] main line / second line [menu].
+    .ad-table.is-list {
+        display: block;
+
+        thead { display: none; }
+        tbody { display: block; }
+
+        tr {
+            display: grid;
+            grid-template-columns: auto minmax(0, 1fr) auto;
+            gap: 4px var(--s3);
+            padding: var(--s3) var(--s4);
+            border-bottom: 1px solid var(--border);
+        }
+
+        tr:last-child { border-bottom: 0; }
+
+        td {
+            display: none;
+            height: auto;
+            padding: 0;
+            border: 0;
+            background: transparent !important;
+        }
+
+        td.is-check { display: block; grid-column: 1; grid-row: 1 / span 2; align-self: center; width: auto; }
+        td.c-main { display: block; grid-column: 2; grid-row: 1; width: auto; max-width: none; }
+        td.c-meta { display: flex; grid-column: 2; grid-row: 2; flex-wrap: wrap; gap: 4px 12px; align-items: center; color: var(--text-2); font-size: var(--fs-sm); text-align: start; }
+        td.is-actions { display: block; grid-column: 3; grid-row: 1 / span 2; align-self: center; width: auto; }
+
+        tr:not(:has(td.is-check)) { grid-template-columns: minmax(0, 1fr) auto; }
+        tr:not(:has(td.is-check)) td.c-main,
+        tr:not(:has(td.is-check)) td.c-meta { grid-column: 1; }
+        tr:not(:has(td.is-check)) td.is-actions { grid-column: 2; }
+        tr.is-selected { background: var(--accent-soft); }
+
+        .ad-vid-title, .ad-vid-sub, .ad-vid > p > a, .ad-vid > p > small { max-width: 100%; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+        .ad-why, td.c-meta > small:not(.ad-phone-only) { flex-basis: 100%; max-width: none; margin: 0; }
+        .ad-thumb { width: 112px; height: 63px; }
+    }
+}

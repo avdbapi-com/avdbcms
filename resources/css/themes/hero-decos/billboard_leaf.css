@@ -1,0 +1,42 @@
+/* Hero decoration billboard_leaf (Phase B): ships at the end of the token file of the theme whose recipe names it
+   (php artisan avd:themes:build), so it loads with that theme only. Every rule is keyed
+   html[data-avd-hero-deco="billboard_leaf"][data-avd-theme] (App\Support\ThemeTokens::heroDecoProblems). */
+html[data-avd-hero-deco="billboard_leaf"][data-avd-theme] .avd-bb {
+    border-radius: 42px 10px 42px 10px;
+    height: 410px;
+}
+@media (min-width: 768px) {
+    html[data-avd-hero-deco="billboard_leaf"][data-avd-theme] .avd-bb > img {
+        position: absolute;
+        inset-block: 0;
+        inset-inline-start: 42%;
+        width: 58%;
+    }
+    html[data-avd-hero-deco="billboard_leaf"][data-avd-theme] .avd-bb .avd-scrim {
+        display: none;
+    }
+    html[data-avd-hero-deco="billboard_leaf"][data-avd-theme] .avd-bb .avd-content {
+        width: 42%;
+        padding: 0 34px;
+        background: var(--avd-surface-1);
+        color: var(--avd-text);
+    }
+    html[data-avd-hero-deco="billboard_leaf"][data-avd-theme] .avd-bb .avd-hmeta,
+    html[data-avd-hero-deco="billboard_leaf"][data-avd-theme] .avd-bb .avd-desc2 {
+        color: var(--avd-muted);
+    }
+    /* [data-bs-theme]: above layout-theme-b's opaque light-mode photo button (this one sits on the text panel). */
+    html[data-avd-hero-deco="billboard_leaf"][data-avd-theme][data-bs-theme] .avd-bb .avd-btn2 {
+        background: var(--avd-surface-2) !important;
+        color: var(--avd-text) !important;
+    }
+}
+@media (max-width: 767.98px) {
+    html[data-avd-hero-deco="billboard_leaf"][data-avd-theme] .avd-dots {
+        top: 12px;
+        bottom: auto;
+    }
+    html[data-avd-hero-deco="billboard_leaf"][data-avd-theme] .avd-bb {
+        height: 260px;
+    }
+}

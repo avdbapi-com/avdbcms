@@ -1,0 +1,57 @@
+{{--
+    What the Appearance page script (resources/admin/appearance/appearance.ts) starts from: the published value of
+    every field on the page, the admin's draft, the endpoints and the page's words. One JSON block, no inline handlers.
+--}}
+@php
+    $texts = [
+        'noChanges' => __('No changes'),
+        'allPublished' => __('Everything is published.'),
+        'oneChange' => __('1 change not published'),
+        'manyChanges' => __(':count changes not published'),
+        'previewing' => __('Previewing :name'),
+        'notPublished' => __('Not published. Only you see it, in the preview.'),
+        'lookNote' => __('Not published. Changes colours, fonts, homepage, video page and cards. Your logo, texts, menus, ads and custom code stay.'),
+        'themeNote' => __('Not published. Changes colours, fonts and shapes. Your homepage layout, logo, texts, menus and ads stay.'),
+        'themeLayoutsNote' => __('Not published. Changes colours, fonts, shapes and the page layouts. Your logo, texts, menus and ads stay.'),
+        'publish' => __('Publish'),
+        'publishLook' => __('Publish this look'),
+        'publishTheme' => __('Publish this theme'),
+        'publishing' => __('Publishing...'),
+        'published' => __('Published. Your visitors see the new design now.'),
+        'saving' => __('Updating the preview...'),
+        'failed' => __('Nothing was published. Check the highlighted settings.'),
+        'offline' => __('Could not reach your site. Your changes are still here.'),
+        'discardTitle' => __('Discard all unpublished changes?'),
+        'discardBody' => __('Every change you have not published goes back to what your visitors see now.'),
+        'discard' => __('Discard'),
+        'changed' => __('Not published yet'),
+        'undo' => __('Undo'),
+        'undone' => __('Undone. Your site shows the earlier design again.'),
+        'undoTitle' => __('Undo this change?'),
+        'undoBody' => __('Your site goes back to the design it had before this change.'),
+        'restoreTitle' => __('Restore your previous look?'),
+        'restoreBody' => __('Your site goes back to the look it had before the update. You can switch again at any time.'),
+        'restore' => __('Restore'),
+        'history' => __('History'),
+        'historyEmpty' => __('No changes yet.'),
+        'loading' => __('Loading...'),
+        'loadFailed' => __('Could not load this list. Try again.'),
+        'close' => __('Close'),
+        'showMore' => __('Show more'),
+        'noThemes' => __('No theme matches. Try another word, or an old theme name.'),
+        'colourStyles' => __(':count colour styles'),
+        'colourStyleFor' => __('Colour style for :name'),
+        'useLook' => __('Preview this look'),
+        'useTheme' => __('Preview this theme'),
+        'current' => __('On your site now'),
+        'blocked' => __('Your site does not allow the preview inside this page (its security settings). Open it in a new tab instead.'),
+        'openTab' => __('Open the preview in a new tab'),
+    ];
+@endphp
+<script type="application/json" id="ad-appearance-state">{!! json_encode([
+    'page' => $pageId,
+    'published' => (object) ($published ?? []),
+    'draft' => $draftState,
+    'urls' => $urls,
+    'texts' => $texts,
+], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) !!}</script>

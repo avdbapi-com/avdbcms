@@ -1,0 +1,170 @@
+// Admin design tokens (admin_design_spec.json tokens.color): graphite light and dark, one accent.
+// Light is the base; dark applies with html[data-theme="dark"] or, without data-theme, the device setting.
+// The accent comes from App\Support\AdminTheme::styleTag(): --ac-l/--ac-d etc. when the site colour gives
+// another accent than the neutral blue below (the default for red/pink sites such as demo1).
+@use "sass:color";
+@use "sass:map";
+
+@function rgb-triplet($c) {
+    @return round(color.channel($c, "red", $space: rgb)), round(color.channel($c, "green", $space: rgb)), round(color.channel($c, "blue", $space: rgb));
+}
+
+$ad-light: (
+    canvas: #f4f5f7, surface: #ffffff, surface-2: #f7f8fa, surface-3: #eef0f3,
+    border: #e3e6ea, border-strong: #cdd2d9, border-input: #838b98,
+    text: #16191e, text-2: #4a515c, text-3: #636b78,
+    ok: #137a3a, ok-soft: #e7f4ec, ok-line: #b9dfc7, ok-fill: #137a3a,
+    warn: #8f5300, warn-soft: #fdf3e1, warn-line: #f0d39c, warn-fill: #f2b544,
+    danger: #b42318, danger-soft: #fdecea, danger-line: #f3c1bb, danger-fill: #b42318,
+    info: #0b6b80, info-soft: #e3f3f6, info-line: #a9d6e0, info-fill: #0b6b80,
+    accent: #1f5bc7, on-accent: #ffffff, accent-ink: #1f5bc7, accent-soft: #e9eff9, accent-line: #9ab5e6, focus: #1f5bc7,
+);
+
+$ad-dark: (
+    canvas: #121419, surface: #1a1d23, surface-2: #20242b, surface-3: #282d35,
+    border: #2b3039, border-strong: #3b414c, border-input: #6a7280,
+    text: #e9ebef, text-2: #b4bac5, text-3: #8d95a3,
+    ok: #4cc777, ok-soft: #1f3329, ok-line: #2f5a40, ok-fill: #1e7b45,
+    warn: #f2b544, warn-soft: #362f22, warn-line: #6b5527, warn-fill: #f2b544,
+    danger: #f2675b, danger-soft: #3a2628, danger-line: #6e3a37, danger-fill: #b8322a,
+    info: #5cc6da, info-soft: #1b3237, info-line: #2c5a63, info-fill: #0b6b80,
+    accent: #2763cf, on-accent: #ffffff, accent-ink: #4381f0, accent-soft: #1c283f, accent-line: #203c70, focus: #4381f0,
+);
+
+$ad-accent-vars: (accent: ac, on-accent: oa, accent-ink: ai, accent-soft: as, accent-line: al, focus: fo);
+
+@mixin ad-mode($t, $suffix) {
+    @each $name, $value in $t {
+        @if map.has-key($ad-accent-vars, $name) {
+            --#{$name}: var(--#{map.get($ad-accent-vars, $name)}-#{$suffix}, #{$value});
+        } @else {
+            --#{$name}: #{$value};
+        }
+    }
+
+    // rgb triplets for Bootstrap's rgba(var(--bs-*-rgb), opacity) utilities
+    --accent-ink-rgb: var(--ar-#{$suffix}, #{rgb-triplet(map.get($t, accent-ink))});
+    --ok-fill-rgb: #{rgb-triplet(map.get($t, ok-fill))};
+    --danger-fill-rgb: #{rgb-triplet(map.get($t, danger-fill))};
+    --info-fill-rgb: #{rgb-triplet(map.get($t, info-fill))};
+    --warn-fill-rgb: #{rgb-triplet(map.get($t, warn-fill))};
+
+    // Bootstrap 5.3 variables -> admin tokens (forms, cards, tables, modals and utilities read these)
+    --bs-body-bg: var(--surface);
+    --bs-body-bg-rgb: #{rgb-triplet(map.get($t, surface))};
+    --bs-body-color: var(--text);
+    --bs-body-color-rgb: #{rgb-triplet(map.get($t, text))};
+    --bs-emphasis-color: var(--text);
+    --bs-emphasis-color-rgb: #{rgb-triplet(map.get($t, text))};
+    --bs-secondary-color: var(--text-2);
+    --bs-secondary-color-rgb: #{rgb-triplet(map.get($t, text-2))};
+    --bs-secondary-bg: var(--surface-2);
+    --bs-secondary-bg-rgb: #{rgb-triplet(map.get($t, surface-2))};
+    --bs-tertiary-color: var(--text-3);
+    --bs-tertiary-color-rgb: #{rgb-triplet(map.get($t, text-3))};
+    --bs-tertiary-bg: var(--surface-2);
+    --bs-tertiary-bg-rgb: #{rgb-triplet(map.get($t, surface-2))};
+    --bs-heading-color: var(--text);
+    --bs-link-color: var(--accent-ink);
+    --bs-link-color-rgb: var(--accent-ink-rgb);
+    --bs-link-hover-color: var(--accent-ink);
+    --bs-link-hover-color-rgb: var(--accent-ink-rgb);
+    --bs-code-color: var(--danger);
+    --bs-highlight-color: var(--text);
+    --bs-highlight-bg: var(--warn-soft);
+    --bs-border-color: var(--border);
+    --bs-border-color-translucent: var(--border);
+    --bs-form-valid-color: var(--ok);
+    --bs-form-valid-border-color: var(--ok);
+    --bs-form-invalid-color: var(--danger);
+    --bs-form-invalid-border-color: var(--danger);
+    --bs-primary-rgb: var(--accent-ink-rgb);
+    --bs-success-rgb: #{rgb-triplet(map.get($t, ok))};
+    --bs-info-rgb: #{rgb-triplet(map.get($t, info))};
+    --bs-warning-rgb: #{rgb-triplet(map.get($t, warn))};
+    --bs-danger-rgb: #{rgb-triplet(map.get($t, danger))};
+    --bs-secondary-rgb: #{rgb-triplet(map.get($t, text-2))};
+    --bs-primary-text-emphasis: var(--accent-ink);
+    --bs-success-text-emphasis: var(--ok);
+    --bs-info-text-emphasis: var(--info);
+    --bs-warning-text-emphasis: var(--warn);
+    --bs-danger-text-emphasis: var(--danger);
+    --bs-secondary-text-emphasis: var(--text-2);
+    --bs-light-text-emphasis: var(--text-2);
+    --bs-dark-text-emphasis: var(--text);
+    --bs-primary-bg-subtle: var(--accent-soft);
+    --bs-success-bg-subtle: var(--ok-soft);
+    --bs-info-bg-subtle: var(--info-soft);
+    --bs-warning-bg-subtle: var(--warn-soft);
+    --bs-danger-bg-subtle: var(--danger-soft);
+    --bs-secondary-bg-subtle: var(--surface-3);
+    --bs-light-bg-subtle: var(--surface-2);
+    --bs-dark-bg-subtle: var(--surface-3);
+    --bs-primary-border-subtle: var(--accent-line);
+    --bs-success-border-subtle: var(--ok-line);
+    --bs-info-border-subtle: var(--info-line);
+    --bs-warning-border-subtle: var(--warn-line);
+    --bs-danger-border-subtle: var(--danger-line);
+    --bs-secondary-border-subtle: var(--border-strong);
+    --bs-light-border-subtle: var(--border);
+    --bs-dark-border-subtle: var(--border-strong);
+}
+
+:root {
+    color-scheme: light;
+    @include ad-mode($ad-light, l);
+    --overlay: rgba(16, 20, 28, .44);
+    --shadow-overlay: 0 12px 32px rgba(16, 24, 40, .14), 0 2px 6px rgba(16, 24, 40, .08);
+    --shadow-raise: 0 1px 2px rgba(16, 24, 40, .06);
+    --toast-bg: #1f232b;
+    --toast-text: #f1f3f6;
+    --bg-light: var(--surface-2);
+    --table-stripe: rgba(16, 24, 40, .03);
+    --toast-ok: #6fd394;
+    --toast-err: #ff8f86;
+    --on-fill-dark: #16191e;
+    --brand-dot: #ff3d61;
+    --select-chevron: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23636b78' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+    --bs-btn-close-filter: none;
+
+    --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", "Noto Sans", "Liberation Sans", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+    --mono: ui-monospace, "Cascadia Mono", "Segoe UI Mono", Consolas, "Liberation Mono", Menlo, monospace;
+    --fs-xs: 12px; --lh-xs: 16px;
+    --fs-sm: 13px; --lh-sm: 18px;
+    --fs-md: 14px; --lh-md: 21px;
+    --fs-lg: 16px; --lh-lg: 24px;
+    --fs-xl: 18px; --lh-xl: 26px;
+    --fs-2xl: 22px; --lh-2xl: 28px;
+    --fs-3xl: 28px; --lh-3xl: 34px;
+    --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 20px; --s6: 24px; --s8: 32px; --s10: 40px; --s12: 48px;
+    --r-xs: 4px; --r-sm: 6px; --r-md: 8px; --r-lg: 12px; --r-pill: 999px;
+    --side-w: 248px; --rail-w: 64px; --top-h: 56px;
+    --content-max: 1240px; --form-max: 980px;
+    --dur: 140ms;
+}
+
+@mixin ad-dark {
+    color-scheme: dark;
+    @include ad-mode($ad-dark, d);
+    --overlay: rgba(4, 6, 10, .62);
+    --shadow-overlay: 0 16px 40px rgba(0, 0, 0, .55), 0 2px 8px rgba(0, 0, 0, .4);
+    --shadow-raise: none;
+    --toast-bg: #f1f3f6;
+    --toast-text: #16191e;
+    --bg-light: var(--surface);
+    --table-stripe: rgba(0, 0, 0, .16);
+    --toast-ok: #137a3a;
+    --toast-err: #b42318;
+    --select-chevron: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%238d95a3' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+    --bs-btn-close-filter: invert(1) grayscale(100%) brightness(200%);
+}
+
+html[data-theme="dark"] {
+    @include ad-dark;
+}
+
+@media (prefers-color-scheme: dark) {
+    html:not([data-theme]) {
+        @include ad-dark;
+    }
+}

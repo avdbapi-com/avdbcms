@@ -1,0 +1,9 @@
+<?php
+return [
+    'previous' => '&laquo; Anterior',
+    'next' => 'Siguiente &raquo;',
+    'results' => '{0} resultados|{1} resultado|[2,*] resultados',
+    'showing' => 'Mostrando',
+    'to' => 'a',
+    'of' => 'de',
+];

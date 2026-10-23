@@ -1,0 +1,31 @@
+<div class="modal fade" tabindex="-1" id="ban_video" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">{{__('Confirm ban video ?')}}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{__('Close')}}"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-2 p-2 bg-body-secondary rounded">
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <img style="width: 120px;height: 68px" :src="video.poster || '{{asset('images/placeholders/no-image.svg')}}'" :alt="video.title ? `${video.title} poster` : '{{__('Poster')}}'">
+                        <div>
+                            <small  x-text="video.title"></small>
+                            <div  class="text-muted video_infos text-sm mt-1" x-text="video.infos"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{__('Cancel')}}</button>
+                <form method="POST" :action="video.route">
+                    @csrf
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fa-solid fa-ban"></i> &nbsp;
+                        {{__('Ban video')}}
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>

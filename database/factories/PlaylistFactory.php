@@ -1,0 +1,34 @@
+<?php
+
+namespace Database\Factories;
+
+use App\Enums\PlaylistSort;
+use App\Enums\PlaylistStatus;
+use App\Models\Playlist;
+use Illuminate\Database\Eloquent\Factories\Factory;
+
+/**
+ * @extends Factory<Playlist>
+ */
+class PlaylistFactory extends Factory
+{
+    /**
+     * Define the model's default state.
+     *
+     * @return array<string, mixed>
+     */
+    public function definition() : array
+    {
+        $date = fake()->dateTimeBetween('-1 year');
+
+        return [
+            'uuid' => fake()->uuid(),
+            'title' => fake()->text(rand(5, config('validation.playlist.title.max'))),
+            'description' => fake()->realText(config('validation.playlist.description.max')),
+            'status' => fake()->randomElement(PlaylistStatus::cases()),
+            'sort' => fake()->randomElement(PlaylistSort::cases()),
+            'created_at' => $date,
+            'updated_at' => $date,
+        ];
+    }
+}

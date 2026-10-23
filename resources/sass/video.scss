@@ -1,0 +1,1498 @@
+.avd-category-tabs {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    contain: inline-size;
+    display: flex;
+    gap: 0.55rem;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 0.15rem 0 0.9rem;
+    overscroll-behavior-inline: contain;
+    mask-image: linear-gradient(var(--avd-inline-dir, 90deg), transparent 0, #000 1rem, #000 calc(100% - 1.5rem), transparent 100%);
+    -webkit-mask-image: linear-gradient(var(--avd-inline-dir, 90deg), transparent 0, #000 1rem, #000 calc(100% - 1.5rem), transparent 100%);
+}
+
+html[data-avd-rail-scrollbars="hidden"] .avd-category-tabs::-webkit-scrollbar {
+    display: none;
+}
+
+// Category chips: the theme's chip tokens; chip styles (underline, tabs, bracket...) are in layout-theme-a.css.
+.avd-tag {
+    min-height: var(--avd-chip-h);
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    flex: 0 0 auto;
+    padding: 0 15px;
+    border: 1px solid var(--avd-chip-border);
+    border-radius: var(--avd-radius-chip);
+    background: var(--avd-chip-bg);
+    color: var(--avd-chip-text);
+    font-family: var(--avd-font-body);
+    font-size: 13.5px;
+    font-weight: var(--avd-chip-weight);
+    letter-spacing: var(--avd-chip-tracking);
+    text-decoration: none;
+    text-transform: var(--avd-chip-case);
+    box-shadow: var(--avd-chip-shadow);
+    clip-path: var(--avd-chip-clip);
+}
+
+.avd-tag i {
+    font-size: 11px;
+}
+
+.avd-tag:hover {
+    border-color: var(--avd-border-strong);
+    color: var(--avd-chip-text);
+}
+
+.avd-tag.active {
+    border-color: var(--avd-chip-active-border);
+    background: var(--avd-chip-active-bg);
+    color: var(--avd-chip-active-text);
+    box-shadow: var(--avd-chip-active-shadow);
+}
+
+.avd-video-grid {
+    --bs-gutter-x: 1rem;
+    --bs-gutter-y: 1.6rem;
+}
+
+.avd-video-grid.row > .avd-feed-widget-slot {
+    flex: 0 0 100%;
+    min-width: 0;
+    max-width: 100%;
+    width: 100% !important;
+}
+
+.avd-video-grid.row > .avd-feed-widget-slot > .avd-discovery-rail,
+.avd-video-grid.row > .avd-feed-widget-slot > .avd-creator-spotlight {
+    margin: 0.25rem 0 0.2rem !important;
+}
+
+.avd-feed-widget-slot .avd-discovery-track {
+    grid-auto-columns: minmax(190px, 1fr);
+}
+
+.avd-discovery-rail {
+    min-width: 0;
+}
+
+// Section heads: the theme's section voice (size, prefix, rule); section styles are in layout-theme-a.css.
+.avd-discovery-head {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.avd-discovery-head h2 {
+    margin: 0;
+    color: var(--avd-text);
+    font-size: var(--avd-section-size);
+    line-height: 1.12;
+}
+
+.avd-discovery-head h2::before {
+    content: var(--avd-section-prefix);
+    color: var(--avd-section-prefix-color);
+}
+
+.avd-discovery-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.42rem;
+    flex: 0 0 auto;
+    margin-inline-start: auto;
+    color: var(--avd-brand-ink);
+    font-size: 13px;
+    font-weight: 650;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.avd-discovery-track {
+    display: grid;
+    grid-auto-columns: minmax(190px, 1fr);
+    grid-auto-flow: column;
+    gap: 0.85rem;
+    overflow-x: auto;
+    overflow-y: hidden;
+    // Room above the cards for a focused card's ring (the track clips at its padding box); same position.
+    margin-top: -4px;
+    padding-top: 4px;
+    padding-bottom: 0.35rem;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: thin;
+}
+
+/* mobile-dual-rail-parity-v2 */
+.avd-home-auto-motion {
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    overscroll-behavior-inline: contain;
+    scroll-behavior: auto !important;
+    will-change: scroll-position;
+}
+
+html[data-avd-rail-scrollbars="hidden"] .avd-home-auto-motion::-webkit-scrollbar {
+    display: none;
+}
+
+.avd-category-tabs.avd-home-auto-motion,
+.avd-creator-spotlight .row.avd-home-auto-motion {
+    flex-wrap: nowrap !important;
+}
+
+.avd-creator-spotlight .row.avd-home-auto-motion {
+    margin-inline: 0;
+}
+
+/* The spotlight rail is a CSS grid (.avd-discovery-track) whose items still carry Bootstrap col-* classes.
+   Their percentage widths resolved against each grid cell (a 64px sliver when the auto-motion script does not
+   run: reduced motion, before JS), and the fixed 260px width used with motion overflowed the 190px cells, so
+   cards overlapped. The grid now sets the card width and the columns just fill their cell. */
+@media (min-width: 768px) {
+    #home-widget-creator-spotlight .avd-creator-track {
+        grid-auto-columns: clamp(180px, 16vw, 260px);
+    }
+}
+
+#home-widget-creator-spotlight .avd-creator-track {
+    margin: 0;
+}
+
+#home-widget-creator-spotlight .avd-creator-track > [class*="col"] {
+    flex: none;
+    width: auto;
+    max-width: none;
+    margin-top: 0;
+    padding-inline: 0;
+}
+
+.avd-discovery-card {
+    position: relative;
+    min-height: 118px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    gap: 0.32rem;
+    overflow: hidden;
+    padding: 0.9rem;
+    border: 1px solid var(--avd-border);
+    border-radius: var(--avd-radius-card);
+    background: var(--avd-surface-soft);
+    color: var(--avd-hero-title, #fff);
+    text-decoration: none;
+    box-shadow: var(--avd-shadow-soft);
+}
+
+.avd-discovery-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+        linear-gradient(180deg, rgba(7, 10, 16, 0.12), rgba(7, 10, 16, 0.82)),
+        var(--avd-discovery-bg);
+    background-position: center;
+    background-size: cover;
+    transition: transform var(--avd-motion-med) var(--avd-ease-out);
+}
+
+.avd-discovery-card:hover::before {
+    transform: scale(1.05);
+}
+
+// The rail cards take the theme's category card style (html[data-avd-category-card-style], as on the categories
+// page). photo_overlay and gradient_mesh: white labels on a photo (a category with its own picture, home.blade.php
+// prints it) or on the theme's brand mesh over a near-black base in both modes (the mockups' mesh card; tag cards and
+// categories without a picture), under the bottom shade. glass_card and minimal_flat: plain surfaces in the theme's
+// ink, no photo. Before this, a tag card (no picture) put white labels on the light surface of a light theme.
+html[data-avd-category-card-style] .avd-discovery-card {
+    border: 0;
+    background: radial-gradient(120% 120% at 0% 0%, rgba(var(--avd-brand-rgb), 0.95), transparent 60%),
+        radial-gradient(120% 120% at 100% 100%, rgba(var(--avd-brand-2-rgb), 0.9), transparent 60%),
+        linear-gradient(rgba(var(--avd-shade-rgb), 0.86), rgba(var(--avd-shade-rgb), 0.86)),
+        var(--avd-surface-3);
+    color: var(--avd-hero-title);
+}
+
+html[data-avd-category-card-style] .avd-discovery-card::before {
+    background: linear-gradient(180deg, rgba(var(--avd-shade-rgb), 0.05) 30%, rgba(var(--avd-shade-rgb), 0.66) 100%);
+}
+
+html[data-avd-category-card-style="photo_overlay"] .avd-discovery-card[style*="--avd-discovery-bg"]::before,
+html[data-avd-category-card-style="gradient_mesh"] .avd-discovery-card[style*="--avd-discovery-bg"]::before {
+    background: linear-gradient(180deg, rgba(var(--avd-shade-rgb), 0.12), rgba(var(--avd-shade-rgb), 0.82)), var(--avd-discovery-bg);
+    background-position: center;
+    background-size: cover;
+}
+
+html[data-avd-category-card-style="glass_card"] .avd-discovery-card,
+html[data-avd-category-card-style="minimal_flat"] .avd-discovery-card {
+    background: var(--avd-surface-2);
+    color: var(--avd-text);
+}
+
+html[data-avd-category-card-style="glass_card"] .avd-discovery-card {
+    border: 1px solid var(--avd-border);
+}
+
+html[data-avd-category-card-style="minimal_flat"] .avd-discovery-card {
+    border: var(--avd-bw) solid var(--avd-border-strong);
+    background: transparent;
+    box-shadow: none;
+}
+
+html[data-avd-category-card-style="glass_card"] .avd-discovery-card::before,
+html[data-avd-category-card-style="minimal_flat"] .avd-discovery-card::before {
+    content: none;
+}
+
+html[data-avd-category-card-style="glass_card"] .avd-discovery-meta,
+html[data-avd-category-card-style="minimal_flat"] .avd-discovery-meta {
+    color: var(--avd-muted);
+    opacity: 1;
+}
+
+html[data-avd-category-card-style="glass_card"] .avd-discovery-icon,
+html[data-avd-category-card-style="minimal_flat"] .avd-discovery-icon {
+    background: var(--avd-surface-3);
+    box-shadow: inset 0 0 0 1px var(--avd-border);
+}
+
+html[data-avd-category-card-style] .avd-discovery-card:hover {
+    border-color: var(--avd-brand-fill);
+}
+
+.avd-discovery-icon,
+.avd-discovery-title,
+.avd-discovery-meta {
+    position: relative;
+    z-index: 1;
+}
+
+.avd-discovery-icon {
+    width: 34px;
+    height: 34px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    /* No backdrop blur on this 34px patch (one blur pass per icon per frame while the
+       rails move); a denser fill and a hairline ring keep the frosted-chip look. */
+    background: rgba(255, 255, 255, 0.22);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+}
+
+.avd-discovery-title {
+    overflow: hidden;
+    font-size: 1rem;
+    font-weight: 950;
+    line-height: 1.15;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.avd-discovery-meta {
+    color: rgba(255, 255, 255, 0.82);
+    font-size: 0.78rem;
+    font-weight: 750;
+}
+
+@media (max-width: 767.98px) {
+    .avd-discovery-head {
+        margin-bottom: 0.45rem;
+        gap: 0.5rem;
+    }
+
+    .avd-discovery-head h2 {
+        font-size: min(var(--avd-section-size), 22px);
+        line-height: 1.2;
+    }
+
+    .avd-page-kicker {
+        font-size: 0.70rem;
+        margin-bottom: 0.15rem;
+    }
+
+    .avd-discovery-link {
+        font-size: 0.78rem;
+    }
+
+    .avd-discovery-track {
+        grid-auto-columns: minmax(130px, 145px);
+        gap: 0.55rem;
+        padding-bottom: 0.25rem;
+    }
+
+    .avd-discovery-card {
+        min-height: 74px;
+        height: 76px;
+        padding: 0.5rem 0.65rem;
+        border-radius: 12px;
+        gap: 0.12rem;
+    }
+
+    .avd-discovery-icon {
+        width: 24px;
+        height: 24px;
+        font-size: 0.72rem;
+        margin-bottom: 2px;
+    }
+
+    .avd-discovery-title {
+        font-size: 0.82rem;
+        font-weight: 750;
+        line-height: 1.15;
+    }
+
+    .avd-discovery-meta {
+        font-size: 0.66rem;
+        line-height: 1.1;
+        opacity: 0.85;
+    }
+}
+
+html[data-avd-density="compact"] .avd-video-grid {
+    --bs-gutter-x: 0.72rem;
+    --bs-gutter-y: 1.05rem;
+}
+
+html[data-avd-density="relaxed"] .avd-video-grid {
+    --bs-gutter-x: 1.35rem;
+    --bs-gutter-y: 2rem;
+}
+
+.avd-widget-video-feed .avd-video-grid {
+    margin-top: 0.35rem;
+}
+
+.avd-feed-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    margin: 1.4rem 0 0.5rem;
+}
+
+.avd-feed-control-btn,
+.avd-feed-page-indicator {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.75rem;
+    border-radius: var(--avd-radius-pill);
+    font-weight: 800;
+}
+
+.avd-feed-control-btn {
+    gap: 0.5rem;
+    min-width: 8.75rem;
+    padding: 0.7rem 1.1rem;
+    border: 1px solid rgba(var(--avd-brand-rgb), 0.36);
+    color: var(--avd-text);
+    background:
+        linear-gradient(var(--avd-surface), var(--avd-surface)) padding-box,
+        linear-gradient(120deg, rgba(var(--avd-brand-rgb), 0.6), rgba(255, 139, 92, 0.42)) border-box;
+    box-shadow: 0 12px 28px rgba(var(--avd-brand-rgb), 0.12);
+}
+
+.avd-feed-control-btn:not(:disabled):hover {
+    color: var(--avd-text);
+    border-color: rgba(var(--avd-brand-rgb), 0.72);
+    transform: translateY(-1px);
+}
+
+.avd-feed-control-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.46;
+    box-shadow: none;
+}
+
+.avd-feed-page-indicator {
+    min-width: 6.5rem;
+    padding: 0.65rem 1rem;
+    color: var(--avd-muted);
+    border: 1px solid var(--avd-border);
+    background: rgba(255, 255, 255, 0.04);
+}
+
+@media (min-width: 1400px) {
+    .avd-video-grid.row > .col {
+        flex: 0 0 auto;
+        width: calc(100% / var(--avd-grid-columns, 4));
+    }
+}
+
+@media (min-width: 1200px) {
+    .avd-video-grid.row[data-avd-feed-columns] > .col {
+        flex: 0 0 auto;
+        width: calc(100% / var(--avd-feed-columns, var(--avd-grid-columns, 4)));
+    }
+}
+
+// Video cards: the theme's card material (fill, border, padding, shadow, clip); card frames and the five
+// card layouts are in layout-theme-a.css. Hover lift and thumbnail zoom are tier-scaled there too.
+.avd-video-card {
+    position: relative;
+    height: 100%;
+    min-width: 0;
+    padding: var(--avd-card-pad);
+    border: var(--avd-card-border);
+    border-radius: var(--avd-radius-card);
+    background: var(--avd-card-bg);
+    box-shadow: var(--avd-card-shadow);
+    clip-path: var(--avd-card-clip);
+    transition:
+        transform var(--avd-motion-med) var(--avd-ease-out),
+        border-color var(--avd-motion-med) ease,
+        box-shadow var(--avd-motion-med) ease,
+        background-color var(--avd-motion-med) ease;
+}
+
+.avd-video-card:hover,
+.avd-video-card:focus-within {
+    border: var(--avd-card-hover-border);
+    box-shadow: var(--avd-card-hover-shadow);
+}
+
+.avd-video-card a {
+    text-decoration: none;
+}
+
+.avd-thumb {
+    position: relative;
+    display: block;
+    overflow: hidden;
+    aspect-ratio: 16 / 9;
+    border-radius: var(--avd-radius-media);
+    background: var(--avd-surface-2);
+    box-shadow: var(--avd-thumb-shadow);
+}
+
+.avd-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1), opacity 220ms ease;
+}
+
+.avd-video-card:hover .avd-thumb img,
+.avd-thumb.hover img {
+    transform: scale(var(--avd-thumb-zoom));
+}
+
+// The theme's thumbnail frame (inset rules, gold mat...) and deco stripe, drawn over the picture.
+.avd-thumb::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: var(--avd-thumb-deco) 0 100% / 100% 4px no-repeat;
+    box-shadow: var(--avd-thumb-border);
+    pointer-events: none;
+}
+
+.avd-duration {
+    position: absolute;
+    inset-inline-end: 8px;
+    bottom: 8px;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 6px;
+    border-radius: var(--avd-duration-r);
+    background: var(--avd-duration-bg);
+    color: var(--avd-duration-text);
+    font: 650 11.5px/1 var(--avd-font-meta);
+    letter-spacing: 0.02em;
+    /* No backdrop blur: a ~50x22px patch under a dense fill shows no blur, yet costs a
+       render pass per badge per scroll frame. */
+}
+
+.avd-duration:empty {
+    display: none;
+}
+
+.avd-card-body {
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr);
+    gap: 11px;
+    min-height: 86px;
+    padding: var(--avd-card-body-pad);
+}
+
+.avd-channel-avatar {
+    width: 34px;
+    height: 34px;
+    border-radius: var(--avd-r-avatar);
+    object-fit: cover;
+    clip-path: var(--avd-avatar-clip);
+}
+
+.avd-video-title {
+    display: -webkit-box;
+    overflow: hidden;
+    min-height: calc(var(--avd-title-size) * 1.32 * 2);
+    color: var(--avd-text);
+    font-family: var(--avd-font-title);
+    font-size: var(--avd-title-size);
+    font-style: var(--avd-title-style);
+    font-weight: var(--avd-title-weight);
+    line-height: 1.32;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    word-break: break-word;
+    transition: color 180ms ease;
+}
+
+.avd-video-title:hover {
+    color: var(--avd-brand-ink);
+}
+
+.avd-video-meta,
+.avd-channel-name {
+    display: block;
+    overflow: hidden;
+    color: var(--avd-muted);
+    font: 500 var(--avd-meta-size)/1.35 var(--avd-font-meta);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.avd-channel-name {
+    margin-top: 4px;
+    font: 550 12.5px/1.3 var(--avd-font-body);
+}
+
+.avd-channel-name:hover {
+    color: var(--avd-text);
+}
+
+.avd-card-menu {
+    position: absolute;
+    top: 0.55rem;
+    inset-inline-end: 0.55rem;
+    z-index: 4;
+    opacity: 0;
+    transform: translateY(-4px);
+    transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.avd-video-card:hover .avd-card-menu,
+.avd-card-menu:focus-within {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.avd-card-menu .btn {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 50%;
+    /* Denser fill instead of a backdrop blur on a 36-44px button (always visible on
+       touch, where it was one blur pass per card per scroll frame). */
+    background: rgba(0, 0, 0, 0.66);
+    color: var(--avd-hero-title, #fff);
+}
+
+.avd-placeholder {
+    position: relative;
+    overflow: hidden;
+    /* Stacking context so WebKit clips the composited sweep to the rounded box. */
+    isolation: isolate;
+    background: var(--avd-surface-soft);
+}
+
+/* Skeleton shimmer on the compositor (was a background-position loop that repainted
+   every visible skeleton piece each frame while feeds load). It reproduces the old
+   look exactly: the same 100deg band in a repeating tile 220% of the box wide, moved
+   from -1.44 to +1.44 box widths (old background-position 120% -> -120%) with the same
+   1.05s ease-in-out, including the neighbouring tile's band that peeks in at the end
+   of each cycle. The layer is 440% wide (left -165%; tiles start at 75% = 1.65 widths),
+   so translating it by +/-32.7273% of its own width equals +/-1.44 box widths. The
+   transparent band over the flat base composites to the old soft -> hover -> soft
+   gradient. With no animation (reduced motion, animations off) it rests on the old
+   static frame. */
+.avd-placeholder::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: -165%;
+    width: 440%;
+    pointer-events: none;
+    background-image: linear-gradient(100deg, transparent 0%, var(--avd-surface-hover) 42%, transparent 76%);
+    background-position: 75% 0;
+    background-size: 50% 100%;
+    background-repeat: repeat-x;
+    animation: avd-shimmer-sweep 1.05s ease-in-out infinite;
+}
+
+@keyframes avd-shimmer-sweep {
+    from {
+        transform: translate3d(-32.7273%, 0, 0);
+    }
+    to {
+        transform: translate3d(32.7273%, 0, 0);
+    }
+}
+
+/* Admin "skeleton shimmer off": the layout freezes .avd-placeholder with
+   background-size:auto; keep that static gradient and drop the sweep layer. */
+html[data-avd-shimmer="off"] .avd-placeholder {
+    background-image: linear-gradient(100deg, var(--avd-surface-soft) 0%, var(--avd-surface-hover) 42%, var(--avd-surface-soft) 76%);
+}
+
+html[data-avd-shimmer="off"] .avd-placeholder::after,
+html[data-avd-perf="lite"] .avd-placeholder::after {
+    content: none;
+}
+
+.avd-placeholder-thumb {
+    aspect-ratio: 16 / 9;
+    border-radius: 16px;
+}
+
+.avd-placeholder-line {
+    height: 0.82rem;
+    border-radius: 999px;
+}
+
+.avd-placeholder-avatar {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+}
+
+.avd-image-loaded {
+    position: relative;
+    display: block;
+    overflow: hidden;
+    width: 100%;
+    height: 100%;
+}
+
+.avd-image-loaded-img,
+.avd-image-skeleton {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.avd-image-skeleton {
+    z-index: 1;
+}
+
+.avd-image-loaded-img {
+    display: block;
+    opacity: 1;
+    transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1), opacity 220ms ease;
+}
+
+.avd-image-loading {
+    opacity: 0;
+}
+
+.avd-image-loaded.hover .avd-image-loaded-img {
+    transform: scale(1.045);
+}
+
+.avd-no-image-fallback {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    background:
+        linear-gradient(135deg, rgba(15, 23, 42, 0.92), rgba(31, 41, 55, 0.84)),
+        var(--avd-surface-soft);
+    color: rgba(226, 232, 240, 0.92);
+    text-align: center;
+}
+
+.avd-no-image-fallback i {
+    color: rgba(148, 163, 184, 0.92);
+    font-size: 2rem;
+}
+
+.avd-no-image-fallback span {
+    font-size: 0.95rem;
+    font-weight: 900;
+    line-height: 1;
+}
+
+.avd-empty-state,
+.avd-error-state {
+    min-height: 180px;
+    border: 1px solid var(--avd-border);
+    border-radius: 22px;
+    background: var(--avd-surface);
+    box-shadow: var(--avd-shadow-soft);
+}
+
+.avd-related-list {
+    display: grid;
+    gap: 0.78rem;
+}
+
+.suggested_video.avd-related-card {
+    display: grid;
+    grid-template-columns: minmax(132px, 42%) minmax(0, 1fr);
+    gap: 0.74rem;
+    padding: 0.45rem;
+    border-radius: 16px;
+    background: transparent;
+    transition: background-color 160ms ease;
+}
+
+.suggested_video.avd-related-card:hover {
+    background: var(--avd-surface-hover);
+}
+
+.suggested_video.avd-related-card .avd-thumb {
+    border-radius: 12px;
+    box-shadow: none;
+}
+
+.avd-related-title {
+    display: -webkit-box;
+    overflow: hidden;
+    color: var(--avd-text);
+    font-size: 0.88rem;
+    font-weight: 900;
+    line-height: 1.35;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+.avd-watch-layout {
+    --bs-gutter-x: 1.25rem;
+    max-width: 100%;
+}
+
+.avd-watch-primary,
+.avd-watch-sidebar-col {
+    min-width: 0;
+}
+
+.avd-player-frame {
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
+    border-radius: 22px;
+    background: #000;
+    box-shadow: 0 22px 70px rgba(0, 0, 0, 0.26);
+}
+
+.avd-player-frame .ratio {
+    background: #000;
+}
+
+.avd-player-shell {
+    position: relative;
+    isolation: isolate;
+    max-width: 100%;
+    min-width: 0;
+}
+
+.avd-player-shell::before {
+    content: "";
+    position: absolute;
+    inset: -1rem;
+    z-index: -1;
+    border-radius: 30px;
+    background:
+        radial-gradient(circle at 16% 0%, rgba(var(--avd-brand-rgb), 0.22), transparent 34%),
+        radial-gradient(circle at 88% 8%, rgba(var(--avd-cyan-rgb), 0.18), transparent 34%);
+    opacity: 0.74;
+    filter: blur(16px);
+    pointer-events: none;
+}
+
+.avd-watch-layout[data-avd-watch-ambient="off"] .avd-player-shell::before {
+    display: none;
+}
+
+.avd-watch-layout[data-avd-watch-player-style="cinematic"] .avd-player-frame {
+    border: 1px solid rgba(var(--avd-brand-rgb), 0.24);
+    box-shadow: 0 28px 86px rgba(0, 0, 0, 0.34), 0 0 0 1px rgba(var(--avd-cyan-rgb), 0.08);
+}
+
+.avd-watch-layout[data-avd-watch-player-style="soft"] .avd-player-frame {
+    border: 1px solid var(--avd-border);
+    border-radius: 18px;
+    box-shadow: 0 16px 42px rgba(0, 0, 0, 0.20);
+}
+
+.avd-watch-layout[data-avd-watch-player-style="minimal"] .avd-player-frame {
+    border: 0;
+    border-radius: 12px;
+    box-shadow: none;
+}
+
+.avd-player-controls {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin-top: 0.65rem;
+}
+
+.avd-player-control {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    min-height: 36px;
+    padding: 0 0.75rem;
+    border: 1px solid var(--avd-border);
+    border-radius: 999px;
+    background: var(--avd-surface);
+    color: var(--avd-muted);
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.avd-player-control:hover {
+    background: var(--avd-surface-hover);
+    color: var(--avd-text);
+}
+
+.avd-watch-title {
+    margin: 0;
+    color: var(--avd-text);
+    font-size: clamp(1.18rem, 1vw + 1rem, 1.72rem);
+    font-weight: 950;
+    line-height: 1.22;
+    word-break: break-word;
+}
+
+.avd-status-chip,
+.avd-meta-chip,
+.avd-action-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    min-height: 36px;
+    padding: 0.42rem 0.72rem;
+    border: 1px solid var(--avd-border);
+    border-radius: 999px;
+    background: var(--avd-surface-soft);
+    color: var(--avd-muted);
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.avd-action-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.55rem;
+    align-items: center;
+    max-width: 100%;
+    min-width: 0;
+    overflow: visible !important;
+    overscroll-behavior-inline: contain;
+}
+
+.avd-action-row > interaction-buttons,
+.avd-action-row > report-button,
+.avd-action-row > save-video {
+    display: inline-flex;
+    flex: 0 0 auto;
+    max-width: 100%;
+}
+
+.avd-action-row .btn,
+.avd-action-row button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    max-width: 100%;
+    border-radius: 999px !important;
+    white-space: nowrap;
+}
+
+.avd-action-row .btn span,
+.avd-action-row button span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.avd-watch-action-panel {
+    padding: 0.65rem;
+    overflow: visible;
+    border: 1px solid var(--avd-border);
+    border-radius: 18px;
+    background: var(--avd-surface);
+    box-shadow: 0 10px 30px rgba(16, 24, 40, 0.06);
+}
+
+.avd-channel-panel,
+.avd-description-panel,
+.avd-watch-sidebar-panel,
+.avd-mobile-comments {
+    border: 1px solid var(--avd-border);
+    border-radius: 20px;
+    background: var(--avd-surface);
+    box-shadow: 0 10px 30px rgba(16, 24, 40, 0.06);
+}
+
+.avd-comments-offcanvas {
+    height: min(650px, 82dvh) !important;
+    min-height: 0 !important;
+    max-height: calc(100dvh - 0.75rem) !important;
+    overflow: hidden;
+    border-start-start-radius: 18px;
+    border-start-end-radius: 18px;
+}
+
+.avd-comments-offcanvas .offcanvas-body {
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+}
+
+.avd-channel-panel {
+    padding: 1rem;
+}
+
+.avd-description-panel {
+    padding: 1rem;
+    color: var(--avd-text);
+    line-height: 1.65;
+}
+
+.avd-description-panel[data-clickable="true"] {
+    cursor: pointer;
+}
+
+.avd-detail-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+}
+
+.avd-detail-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 0.72rem;
+}
+
+.avd-detail-item {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.22rem;
+    padding: 0.72rem 0.82rem;
+    border: 1px solid var(--avd-border);
+    border-radius: 14px;
+    background: var(--avd-surface-soft);
+}
+
+.avd-detail-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.42rem;
+    color: var(--avd-muted);
+    font-size: 0.78rem;
+    font-weight: 850;
+    line-height: 1.25;
+}
+
+.avd-detail-item strong {
+    color: var(--avd-text);
+    font-size: 0.9rem;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+}
+
+.avd-chip-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.avd-watch-sidebar {
+    position: sticky;
+    top: calc(var(--sidebar-top, 64px) + 1rem);
+}
+
+.avd-up-next-card {
+    overflow: hidden;
+    border: 1px solid rgba(var(--avd-brand-rgb), 0.22);
+    border-radius: 18px;
+    background:
+        linear-gradient(135deg, rgba(var(--avd-brand-rgb), 0.10), rgba(var(--avd-cyan-rgb), 0.06)),
+        var(--avd-surface);
+    box-shadow: 0 16px 36px rgba(16, 24, 40, 0.10);
+}
+
+.avd-up-next-link {
+    display: grid;
+    gap: 0.78rem;
+    padding: 0.72rem;
+    color: var(--avd-text);
+    text-decoration: none;
+}
+
+.avd-up-next-link:hover {
+    color: var(--avd-text);
+}
+
+.avd-up-next-kicker,
+.avd-up-next-source {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.42rem;
+}
+
+.avd-up-next-kicker {
+    justify-content: space-between;
+    color: var(--avd-brand-text);
+    font-size: 0.78rem;
+    font-weight: 950;
+    text-transform: uppercase;
+}
+
+.avd-up-next-source {
+    min-height: 24px;
+    padding: 0.18rem 0.48rem;
+    border: 1px solid var(--avd-border);
+    border-radius: 999px;
+    background: var(--avd-surface-soft);
+    color: var(--avd-muted);
+    font-size: 0.68rem;
+    text-transform: none;
+}
+
+.avd-up-next-content {
+    display: grid;
+    grid-template-columns: minmax(126px, 42%) minmax(0, 1fr);
+    gap: 0.72rem;
+    align-items: center;
+    min-width: 0;
+}
+
+.avd-up-next-thumb {
+    position: relative;
+    display: block;
+    overflow: hidden;
+    aspect-ratio: 16 / 9;
+    border-radius: 13px;
+    background: var(--avd-surface-soft);
+}
+
+.avd-up-next-thumb image-loaded,
+.avd-up-next-thumb .avd-image-loaded {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.avd-up-next-body {
+    display: grid;
+    gap: 0.24rem;
+    min-width: 0;
+}
+
+.avd-up-next-title {
+    display: -webkit-box;
+    overflow: hidden;
+    font-size: 0.94rem;
+    font-weight: 950;
+    line-height: 1.28;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+.avd-watch-sidebar-col.col-12 .avd-related-list,
+.avd-watch-layout[data-avd-watch-layout="theater_cinema"] .avd-related-list,
+.avd-watch-layout[data-avd-watch-layout="floating_focus"] .avd-related-list {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fill, minmax(255px, 1fr)) !important;
+    gap: 1.25rem 1rem !important;
+    width: 100% !important;
+}
+
+.avd-watch-sidebar-col.col-12 .suggested_video.avd-related-card,
+.avd-watch-layout[data-avd-watch-layout="theater_cinema"] .suggested_video.avd-related-card,
+.avd-watch-layout[data-avd-watch-layout="floating_focus"] .suggested_video.avd-related-card {
+    display: flex !important;
+    flex-direction: column !important;
+    grid-template-columns: none !important;
+    background: var(--avd-surface-card, rgba(255, 255, 255, 0.025)) !important;
+    border: 1px solid var(--avd-border, rgba(255, 255, 255, 0.07)) !important;
+    border-radius: 14px !important;
+    padding: 0.55rem !important;
+    margin-bottom: 0 !important;
+    height: 100% !important;
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease, border-color 0.25s ease !important;
+}
+
+.avd-watch-sidebar-col.col-12 .suggested_video.avd-related-card:hover,
+.avd-watch-layout[data-avd-watch-layout="theater_cinema"] .suggested_video.avd-related-card:hover,
+.avd-watch-layout[data-avd-watch-layout="floating_focus"] .suggested_video.avd-related-card:hover {
+    transform: translateY(-4px) !important;
+    background: var(--avd-surface-hover, rgba(255, 255, 255, 0.05)) !important;
+    border-color: rgba(var(--avd-brand-rgb, 255, 61, 97), 0.45) !important;
+    box-shadow: 0 14px 28px -6px rgba(0, 0, 0, 0.55), 0 0 18px -2px rgba(var(--avd-brand-rgb, 255, 61, 97), 0.25) !important;
+}
+
+.avd-watch-sidebar-col.col-12 .suggested_video.avd-related-card .avd-thumb,
+.avd-watch-layout[data-avd-watch-layout="theater_cinema"] .suggested_video.avd-related-card .avd-thumb,
+.avd-watch-layout[data-avd-watch-layout="floating_focus"] .suggested_video.avd-related-card .avd-thumb {
+    width: 100% !important;
+    max-width: 100% !important;
+    aspect-ratio: 16 / 9 !important;
+    border-radius: 10px !important;
+    flex-shrink: 0 !important;
+    position: relative !important;
+    overflow: hidden !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25) !important;
+}
+
+.avd-watch-sidebar-col:not(.col-12) .avd-related-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+}
+
+.avd-watch-sidebar-col:not(.col-12) .suggested_video.avd-related-card {
+    display: flex;
+    flex-direction: row;
+    grid-template-columns: none;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.45rem 0.55rem;
+    border-radius: 12px;
+    border: 1px solid transparent;
+    transition: transform 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.avd-watch-sidebar-col:not(.col-12) .suggested_video.avd-related-card:hover {
+    background: var(--avd-surface-hover, rgba(255, 255, 255, 0.05));
+    border-color: rgba(var(--avd-brand-rgb, 255, 61, 97), 0.28);
+    transform: translateX(3px);
+}
+
+.avd-watch-sidebar-col:not(.col-12) .suggested_video.avd-related-card .avd-thumb {
+    width: 148px;
+    min-width: 148px;
+    max-width: 148px;
+    aspect-ratio: 16 / 9;
+    border-radius: 9px;
+    flex-shrink: 0;
+}
+
+.avd-watch-sidebar .avd-channel-name,
+.avd-watch-sidebar .avd-video-meta {
+    font-size: 0.74rem;
+    line-height: 1.25;
+}
+
+.avd-watch-layout[data-avd-watch-sidebar-density="compact"] .avd-watch-sidebar .avd-related-list {
+    gap: 0.32rem;
+}
+
+.avd-watch-layout[data-avd-watch-sidebar-density="compact"] .avd-watch-sidebar .suggested_video.avd-related-card {
+    grid-template-columns: minmax(104px, 36%) minmax(0, 1fr);
+    gap: 0.42rem;
+    padding: 0.22rem;
+}
+
+.avd-watch-layout[data-avd-watch-sidebar-density="compact"] .avd-watch-sidebar .avd-related-title,
+.avd-watch-layout[data-avd-watch-sidebar-density="compact"] .avd-up-next-title {
+    font-size: 0.8rem;
+    line-height: 1.22;
+}
+
+.avd-watch-layout[data-avd-watch-sidebar-density="compact"] .avd-up-next-link {
+    gap: 0.52rem;
+    padding: 0.56rem;
+}
+
+.avd-watch-layout[data-avd-watch-sidebar-density="compact"] .avd-up-next-content {
+    grid-template-columns: minmax(104px, 38%) minmax(0, 1fr);
+    gap: 0.52rem;
+}
+
+.avd-watch-layout[data-avd-watch-sidebar-density="relaxed"] .avd-watch-sidebar .avd-related-list {
+    gap: 0.86rem;
+}
+
+.avd-watch-layout[data-avd-watch-sidebar-density="relaxed"] .avd-watch-sidebar .suggested_video.avd-related-card {
+    grid-template-columns: minmax(142px, 44%) minmax(0, 1fr);
+    gap: 0.82rem;
+    padding: 0.5rem;
+}
+
+.avd-watch-layout[data-avd-watch-sidebar-density="relaxed"] .avd-watch-sidebar .avd-related-title,
+.avd-watch-layout[data-avd-watch-sidebar-density="relaxed"] .avd-up-next-title {
+    font-size: 0.92rem;
+    line-height: 1.36;
+}
+
+.avd-watch-layout[data-avd-watch-sidebar-density="relaxed"] .avd-up-next-link {
+    gap: 0.95rem;
+    padding: 0.86rem;
+}
+
+.avd-watch-layout[data-avd-watch-sidebar-density="relaxed"] .avd-up-next-content {
+    grid-template-columns: minmax(144px, 44%) minmax(0, 1fr);
+    gap: 0.86rem;
+}
+
+.playlist_video.avd-playlist-row {
+    border-radius: 14px;
+}
+
+.playlist_video.avd-playlist-row.selected {
+    background: var(--avd-brand-soft) !important;
+}
+
+.avd-playlist-panel {
+    overflow: hidden;
+    border: 1px solid var(--avd-border);
+    border-radius: 18px;
+    background: var(--avd-surface);
+}
+
+.avd-playlist-panel .overflow-y-auto {
+    max-height: 570px;
+}
+
+.avd-playlist-video-list {
+    max-height: min(700px, calc(100dvh - 8rem));
+    overflow-x: hidden;
+    overflow-y: auto;
+}
+
+.avd-playlist-manager {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    height: min(733px, calc(100dvh - 8rem));
+    min-height: 30rem;
+}
+
+.avd-playlist-manager__column {
+    min-width: 0;
+}
+
+.avd-playlist-manager__column--selected {
+    border-inline-end: 1px solid var(--avd-border);
+}
+
+.avd-playlist-manager__header {
+    min-height: 71px;
+}
+
+.avd-playlist-manager__body {
+    min-height: 0;
+}
+
+.avd-playlist-manager__scroll {
+    max-height: calc(min(733px, calc(100dvh - 8rem)) - 113px);
+    overflow-x: hidden;
+    overflow-y: auto;
+}
+
+.avd-playlist-thumb {
+    width: 108px;
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+    border-radius: 10px;
+    background: var(--avd-surface-soft);
+}
+
+.avd-playlist-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.video-card-modern {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.thumbnail-hover-container {
+    position: relative;
+    display: block;
+    overflow: hidden;
+    aspect-ratio: 16 / 9;
+    border-radius: 16px;
+}
+
+.channel-avatar {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+@media (max-width: 991.98px) {
+    .avd-player-frame {
+        border-radius: 0;
+        margin-inline: -0.75rem;
+    }
+
+    .avd-watch-sidebar {
+        position: static;
+    }
+}
+
+@media (max-width: 767.98px) {
+    .avd-watch-layout {
+        --bs-gutter-x: 0;
+    }
+
+    .avd-player-frame {
+        margin-inline: 0;
+    }
+
+    .avd-video-grid {
+        --bs-gutter-x: 0.75rem;
+        --bs-gutter-y: 1.15rem;
+    }
+
+    html[data-avd-mobile-video-columns="1"] .avd-video-grid.row > .col {
+        flex: 0 0 auto;
+        width: 100%;
+    }
+
+    html[data-avd-mobile-video-columns="2"] .avd-video-grid.row > .col {
+        flex: 0 0 auto;
+        width: 50%;
+    }
+
+    html[data-avd-mobile-video-card-density="compact"] .avd-video-grid {
+        --bs-gutter-x: 0.55rem;
+        --bs-gutter-y: 0.95rem;
+    }
+
+    // One row as in the phone mockups (title + link); a long head wraps, a kicker takes its own line.
+    .avd-discovery-head {
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    .avd-video-card {
+        padding: min(var(--avd-card-pad), 6px);
+    }
+
+    .avd-duration {
+        inset-inline-end: 6px;
+        bottom: 6px;
+        padding: 3px 5px;
+        font-size: 10.5px;
+    }
+
+    .avd-card-body {
+        grid-template-columns: 30px minmax(0, 1fr);
+        gap: 0.52rem;
+        min-height: 78px;
+    }
+
+    .avd-channel-avatar {
+        width: 30px;
+        height: 30px;
+    }
+
+    // Two cards per row: the avatar goes, the title keeps the width (theme mockups).
+    html[data-avd-mobile-video-columns="2"] .avd-card-body {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    html[data-avd-mobile-video-columns="2"] .avd-card-body .avd-channel-avatar {
+        display: none;
+    }
+
+    // Its own link goes too (a.avd-card-avatar-link): no invisible stop in the tab order (the link keeps its empty
+    // box, nothing moves).
+    html[data-avd-mobile-video-columns="2"] .avd-card-body > a.avd-card-avatar-link[href] {
+        visibility: hidden;
+    }
+
+    .avd-video-title {
+        min-height: calc(13px * 1.32 * 2);
+        font-size: 13px;
+        line-height: 1.32;
+    }
+
+    .avd-video-meta,
+    .avd-channel-name {
+        font-size: 11.5px;
+        line-height: 1.4;
+    }
+
+    html[data-avd-mobile-video-card-density="compact"] .avd-video-card {
+        padding: min(var(--avd-card-pad), 4px);
+    }
+
+    html[data-avd-mobile-video-card-density="compact"] .avd-duration {
+        inset-inline-end: 5px;
+        bottom: 5px;
+        padding: 2px 4px;
+        font-size: 10px;
+    }
+
+    html[data-avd-mobile-video-card-density="compact"] .avd-card-body {
+        gap: 0.42rem;
+        min-height: 72px;
+    }
+
+    html[data-avd-mobile-video-card-density="compact"] .avd-channel-avatar {
+        width: 24px;
+        height: 24px;
+    }
+
+    html[data-avd-mobile-video-card-density="compact"] .avd-video-title {
+        font-size: 0.80rem;
+        line-height: 1.35;
+    }
+
+    html[data-avd-mobile-video-card-density="compact"] .avd-video-meta,
+    html[data-avd-mobile-video-card-density="compact"] .avd-channel-name {
+        font-size: 0.68rem;
+        line-height: 1.35;
+    }
+
+    .suggested_video.avd-related-card {
+        grid-template-columns: 42% minmax(0, 1fr);
+        padding-inline: 0.75rem;
+    }
+
+    .avd-playlist-video-list {
+        max-height: min(70dvh, 620px);
+    }
+
+    .avd-playlist-manager {
+        grid-template-columns: minmax(0, 1fr);
+        height: auto;
+        min-height: 0;
+    }
+
+    .avd-playlist-manager__column--selected {
+        border-inline-end: 0;
+        border-bottom: 1px solid var(--avd-border);
+    }
+
+    .avd-playlist-manager__scroll {
+        max-height: min(52dvh, 460px);
+    }
+}

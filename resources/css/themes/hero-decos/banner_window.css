@@ -1,0 +1,60 @@
+/* Hero decoration banner_window (Phase B): ships at the end of the token file of the theme whose recipe names it
+   (php artisan avd:themes:build), so it loads with that theme only. Every rule is keyed
+   html[data-avd-hero-deco="banner_window"][data-avd-theme] (App\Support\ThemeTokens::heroDecoProblems). */
+html[data-avd-hero-deco="banner_window"][data-avd-theme] .avd-window {
+    background: var(--avd-surface-1);
+    border: 2px solid var(--avd-x-bevel-dark);
+    box-shadow: inset 2px 2px 0 var(--avd-x-bevel-light), 4px 4px 0 rgba(var(--avd-shade-rgb), .18);
+}
+html[data-avd-hero-deco="banner_window"][data-avd-theme] .avd-window .avd-wt {
+    height: 26px;
+    background: linear-gradient(90deg, var(--avd-brand-fill), var(--avd-brand-2-fill));
+    color: var(--avd-on-brand);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-inline: 8px 4px;
+    font: 700 12px/1 var(--avd-font-display);
+}
+html[data-avd-hero-deco="banner_window"][data-avd-theme] .avd-window .avd-wb {
+    padding: 22px 26px;
+}
+html[data-avd-hero-deco="banner_window"][data-avd-theme] .avd-banner {
+    grid-template-columns: 1fr 380px;
+}
+html[data-avd-hero-deco="banner_window"][data-avd-theme] .avd-htitle {
+    font-size: 34px;
+    line-height: 1.1;
+}
+html[data-avd-hero-deco="banner_window"][data-avd-theme] .avd-wnow {
+    padding: 8px;
+}
+html[data-avd-hero-deco="banner_window"][data-avd-theme] .avd-wnow .avd-ph {
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+}
+html[data-avd-hero-deco="banner_window"][data-avd-theme] .avd-wnow .avd-ph img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+html[data-avd-hero-deco="banner_window"][data-avd-theme] .avd-wnow b {
+    display: block;
+    margin-top: 8px;
+    font: 700 13px/1.3 var(--avd-font-body);
+}
+@media (max-width: 767.98px) {
+    html[data-avd-hero-deco="banner_window"][data-avd-theme] .avd-banner .avd-window:nth-child(2) {
+        display: none;
+    }
+    /* the phone values of layout-theme-b (= the mockup's phone rules), which this decoration's desktop rules out-rank */
+    html[data-avd-hero-deco="banner_window"][data-avd-theme] .avd-banner {
+        grid-template-columns: 1fr;
+    }
+    html[data-avd-hero-deco="banner_window"][data-avd-theme] .avd-htitle {
+        font-size: 22px;
+    }
+    html[data-avd-hero-deco="banner_window"][data-avd-theme] .avd-window .avd-wb {
+        padding: 12px 16px;
+    }
+}

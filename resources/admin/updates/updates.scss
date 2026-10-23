@@ -1,0 +1,157 @@
+// Tools > Updates (resources/views/admin/updates/index.blade.php; loaded with updates.ts on that page only). The
+// admin tokens and components do the rest; like every admin stylesheet: no blur, glow or endless animation, and the
+// progress bar always has a value (an indeterminate bar animates in some browsers).
+
+.ad-upd {
+    .ad-upd-facts {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: var(--s4);
+        margin: 0;
+
+        dt {
+            font-size: var(--fs-sm);
+            line-height: var(--lh-sm);
+            font-weight: 500;
+            color: var(--text-2);
+        }
+
+        dd {
+            margin: 2px 0 0;
+            font-weight: 600;
+            overflow-wrap: anywhere;
+        }
+    }
+
+    .ad-upd-status {
+        margin: var(--s4) 0 0;
+
+        .ad-state { white-space: normal; }
+    }
+
+    .ad-upd-reasons {
+        margin: 6px 0 0;
+        padding-inline-start: 1.2em;
+        color: var(--text-2);
+
+        li + li { margin-top: 4px; }
+    }
+
+    .ad-upd-notes summary,
+    .ad-upd-log summary {
+        cursor: pointer;
+        width: fit-content;
+        font-size: var(--fs-sm);
+        font-weight: 600;
+        color: var(--accent-ink);
+    }
+
+    .ad-upd-notes-text {
+        margin-top: var(--s3);
+        max-height: 320px;
+        overflow: auto;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+        font-size: var(--fs-sm);
+        color: var(--text-2);
+    }
+
+    .ad-upd-label {
+        margin: 0 0 var(--s3);
+        font-weight: 600;
+    }
+
+    .ad-upd-bar {
+        display: block;
+        width: 100%;
+        height: 8px;
+        margin: 0 0 var(--s3);
+        border: 0;
+        border-radius: 4px;
+        background: var(--surface-3);
+        appearance: none;
+        overflow: hidden;
+
+        &::-webkit-progress-bar { background: var(--surface-3); border-radius: 4px; }
+        &::-webkit-progress-value { background: var(--accent); border-radius: 4px; transition: width var(--dur) ease; }
+        &::-moz-progress-bar { background: var(--accent); border-radius: 4px; }
+    }
+
+    .ad-upd-log {
+        margin-top: var(--s4);
+
+        &:first-child { margin-top: 0; }
+
+        pre {
+            margin: var(--s3) 0 0;
+            max-height: 280px;
+            overflow: auto;
+            padding: var(--s3);
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            border-radius: var(--r-md);
+            font: 12px/1.5 var(--mono);
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+        }
+
+        pre:empty { display: none; }
+    }
+
+    .ad-upd-files {
+        margin: var(--s2) 0 0;
+        padding-inline-start: 1.2em;
+        font-size: var(--fs-sm);
+
+        li + li { margin-top: 4px; }
+        code { overflow-wrap: anywhere; }
+        .ad-i { vertical-align: middle; color: var(--text-3); }
+    }
+
+    // The footer of the progress panel holds only Continue / Cancel: without either it takes no room.
+    .ad-upd-progress .ad-panel-f:not(:has(> form:not([hidden]))) { display: none; }
+}
+
+.ad-dialog.ad-upd-dialog {
+    top: 8vh;
+    width: min(600px, calc(100vw - 32px));
+    overflow: auto;
+
+    .ad-upd-what {
+        margin: var(--s2) 0 0;
+        padding-inline-start: 1.3em;
+        color: var(--text-2);
+
+        li + li { margin-top: 4px; }
+    }
+
+    .ad-upd-password {
+        margin-top: var(--s4);
+
+        label {
+            display: block;
+            margin-bottom: 4px;
+            font-weight: 600;
+        }
+
+        .ad-input { width: 100%; }
+    }
+
+    .ad-upd-skip {
+        display: flex;
+        align-items: center;
+        gap: var(--s2);
+        margin-top: var(--s3);
+        font-weight: 600;
+        cursor: pointer;
+    }
+
+    .ad-help { margin-top: 4px; }
+
+    // .ad-dialog p (muted) would win over the error colour.
+    .ad-error { color: var(--danger); }
+}
+
+@media (max-width: 767.98px) {
+    .ad-upd .ad-upd-facts { grid-template-columns: minmax(0, 1fr); }
+}

@@ -1,0 +1,129 @@
+// Bootstrap 5.3 configuration for the admin: system fonts, 14px text, calm radii, no shadows/gradients and
+// no Bootstrap dark mode (the admin tokens in _tokens.scss switch light/dark). Colours here are only the
+// compile-time defaults; _tokens.scss and _bridge.scss point every component at the admin tokens at runtime.
+
+@use "sass:map";
+
+@import "bootstrap/scss/functions";
+
+$enable-dark-mode: false;
+$enable-shadows: false;
+$enable-gradients: false;
+$enable-negative-margins: false;
+$enable-smooth-scroll: false;
+$enable-reduced-motion: true;
+$enable-deprecation-messages: false;
+
+$primary: #1f5bc7;
+$success: #137a3a;
+$info: #0b6b80;
+$warning: #f2b544;
+$danger: #b42318;
+$secondary: #4a515c;
+$light: #f7f8fa;
+$dark: #16191e;
+$body-color: #16191e;
+$body-bg: #ffffff;
+$border-color: #e3e6ea;
+
+$font-family-sans-serif: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", "Noto Sans", "Liberation Sans", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+$font-family-monospace: ui-monospace, "Cascadia Mono", "Segoe UI Mono", Consolas, "Liberation Mono", Menlo, monospace;
+$font-size-base: .875rem;
+$font-size-sm: .8125rem;
+$font-size-lg: 1rem;
+$line-height-base: 1.5;
+$h1-font-size: 1.375rem;
+$h2-font-size: 1.125rem;
+$h3-font-size: 1.0625rem;
+$h4-font-size: 1rem;
+$h5-font-size: .9375rem;
+$h6-font-size: .875rem;
+$headings-font-weight: 600;
+$headings-margin-bottom: .5rem;
+$display-font-weight: 650;
+$lead-font-size: 1rem;
+$small-font-size: .8125rem;
+
+$border-radius: .375rem;
+$border-radius-sm: .25rem;
+$border-radius-lg: .5rem;
+$border-radius-xl: .75rem;
+$border-radius-xxl: .75rem;
+
+$link-decoration: none;
+$link-hover-decoration: underline;
+
+$box-shadow: 0 1px 2px rgba(16, 24, 40, .06);
+$box-shadow-sm: 0 1px 2px rgba(16, 24, 40, .06);
+$box-shadow-lg: 0 12px 32px rgba(16, 24, 40, .14), 0 2px 6px rgba(16, 24, 40, .08);
+
+$transition-base: all .14s ease-in-out;
+$transition-fade: opacity .14s linear;
+$transition-collapse: height .16s ease;
+
+$input-btn-padding-y: .375rem;
+$input-btn-padding-x: .75rem;
+$input-btn-padding-y-sm: .25rem;
+$input-btn-padding-x-sm: .625rem;
+$input-btn-padding-y-lg: .5625rem;
+$input-btn-padding-x-lg: 1.125rem;
+$input-btn-font-size-sm: .8125rem;
+$input-btn-font-size-lg: 1rem;
+$btn-padding-x: .875rem;
+$btn-font-weight: 600;
+$btn-transition: color .12s ease, background-color .12s ease, border-color .12s ease, box-shadow .12s ease;
+$input-transition: border-color .12s ease, box-shadow .12s ease;
+
+$card-border-radius: .75rem;
+$card-spacer-y: 1rem;
+$card-spacer-x: 1.25rem;
+$card-cap-padding-y: .875rem;
+$card-cap-padding-x: 1.25rem;
+$card-box-shadow: none;
+
+$table-cell-padding-y: .625rem;
+$table-cell-padding-x: .75rem;
+$table-cell-padding-y-sm: .375rem;
+$table-cell-padding-x-sm: .5rem;
+
+$badge-font-size: .75rem;
+$badge-font-weight: 600;
+$badge-padding-y: .25rem;
+$badge-padding-x: .5rem;
+
+$modal-content-border-radius: .75rem;
+$modal-backdrop-opacity: 1;
+$modal-fade-transform: translate(0, 8px);
+$modal-transition: transform .16s ease-out;
+
+$alert-border-radius: .5rem;
+$progress-height: .5rem;
+$progress-border-radius: 999px;
+$pagination-border-radius: .375rem;
+$nav-link-font-weight: 500;
+$toast-border-radius: .5rem;
+$list-group-border-radius: .75rem;
+$accordion-border-radius: .75rem;
+$accordion-inner-border-radius: .6875rem;
+
+@import "bootstrap/scss/variables";
+@import "bootstrap/scss/variables-dark";
+@import "bootstrap/scss/maps";
+@import "bootstrap/scss/mixins";
+@import "bootstrap/scss/utilities";
+
+// Utilities the admin views never use (checked by scanning resources/views/admin): fewer bytes to parse.
+$utilities: map.remove(
+    $utilities,
+    "object-fit", "focus-ring", "viewport-width", "min-viewport-width", "viewport-height", "min-viewport-height",
+    "row-gap", "column-gap", "line-height", "text-opacity", "link-opacity", "link-offset", "link-underline",
+    "link-underline-opacity", "gradient", "user-select", "pointer-events", "visibility", "z-index", "float", "order"
+);
+
+// Breakpoint variants only where an admin view uses them (d-md-flex, mb-md-4, text-lg-end, flex-xl-row, ...).
+@each $key in ("margin", "margin-x", "margin-y", "margin-end", "margin-start", "padding-y", "padding-top", "padding-end",
+               "padding-bottom", "padding-start", "gap", "align-self", "align-content", "flex-grow", "flex-shrink", "flex-wrap") {
+    @if map.has-key($utilities, $key) {
+        $utilities: map.merge($utilities, ($key: map.merge(map.get($utilities, $key), (responsive: false))));
+    }
+}

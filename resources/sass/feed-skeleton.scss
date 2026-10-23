@@ -1,0 +1,200 @@
+// Feed skeletons and reserved feed space (perf plan step 20).
+//
+// <x-videos-area> (resources/views/components/videos-area.blade.php) server-renders the skeleton grid that
+// VideosList renders while it loads, so each feed has its final size from the first paint. The rules below
+// keep a skeleton card exactly as tall as the card that replaces it, so neither the Preact upgrade nor the
+// data swap moves anything on screen.
+//
+// A skeleton column is a plain div.col (VideoSkeleton.tsx and its Blade copy). Real cards are
+// article.col.avd-card-col, and grid ads are div.col.avd-grid-ad-col.
+
+$avd-skeleton-col: '.avd-video-grid > div.col:not(.avd-card-col):not(.avd-grid-ad-col)';
+$avd-skeleton-text: '.avd-card-body > .avd-placeholder-avatar + .d-flex';
+
+// The custom element was inline, and 0 px tall until the VideosList chunk mounted.
+videos-area {
+    display: block;
+}
+
+// Density gutters: the layout sets them on real card columns (.avd-card-col) only.
+html[data-avd-density="compact"] #{$avd-skeleton-col} {
+    --bs-gutter-x: 0.75rem !important;
+    --bs-gutter-y: 0.75rem !important;
+}
+
+html[data-avd-density="relaxed"] #{$avd-skeleton-col} {
+    --bs-gutter-x: 1.5rem !important;
+    --bs-gutter-y: 1.5rem !important;
+}
+
+// A skeleton is on screen from the first paint. The card entrance (reveal), the tilt and the hover lift must
+// not fade or move it, because that reads as the placeholder jumping. Real cards keep all of them.
+#{$avd-skeleton-col} > .avd-video-card {
+    opacity: 1 !important;
+    transform: none !important;
+}
+
+// Body height parity. The real text column is the clamped title (N lines x 1.35em, layout title-lines rules)
+// plus the channel and meta lines, so it is taller than the three skeleton bars. The skeleton column gets the
+// real column's height as its minimum; the bars keep their place. Sizes mirror .avd-video-title,
+// .avd-channel-name and .avd-video-meta (video.scss) and the layout's typography rules.
+#{$avd-skeleton-text} {
+    --avd-skel-title-size: 0.96rem;
+    --avd-skel-title-leading: 1.36;
+    --avd-skel-title-lines: 2;
+    --avd-skel-meta-line: calc(0.82rem * 1.55);
+
+    min-height: calc(var(--avd-skel-title-size) * var(--avd-skel-title-leading) * var(--avd-skel-title-lines) + 2 * var(--avd-skel-meta-line));
+}
+
+@each $avd-lines in (1, 2, 3, 4) {
+    html[data-avd-title-lines="#{$avd-lines}"] #{$avd-skeleton-text} {
+        --avd-skel-title-leading: 1.35;
+        --avd-skel-title-lines: #{$avd-lines};
+    }
+}
+
+html[data-avd-typography="on"] #{$avd-skeleton-text} {
+    --avd-skel-title-size: calc(1rem * var(--avd-font-scale-card-title, 1));
+}
+
+// A home feed whose first page ships with the page (guests, videos-area.blade.php) shows its real thumbnails in the
+// skeleton's first cards from the first paint: the picture fills the placeholder, without the shimmer sweep.
+.avd-placeholder-thumb.avd-has-photo::after {
+    content: none;
+}
+
+.avd-placeholder-thumb > img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+// Channel pages lay their card body out differently (no avatar or channel name, own title size, see
+// channel-customization.scss); the UserVideos skeletons there keep their previous metrics.
+.avd-channel-page #{$avd-skeleton-text} {
+    min-height: 0;
+}
+
+// Horizontal strip: the real thumbnail is a fixed share of the row, the placeholder takes the same share.
+@media (min-width: 768px) {
+    [data-avd-card-layout="card_horizontal_strip"] .avd-video-card > .avd-placeholder-thumb {
+        flex: 0 0 40%;
+        max-width: 40%;
+    }
+}
+
+@media (max-width: 767.98px) {
+    #{$avd-skeleton-text} {
+        --avd-skel-title-size: 0.86rem;
+        --avd-skel-title-leading: 1.32;
+        --avd-skel-meta-line: calc(0.72rem * 1.4);
+    }
+
+    html[data-avd-mobile-video-card-density="compact"] #{$avd-skeleton-text} {
+        --avd-skel-title-size: 0.8rem;
+        --avd-skel-meta-line: calc(0.68rem * 1.35);
+    }
+
+    html[data-avd-typography="on"] #{$avd-skeleton-text} {
+        --avd-skel-title-size: calc(0.86rem * var(--avd-font-scale-card-title, 1));
+    }
+
+    html[data-avd-typography="on"][data-avd-mobile-video-card-density="compact"] #{$avd-skeleton-text} {
+        --avd-skel-title-size: calc(0.8rem * var(--avd-font-scale-card-title, 1));
+    }
+
+    // The real avatar shrinks to its 30px (compact 24px) grid column; the 38px placeholder overflowed it.
+    .avd-card-body > .avd-placeholder-avatar {
+        width: 30px;
+        height: 30px;
+    }
+
+    html[data-avd-mobile-video-card-density="compact"] .avd-card-body > .avd-placeholder-avatar {
+        width: 24px;
+        height: 24px;
+    }
+
+    html .avd-channel-page .avd-card-body > .avd-placeholder-avatar {
+        width: 38px;
+        height: 38px;
+    }
+
+    html[data-avd-card-layout="card_horizontal_strip"] .avd-video-card > .avd-placeholder-thumb {
+        flex: 0 0 36%;
+        inline-size: 36%;
+        max-inline-size: 140px;
+    }
+}
+
+// Cards that appear while on screen must render from their first frame. With content-visibility:auto a new card
+// is laid out at its contain-intrinsic-size estimate for one frame and then at its real height, which moves every
+// row below it (measured: about 0.04 CLS each time at 1440px, at first paint, at the Preact upgrade and at the
+// data swap). So skeletons (server and Preact) and a feed's first page of real cards always render, with the
+// same containment content-visibility:auto applied (layout, paint, style), so clipping and stacking are unchanged.
+// Cards appended later by infinite scroll arrive below the viewport and keep the skipping. The first cards are
+// marked by VideosList (data-avd-first-page, FIRST_PAGE_CARDS): the same cards :nth-of-type(-n+24) selected,
+// without a positional rule on a grid that grows by a page at a time.
+#{$avd-skeleton-col} > .avd-video-card,
+.avd-video-grid > article.col[data-avd-first-page] > .avd-video-card {
+    content-visibility: visible;
+    contain: content;
+}
+
+// Except a first page that arrived while its grid was off screen (VideosList latches data-avd-feed-deferred, e.g. a
+// below-fold feed started at idle): nothing on screen can shift then, so its cards keep content-visibility:auto and
+// that render lays out only the cards near the viewport instead of the whole page. Same specificity as the rule
+// above, so it must stay after it.
+.avd-video-grid[data-avd-feed-deferred] > article.col > .avd-video-card {
+    content-visibility: auto;
+}
+
+// Wide grid ads (wide_row: a full-width row between card rows, VideosList). The first-page skeleton holds a box where
+// the ad will go (data-avd-ad-reserve, from <x-videos-area> and VideosList), in the same column classes as the real ad
+// row, so the ad row does not push the rows below it when the feed's data arrives. The box is a skeleton piece
+// (.avd-placeholder) as tall as the slot of the bundled test creative (its 78px plus the slot's 0.1rem block padding);
+// --avd-grid-ad-wide-reserve (custom CSS) matches another creative. The real ad slot keeps its own size.
+.avd-video-grid > [data-avd-ad-reserve] > .ad-slot-grid--wide {
+    min-height: var(--avd-grid-ad-wide-reserve, calc(78px + 0.2rem));
+    border-radius: 16px;
+}
+
+// A feed that is not requested yet (VideosList data-avd-feed-waiting: more than 800px below the viewport, before the
+// idle start) is not loading, so its skeletons rest on the static frame instead of sweeping for the whole visit. The
+// sweep starts with the feed's request. Server skeletons keep sweeping until the upgrade: a feed can be on screen then.
+[data-avd-feed-waiting] .avd-placeholder::after {
+    animation: none;
+}
+
+// Intrinsic size of skipped (content-visibility:auto) cards. `auto` keeps each card's last rendered size, so a
+// card that was on screen once no longer falls back to an estimate when it leaves the viewport (scrollbar and
+// scroll-reversal jumps). The estimate only covers cards never rendered: --avd-card-h is the card height VideosList
+// measures on the grid (its skeleton while loading, its on-screen cards at the next page request), else these values.
+// The html prefix beats the 320px 240px that the layout (inline, later) and motion.scss still declare.
+html .avd-video-card,
+html .video-card-modern {
+    contain-intrinsic-size: auto 320px auto var(--avd-card-h, 300px);
+}
+
+@media (max-width: 767.98px) {
+    html .avd-video-card,
+    html .video-card-modern {
+        contain-intrinsic-size: auto 320px auto var(--avd-card-h, 185px);
+    }
+
+    html[data-avd-mobile-video-columns="1"] .avd-video-card,
+    html[data-avd-mobile-video-columns="1"] .video-card-modern {
+        contain-intrinsic-size: auto 320px auto var(--avd-card-h, 300px);
+    }
+}
+
+// Rail items live in horizontal scrollers (some drift on desktop). Per-item content-visibility flips their
+// rendering state as they pass the edge, which costs style and layout at idle and resizes skipped items.
+// Same containment as content-visibility:auto (layout, paint, style), minus the skipping.
+html .avd-discovery-card,
+html .avd-cinema-slide,
+html .avd-top10-item {
+    content-visibility: visible;
+    contain: content;
+}

@@ -1,0 +1,224 @@
+// The existing admin views (until each is rebuilt on the ad-* components) use a few public-site variables and
+// helper classes from the public bundle, which the admin no longer loads. They map onto the admin tokens here
+// (again on .ad-legacy: the old Appearance tab's live preview writes the public theme's values onto <html>).
+
+:root,
+html[data-theme],
+.ad-legacy {
+    // The old views mostly write text, borders and bars in the brand colour: the readable accent ink.
+    --avd-brand: var(--accent-ink);
+    --avd-brand-rgb: var(--accent-ink-rgb);
+    --avd-brand-soft: var(--accent-soft);
+    --avd-brand-2: var(--info);
+    --avd-brand-2-rgb: var(--bs-info-rgb);
+    --avd-cyan: var(--info);
+    --avd-cyan-rgb: var(--bs-info-rgb);
+    --avd-glow-brand: none;
+    --avd-bg: var(--canvas);
+    --avd-bg-body: var(--canvas);
+    --avd-surface: var(--surface);
+    --avd-surface-soft: var(--surface-2);
+    --avd-surface-alt: var(--surface-2);
+    --avd-surface-hover: var(--surface-3);
+    --avd-border: var(--border);
+    --avd-text: var(--text);
+    --avd-muted: var(--text-2);
+    --avd-shadow-soft: var(--shadow-raise);
+    --avd-light-bg: #f4f5f7;
+    --avd-light-surface: #ffffff;
+    --avd-dark-bg: #121419;
+    --avd-dark-surface: #1a1d23;
+}
+
+.text-sm { font-size: var(--fs-sm) !important; }
+.text-xs { font-size: var(--fs-xs) !important; }
+.fw-black { font-weight: 800 !important; }
+.min-w-0 { min-width: 0 !important; }
+.w-30 { width: 30% !important; }
+.cursor-pointer { cursor: pointer; }
+.cursor-move { cursor: move; }
+.transition-all { transition: background-color var(--dur), border-color var(--dur), color var(--dur); }
+.scrollbar-none { scrollbar-width: none; }
+.scrollbar-none::-webkit-scrollbar { display: none; }
+.text-cyan { color: var(--info) !important; }
+.bg-light-dark { background-color: var(--surface-2) !important; }
+.bg-opacity-30 { --bs-bg-opacity: .3; }
+.bg-outline-secondary { background-color: transparent !important; border: 1px solid var(--border-strong); }
+
+// Old card classes some views kept from the public site's secondary pages.
+.avd-secondary-panel,
+.avd-card-spotlight {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+}
+
+// Legacy content area: tables never push the page wider than the screen.
+.ad-legacy {
+    min-width: 0;
+
+    > .row,
+    .table-responsive {
+        max-width: 100%;
+    }
+
+    pre {
+        max-width: 100%;
+        overflow-x: auto;
+    }
+
+    img {
+        max-width: 100%;
+    }
+}
+
+// Chart.js canvases (dashboard) keep their box in both themes.
+.ad-legacy canvas {
+    max-width: 100%;
+}
+
+// Phones: rows of buttons wrap and wide tables scroll inside their card instead of widening the page.
+@media (max-width: 767.98px) {
+    .ad-legacy {
+        .d-flex:not(.flex-nowrap):not(.input-group) {
+            flex-wrap: wrap;
+        }
+
+        // A flex child (a title next to its button row) may shrink below its content, so the row can wrap.
+        .d-flex > * {
+            min-width: 0;
+        }
+
+        .card,
+        .table-responsive {
+            max-width: 100%;
+            overflow-x: auto;
+        }
+
+        .btn {
+            white-space: normal;
+        }
+    }
+}
+
+// A few old views paint fixed, half-transparent dark panels inline (the import consoles' "Live ecosystem" cards, a
+// settings panel and a settings dialog): on a light admin they turned mid-grey under white text. They follow the
+// admin mode instead (the inline background needs !important), and the white text inside them takes the text colours.
+.ad-legacy :is([style*="rgba(15, 23, 42"], [style*="#0f172a"]) {
+    background: var(--surface-2) !important;
+    border-color: var(--border) !important;
+    color: var(--text);
+
+    .text-white {
+        color: var(--text) !important;
+    }
+
+    .text-white-50 {
+        color: var(--text-2) !important;
+    }
+
+    .bg-black {
+        background-color: var(--surface) !important;
+    }
+
+    .border-secondary {
+        border-color: var(--border) !important;
+    }
+}
+
+// In a light admin, white text written for the old dark admin sits on light panels: it takes the text colours,
+// except on dark or coloured fills, where white still reads (incl. the old settings page's dark save toast).
+$ad-white-fills: ".bg-dark, .bg-black, .bg-primary, .bg-success, .bg-danger, .bg-info, [class*='text-bg-'], .btn-primary, .btn-success, .btn-info, .btn-dark, .progress-bar, .nav-pills .nav-link.active, [style*='linear-gradient'], .realtime-save-toast";
+
+html[data-bs-theme="light"] .ad-legacy .text-white:not(:is(#{$ad-white-fills})):not(:is(#{$ad-white-fills}) *) {
+    color: var(--text) !important;
+}
+
+html[data-bs-theme="light"] .ad-legacy .text-white-50:not(:is(#{$ad-white-fills})):not(:is(#{$ad-white-fills}) *) {
+    color: var(--text-2) !important;
+}
+
+// In a dark admin the old views put accent text on lighter panels (surface-2, accent-soft) than the shell does:
+// a lighter accent ink keeps 4.5:1 there.
+html[data-bs-theme="dark"] .ad-legacy {
+    --accent-ink: color-mix(in oklab, var(--ai-d, #4381f0) 78%, #fff);
+}
+
+// Light-blue inline link colours (written for the old dark admin) read as the accent ink on a light admin.
+html[data-bs-theme="light"] .ad-legacy [style*="color: #38bdf8"] {
+    color: var(--accent-ink) !important;
+}
+
+// Import consoles: a ticked category keeps readable text; the box, border and count pill show the choice.
+.ad-legacy :is(.avdb-cat-card, .xvid-cat-card) input:checked + :is(.avdb-cat-label, .xvid-cat-label) {
+    color: var(--text);
+}
+
+.ad-legacy :is(.avdb-cat-card, .xvid-cat-card) input:checked ~ :is(.avdb-cat-count, .xvid-cat-count) {
+    border-color: var(--accent-line);
+    background: var(--accent-soft);
+    color: var(--text);
+}
+
+.ad-legacy :is(.avdb-cat-count, .xvid-cat-count) {
+    color: var(--text-2);
+}
+
+// XVIDAPI: a ticked category's orange name is a darker orange on a light admin.
+html[data-bs-theme="light"] .ad-legacy .xvid-cat-item input:checked + span {
+    color: #9a3412;
+}
+
+// Field outlines: several old views draw them in a faint line colour of their own (--avdb-line, --settings-line);
+// inputs and unticked boxes keep a 3:1 outline (focus and valid/invalid states keep theirs).
+.ad-legacy :is(.form-control, .form-select):not(:focus, .is-invalid, .is-valid) {
+    border-color: var(--border-input);
+}
+
+.ad-legacy .form-check-input:not(:checked, :focus, .is-invalid, .is-valid) {
+    border-color: var(--text-3);
+}
+
+// No blur or glow in the admin (no effects tier): the old views' frosted overlays and toasts and the old Appearance
+// tab's theme previews (inline or script-set styles) draw plain fills instead.
+.ad-legacy :is([style*="backdrop-filter"], .avdb-queue-modal, .realtime-save-toast) {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+}
+
+.ad-legacy [style*="filter: blur"] {
+    filter: none !important;
+}
+
+// The Comments page's empty state offers "Upload new video", a dialog of the public layout (the upload itself is
+// the site's Upload18 flow, which the admin does not load): the button would do nothing here.
+.ad-legacy [data-bs-target="#video_create"] {
+    display: none !important;
+}
+
+// Coloured card headers with white text ("card-header bg-primary text-white"): the headings in them take the white
+// (the admin's headings are dark by default), and the primary fill is the action colour, on which white reads in
+// both modes (the bridge's primary fill is the link colour, too light for white text in dark mode).
+.ad-legacy .text-white :is(h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6) {
+    color: inherit;
+}
+
+.ad-legacy .bg-primary.text-white {
+    background-color: var(--accent) !important;
+    color: var(--on-accent) !important;
+}
+
+// The amber fill is light in both modes: dark text on it (also a progress bar's percentage); the grey "secondary"
+// fill is a quiet box (in a light admin its white text takes the text colour, see $ad-white-fills).
+.ad-legacy .bg-warning,
+.ad-legacy .bg-warning :is(h1, h2, h3, h4, h5, h6) {
+    color: #16191e !important;
+}
+
+// Code inside an alert takes the alert's colour (Bootstrap's code red is too light on a dark alert).
+.ad-legacy .alert code {
+    color: inherit;
+}
+
+// Home, the list pages and the consoles' deferred sections.
+@import "list";

@@ -1,0 +1,2193 @@
+/*
+ * Theme CSS, part A. Served as a cached build file (perf plan step 24, App\Support\ThemeCss).
+ *
+ * Theme v2: every colour, surface, border, radius, shadow and font below reads the theme tokens
+ * (theme_spec token_contract) that the active theme's token file defines on html[data-bs-theme]
+ * (+ [data-avd-flavor], [dir="rtl"]); structure variants key on the theme-owned <html> attributes
+ * (data-avd-header-style/-header-deco, -sidebar-style, -chip-style, -section-style, -card-frame,
+ * -hero-deco, -backdrop). No colour literal outside token definitions; logical properties only.
+ *
+ * Cascade order (keep it): main.css -> inline :root (#dynamic-theme) -> theme token file
+ * -> layout-theme-a.css -> inline #avd-custom-css (motion-engine-off rule, admin custom CSS,
+ * master switches) -> layout-theme-b.css -> inline #avd-theme-tail (reduced transparency).
+ *
+ * Plain CSS only: no Blade. No relative url(): the file is served from /build/assets on root installs
+ * and /public/build/assets on sub-path installs. The build only strips whitespace and comments
+ * (see vite.config.ts).
+ */
+
+/* Older names the sass partials and the Blade views read, re-pointed at the theme tokens, so main.css
+   follows the theme too. Scoped to html[data-avd-theme] (pages with a theme file): the embed shell has
+   none and keeps its own values (dark.scss), byte for byte. */
+html[data-avd-theme] {
+    --avd-bg-body: var(--avd-bg);
+    --avd-surface: var(--avd-surface-1);
+    --avd-surface-alt: var(--avd-surface-2);
+    --avd-surface-soft: var(--avd-surface-2);
+    --avd-surface-hover: var(--avd-surface-3);
+    --avd-elevated: var(--avd-surface-solid);
+    --avd-brand-text: var(--avd-brand-ink);
+    --avd-brand-contrast: var(--avd-on-brand);
+    --avd-input-bg: var(--avd-surface-2);
+    --avd-glass: var(--avd-header-bg);
+    --avd-glow-brand: 0 14px 34px var(--avd-glow);
+    --avd-ring-brand: 0 0 0 1px var(--avd-border-strong), 0 0 0 5px var(--avd-brand-soft);
+    --avd-footer-bg: var(--avd-bg-2);
+    --avd-footer-text: var(--avd-muted);
+    --avd-footer-heading: var(--avd-text);
+    --avd-footer-link: var(--avd-text);
+    --avd-footer-border: var(--avd-border);
+    --avd-footer-control-bg: var(--avd-surface-2);
+    --avd-scrollbar-track: transparent;
+    --avd-scrollbar-thumb: var(--avd-border-strong);
+    --avd-scrollbar-thumb-strong: var(--avd-faint);
+    --avd-scrollbar-corner: var(--avd-bg);
+    --avd-header-height: var(--avd-header-h);
+    --avd-font-heading: var(--avd-font-display);
+    --avd-font-family-base: var(--avd-font-body);
+    --avd-radius-k: 1;
+    --avd-radius-card: calc(var(--avd-r-card) * var(--avd-radius-k));
+    --avd-radius-panel: var(--avd-radius-card);
+    --avd-radius-media: calc(var(--avd-r-thumb) * var(--avd-radius-k));
+    --avd-radius-chip: calc(var(--avd-r-chip) * var(--avd-radius-k));
+    --avd-radius-button: calc(var(--avd-btn-r) * var(--avd-radius-k));
+    --avd-radius-field: min(calc(var(--avd-r-control) * var(--avd-radius-k)), calc(var(--avd-control-h) / 2));
+    --avd-btn2-shadow: none;
+    --bs-body-font-family: var(--avd-font-body);
+    --bs-heading-color: var(--avd-text);
+    --bs-emphasis-color: var(--avd-text);
+    --bs-secondary-bg: var(--avd-surface-1);
+    --bs-tertiary-bg: var(--avd-surface-2);
+    --bs-border-color-translucent: var(--avd-border);
+    --bs-link-color-rgb: var(--bs-primary-rgb);
+    --bs-link-hover-color-rgb: var(--bs-primary-rgb);
+}
+/* Neutral shades over pictures, shadows, glass highlights and full-page overlays (the same in every theme): the theme
+   CSS and main.css write them as rgba(var(--avd-shade-rgb), .78) ..., so a theme can tint them like any colour. */
+:root {
+    --avd-shade-rgb: 0, 0, 0;
+    --avd-glint-rgb: 255, 255, 255;
+    --avd-photo-btn-rgb: 109, 109, 110;
+    --avd-inset-scrim-rgb: 20, 8, 16;
+    --avd-glass-shadow-rgb: 40, 20, 90;
+    --avd-overlay-rgb: 4, 7, 12;
+}
+/* Small brand-coloured text on tinted or raised panels (ticker pills and ranks, hero kickers) and the LIVE label: the
+   ink 30% of the way to the text colour and the live fill 15% deeper, so 10-12px glyphs still read >= 4.5:1 once
+   antialiased (>= 6:1 by colour on every Phase A palette). Without color-mix() the plain tokens apply. */
+@supports (color: color-mix(in oklab, red, red)) {
+    html[data-avd-theme] {
+        --avd-brand-ink-strong: color-mix(in oklab, var(--avd-brand-ink), var(--avd-text) 30%);
+        --avd-accent-ink-strong: color-mix(in oklab, var(--avd-accent-ink), var(--avd-text) 30%);
+        --avd-kicker-strong: color-mix(in oklab, var(--avd-kicker-color), var(--avd-text) 30%);
+        --avd-live-strong: color-mix(in oklab, var(--avd-live-fill), var(--avd-photo-bg) 15%);
+    }
+}
+/* The player block is hands-off: its buttons keep the pre-theme look (the fallbacks of the main.css rules)
+   and the old theme CSS's primary and active fills (its chips are .btn-outline-secondary.btn-primary.active),
+   at that rule's old specificity. */
+#avdPlayerWrapper {
+    --avd-btn-bg: initial;
+    --avd-btn-text: initial;
+    --avd-btn-border: initial;
+    --avd-btn-shadow: initial;
+    --avd-btn-clip: initial;
+    --avd-btn-weight: initial;
+    --avd-btn-tracking: initial;
+    --avd-btn-case: initial;
+    --avd-btn2-bg: initial;
+    --avd-btn2-text: initial;
+    --avd-btn2-border: initial;
+    --avd-btn2-shadow: initial;
+    --avd-radius-button: initial;
+}
+:where(#avdPlayerWrapper) .btn-primary {
+    border-color: var(--avd-brand) !important;
+    background-color: var(--avd-brand) !important;
+    color: #fff !important;
+}
+:where(#avdPlayerWrapper) .btn-primary:hover,
+:where(#avdPlayerWrapper) .btn-primary:focus,
+:where(#avdPlayerWrapper) .btn-primary:active,
+:where(#avdPlayerWrapper) .btn-primary.active {
+    border-color: var(--avd-brand-hot) !important;
+    background-color: var(--avd-brand-hot) !important;
+    color: #fff !important;
+}
+/* The reading direction for gradients and masks that run along the line (chip rail edge fades). */
+html {
+    --avd-inline-dir: 90deg;
+}
+html[dir="rtl"] {
+    --avd-inline-dir: -90deg;
+}
+/* Scrollbars follow the mode (app.scss draws them from these). */
+html[data-avd-theme][data-avd-scrollbar="brand"] {
+    --avd-scrollbar-thumb: rgba(var(--avd-brand-rgb), .5);
+    --avd-scrollbar-thumb-strong: var(--avd-brand-fill);
+}
+/* radius_scale is a multiplier on the theme radii (compact x0.6, balanced x1, rounded x1.4). */
+html[data-avd-radius="compact"] {
+    --avd-radius-k: .6;
+}
+html[data-avd-radius="rounded"] {
+    --avd-radius-k: 1.4;
+}
+/* Leaf corners are 4-value radii, which calc() cannot scale: they keep the theme's shape. */
+html[data-avd-card-frame="leaf"] {
+    --avd-radius-card: var(--avd-r-card);
+    --avd-radius-media: var(--avd-r-thumb);
+    --avd-radius-chip: var(--avd-r-chip);
+    --avd-radius-button: var(--avd-btn-r);
+}
+/* The side menu style is an owner setting: its width follows the chosen style, whatever the theme's own. */
+html[data-avd-theme][data-avd-sidebar-style] {
+    --avd-sidebar-w: 232px;
+}
+html[data-avd-theme][data-avd-sidebar-style="rail"] {
+    --avd-sidebar-w: 76px;
+}
+html[data-avd-theme][data-avd-sidebar-style="hidden"] {
+    --avd-sidebar-w: 0px;
+}
+/* Owner switches over the theme. They out-rank the token file's flavor and owner-colour blocks. ("Pure black in dark
+   mode" is not one of them: the colour engine derives the dark tokens on black, App\Support\ThemeTokens::ownerOverrides.) */
+/* Strong text contrast (and the contrast surface style): borders take the strong line, secondary text 7:1
+   (80% text in oklab reaches it on every theme whose own text does; the code-editor palettes use the text). */
+html[data-avd-text-contrast="strong"][data-avd-theme],
+html[data-avd-surface="contrast"][data-avd-theme] {
+    --avd-border: var(--avd-border-strong);
+    --avd-muted: color-mix(in oklab, var(--avd-text) 80%, var(--avd-bg));
+    --avd-faint: var(--avd-muted);
+}
+html[data-avd-text-contrast="strong"][data-avd-theme="dracula_official"],
+html[data-avd-surface="contrast"][data-avd-theme="dracula_official"] {
+    --avd-muted: var(--avd-text);
+}
+/* Solid surfaces: every see-through surface is the opaque one (no glass to composite; good for weak devices);
+   a card without a fill stays frameless (--avd-card-solid-bg). The lite tier makes glass cards and chips opaque too. */
+html[data-avd-surface="solid"][data-avd-theme] {
+    --avd-surface-1: var(--avd-surface-solid);
+    --avd-sidebar-bg: var(--avd-surface-solid);
+    --avd-card-bg: var(--avd-card-solid-bg, var(--avd-surface-solid));
+    --avd-chip-bg: var(--avd-surface-2);
+}
+/* The bar: see-through bars take the solid surface, a designed colour band is opaque already and keeps its colour
+   (--avd-header-solid-bg, App\Support\ThemeTokens). The transparent bar over a hero keeps its own scrim and ink
+   (an opaque bar there hid its white links in light mode). */
+html[data-avd-surface="solid"][data-avd-theme]:not([data-avd-header-style="transparent_overlay"]) {
+    --avd-header-bg: var(--avd-header-solid-bg, var(--avd-surface-solid));
+}
+html[data-avd-tier="lite"][data-avd-card-frame="glass"] {
+    --avd-card-bg: var(--avd-surface-solid);
+}
+html[data-avd-tier="lite"][data-avd-chip-style="glass"] {
+    --avd-chip-bg: var(--avd-surface-2);
+}
+
+/* Page: the theme background, and its backdrop as one static fixed layer painted once (no animation,
+   never on the embed shell). An animated atmosphere (layout-theme-b.css) takes this layer over. */
+body.avd-app {
+    background: var(--avd-bg);
+    color: var(--avd-text);
+    font-family: var(--avd-font-body);
+}
+body.avd-app::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    background: var(--avd-backdrop-tile), var(--avd-page-backdrop);
+    pointer-events: none;
+}
+/* Horizon / checker floors (data-avd-backdrop): a static perspective plane under the content. */
+.avd-backdrop-floor {
+    position: fixed;
+    inset-inline: -35%;
+    bottom: -1px;
+    height: 42vh;
+    z-index: -1;
+    background: var(--avd-backdrop-floor);
+    transform: perspective(380px) rotateX(66deg);
+    transform-origin: 50% 100%;
+    opacity: .8;
+    pointer-events: none;
+    -webkit-mask-image: linear-gradient(to top, #000 0%, rgba(0, 0, 0, .55) 45%, transparent 100%);
+    mask-image: linear-gradient(to top, #000 0%, rgba(0, 0, 0, .55) 45%, transparent 100%);
+}
+h1, h2, h3, h4, h5, h6, .avd-home-title, .avd-watch-title, .avd-channel-title, .modal-title, .offcanvas-title, .avd-section-heading {
+    font-family: var(--avd-font-display);
+    letter-spacing: var(--avd-display-tracking);
+}
+/* The theme's display voice (weight, case, style) is for page, hero and section headings only; video
+   titles inside cards and lists use the title font (cards below). */
+.avd-home-title, .avd-watch-title, .avd-channel-title, .avd-section-heading, .avd-discovery-head h2, .avd-htitle {
+    font-weight: var(--avd-display-weight);
+    font-style: var(--avd-display-style);
+    text-transform: var(--avd-display-case);
+}
+::selection {
+    background: var(--avd-brand-fill);
+    color: var(--avd-on-brand);
+}
+/* One focus ring from the theme on every control: it out-ranks Bootstrap's outline:0 + faint shadow, and a
+   clipped shape (cut corners) shows its whole box while focused so the ring is never cut off. */
+html[data-avd-theme] :focus-visible {
+    outline: 2px solid var(--avd-focus);
+    outline-offset: 2px;
+}
+html[data-avd-theme] .btn:focus-visible,
+html[data-avd-theme] .avd-tag:focus-visible {
+    clip-path: none;
+}
+
+/* Header (base colours and height in header.scss). Blur only on the rich tier, only for the translucent
+   bars (solid surfaces make them opaque), never under prefers-reduced-transparency (layout-theme-b.css). */
+html[data-avd-tier="rich"]:not([data-avd-surface="solid"])[data-avd-header-style="glass_blur"] .avd-header,
+html[data-avd-tier="rich"]:not([data-avd-surface="solid"])[data-avd-header-style="glass_island"] .avd-header,
+html[data-avd-tier="rich"]:not([data-avd-surface="solid"])[data-avd-header-style="sidebar_rail"] .avd-header {
+    -webkit-backdrop-filter: blur(var(--avd-header-blur));
+    backdrop-filter: blur(var(--avd-header-blur));
+}
+/* The one hero panel that may blur (split_glass); the floating sidebar is the third surface (sidebar styles). */
+html[data-avd-tier="rich"][data-avd-hero-deco="split_glass"] .avd-split {
+    -webkit-backdrop-filter: blur(20px);
+    backdrop-filter: blur(20px);
+}
+.avd-header-inner {
+    gap: 18px;
+}
+/* Decoration lines: the accent rule (box-shadow) and the stripe under the bar. */
+.avd-header::after {
+    content: "";
+    position: absolute;
+    inset-inline: 0;
+    bottom: 0;
+    height: 0;
+    box-shadow: var(--avd-header-rule);
+    pointer-events: none;
+}
+html[data-avd-header-deco="stripe"] .avd-header::before {
+    content: "";
+    position: absolute;
+    inset-inline: 0;
+    bottom: -3px;
+    height: 3px;
+    background: var(--avd-header-stripe);
+    pointer-events: none;
+}
+/* Floating island */
+html[data-avd-header-style="glass_island"] .avd-header {
+    max-width: min(1220px, calc(100% - 2 * var(--avd-header-inset)));
+    margin: var(--avd-header-inset) auto 0;
+    border: var(--avd-header-border) !important;
+    border-radius: var(--avd-header-radius);
+    padding-inline: 12px 18px;
+}
+html[data-avd-header-style="glass_island"] .avd-search-wrap .input-group {
+    max-width: 360px;
+}
+/* Slim bar */
+html[data-avd-header-style="minimal_slim"] .avd-header-inner {
+    min-height: calc(var(--avd-header-h) - 8px);
+}
+/* Transparent over the hero: a scrim-to-transparent bar on top of the first screen when the page starts
+   with a hero, the solid page colour everywhere else (and on engines without :has()). Over the hero the bar
+   takes the theme's overlay tokens (Noir Premiere: a black scrim and white ink in both modes; other themes
+   keep their own bar); the ring of a focused control there takes the bar's ink. A page with a hero zone says so
+   on its body (body.has-hero-zone, printed by the layout when pages.partials.hero renders one): a :has() test on
+   the body here made the browser re-check and restyle the whole page each time a feed page arrived (weak phones
+   lost most scroll frames on long feeds). The @supports test keeps the solid bar on engines without :has(), as
+   before; it is read once with the stylesheet, nothing is matched with :has(). */
+:where(html[data-avd-theme]) {
+    --avd-header-overlay-bg: var(--avd-header-bg);
+    --avd-header-overlay-text: var(--avd-header-text);
+}
+html[data-avd-header-style="transparent_overlay"] .avd-header {
+    --avd-header-text: var(--avd-text);
+    background: var(--avd-bg);
+}
+@supports selector(:has(a)) {
+    html[data-avd-header-style="transparent_overlay"] body.has-hero-zone .avd-header {
+        --avd-header-text: var(--avd-header-overlay-text);
+        position: fixed !important;
+        inset-inline: 0;
+        top: 0;
+        border-bottom: 0 !important;
+        background: var(--avd-header-overlay-bg);
+    }
+    html[data-avd-header-style="transparent_overlay"] body.has-hero-zone .avd-header :focus-visible {
+        outline-color: var(--avd-header-text);
+    }
+    html[data-avd-header-style="transparent_overlay"] body.has-hero-zone .avd-brand {
+        color: var(--avd-brand-ink) !important;
+        font-size: 26px;
+        letter-spacing: -.03em;
+    }
+    /* Scrolled past the hero (resources/js/layout/core.ts, an IntersectionObserver): the bar takes the solid page colours. */
+    html[data-avd-header-style="transparent_overlay"][data-avd-past-hero] body.has-hero-zone .avd-header {
+        --avd-header-text: var(--avd-text);
+        background: var(--avd-surface-solid);
+        box-shadow: 0 1px 0 var(--avd-border);
+    }
+}
+/* Two-row bar (megabar, masthead): WP5's second row of section links. */
+html[data-avd-header-style="full_megabar"] .avd-header {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 0;
+}
+.avd-hrow2 {
+    display: flex;
+    align-items: center;
+    gap: 26px;
+    height: 44px;
+    padding: 0 22px;
+    border-top: 1px solid var(--avd-border);
+    font: 700 13px/1 var(--avd-font-display);
+    font-style: var(--avd-display-style);
+    letter-spacing: .06em;
+    text-transform: uppercase;
+}
+html .navbar > .avd-hrow2 {
+    justify-content: flex-start;
+}
+.avd-hrow2 a {
+    position: relative;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    color: inherit;
+    opacity: .75;
+    text-decoration: none;
+}
+.avd-hrow2 a.active {
+    opacity: 1;
+    color: var(--avd-brand-ink);
+}
+.avd-hrow2 a.active::after {
+    content: "";
+    position: absolute;
+    inset-inline: 0;
+    bottom: -1px;
+    height: 3px;
+    background: var(--avd-brand-fill);
+}
+.avd-masthead-title {
+    font: 800 34px/1 var(--avd-font-display);
+    letter-spacing: -.02em;
+    text-align: center;
+}
+.avd-dateline {
+    width: 240px;
+    color: var(--avd-muted);
+    font: 600 11.5px/1.3 var(--avd-font-label);
+    letter-spacing: .1em;
+    text-transform: uppercase;
+}
+html[data-avd-header-deco="masthead"] .avd-header-inner {
+    min-height: 68px;
+    justify-content: space-between;
+}
+html[data-avd-header-deco="masthead"] .avd-hrow2 {
+    justify-content: center;
+    border-top: 1px solid var(--avd-text);
+    font-family: var(--avd-font-label);
+    font-size: 12px;
+    letter-spacing: .12em;
+}
+html[data-avd-header-deco="masthead"] .avd-hrow2 a.active::after {
+    height: 2px;
+    background: var(--avd-brand-ink);
+}
+html[data-avd-header-deco="brutal"] .avd-header-inner {
+    min-height: 66px;
+}
+html[data-avd-header-deco="brutal"] .avd-hrow2 {
+    border-top: 2px solid var(--avd-text);
+    font-family: var(--avd-font-body);
+    letter-spacing: .02em;
+}
+html[data-avd-header-deco="brutal"] .avd-hrow2 a.active {
+    padding: 0 8px;
+    background: var(--avd-accent-fill);
+    color: var(--avd-on-accent);
+}
+html[data-avd-header-deco="brutal"] .avd-hrow2 a.active::after {
+    display: none;
+}
+html[data-avd-header-deco="brutal"] .avd-search-wrap .input-group {
+    border: 2px solid var(--avd-text);
+    background: var(--avd-surface-1);
+}
+/* Crest: centred engraved logo, links instead of a side menu. */
+html[data-avd-header-deco="crest"] .avd-header-inner {
+    justify-content: space-between;
+    padding-inline: 40px;
+}
+html[data-avd-header-deco="crest"] .avd-brand {
+    color: var(--avd-brand-ink) !important;
+    font-size: 18px;
+    letter-spacing: .3em;
+    text-transform: uppercase;
+}
+html[data-avd-header-deco="crest"] .avd-brand-mark {
+    width: 22px;
+    height: 22px;
+    border: 1px solid var(--avd-brand-ink);
+    border-radius: 0;
+    background: transparent;
+    color: var(--avd-brand-ink);
+    font-size: 8px;
+    transform: rotate(45deg);
+}
+html[data-avd-header-deco="crest"] .avd-brand-mark i {
+    transform: rotate(-45deg);
+}
+.avd-hnav {
+    display: flex;
+    align-items: center;
+    gap: 22px;
+    font-size: 14px;
+    font-weight: 600;
+}
+.avd-hnav a {
+    color: inherit;
+    opacity: .78;
+    text-decoration: none;
+}
+.avd-hnav a.active {
+    opacity: 1;
+    font-weight: 750;
+}
+html[data-avd-header-deco="crest"] .avd-hnav {
+    font: 600 12px/1 var(--avd-font-body);
+    letter-spacing: .2em;
+    text-transform: uppercase;
+}
+html[data-avd-header-deco="crest"] .avd-hnav a.active {
+    color: var(--avd-brand-ink);
+}
+html[data-avd-header-deco="heavy_rule"] .avd-brand-mark {
+    border-radius: 0;
+}
+html[data-avd-header-deco="editor_tabs"] .avd-header-inner {
+    gap: 14px;
+}
+html[data-avd-header-deco="editor_tabs"] .avd-search-wrap .input-group {
+    border-radius: 6px;
+    font-family: var(--avd-font-label);
+    font-size: 12.5px;
+}
+html[data-avd-header-deco="terminal"] .avd-brand {
+    color: var(--avd-brand-ink) !important;
+    font-size: 26px;
+    font-weight: 400;
+    letter-spacing: 0;
+}
+html[data-avd-header-deco="terminal"] .avd-search-wrap .input-group {
+    border: 1px dashed var(--avd-border-strong);
+    background: transparent;
+    font-family: var(--avd-font-body);
+}
+html[data-avd-header-deco="band"] .avd-search-wrap .input-group {
+    border: 2px solid var(--avd-x-ink);
+    background: var(--avd-surface-1);
+}
+html[data-avd-header-deco="band"] .avd-header {
+    --avd-btn2-text: var(--avd-header-text);
+    --avd-btn2-border: 2px solid var(--avd-header-text);
+}
+/* Colour bands (Neo Pop's yellow bar, Vaporwave's teal-to-pink bar and section heads): the theme's focus colour is
+   fitted to the page, not to the band (1.0-1.8:1 there), so a ring on a band takes the band's own ink (4.5:1+). */
+html[data-avd-header-deco="band"] .avd-header :focus-visible,
+html[data-avd-header-deco="titlebar"] .avd-header :focus-visible {
+    outline-color: var(--avd-header-text);
+}
+/* (The search box is the page's surface: its ring keeps the theme's focus colour.) */
+html[data-avd-header-deco="band"] .avd-header .avd-search-wrap :focus-visible,
+html[data-avd-header-deco="titlebar"] .avd-header .avd-search-wrap :focus-visible {
+    outline-color: var(--avd-focus);
+}
+html[data-avd-section-style="titlebar"] .avd-discovery-head :focus-visible {
+    outline-color: var(--avd-on-brand);
+}
+html[data-avd-header-deco="band"] .avd-brand-mark {
+    border-radius: 10px;
+    background: var(--avd-x-ink);
+    color: var(--avd-x-pop2);
+    transform: rotate(-6deg);
+}
+html[data-avd-header-deco="titlebar"] .avd-header {
+    min-height: 50px;
+}
+html[data-avd-header-deco="titlebar"] .avd-search-wrap .input-group {
+    border: 0;
+    border-radius: 0;
+    background: var(--avd-surface-1);
+    box-shadow: inset 2px 2px 0 var(--avd-x-bevel-dark), inset -2px -2px 0 var(--avd-x-bevel-light);
+}
+html[data-avd-header-deco="titlebar"] .avd-brand {
+    font-size: 16px;
+}
+html[data-avd-header-deco="titlebar"] .avd-brand-mark {
+    border-radius: 0;
+    background: var(--avd-surface-1);
+    color: var(--avd-brand-ink);
+    box-shadow: inset -2px -2px 0 var(--avd-x-bevel-dark), inset 2px 2px 0 var(--avd-x-bevel-light);
+}
+.avd-win-btns {
+    display: flex;
+    gap: 4px;
+}
+.avd-win-btns i {
+    display: block;
+    width: 18px;
+    height: 16px;
+    background: var(--avd-surface-1);
+    box-shadow: inset -1px -1px 0 var(--avd-x-bevel-dark), inset 1px 1px 0 var(--avd-x-bevel-light);
+}
+
+/* Sidebar styles (data-avd-sidebar-style). The pinned width is --avd-sidebar-w, set per style (part A head); the
+   back office (admin and account pages) keeps its full 260px menu, the side menu style being a public-site setting.
+   The layout marks a page that renders the back-office menu with html[data-avd-back-office] (no page-wide :has()). */
+html[data-avd-theme][data-avd-sidebar-style][data-avd-back-office] {
+    --avd-sidebar-w: 260px;
+}
+@media (min-width: 992px) {
+    /* Rail (the pinned menu only; the drawer of unpinned pages keeps full links): icons over short labels; section
+       titles, category links and the footer controls go. */
+    html[data-avd-sidebar-style="rail"] .show_sidebar .avd-sidebar-body {
+        padding: 10px 6px;
+    }
+    html[data-avd-sidebar-style="rail"] .show_sidebar .avd-sidebar-link {
+        flex-direction: column;
+        justify-content: center;
+        gap: 6px;
+        min-height: 62px;
+        padding: 0;
+        font-weight: 600;
+        text-align: center;
+    }
+    html[data-avd-sidebar-style="rail"] .show_sidebar .avd-sidebar-link i {
+        font-size: 17px;
+    }
+    /* One flex line, so a long label cannot widen every link past the rail. */
+    html[data-avd-sidebar-style="rail"] .show_sidebar .avd-sidebar-section .nav {
+        flex-wrap: nowrap;
+    }
+    html[data-avd-sidebar-style="rail"] .show_sidebar .avd-sidebar-link .text-sm {
+        font-size: 10.5px;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    html[data-avd-sidebar-style="rail"] .show_sidebar .avd-sidebar-link.menu-selected::after {
+        top: 14px;
+        bottom: 14px;
+    }
+    html[data-avd-sidebar-style="rail"] .show_sidebar .avd-sidebar-heading,
+    html[data-avd-sidebar-style="rail"] .show_sidebar .avd-sidebar-dot,
+    html[data-avd-sidebar-style="rail"] .show_sidebar .avd-sidebar-footer,
+    html[data-avd-sidebar-style="rail"] .show_sidebar .avd-nav-cat {
+        display: none;
+    }
+    /* Floating: a rounded panel beside the content. */
+    html[data-avd-sidebar-style="floating"] #responsive-sidebar.show_sidebar {
+        margin-block: calc(var(--sidebar-top, var(--avd-header-h)) + 14px) 14px !important;
+        margin-inline: 14px 0 !important;
+        height: calc(100vh - var(--sidebar-top, var(--avd-header-h)) - 28px) !important;
+        border: var(--avd-sidebar-border);
+        border-radius: var(--avd-sidebar-radius);
+        box-shadow: 0 18px 40px -26px rgba(var(--avd-shade-rgb), .45);
+    }
+    html[data-avd-tier="rich"]:not([data-avd-surface="solid"])[data-avd-sidebar-style="floating"] #responsive-sidebar.show_sidebar {
+        -webkit-backdrop-filter: blur(16px);
+        backdrop-filter: blur(16px);
+    }
+    html[data-avd-sidebar-style="floating"] body.has-sidebar #main-container {
+        margin-inline-start: calc(var(--avd-sidebar-w) + 14px);
+        width: calc(100% - var(--avd-sidebar-w) - 14px);
+    }
+    html[data-avd-sidebar-style="floating"] .avd-sidebar-link.menu-selected::after {
+        display: none;
+    }
+    /* Hidden: no pinned sidebar; the header's menu button opens it as a drawer. */
+    html[data-avd-sidebar-style="hidden"] #responsive-sidebar.show_sidebar:not(.show):not(.showing):not(.avd-back-sidebar) {
+        visibility: hidden;
+        transform: translateX(-100%);
+    }
+    html[dir="rtl"][data-avd-sidebar-style="hidden"] #responsive-sidebar.show_sidebar:not(.show):not(.showing):not(.avd-back-sidebar) {
+        transform: translateX(100%);
+    }
+    html[data-avd-sidebar-style="hidden"] #responsive-sidebar.show_sidebar:not(.avd-back-sidebar) {
+        width: 280px;
+    }
+    html[data-avd-sidebar-style="hidden"] body.has-sidebar .avd-header .avd-sidebar-toggle {
+        display: inline-flex;
+    }
+}
+/* Start menu (Vaporwave): a bevelled panel with a vertical title strip. */
+html[data-avd-sidebar-style="startmenu"] .avd-sidebar-body {
+    padding-inline-start: 40px;
+}
+html[data-avd-sidebar-style="startmenu"] #responsive-sidebar.avd-sidebar {
+    border-inline-end: 2px solid var(--avd-x-bevel-dark);
+    box-shadow: inset -2px 0 0 var(--avd-x-bevel-light);
+}
+html[data-avd-sidebar-style="startmenu"] .avd-sidebar-body::before {
+    content: "";
+    position: absolute;
+    inset-inline-start: 0;
+    top: 0;
+    bottom: 0;
+    width: 28px;
+    background: linear-gradient(0deg, var(--avd-brand-fill), var(--avd-brand-2-fill));
+}
+html[data-avd-sidebar-style="startmenu"] .avd-sidebar-link {
+    min-height: 36px;
+    border-radius: 0 !important;
+}
+html[data-avd-sidebar-style="startmenu"] .avd-sidebar-link.menu-selected::after {
+    display: none;
+}
+/* Reduced transparency: none of the three blurs (the see-through bars turn solid in layout-theme-b.css). */
+@media (prefers-reduced-transparency: reduce) {
+    .avd-header,
+    #responsive-sidebar.avd-sidebar,
+    .avd-split {
+        -webkit-backdrop-filter: none !important;
+        backdrop-filter: none !important;
+    }
+}
+
+/* Chip styles (data-avd-chip-style); pill, soft, outline, square, glass and clay are pure tokens. */
+html[data-avd-chip-style="underline"] .avd-category-tabs {
+    gap: 26px;
+    border-bottom: 1px solid var(--avd-border);
+}
+html[data-avd-chip-style="underline"] .avd-tag {
+    min-height: 40px;
+    padding: 0 2px;
+    border: 0;
+    border-radius: 0;
+}
+html[data-avd-chip-style="tabs"] .avd-category-tabs {
+    gap: 0;
+    border-bottom: 1px solid var(--avd-border);
+    background: var(--avd-bg-2);
+}
+html[data-avd-chip-style="tabs"] .avd-tag {
+    min-height: 38px;
+    padding: 0 16px;
+    border: 0;
+    border-inline-end: 1px solid var(--avd-border);
+    border-radius: 0;
+    font-family: var(--avd-font-label);
+    font-size: 12.5px;
+}
+html[data-avd-chip-style="bracket"] .avd-tag {
+    --avd-bracket: linear-gradient(var(--avd-accent-ink), var(--avd-accent-ink));
+    border-color: transparent;
+    background:
+        var(--avd-bracket) top left / 9px 1px no-repeat, var(--avd-bracket) top left / 1px 9px no-repeat,
+        var(--avd-bracket) top right / 9px 1px no-repeat, var(--avd-bracket) top right / 1px 9px no-repeat,
+        var(--avd-bracket) bottom left / 9px 1px no-repeat, var(--avd-bracket) bottom left / 1px 9px no-repeat,
+        var(--avd-bracket) bottom right / 9px 1px no-repeat, var(--avd-bracket) bottom right / 1px 9px no-repeat;
+    font-size: 12px;
+}
+html[data-avd-chip-style="bracket"] .avd-tag.active {
+    background: var(--avd-chip-active-bg);
+}
+html[data-avd-chip-style="gradient_border"] .avd-tag {
+    border: 1px solid transparent;
+    background: linear-gradient(var(--avd-surface-1), var(--avd-surface-1)) padding-box, var(--avd-brand-gradient) border-box;
+}
+html[data-avd-chip-style="gradient_border"] .avd-tag.active {
+    background: var(--avd-brand-gradient);
+}
+html[data-avd-chip-style="holo"] .avd-tag {
+    border: 2px solid transparent;
+    background: linear-gradient(var(--avd-surface-1), var(--avd-surface-1)) padding-box, var(--avd-x-holo) border-box;
+}
+html[data-avd-chip-style="holo"] .avd-tag.active {
+    background: var(--avd-x-holo);
+}
+html[data-avd-chip-style="tag"] .avd-tag {
+    border: 2px solid var(--avd-x-ink);
+    color: var(--avd-x-ink);
+    font-size: 13px;
+}
+html[data-avd-chip-style="tag"] .avd-tag:nth-child(4n+2) {
+    background: var(--avd-x-pop1);
+    color: var(--avd-pop-ink);
+}
+html[data-avd-chip-style="tag"] .avd-tag:nth-child(4n+3) {
+    background: var(--avd-x-pop2);
+    color: var(--avd-pop-ink);
+}
+html[data-avd-chip-style="tag"] .avd-tag:nth-child(4n) {
+    background: var(--avd-x-pop3);
+    color: var(--avd-pop-ink);
+}
+html[data-avd-chip-style="tag"] .avd-tag:nth-child(4n+5) {
+    background: var(--avd-x-pop4);
+    color: var(--avd-pop-ink);
+}
+html[data-avd-chip-style="tag"] .avd-tag.active {
+    background: var(--avd-chip-active-bg);
+    color: var(--avd-chip-active-text);
+}
+html[data-avd-chip-style="clipped"] .avd-tag,
+html[data-avd-chip-style="clipped_outline"] .avd-tag {
+    padding: 0 20px;
+    font-size: 12.5px;
+}
+
+/* Section heads (base in video.scss): the theme's section style (data-avd-section-style). WP5 markup:
+   [.avd-sec-ico] h2 [.avd-sec-rule] [.avd-page-kicker] .avd-discovery-link inside .avd-discovery-head. */
+.avd-sec-rule {
+    flex: 1;
+    align-self: center;
+    border-top: var(--avd-section-rule);
+}
+.avd-sec-ico {
+    width: 30px;
+    height: 30px;
+    flex: none;
+    display: none;
+    place-items: center;
+    border-radius: 999px;
+    background: var(--avd-brand-soft);
+    color: var(--avd-brand-ink);
+    font-size: 12px;
+}
+.avd-discovery-head .avd-page-kicker {
+    display: none;
+}
+html[data-avd-section-style="icon"] .avd-sec-ico {
+    display: grid;
+}
+html[data-avd-section-style="double_rule"] .avd-discovery-head .avd-page-kicker,
+html[data-avd-section-style="rule_kicker"] .avd-discovery-head .avd-page-kicker,
+html[data-avd-section-style="italic_kicker"] .avd-discovery-head .avd-page-kicker {
+    display: flex;
+    flex-basis: 100%;
+}
+html[data-avd-section-style="plain_light"] .avd-discovery-head h2 {
+    font-weight: 600;
+}
+html[data-avd-section-style="ornament"] .avd-discovery-head {
+    justify-content: center;
+}
+html[data-avd-section-style="ornament"] .avd-sec-rule {
+    max-width: 220px;
+}
+html[data-avd-section-style="ornament"] .avd-discovery-head h2::after {
+    content: "  \25C6";
+    color: var(--avd-section-prefix-color);
+}
+html[data-avd-section-style="ornament"] .avd-discovery-link {
+    position: absolute;
+    inset-inline-end: 0;
+}
+html[data-avd-section-style="swiss_number"] .avd-discovery-head {
+    align-items: baseline;
+    margin-top: 30px;
+    padding-top: 12px;
+    border-top: 3px solid var(--avd-text);
+}
+html[data-avd-section-style="double_rule"] .avd-discovery-head {
+    padding-top: 12px;
+    border-top: 3px double var(--avd-text);
+}
+html[data-avd-section-style="double_rule"] .avd-discovery-head,
+html[data-avd-section-style="italic_kicker"] .avd-discovery-head,
+html[data-avd-section-style="rule_kicker"] .avd-discovery-head {
+    flex-wrap: wrap;
+    row-gap: 6px;
+}
+html[data-avd-section-style="chrome"] .avd-discovery-head h2 {
+    padding-inline-end: 6px;
+    background: var(--avd-display-fill);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+}
+html[data-avd-section-style="chrome"] .avd-sec-rule {
+    max-width: 120px;
+    border-top: 3px solid;
+    border-image: var(--avd-brand-gradient) 1;
+}
+html[data-avd-section-style="marker"] .avd-discovery-head h2 {
+    padding: 0 4px;
+    background: linear-gradient(transparent 56%, var(--avd-x-pop2) 56%, var(--avd-x-pop2) 92%, transparent 92%);
+}
+html[data-avd-section-style="marker_mono"] .avd-discovery-head h2 {
+    padding: 4px 10px 2px;
+    background: var(--avd-accent-fill);
+    color: var(--avd-on-accent);
+}
+html[data-avd-section-style="gradient_bar"] .avd-discovery-head h2::after,
+html[data-avd-section-style="holo_bar"] .avd-discovery-head h2::after {
+    content: "";
+    display: block;
+    width: 46px;
+    height: 4px;
+    margin-top: 8px;
+    border-radius: 4px;
+    background: var(--avd-brand-gradient);
+}
+html[data-avd-section-style="holo_bar"] .avd-discovery-head h2::after {
+    width: 64px;
+    height: 5px;
+    background: var(--avd-x-holo);
+}
+html[data-avd-section-style="titlebar"] .avd-discovery-head {
+    padding: 5px 8px;
+    background: linear-gradient(90deg, var(--avd-brand-fill), var(--avd-brand-2-fill));
+    color: var(--avd-on-brand);
+    box-shadow: inset -2px -2px 0 rgba(var(--avd-shade-rgb), .25), inset 2px 2px 0 rgba(var(--avd-glint-rgb), .4);
+}
+html[data-avd-section-style="titlebar"] .avd-discovery-head h2,
+html[data-avd-section-style="titlebar"] .avd-discovery-link {
+    color: var(--avd-on-brand);
+    font-size: 16px;
+}
+html[data-avd-section-style="slash"] .avd-discovery-head h2 {
+    font-style: italic;
+}
+html[data-avd-section-style="slash"] .avd-sec-rule {
+    max-width: 140px;
+    height: 8px;
+    border-top: 0;
+    background: repeating-linear-gradient(-60deg, var(--avd-brand-fill) 0 6px, transparent 6px 12px);
+    opacity: .9;
+}
+html[data-avd-section-style="seal"] .avd-discovery-head h2::before {
+    content: "";
+    display: inline-block;
+    width: 15px;
+    height: 15px;
+    margin-inline-end: 12px;
+    background: var(--avd-brand-fill);
+    vertical-align: 2px;
+}
+html[data-avd-section-style="seal"] .avd-sec-rule {
+    border-top: 1px solid var(--avd-border-strong);
+}
+html[data-avd-section-style="comment"] .avd-discovery-head h2 {
+    font-weight: 500;
+}
+
+/* Video cards (material in video.scss). Hover: the theme's lift and thumbnail zoom are the rich-tier
+   maximum; balanced lifts half and does not zoom; lite changes colour/border only. */
+html[data-avd-tier="rich"] .avd-video-card:hover {
+    transform: translateY(calc(var(--avd-hover-lift) * -1));
+}
+html[data-avd-tier="balanced"] .avd-video-card:hover {
+    transform: translateY(calc(var(--avd-hover-lift) * -.5));
+}
+html:not([data-avd-tier="rich"]) .avd-video-card:hover .avd-thumb img {
+    transform: none;
+}
+html[data-avd-card-hover-glow="on"] .avd-video-card:hover,
+html[data-avd-card-hover-glow="on"] .suggested_video.avd-related-card:hover {
+    box-shadow: var(--avd-hover-glow);
+}
+/* Duration badge: the setting picks the shape, the theme the colours (dense enough on any thumbnail). */
+html[data-avd-duration-style="pill"] .avd-duration {
+    border-radius: 999px;
+}
+html[data-avd-duration-style="badge_solid"] .avd-duration,
+html[data-avd-duration-style="subtle"] .avd-duration {
+    border-radius: min(var(--avd-duration-r), 4px);
+}
+html[data-avd-duration-style="subtle"] .avd-duration {
+    padding: 3px 5px;
+    font-weight: 600;
+}
+/* Creator avatar rings */
+html[data-avd-creator-ring="gradient_glow"] .avd-card-body .avd-channel-avatar,
+html[data-avd-creator-ring="neon_pulse"] .avd-card-body .avd-channel-avatar {
+    box-shadow: 0 0 0 2px var(--avd-bg), 0 0 0 4px var(--avd-brand-fill);
+}
+html[data-avd-creator-ring="static_ring"] .avd-card-body .avd-channel-avatar {
+    box-shadow: 0 0 0 2px var(--avd-bg), 0 0 0 3px var(--avd-brand-ink);
+}
+html[data-avd-creator-ring="gradient_glow"] .avd-avatar-button,
+html[data-avd-creator-ring="neon_pulse"] .avd-avatar-button,
+html[data-avd-creator-ring="static_ring"] .avd-avatar-button {
+    border-color: var(--avd-brand-fill);
+}
+/* Card layouts (data-avd-card-layout) */
+html[data-avd-card-layout="card_hover_expand"] .avd-card-body {
+    --avd-title-lines: 1;
+    grid-template-columns: minmax(0, 1fr);
+    min-height: 0;
+}
+html[data-avd-card-layout="card_hover_expand"] .avd-card-body .avd-channel-avatar,
+html[data-avd-card-layout="card_hover_expand"] .avd-card-body .avd-channel-name {
+    display: none;
+}
+html[data-avd-card-layout="card_hover_expand"] .avd-video-title {
+    font-size: calc(var(--avd-title-size) - .5px);
+}
+html[data-avd-tier="rich"][data-avd-card-layout="card_hover_expand"] .avd-video-card:hover {
+    z-index: 25;
+    transform: scale(1.04);
+}
+html[data-avd-card-layout="card_glass_overlay"] .avd-video-card {
+    overflow: hidden;
+}
+html[data-avd-card-layout="card_glass_overlay"] .avd-video-card .avd-card-body {
+    --avd-title-lines: 1;
+    position: absolute;
+    inset-inline: var(--avd-card-pad);
+    bottom: var(--avd-card-pad);
+    z-index: 4;
+    display: block;
+    min-height: 34%;
+    max-height: max(var(--avd-caption-max), min(68px, 50%));
+    overflow: hidden;
+    padding: 18px 12px 9px;
+    border-radius: 0 0 var(--avd-radius-media) var(--avd-radius-media);
+    background: var(--avd-caption-scrim);
+    pointer-events: none;
+}
+html[data-avd-card-layout="card_glass_overlay"] .avd-card-body .avd-channel-avatar,
+html[data-avd-card-layout="card_glass_overlay"] .avd-card-body .avd-channel-name {
+    display: none;
+}
+html[data-avd-card-layout="card_glass_overlay"] .avd-card-body .avd-video-title {
+    color: var(--avd-hero-title);
+    font-size: 14px;
+}
+html[data-avd-card-layout="card_glass_overlay"] .avd-card-body .avd-video-meta {
+    color: var(--avd-hero-meta);
+}
+html[data-avd-card-layout="card_glass_overlay"] .avd-card-body a {
+    pointer-events: auto;
+}
+html[data-avd-card-layout="card_glass_overlay"] .avd-duration {
+    top: 8px;
+    bottom: auto;
+}
+/* Focus on a feed picture: a frameless card clips a ring drawn outside its picture link where the picture meets the
+   card's edge, so the ring is drawn inside the picture, in two tones (a white line, a dark band) that read on any
+   picture. The glass caption layout rings its whole card instead (below). */
+html[data-avd-theme]:not([data-avd-card-layout="card_glass_overlay"]) .avd-video-card a.avd-thumb:focus-visible {
+    outline: 0;
+}
+html[data-avd-theme]:not([data-avd-card-layout="card_glass_overlay"]) .avd-video-card a.avd-thumb:focus-visible::after {
+    box-shadow: inset 0 0 0 2px var(--avd-hero-title), inset 0 0 0 5px rgba(var(--avd-shade-rgb), .72);
+}
+/* Focus: the card clips a ring drawn outside its picture link and the caption covers the foot of the picture, so
+   the picture link rings the whole card, inside and above the caption; a caption link's ring sits over the half-
+   transparent scrim. Both take two tones (a white line, a dark band) that read on any picture and on the card.
+   (The :has() test only looks at the card's own children: a new feed page tests its own cards, nothing else.) */
+html[data-avd-card-layout="card_glass_overlay"] .avd-video-card:has(> a.avd-thumb:focus-visible)::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 6;
+    border: 2px solid var(--avd-hero-title);
+    border-radius: inherit;
+    background: none;
+    box-shadow: inset 0 0 0 4px rgba(var(--avd-shade-rgb), .72);
+    opacity: 1;
+    transition: none;
+    pointer-events: none;
+}
+@supports selector(:has(a)) {
+    html[data-avd-card-layout="card_glass_overlay"] .avd-video-card > a.avd-thumb:focus-visible {
+        outline: 0;
+    }
+}
+html[data-avd-card-layout="card_glass_overlay"] .avd-card-body a:focus-visible {
+    outline: 2px solid var(--avd-hero-title);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 6px rgba(var(--avd-shade-rgb), .72);
+}
+/* Two phone columns: the caption sits under the picture, on the card surface (responsive.scss), in the card inks. */
+@media (max-width: 767.98px) {
+    html[data-avd-card-layout="card_glass_overlay"][data-avd-mobile-video-columns="2"] .avd-card-body .avd-video-title {
+        color: var(--avd-text);
+    }
+    html[data-avd-card-layout="card_glass_overlay"][data-avd-mobile-video-columns="2"] .avd-card-body .avd-video-meta {
+        color: var(--avd-muted);
+    }
+}
+.avd-glass-content {
+    max-height: var(--avd-caption-max);
+    background: var(--avd-caption-scrim);
+}
+html[data-avd-card-layout="card_bento_modern"] .avd-video-card {
+    padding: max(var(--avd-card-pad), 8px);
+}
+html[data-avd-card-layout="card_bento_modern"] .avd-card-body {
+    grid-template-columns: 28px minmax(0, 1fr);
+}
+html[data-avd-card-layout="card_bento_modern"] .avd-card-body .avd-channel-avatar {
+    width: 28px;
+    height: 28px;
+}
+@media (min-width: 768px) {
+    html[data-avd-card-layout="card_horizontal_strip"] .avd-video-card {
+        display: flex;
+        align-items: flex-start;
+        gap: 14px;
+    }
+    html[data-avd-card-layout="card_horizontal_strip"] .avd-video-card .avd-thumb {
+        width: 46%;
+        flex: none;
+    }
+    html[data-avd-card-layout="card_horizontal_strip"] .avd-video-card .avd-card-body {
+        flex: 1;
+        grid-template-columns: 24px minmax(0, 1fr);
+        padding-block: 2px 0;
+        padding-inline: 0 4px;
+    }
+    html[data-avd-card-layout="card_horizontal_strip"] .avd-card-body .avd-channel-avatar {
+        width: 24px;
+        height: 24px;
+    }
+}
+@media (min-width: 1200px) {
+    html[data-avd-card-layout="card_horizontal_strip"] .avd-video-grid.row[data-avd-feed-columns] > .col {
+        width: calc(100% / min(var(--avd-feed-columns, 3), 3));
+    }
+}
+/* Card frames (data-avd-card-frame); framed, flat, neon, gilded, soft_glow, rim, glass, matted, print,
+   clay, stripe, caption and dashed are pure tokens. */
+.avd-card-titlebar {
+    display: none;
+}
+html[data-avd-card-frame="window"] .avd-card-titlebar {
+    height: 18px;
+    margin: 0 0 4px;
+    padding: 0 3px 0 6px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--avd-card-titlebar);
+    color: rgb(var(--avd-glint-rgb));
+    font: 700 10px/1 var(--avd-font-display);
+}
+html[data-avd-card-frame="window"] .avd-card-titlebar::after {
+    content: "";
+    width: 44px;
+    height: 11px;
+    flex: none;
+    background: linear-gradient(var(--avd-surface-1) 0 0) 0 0 / 12px 100% no-repeat, linear-gradient(var(--avd-surface-1) 0 0) 16px 0 / 12px 100% no-repeat, linear-gradient(var(--avd-surface-1) 0 0) 32px 0 / 12px 100% no-repeat;
+}
+/* The window frame names the channel in its titlebar: no avatar, and no avatar column (the text takes the body). */
+html[data-avd-card-frame="window"] .avd-card-body {
+    grid-template-columns: minmax(0, 1fr);
+}
+html[data-avd-card-frame="window"] .avd-card-body .avd-channel-avatar,
+html[data-avd-card-frame="window"] .avd-card-body > a.avd-card-avatar-link[href] {
+    display: none;
+}
+/* Where a card style hides the avatar, its own link goes too: no invisible stop in the tab order (the link keeps its
+   empty box, so nothing moves). The avatar's own link is a.avd-card-avatar-link (Video.tsx, videos/card.blade.php). */
+html[data-avd-card-layout="card_hover_expand"] .avd-card-body > a.avd-card-avatar-link[href],
+html[data-avd-card-layout="card_glass_overlay"] .avd-card-body > a.avd-card-avatar-link[href] {
+    visibility: hidden;
+}
+html[data-avd-card-frame="holo"] .avd-video-card {
+    border: 2px solid transparent;
+    background: linear-gradient(var(--avd-surface-1), var(--avd-surface-1)) padding-box, var(--avd-x-holo) border-box;
+}
+html[data-avd-card-frame="hard"] .avd-video-grid > .col:nth-child(4n+1) .avd-video-card {
+    background: var(--avd-x-pop1);
+}
+html[data-avd-card-frame="hard"] .avd-video-grid > .col:nth-child(4n+2) .avd-video-card {
+    background: var(--avd-x-pop2);
+}
+html[data-avd-card-frame="hard"] .avd-video-grid > .col:nth-child(4n+3) .avd-video-card {
+    background: var(--avd-x-pop3);
+}
+html[data-avd-card-frame="hard"] .avd-video-grid > .col:nth-child(4n+4) .avd-video-card {
+    background: var(--avd-x-pop4);
+}
+html[data-avd-card-frame="hard"] .avd-video-grid .avd-video-title,
+html[data-avd-card-frame="hard"] .avd-video-grid .avd-video-meta,
+html[data-avd-card-frame="hard"] .avd-video-grid .avd-channel-name {
+    color: var(--avd-pop-ink);
+}
+html[data-avd-card-frame="hard"] .avd-video-grid .avd-thumb {
+    border-bottom: 2px solid var(--avd-x-ink);
+    border-radius: calc(var(--avd-radius-card) - 2px) calc(var(--avd-radius-card) - 2px) 0 0;
+}
+html[data-avd-card-frame="tile"] .avd-thumb,
+html[data-avd-card-frame="tile_angle"] .avd-thumb,
+html[data-avd-card-frame="clipped"] .avd-thumb,
+html[data-avd-card-frame="clipped_outline"] .avd-thumb,
+html[data-avd-card-frame="brutal"] .avd-thumb {
+    border-radius: calc(var(--avd-radius-card) - 1px) calc(var(--avd-radius-card) - 1px) 0 0;
+}
+html[data-avd-card-frame="column"] .avd-video-grid.row {
+    --bs-gutter-x: 0;
+}
+html[data-avd-card-frame="column"] .avd-video-grid .avd-video-card {
+    padding: 0 16px;
+    border-inline-start: 1px solid var(--avd-border);
+    border-radius: 0;
+}
+html[data-avd-card-frame="column"] .avd-video-grid > .col:nth-child(4n+1) .avd-video-card {
+    padding-inline-start: 0;
+    border-inline-start: 0;
+}
+html[data-avd-card-frame="hairline"] .avd-video-grid .avd-video-card {
+    border-bottom: 1px solid var(--avd-border);
+    border-radius: 0;
+}
+/* Category cards (data-avd-category-card-style); white labels sit on the dark shade of the photo/mesh. */
+.avd-category-card {
+    border-radius: var(--avd-radius-card);
+    color: var(--avd-hero-title);
+}
+html[data-avd-category-card-style="gradient_mesh"] .avd-category-card {
+    border: 0;
+    background: radial-gradient(120% 120% at 0% 0%, rgba(var(--avd-brand-rgb), .95), transparent 60%), radial-gradient(120% 120% at 100% 100%, rgba(var(--avd-brand-2-rgb), .9), transparent 60%), var(--avd-surface-3);
+}
+html[data-avd-category-card-style="gradient_mesh"] .avd-category-card::before,
+html[data-avd-category-card-style="photo_overlay"] .avd-category-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(180deg, rgba(var(--avd-shade-rgb), .05) 30%, rgba(var(--avd-shade-rgb), .66) 100%);
+    pointer-events: none;
+}
+html[data-avd-category-card-style="photo_overlay"] .avd-category-card {
+    position: relative;
+    overflow: hidden;
+    border: 0;
+    background: var(--avd-surface-3);
+}
+html[data-avd-category-card-style="glass_card"] .avd-category-card {
+    border: 1px solid var(--avd-border);
+    background: var(--avd-surface-2);
+    color: var(--avd-text);
+}
+html[data-avd-category-card-style="minimal_flat"] .avd-category-card {
+    border: var(--avd-bw) solid var(--avd-border-strong);
+    background: transparent;
+    color: var(--avd-text);
+}
+html[data-avd-category-card-style="gradient_mesh"] .avd-category-card:hover,
+html[data-avd-category-card-style="photo_overlay"] .avd-category-card:hover,
+html[data-avd-category-card-style="glass_card"] .avd-category-card:hover,
+html[data-avd-category-card-style="minimal_flat"] .avd-category-card:hover {
+    border-color: var(--avd-brand-fill);
+}
+
+/* Bootstrap bridge. Brand fills carry the theme's fitted label (--avd-on-brand); brand-coloured text uses
+   the ink fitted to 4.5:1 (--bs-primary = --avd-brand-ink in the token file); status fills and texts use
+   the colours fitted per theme. The theme's own buttons are in app.scss (.btn-primary = --avd-btn-*). */
+.bg-primary,
+.text-bg-primary,
+.badge.bg-primary,
+.bg-brand {
+    background-color: var(--avd-brand-fill) !important;
+    color: var(--avd-on-brand) !important;
+}
+.text-primary,
+.text-brand,
+.text-brand-secondary {
+    color: var(--avd-brand-ink) !important;
+}
+.text-cyan,
+.text-accent {
+    color: var(--avd-accent-ink) !important;
+}
+.border-primary,
+.border-brand {
+    border-color: var(--avd-brand-fill) !important;
+}
+.bg-success,
+.text-bg-success,
+.btn-success {
+    background-color: var(--avd-success-fill) !important;
+    border-color: var(--avd-success-fill) !important;
+    color: var(--avd-on-success) !important;
+}
+.bg-warning,
+.text-bg-warning,
+.btn-warning,
+.bg-gradient-warning {
+    background: var(--avd-warning-fill) !important;
+    border-color: var(--avd-warning-fill) !important;
+    color: var(--avd-on-warning) !important;
+}
+.bg-danger,
+.text-bg-danger,
+.btn-danger {
+    background-color: var(--avd-danger-fill) !important;
+    border-color: var(--avd-danger-fill) !important;
+    color: var(--avd-on-danger) !important;
+}
+.bg-info,
+.text-bg-info,
+.btn-info {
+    background-color: var(--avd-info-fill) !important;
+    border-color: var(--avd-info-fill) !important;
+    color: var(--avd-on-info) !important;
+}
+.btn-outline-primary {
+    border-color: var(--avd-brand-fill) !important;
+    color: var(--avd-brand-ink) !important;
+}
+.btn-outline-primary:hover,
+.btn-outline-primary:focus,
+.btn-outline-primary:active,
+.btn-outline-primary.active,
+.nav-pills .nav-link.active,
+.nav-pills .show > .nav-link,
+.page-item.active .page-link {
+    border-color: var(--avd-brand-fill) !important;
+    background-color: var(--avd-brand-fill) !important;
+    color: var(--avd-on-brand) !important;
+}
+.form-check-input:checked,
+.progress-bar {
+    border-color: var(--avd-brand-fill) !important;
+    background-color: var(--avd-brand-fill) !important;
+}
+.form-range::-webkit-slider-thumb {
+    background-color: var(--avd-brand-fill) !important;
+}
+.form-range::-moz-range-thumb {
+    background-color: var(--avd-brand-fill) !important;
+}
+.form-control,
+.form-select {
+    border-color: var(--avd-border-input);
+}
+.form-control:focus,
+.form-select:focus {
+    border-color: var(--avd-focus);
+    box-shadow: 0 0 0 .2rem var(--avd-brand-soft);
+}
+/* Light mode in older views (account, playlists, channel and premium pages, the watch page's own panels): text and
+   outline buttons they paint white for the dark default follow the theme text on themed panels, and stay the hero
+   text colour on pictures (absolutely positioned captions, the category page's photo head). !important only where
+   the views set the same property inline. */
+html[data-bs-theme="light"] #main-container .text-white:not(.btn):not(.badge) {
+    color: var(--avd-text) !important;
+}
+html[data-bs-theme="light"] #main-container .text-white-50 {
+    color: var(--avd-muted) !important;
+}
+html[data-bs-theme="light"] #main-container :is(.position-absolute, .position-fixed, .avd-category-hero) .text-white:not(.btn):not(.badge),
+html[data-bs-theme="light"] #main-container .position-absolute.text-white:not(.btn):not(.badge) {
+    color: var(--avd-hero-title) !important;
+}
+html[data-bs-theme="light"] #main-container :is(.position-absolute, .position-fixed, .avd-category-hero) .text-white-50,
+html[data-bs-theme="light"] #main-container .position-absolute.text-white-50 {
+    color: var(--avd-hero-meta) !important;
+}
+html[data-bs-theme="light"] #main-container .btn-outline-light:not(#avdPlayerWrapper *) {
+    border-color: var(--avd-border-strong) !important;
+    color: var(--avd-text) !important;
+}
+#main-container .btn-outline-light:not(#avdPlayerWrapper *):hover {
+    border-color: var(--avd-brand-fill) !important;
+    background: var(--avd-brand-fill) !important;
+    color: var(--avd-on-brand) !important;
+}
+
+.avd-category-tabs,
+.avd-chips-scroller-wrapper,
+.avd-shelf-track {
+    -webkit-overflow-scrolling: touch !important;
+    overscroll-behavior-x: contain !important;
+    touch-action: pan-x pan-y !important;
+}
+.avd-discovery-track {
+    -webkit-overflow-scrolling: touch !important;
+    overscroll-behavior-x: contain !important;
+    touch-action: pan-x pan-y !important;
+    user-select: none;
+    -webkit-user-select: none;
+}
+.avd-discovery-track:not(.avd-home-auto-motion) {
+    scroll-behavior: smooth;
+}
+.avd-discovery-track.avd-home-auto-motion {
+    scroll-behavior: auto !important;
+}
+.avd-discovery-track.is-dragging {
+    cursor: grabbing !important;
+    cursor: -webkit-grabbing !important;
+    scroll-behavior: auto !important;
+}
+
+/* A touch or lite device mid-scroll drops the header blur (html[data-avd-scroll-active], set by the
+   scroll motion gate), so the fixed bar is not re-blurred on every scroll frame. */
+html[data-avd-scroll-active="1"][data-avd-tier] .avd-header {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+}
+@media (hover: none) and (pointer: coarse) {
+    .avd-category-tabs,
+    .avd-chips-scroller-wrapper,
+    .avd-shelf-track,
+    .avd-discovery-track,
+    .avd-slider-track,
+    #category-tabs,
+    #avdHeroSliderTrack {
+        scroll-behavior: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+        overscroll-behavior-x: contain !important;
+        touch-action: pan-x pan-y !important;
+    }
+}
+.avd-video-card,
+.video-card-modern {
+    content-visibility: auto;
+    contain-intrinsic-size: 320px 240px;
+}
+.avd-discovery-card {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 190px auto 118px;
+}
+.avd-rail-nav-btn {
+    transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease !important;
+    cursor: pointer;
+}
+.avd-rail-nav-btn:hover {
+    background: var(--avd-surface-3) !important;
+    border-color: var(--avd-border-strong) !important;
+    transform: scale(1.1);
+}
+.avd-rail-nav-btn:hover i {
+    color: var(--avd-text) !important;
+}
+.avd-rail-nav-btn:active {
+    transform: scale(0.92);
+}
+.avd-rail-nav-btn:focus-visible {
+    outline: 3px solid var(--avd-focus);
+    outline-offset: 2px;
+}
+
+@media (max-width: 768px) {
+
+    /* Mobile Section Spacing & Ergonomics */
+    .avd-discovery-rail,
+    .avd-creator-spotlight,
+    .avd-widget-video-feed {
+        margin-bottom: 1.15rem !important;
+    }
+
+    .avd-discovery-card {
+        contain-intrinsic-size: auto 140px auto 76px !important;
+    }
+
+}
+
+html, body {
+    max-width: 100%;
+    overflow-x: clip;
+}
+.page-wrapper {
+    max-width: 100%;
+    overflow-x: clip;
+}
+button, input, select, textarea, .btn, .nav-link, .badge {
+    font-family: var(--avd-font-body);
+}
+/* Universal utility fallbacks for fractional spacing and absolute placement */
+.px-2\.5 { padding-inline: 0.625rem !important; }
+.py-2\.5 { padding-top: 0.625rem !important; padding-bottom: 0.625rem !important; }
+.p-2\.5 { padding: 0.625rem !important; }
+.p-3\.5 { padding: 0.875rem !important; }
+.px-3\.5 { padding-inline: 0.875rem !important; }
+.gap-1\.5 { gap: 0.375rem !important; }
+.gap-2\.5 { gap: 0.625rem !important; }
+/* 3D Card Hover Perspective Tilt: resources/js/motion/pointerFx.ts writes the tilt and centres the
+   glare gradient of .avd-card-glare (motion.scss). The video card keeps preserve-3d and its
+   perspective from the 3D Interactive Card Tilt rule further down (the image pop). */
+[data-avd-tilt-3d="on"] .avd-video-card,
+[data-avd-tilt-3d="on"] .avd-card-col .avd-video-card,
+[data-avd-tilt-3d="on"] .avd-short-card {
+    transition: transform 0.15s ease-out, box-shadow 0.25s ease;
+}
+/* Quick Action Toolbar on Video Cards */
+.avd-thumb-actions {
+    transition: opacity 0.22s ease, transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+    transform: translateY(-3px);
+    z-index: 10;
+}
+.avd-thumb:hover .avd-thumb-actions,
+.avd-video-card:hover .avd-thumb-actions {
+    opacity: 1 !important;
+    transform: translateY(0) !important;
+}
+.avd-thumb-actions .btn {
+    transition: transform 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+}
+.avd-thumb-actions .btn:hover {
+    background: var(--avd-brand-fill) !important;
+    border-color: var(--avd-brand-fill) !important;
+    color: var(--avd-on-brand) !important;
+    transform: scale(1.14);
+    box-shadow: 0 4px 14px var(--avd-glow) !important;
+}
+/* 4K UHD & High-Res badge (colours: the bridge's warning fill) */
+.bg-gradient-warning {
+    text-shadow: none !important;
+    letter-spacing: 0.6px;
+}
+/* Cinema Ambient Light Diffusion */
+[data-avd-cinema-diffusion="on"] .avd-player-shell,
+[data-avd-cinema-diffusion="on"] .avd-player-wrapper {
+    position: relative;
+}
+/* Filter-free halo: the old blur(40-58px) is baked into a pre-softened gradient on a
+   larger box (tuned against the blurred original on side-by-side renders), so the
+   breathing runs on the compositor (opacity/transform only) instead of re-filtering a
+   player-sized surface every frame. */
+[data-avd-cinema-diffusion="on"] .avd-player-wrapper::before,
+[data-avd-cinema-diffusion="on"] .avd-player-shell::before {
+    content: "";
+    position: absolute;
+    inset: -78px -90px;
+    background: radial-gradient(closest-side, rgba(var(--avd-primary-rgb, 255, 61, 97), 0.38) 0%, rgba(var(--avd-accent-rgb, 24, 200, 216), 0.22) 54%, rgba(var(--avd-accent-rgb, 24, 200, 216), 0.095) 69%, rgba(var(--avd-accent-rgb, 24, 200, 216), 0.04) 84%, rgba(var(--avd-accent-rgb, 24, 200, 216), 0) 100%);
+    filter: none;
+    opacity: 0.38;
+    pointer-events: none;
+    z-index: 0;
+    animation: avdAmbientPulse 7s ease-in-out infinite alternate;
+}
+@keyframes avdAmbientPulse {
+    0% { opacity: 0.24; transform: scale(0.98); }
+    100% { opacity: 0.48; transform: scale(1.02); }
+}
+/* Background Atmosphere FX: the animated ::before layers of every preset live in
+   the NEXT-GEN AMBIENT ATMOSPHERE block below (the older duplicates here were fully
+   overridden and have been removed). Only the static body grids stay here. */
+[data-avd-atmosphere="cyber_grid"] body.avd-app {
+    background-image: linear-gradient(rgba(var(--avd-accent-rgb), 0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(var(--avd-accent-rgb), 0.035) 1px, transparent 1px);
+    background-size: 32px 32px;
+}
+
+/* Quantum Matrix Atmosphere Effect */
+[data-avd-atmosphere="quantum_matrix"] body.avd-app {
+    background-image: linear-gradient(rgba(var(--avd-accent-rgb), 0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(var(--avd-accent-rgb), 0.03) 1px, transparent 1px);
+    background-size: 24px 24px;
+}
+
+/* Magic Card Mouse-Tracking Spotlight Engine. Public pages style .avd-card-spotlight in motion.scss
+   (resources/js/motion/pointerFx.ts centres it); these var()-positioned rules now only style the
+   admin Theme Studio previews (#liveCardPreviewContainer and #liveHeaderPreviewContainer carry the
+   class), at their old specificity. */
+:where(body.avd-admin) .avd-card-spotlight {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    border-radius: inherit;
+    opacity: 0;
+    transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    background: radial-gradient(380px circle at var(--mouse-x, -500px) var(--mouse-y, -500px), rgba(var(--avd-primary-rgb, 255, 61, 97), 0.16), transparent 75%);
+    z-index: 2;
+}
+:where(body.avd-admin) .avd-video-card:hover .avd-card-spotlight,
+:where(body.avd-admin) .avd-bento-card:hover .avd-card-spotlight,
+:where(body.avd-admin) .studio-preview-card:hover .avd-card-spotlight {
+    opacity: 1;
+}
+[data-avd-card-spotlight="on"] .avd-video-card,
+[data-avd-card-spotlight="on"] .card,
+[data-avd-card-spotlight="on"] .avd-section-card {
+    position: relative;
+    overflow: hidden;
+}
+
+/* Animated Border Beam Engine */
+.avd-border-beam {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask-composite: exclude;
+    -webkit-mask-composite: xor;
+    padding: 1.5px;
+    z-index: 10;
+}
+.avd-border-beam::before {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 200%;
+    height: 200%;
+    transform: translate(-50%, -50%);
+    background: conic-gradient(from 0deg, transparent 0 340deg, var(--avd-brand, #ff3d61) 360deg);
+    animation: avdBorderBeamSpin 8s linear infinite;
+}
+[data-avd-border-beam-speed="fast"] .avd-border-beam::before {
+    animation-duration: 4s;
+}
+[data-avd-border-beam-speed="slow"] .avd-border-beam::before {
+    animation-duration: 14s;
+}
+@keyframes avdBorderBeamSpin {
+    from { transform: translate(-50%, -50%) rotate(0deg); }
+    to { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+/* Film Grain / Analog Organic Texture Overlay. One fixed layer with normal blending.
+   The grain visible on dark and light surfaces came from a second, normal-blended copy
+   on <html> (now removed); the overlay-blended copy added little there but forced a
+   full-screen blend on every composited frame. A 160px tile (rasterized once) replaces
+   the viewport-sized turbulence raster; grain size, strength and the slight lift of
+   dark surfaces were matched on side-by-side renders. Lite drops the grain. */
+[data-avd-surface-noise="on"] body.avd-app::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 99998;
+    opacity: 0.033;
+    background-image: url("data:image/svg+xml,%3Csvg width='160' height='160' viewBox='0 0 160 160' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.21' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+    background-size: 160px 160px;
+    background-repeat: repeat;
+}
+@media (max-width: 767.98px) {
+    [data-avd-surface-noise="on"] body.avd-app::after {
+        background-image: url("data:image/svg+xml,%3Csvg width='160' height='160' viewBox='0 0 160 160' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.42' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+    }
+}
+html[data-avd-perf="lite"][data-avd-surface-noise="on"] body.avd-app::after {
+    content: none;
+}
+
+/* Liquid Glow Button Shimmer & Micro-Tactile Physics */
+[data-avd-liquid-shimmer="on"] .btn-primary,
+[data-avd-liquid-shimmer="on"] .btn-danger,
+[data-avd-liquid-shimmer="on"] .avd-btn-shimmer,
+[data-avd-liquid-shimmer="on"] .avd-play-btn {
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s ease;
+}
+/* The streak sweeps with transform (compositor) instead of `left` (layout + paint
+   per frame). translateX(430%) of the 50%-wide streak = the old 215% left travel.
+   right/bottom auto: motion.scss gives this ::after inset:-1px, which over-constrains
+   the box; in RTL that used to pin the streak to right:-1px so it never swept. */
+[data-avd-liquid-shimmer="on"] .btn-primary::after,
+[data-avd-liquid-shimmer="on"] .btn-danger::after,
+[data-avd-liquid-shimmer="on"] .avd-btn-shimmer::after,
+[data-avd-liquid-shimmer="on"] .avd-play-btn::after {
+    content: "";
+    position: absolute;
+    top: -50%;
+    bottom: auto;
+    inset-inline-start: -75%;
+    inset-inline-end: auto;
+    width: 50%;
+    height: 200%;
+    background: linear-gradient(90deg, transparent, rgba(var(--avd-glint-rgb), 0.38), transparent);
+    transform: translateX(0) rotate(35deg);
+    pointer-events: none;
+    transition: transform 0.65s ease;
+}
+[data-avd-liquid-shimmer="on"] .btn-primary:hover::after,
+[data-avd-liquid-shimmer="on"] .btn-danger:hover::after,
+[data-avd-liquid-shimmer="on"] .avd-btn-shimmer:hover::after,
+[data-avd-liquid-shimmer="on"] .avd-play-btn:hover::after {
+    transform: translateX(430%) rotate(35deg);
+}
+[dir="rtl"][data-avd-liquid-shimmer="on"] .btn-primary:hover::after,
+[dir="rtl"][data-avd-liquid-shimmer="on"] .btn-danger:hover::after,
+[dir="rtl"][data-avd-liquid-shimmer="on"] .avd-btn-shimmer:hover::after,
+[dir="rtl"][data-avd-liquid-shimmer="on"] .avd-play-btn:hover::after {
+    transform: translateX(-430%) rotate(35deg);
+}
+[data-avd-liquid-shimmer="on"] .btn:active {
+    transform: translateY(1.5px) scale(0.985) !important;
+}
+
+/* Reactive Video Player Ambilight Halo Glow (the ::after halo itself is defined once,
+   in "Reactive Video Player Ambilight Halo Backlight Engine" below). */
+[data-avd-ambilight="on"] .avd-player-wrapper,
+[data-avd-ambilight="on"] .avd-player-shell {
+    position: relative;
+    z-index: 1;
+}
+
+/* Motion Engine Performance Architecture (the motion-engine "off" universal rule is
+   emitted only when that mode is selected; see "Motion Engine Physics" below). */
+[data-avd-motion-engine="subtle_elegant"] .avd-video-card,
+[data-avd-motion-engine="subtle_elegant"] .btn,
+[data-avd-motion-engine="subtle_elegant"] .avd-tag,
+[data-avd-motion-engine="subtle_elegant"] .dropdown-menu {
+    transition-duration: 0.18s !important;
+    transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+[data-avd-motion-engine="smooth_fluid"] .avd-video-card,
+[data-avd-motion-engine="smooth_fluid"] .btn,
+[data-avd-motion-engine="smooth_fluid"] .avd-tag,
+[data-avd-motion-engine="smooth_fluid"] .dropdown-menu {
+    transition-duration: 0.28s !important;
+    transition-timing-function: cubic-bezier(0.2, 0, 0, 1) !important;
+}
+[data-avd-motion-engine="hyper_dynamic"] .avd-video-card,
+[data-avd-motion-engine="hyper_dynamic"] .btn,
+[data-avd-motion-engine="hyper_dynamic"] .avd-tag,
+[data-avd-motion-engine="hyper_dynamic"] .dropdown-menu {
+    transition-duration: 0.38s !important;
+    transition-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+}
+
+/* Modal Presentation Archetypes */
+[data-avd-modal-style="modal_glassmorphic_center"] .modal-content {
+    background: var(--avd-surface-solid) !important;
+    border: 1px solid var(--avd-border-strong) !important;
+    border-radius: 24px !important;
+    box-shadow: 0 24px 60px rgba(var(--avd-shade-rgb), 0.6) !important;
+}
+[data-avd-modal-style="modal_brutalist_sharp"] .modal-content {
+    border-radius: 0px !important;
+    border: 2px solid var(--avd-accent-fill) !important;
+    background: var(--avd-bg) !important;
+    box-shadow: 8px 8px 0px rgba(var(--avd-accent-rgb), 0.35) !important;
+}
+@media (max-width: 767.98px) {
+    [data-avd-modal-style="modal_slide_sheet"] .modal-dialog {
+        margin: 0 auto !important;
+        position: fixed !important;
+        bottom: 0 !important;
+        inset-inline: 0 !important;
+        max-width: 100% !important;
+    }
+    [data-avd-modal-style="modal_slide_sheet"] .modal-content {
+        border-radius: 24px 24px 0 0 !important;
+        background: var(--avd-surface-solid) !important;
+    }
+}
+@media (min-width: 768px) {
+    [data-avd-modal-style="modal_slide_sheet"] .modal-dialog:not(.modal-xl):not(.modal-fullscreen) {
+        margin-inline-end: 0 !important;
+        margin-top: 0 !important;
+        margin-bottom: 0 !important;
+        height: 100% !important;
+        max-width: 480px !important;
+    }
+    [data-avd-modal-style="modal_slide_sheet"] .modal-dialog:not(.modal-xl):not(.modal-fullscreen) .modal-content {
+        height: 100% !important;
+        border-radius: 0 !important;
+        border-inline-start: 1px solid var(--avd-border) !important;
+        background: var(--avd-surface-solid) !important;
+    }
+}
+[data-avd-modal-style="modal_fullscreen_cinema"] .modal-dialog {
+    max-width: 95vw !important;
+    margin: 2.5vh auto !important;
+}
+[data-avd-modal-style="modal_fullscreen_cinema"] .modal-content {
+    background: var(--avd-bg) !important;
+    border: 1px solid var(--avd-border) !important;
+    border-radius: 24px !important;
+    min-height: 85vh;
+    box-shadow: 0 0 100px rgba(var(--avd-shade-rgb), 0.8) !important;
+}
+
+/* ==========================================================================
+   WATCH PAGE PRESENTATION ARCHETYPES (4 Modern Layout Archetypes)
+   ========================================================================== */
+/* 1. Classic Two-Column (YouTube Standard 70/30) */
+[data-avd-watch-layout="classic_two_column"] .avd-watch-sidebar {
+    position: sticky;
+    top: calc(var(--sidebar-top, 64px) + 16px);
+}
+
+/* 2. Full-Width Theater Cinema */
+body.theater-mode .avd-watch-primary,
+[data-avd-watch-layout="theater_cinema"] .avd-watch-primary {
+    width: 100% !important;
+    flex: 0 0 100% !important;
+    margin-inline-start: 0 !important;
+}
+body.theater-mode .avd-player-wrapper,
+[data-avd-watch-layout="theater_cinema"] .avd-player-wrapper {
+    max-width: 1600px;
+    margin: 0 auto;
+}
+body.theater-mode .avd-watch-sidebar-col,
+[data-avd-watch-layout="theater_cinema"] .avd-watch-sidebar-col {
+    width: 100% !important;
+    max-width: 1600px !important;
+    flex: 0 0 100% !important;
+    margin: 2.5rem auto 0 auto;
+}
+/* 3. Floating Focus: Distraction-Free Centered Immersion */
+[data-avd-watch-layout="floating_focus"] .avd-watch-primary {
+    margin: 0 auto !important;
+    float: none !important;
+}
+[data-avd-watch-layout="floating_focus"] .avd-player-wrapper {
+    border-radius: 20px;
+    box-shadow: 0 24px 64px rgba(var(--avd-shade-rgb), 0.75), 0 0 32px rgba(var(--avd-primary-rgb, 255, 61, 97), 0.2);
+}
+[data-avd-watch-layout="floating_focus"] .avd-watch-sidebar-col {
+    max-width: 1140px !important;
+    margin: 2rem auto !important;
+    width: 100% !important;
+}
+
+/* 4. Creator / Streamer Studio Dashboard */
+[data-avd-watch-layout="studio_dashboard"] .avd-watch-primary {
+    background: var(--avd-surface);
+    border: 1px solid rgba(var(--avd-accent-rgb), 0.22);
+    border-radius: 18px;
+    padding: 1.25rem !important;
+    box-shadow: 0 8px 32px rgba(var(--avd-shade-rgb), 0.25);
+}
+[data-avd-watch-layout="studio_dashboard"] .avd-detail-panel {
+    border: 1px solid rgba(var(--avd-accent-rgb), 0.25);
+    background: var(--avd-surface-alt);
+}
+[data-avd-watch-layout="studio_dashboard"] .avd-watch-sidebar {
+    border: 1px solid rgba(var(--avd-accent-rgb), 0.22);
+    border-radius: 18px;
+    padding: 1rem;
+    background: var(--avd-surface);
+}
+
+html[data-avd-typography="on"] {
+    font-size: var(--avd-font-size-base);
+}
+html[data-avd-typography="on"] body.avd-app,
+html[data-avd-typography="on"] p,
+html[data-avd-typography="on"] span:not(.fa):not(.fas):not(.far):not(.fab):not(.fa-solid):not(.fa-brands):not(.fa-regular),
+html[data-avd-typography="on"] a,
+html[data-avd-typography="on"] button,
+html[data-avd-typography="on"] input,
+html[data-avd-typography="on"] select,
+html[data-avd-typography="on"] textarea {
+    font-family: var(--avd-font-body, var(--avd-font-family-base));
+}
+html[data-avd-typography="on"] .avd-htitle a {
+    font-family: inherit;
+}
+html[data-avd-typography="on"] .btn,
+html[data-avd-typography="on"] .form-control,
+html[data-avd-typography="on"] .form-select,
+html[data-avd-typography="on"] .dropdown-menu,
+html[data-avd-typography="on"] .avd-tag,
+html[data-avd-typography="on"] .avd-status-chip,
+html[data-avd-typography="on"] .avd-sidebar-link {
+    font-size: calc(1rem * var(--avd-font-scale-ui));
+}
+html[data-avd-typography="on"] .avd-home-title,
+html[data-avd-typography="on"] .avd-watch-title {
+    font-size: calc(2rem * var(--avd-font-scale-heading));
+}
+html[data-avd-typography="on"] .avd-channel-title {
+    font-size: calc(3rem * var(--avd-font-scale-heading));
+}
+html[data-avd-typography="on"] .avd-secondary-title {
+    font-size: calc(2.15rem * var(--avd-font-scale-heading));
+}
+html[data-avd-typography="on"] .avd-video-title,
+html[data-avd-typography="on"] .avd-related-title,
+html[data-avd-typography="on"] .avd-discovery-title,
+html[data-avd-typography="on"] .avd-channel-section-heading h2,
+html[data-avd-typography="on"] .avd-channel-playlist-head h3 {
+    font-size: calc(1rem * var(--avd-font-scale-card-title));
+}
+@media (max-width: 767.98px) {
+    html[data-avd-typography="on"] .avd-home-title,
+    html[data-avd-typography="on"] .avd-watch-title {
+        font-size: calc(1.7rem * var(--avd-font-scale-heading));
+    }
+    html[data-avd-typography="on"] .avd-channel-title {
+        font-size: calc(2.15rem * var(--avd-font-scale-heading));
+    }
+    html[data-avd-typography="on"] .avd-secondary-title {
+        font-size: calc(1.55rem * var(--avd-font-scale-heading));
+    }
+}
+/* Cinema Lights Out Ambient Dimmer */
+#avdLightsOutBackdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(var(--avd-shade-rgb), 0.94);
+    z-index: 1030;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 0.35s ease, visibility 0s linear 0.35s;
+}
+body.avd-lights-out #avdLightsOutBackdrop {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transition: opacity 0.35s ease;
+}
+body.avd-lights-out .avd-watch-primary {
+    position: relative !important;
+    z-index: 1032 !important;
+}
+body.avd-lights-out .avd-player-wrapper {
+    position: relative !important;
+    z-index: 1035 !important;
+    pointer-events: auto !important;
+}
+body.avd-lights-out .avd-player-shell,
+body.avd-lights-out .avd-player-frame {
+    position: relative !important;
+    z-index: 1035 !important;
+    box-shadow: 0 0 90px 25px rgba(var(--avd-theme-primary-rgb), 0.35) !important;
+}
+body.avd-lights-out .avd-cinema-dock-container,
+body.avd-lights-out .avd-cinema-dock {
+    position: relative !important;
+    z-index: 1035 !important;
+    pointer-events: auto !important;
+}
+/* Keep video-player absolutely anchored inside Bootstrap .ratio */
+body.avd-lights-out .ratio > video-player,
+body.avd-lights-out video-player {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    display: block !important;
+    z-index: 2 !important;
+}
+body.avd-lights-out .avd-player-stage {
+    position: relative !important;
+    width: 100% !important;
+    height: 100% !important;
+}
+body.avd-lights-out .avd-player-media-layer {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    z-index: 1 !important;
+}
+body.avd-lights-out .avd-player-media-layer iframe,
+body.avd-lights-out .avd-player-media-layer video,
+body.avd-lights-out .avd-player-stage iframe,
+body.avd-lights-out .avd-player-stage video,
+body.avd-lights-out iframe,
+body.avd-lights-out video,
+body.avd-lights-out .plyr {
+    width: 100% !important;
+    height: 100% !important;
+    pointer-events: auto !important;
+}
+body.avd-lights-out .avd-player-media-layer iframe {
+    position: static !important;
+    border: 0 !important;
+}
+body.avd-lights-out .avd-player-media-layer video {
+    position: static !important;
+    object-fit: contain !important;
+}
+
+/* Seasonal Ambient Atmosphere Particles Canvas */
+#avdSeasonalAtmosphere {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.65;
+    transition: opacity 0.5s ease;
+}
+
+/* Content Density */
+html[data-avd-density="compact"] .avd-card-col,
+html[data-avd-density="compact"] .row.g-3 {
+    --bs-gutter-x: 0.75rem !important;
+    --bs-gutter-y: 0.75rem !important;
+}
+html[data-avd-density="relaxed"] .avd-card-col,
+html[data-avd-density="relaxed"] .row.g-3 {
+    --bs-gutter-x: 1.5rem !important;
+    --bs-gutter-y: 1.5rem !important;
+}
+
+/* Video card titles: N lines (video_card_title_lines); a card layout may set its own count (glass overlay). */
+html[data-avd-title-lines="1"] {
+    --avd-title-lines: 1;
+}
+html[data-avd-title-lines="3"] {
+    --avd-title-lines: 3;
+}
+html[data-avd-title-lines="4"] {
+    --avd-title-lines: 4;
+}
+html[data-avd-title-lines] .avd-video-title {
+    display: -webkit-box !important;
+    -webkit-line-clamp: var(--avd-title-lines, 2) !important;
+    -webkit-box-orient: vertical !important;
+    overflow: hidden !important;
+    min-height: calc(1.35em * var(--avd-title-lines, 2)) !important;
+    max-height: calc(1.35em * var(--avd-title-lines, 2)) !important;
+    line-height: 1.35 !important;
+}
+@media (max-width: 767.98px) {
+    html[data-avd-typography="on"] .avd-video-title {
+        font-size: calc(0.86rem * var(--avd-font-scale-card-title, 1)) !important;
+    }
+    html[data-avd-typography="on"][data-avd-mobile-video-card-density="compact"] .avd-video-title {
+        font-size: calc(0.80rem * var(--avd-font-scale-card-title, 1)) !important;
+    }
+}
+
+/* Search Focus Glow */
+html[data-avd-search-glow="on"] .avd-search-input:focus,
+html[data-avd-search-glow="on"] .header-search-input:focus,
+html[data-avd-search-glow="on"] input[name="q"]:focus {
+    border-color: var(--avd-focus) !important;
+    box-shadow: 0 0 0 3px var(--avd-brand-soft), 0 0 16px var(--avd-glow) !important;
+}
+
+/* Ambient Glow Intensity */
+html[data-avd-ambient-glow="off"] .avd-ambilight-glow {
+    display: none !important;
+}
+/* Filter-free: each level scales the halo box (and its pinned opacity) instead of a
+   35/55/75px blur re-applied every frame. Values are fitted per breakpoint against the
+   blurred original (side-by-side renders), because the old blur was in px while the
+   player size changes. "intense" pins its transform, so it runs no animation. */
+html[data-avd-ambient-glow="soft"] .avd-ambilight-glow.active {
+    inset: -104px -35px;
+    opacity: 0.53 !important;
+    filter: none !important;
+}
+html[data-avd-ambient-glow="ambient"] .avd-ambilight-glow.active {
+    inset: -138px -56px;
+    opacity: 0.7 !important;
+    filter: none !important;
+}
+html[data-avd-ambient-glow="intense"] .avd-ambilight-glow.active {
+    inset: -161px -73px;
+    opacity: 0.89 !important;
+    filter: none !important;
+    transform: scale(1.05) !important;
+    animation: none !important;
+}
+@media (min-width: 768px) and (max-width: 1199.98px) {
+    html[data-avd-ambient-glow="soft"] .avd-ambilight-glow.active { inset: -77px -36px; opacity: 0.47 !important; }
+    html[data-avd-ambient-glow="ambient"] .avd-ambilight-glow.active { inset: -105px -64px; opacity: 0.65 !important; }
+    html[data-avd-ambient-glow="intense"] .avd-ambilight-glow.active { inset: -147px -87px; opacity: 0.64 !important; }
+}
+@media (max-width: 767.98px) {
+    html[data-avd-ambient-glow="soft"] .avd-ambilight-glow.active { inset: -64px -38px; opacity: 0.27 !important; }
+    html[data-avd-ambient-glow="ambient"] .avd-ambilight-glow.active { inset: -96px -68px; opacity: 0.34 !important; }
+    html[data-avd-ambient-glow="intense"] .avd-ambilight-glow.active { inset: -126px -91px; opacity: 0.4 !important; }
+}
+
+/* Back to Top Button Styles */
+html[data-avd-back-to-top-style="floating_pill"] .back-to-top {
+    width: auto !important;
+    height: 40px !important;
+    padding: 0 16px !important;
+    border-radius: 9999px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+}
+html[data-avd-back-to-top-style="floating_pill"] .back-to-top::after {
+    content: "Top";
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+html[data-avd-back-to-top-style="round_icon"] .back-to-top {
+    width: 44px !important;
+    height: 44px !important;
+    border-radius: 50% !important;
+}
+html[data-avd-back-to-top-style="minimal_corner"] .back-to-top {
+    width: 36px !important;
+    height: 36px !important;
+    border-radius: 8px !important;
+    background: var(--avd-surface-2) !important;
+    border: 1px solid var(--avd-border) !important;
+    box-shadow: none !important;
+}
+
+/* Cinema Ambient Light Diffusion */
+html[data-avd-cinema-diffusion="on"] .avd-player-wrapper::before {
+    content: "";
+    position: absolute;
+    inset: -75px -100px;
+    background: radial-gradient(closest-side, rgba(var(--avd-brand-rgb, 255, 61, 97), 0.18) 0%, rgba(var(--avd-cyan-rgb, 24, 200, 216), 0.08) 50%, rgba(var(--avd-cyan-rgb, 24, 200, 216), 0.044) 66.5%, rgba(var(--avd-cyan-rgb, 24, 200, 216), 0.015) 83%, rgba(var(--avd-cyan-rgb, 24, 200, 216), 0) 100%);
+    filter: none;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.85;
+}
+
+/* Watch Page Presentation Modes */
+html[data-avd-watch-layout="theater_cinema"] .avd-watch-layout {
+    max-width: 100% !important;
+    padding-inline: 0.5rem;
+}
+html[data-avd-watch-layout="theater_cinema"] .avd-player-shell {
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 24px 70px rgba(var(--avd-shade-rgb), 0.7), 0 0 40px rgba(var(--avd-brand-rgb, 255, 61, 97), 0.2);
+}
+html[data-avd-watch-layout="floating_focus"] .avd-watch-layout {
+    max-width: 1180px;
+    margin-inline: auto;
+}
+html[data-avd-watch-layout="floating_focus"] .avd-player-shell {
+    border-radius: 22px;
+    overflow: hidden;
+    box-shadow: 0 28px 80px rgba(var(--avd-shade-rgb), 0.65);
+}
+html[data-avd-watch-layout="studio_dashboard"] .avd-watch-layout {
+    background: var(--avd-surface-1);
+    border-radius: var(--avd-radius-card);
+    border: 1px solid var(--avd-border);
+    padding: 1rem;
+}
+
+html[data-avd-motion-engine="subtle_elegant"] .avd-video-card,
+html[data-avd-motion-engine="subtle_elegant"] .btn {
+    transition-timing-function: cubic-bezier(0.25, 1, 0.5, 1) !important;
+}
+html[data-avd-motion-engine="hyper_dynamic"] .avd-video-card:hover {
+    transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+}
+
+/* 3D Interactive Card Tilt */
+html[data-avd-tilt-3d="on"] .avd-video-card {
+    transform-style: preserve-3d;
+    perspective: 1000px;
+}
+html[data-avd-tilt-3d="on"] .avd-video-card:hover img {
+    transform: translateZ(12px) scale(1.02);
+    transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* Cinema Ambient Light Diffusion */
+html[data-avd-cinema-diffusion="on"] .avd-player-wrap {
+    position: relative;
+}
+html[data-avd-cinema-diffusion="on"] .avd-player-wrap::before {
+    content: "";
+    position: absolute;
+    inset: -20px -30px;
+    background: radial-gradient(circle at center, rgba(var(--avd-theme-primary-rgb), 0.22) 0%, rgba(var(--avd-theme-accent-rgb), 0.08) 55%, transparent 75%);
+    filter: blur(45px);
+    z-index: -1;
+    pointer-events: none;
+    opacity: 0.85;
+}
+
+/* Mobile Touch & Safe Area Ergonomics */
+.avd-mobile-bottom-nav {
+    background: var(--avd-surface-solid);
+    border-top: 1px solid var(--avd-border);
+    z-index: 1040;
+    box-shadow: 0 -8px 24px rgba(var(--avd-shade-rgb), 0.35);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    touch-action: manipulation;
+}
+.avd-mob-nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: var(--avd-muted);
+    text-decoration: none;
+    padding: 6px 10px;
+    min-height: 48px;
+    min-width: 48px;
+    border-radius: 12px;
+    transition: color 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+}
+.avd-mob-nav-item i { font-size: 1.15rem; }
+.avd-mob-nav-item.active, .avd-mob-nav-item:hover { color: var(--avd-brand-ink); }
+.avd-mob-special .avd-mob-fab {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background: var(--avd-btn-bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--avd-btn-text);
+    box-shadow: 0 0 0 4px var(--avd-surface-solid);
+    margin-top: -14px;
+    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.avd-mob-special .avd-mob-fab:active {
+    transform: scale(0.92);
+}
+.avd-mob-special .avd-mob-fab i { font-size: 1.1rem; }
+
+@media (max-width: 767.98px) {
+    body.avd-app.has-bottom-nav {
+        padding-bottom: calc(68px + env(safe-area-inset-bottom, 0px)) !important;
+    }
+    body.avd-app.has-bottom-nav.has-mobile-ad {
+        padding-bottom: calc(142px + env(safe-area-inset-bottom, 0px)) !important;
+    }
+    body.has-bottom-nav .ad-slot-mobile {
+        bottom: calc(68px + env(safe-area-inset-bottom, 0px) + 0.5rem) !important;
+        z-index: 1030 !important;
+        width: auto !important;
+        max-width: calc(100vw - 1rem) !important;
+    }
+    .avd-mobile-bottom-nav {
+        z-index: 1040 !important;
+    }
+    input, select, textarea {
+        font-size: 16px !important; /* Prevents iOS Safari from auto-zooming viewport */
+    }
+    * {
+        -webkit-tap-highlight-color: transparent;
+    }
+}
+
+/* Tablet Viewport Polish (768px - 1024px) */
+@media (min-width: 768px) and (max-width: 1024px) {
+    .avd-feed-shell {
+        padding-inline: 1rem !important;
+    }
+}
+/* Click ripple (the inline ripple engine below the page): one span per target, reused, animated
+   with WAAPI from scale(0)/opacity 1 to scale(1)/opacity 0 in 650 ms; invisible at rest. */
+.avd-click-ripple {
+    position: absolute;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(var(--avd-theme-primary-rgb), 0.35) 0%, rgba(var(--avd-theme-accent-rgb), 0.15) 70%, transparent 100%);
+    transform: scale(0);
+    opacity: 0;
+    pointer-events: none;
+    z-index: 99;
+}
+/* The same ripple on engines without WAAPI. */
+.avd-click-ripple.avd-click-ripple-css {
+    animation: avdClickRippleCss 0.65s ease-out;
+}
+@keyframes avdClickRippleCss {
+    from { transform: scale(0); opacity: 1; }
+    to { transform: scale(1); opacity: 0; }
+}
+/*3332317761746368*/

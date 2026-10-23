@@ -1,0 +1,129 @@
+// The fixed dark palette of pages without a theme file (embed shell, maintenance page). On the main
+// site html[data-avd-theme] re-points these names at the theme tokens (layout-theme-a.css).
+[data-bs-theme="dark"] {
+    --avd-brand-text: #ff6f8a;
+    --avd-on-brand: #0f172a;
+    --avd-bg-body: var(--avd-dark-bg, #090b10);
+    --avd-surface: rgba(18, 21, 30, 0.94);
+    --avd-surface-solid: #12151e;
+    --avd-surface-soft: #171b26;
+    --avd-surface-hover: #202636;
+    --avd-elevated: #242b3d;
+    --avd-text: #f4f7fb;
+    --avd-muted: #aab3c5;
+    --avd-faint: #737f94;
+    --avd-border: rgba(255, 255, 255, 0.09);
+    --avd-border-strong: rgba(255, 255, 255, 0.16);
+    --avd-shadow: 0 18px 50px rgba(0, 0, 0, 0.42);
+    --avd-shadow-soft: 0 12px 34px rgba(0, 0, 0, 0.32);
+    --avd-input-bg: rgba(255, 255, 255, 0.055);
+    --avd-glass: rgba(12, 15, 23, 0.76);
+    --avd-header-bg: rgba(10, 13, 20, 0.82);
+    --avd-sidebar-bg: rgba(12, 15, 23, 0.88);
+    --avd-footer-bg: #080a0f;
+    --avd-footer-text: #a9b4c7;
+    --avd-footer-heading: #ffffff;
+    --avd-footer-link: #c6cfdd;
+    --avd-footer-border: rgba(255, 255, 255, 0.09);
+    --avd-footer-control-bg: rgba(255, 255, 255, 0.06);
+    --avd-scrollbar-track: rgba(255, 255, 255, 0.075);
+    --avd-scrollbar-thumb: rgba(var(--avd-brand-rgb), 0.56);
+    --avd-scrollbar-thumb-strong: rgba(var(--avd-brand-rgb), 0.78);
+    --avd-scrollbar-corner: #090b10;
+}
+
+// Pages without a theme only: the main site paints body.avd-app from the theme (layout-theme-a.css).
+[data-bs-theme="dark"] body:not(.avd-app) {
+    background:
+        radial-gradient(circle at 10% -8%, rgba(255, 61, 97, 0.18), transparent 28rem),
+        radial-gradient(circle at 92% 2%, rgba(34, 211, 238, 0.14), transparent 30rem),
+        linear-gradient(180deg, #0b0e15 0%, #090b10 42rem, #090b10 100%);
+    color: var(--avd-text);
+}
+
+[data-bs-theme="dark"] a {
+    color: inherit;
+}
+
+[data-bs-theme="dark"] .bg-white,
+[data-bs-theme="dark"] .bg-light,
+[data-bs-theme="dark"] .bg-body,
+[data-bs-theme="dark"] .bg-body-tertiary {
+    background-color: var(--avd-surface-soft) !important;
+}
+
+[data-bs-theme="dark"] .dropdown-menu {
+    --bs-dropdown-bg: var(--avd-elevated);
+    --bs-dropdown-link-color: var(--avd-text);
+    --bs-dropdown-link-hover-bg: var(--avd-surface-hover);
+    --bs-dropdown-link-hover-color: var(--avd-text);
+    box-shadow: var(--avd-shadow);
+}
+
+[data-bs-theme="dark"] .table {
+    --bs-table-bg: transparent;
+    --bs-table-color: var(--avd-text);
+    --bs-table-border-color: var(--avd-border);
+    --bs-table-hover-bg: var(--avd-surface-hover);
+    --bs-table-striped-bg: rgba(255, 255, 255, 0.035);
+}
+
+[data-bs-theme="dark"] .nav-tabs {
+    --bs-nav-tabs-border-color: var(--avd-border);
+    --bs-nav-tabs-link-active-bg: var(--avd-surface);
+    --bs-nav-tabs-link-active-color: var(--avd-text);
+    --bs-nav-tabs-link-active-border-color: var(--avd-border) var(--avd-border) var(--avd-surface);
+}
+
+[data-bs-theme="dark"] .pagination {
+    --bs-pagination-bg: var(--avd-surface);
+    --bs-pagination-border-color: var(--avd-border);
+    --bs-pagination-color: var(--avd-muted);
+    --bs-pagination-hover-bg: var(--avd-surface-hover);
+    --bs-pagination-hover-color: var(--avd-text);
+    --bs-pagination-active-bg: var(--avd-brand-fill, var(--avd-brand));
+    --bs-pagination-active-border-color: var(--avd-brand-fill, var(--avd-brand));
+}
+
+[data-bs-theme="dark"] .btn-close {
+    filter: invert(1) grayscale(100%) brightness(200%);
+}
+
+[data-bs-theme="dark"] .popover {
+    --bs-popover-bg: var(--avd-elevated);
+    --bs-popover-border-color: var(--avd-border);
+    --bs-popover-header-bg: var(--avd-surface);
+    --bs-popover-header-color: var(--avd-text);
+    --bs-popover-body-color: var(--avd-muted);
+}
+
+[data-bs-theme="dark"] .alert-secondary,
+[data-bs-theme="dark"] .alert-primary,
+[data-bs-theme="dark"] .alert-info {
+    background-color: var(--avd-surface-2, rgba(255, 255, 255, 0.06));
+    border-color: var(--avd-border);
+    color: var(--avd-text);
+}
+
+// Text selection without a theme file; the main site selects in the theme's brand fill (layout-theme-a.css).
+[data-bs-theme="dark"] body:not(.avd-app) ::selection {
+    background: var(--avd-brand);
+    color: #fff;
+}
+
+[data-bs-theme="dark"] html,
+[data-bs-theme="dark"] body,
+[data-bs-theme="dark"] textarea,
+[data-bs-theme="dark"] pre,
+[data-bs-theme="dark"] .overflow-auto,
+[data-bs-theme="dark"] .overflow-y-auto,
+[data-bs-theme="dark"] .modal-body,
+[data-bs-theme="dark"] .offcanvas-body,
+[data-bs-theme="dark"] .dropdown-menu,
+[data-bs-theme="dark"] .table-responsive,
+[data-bs-theme="dark"] .avd-sidebar-body,
+[data-bs-theme="dark"] .avd-locale-menu,
+[data-bs-theme="dark"] .avd-phone-prefix-menu,
+[data-bs-theme="dark"] .ts-dropdown .ts-dropdown-content {
+    scrollbar-color: var(--avd-scrollbar-thumb) var(--avd-scrollbar-track);
+}

@@ -1,0 +1,634 @@
+// Bootstrap components pointed at the admin tokens, so the ~65 existing admin views restyle without edits.
+// Bootstrap bakes some colours in at compile time (button variants, table variants, form checks); those
+// are re-set here through the components' own --bs-* variables.
+
+body {
+    background-color: var(--canvas);
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+    -webkit-font-smoothing: antialiased;
+}
+
+a {
+    color: var(--accent-ink);
+    text-underline-offset: 2px;
+}
+
+:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+}
+
+hr {
+    border-color: var(--border);
+    opacity: 1;
+}
+
+code {
+    font-size: .8125rem;
+}
+
+// ---------- buttons
+.btn {
+    --bs-btn-border-radius: var(--r-sm);
+    --bs-btn-focus-box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--focus);
+    white-space: nowrap;
+
+    &:focus-visible {
+        outline: 0;
+    }
+}
+
+@mixin ad-btn-solid($bg, $color) {
+    --bs-btn-bg: #{$bg};
+    --bs-btn-border-color: #{$bg};
+    --bs-btn-color: #{$color};
+    --bs-btn-hover-bg: #{$bg};
+    --bs-btn-hover-border-color: #{$bg};
+    --bs-btn-hover-color: #{$color};
+    --bs-btn-active-bg: #{$bg};
+    --bs-btn-active-border-color: #{$bg};
+    --bs-btn-active-color: #{$color};
+    --bs-btn-disabled-bg: #{$bg};
+    --bs-btn-disabled-border-color: #{$bg};
+    --bs-btn-disabled-color: #{$color};
+
+    &:hover,
+    &:active {
+        filter: brightness(.94);
+    }
+}
+
+@mixin ad-btn-quiet($color, $line) {
+    --bs-btn-bg: var(--surface);
+    --bs-btn-border-color: #{$line};
+    --bs-btn-color: #{$color};
+    --bs-btn-hover-bg: var(--surface-2);
+    --bs-btn-hover-border-color: #{$line};
+    --bs-btn-hover-color: #{$color};
+    --bs-btn-active-bg: var(--surface-3);
+    --bs-btn-active-border-color: #{$line};
+    --bs-btn-active-color: #{$color};
+    --bs-btn-disabled-bg: var(--surface);
+    --bs-btn-disabled-border-color: #{$line};
+    --bs-btn-disabled-color: #{$color};
+}
+
+.btn-primary {
+    @include ad-btn-solid(var(--accent), var(--on-accent));
+}
+
+.btn-secondary,
+.btn-light,
+.btn-outline-secondary,
+.btn-outline-dark {
+    @include ad-btn-quiet(var(--text), var(--border-strong));
+}
+
+.btn-dark {
+    @include ad-btn-solid(var(--text), var(--surface));
+}
+
+.btn-outline-light {
+    @include ad-btn-quiet(var(--text-2), var(--border));
+}
+
+.btn-success {
+    @include ad-btn-solid(var(--ok-fill), #fff);
+}
+
+.btn-info {
+    @include ad-btn-solid(var(--info-fill), #fff);
+}
+
+.btn-warning {
+    @include ad-btn-solid(var(--warn-fill), var(--on-fill-dark));
+}
+
+// Danger is never the loudest button: outlined red outside a confirm dialog (spec: buttons).
+.btn-danger,
+.btn-outline-danger {
+    @include ad-btn-quiet(var(--danger), var(--danger-line));
+}
+
+.modal .btn-danger,
+.ad-dialog .btn-danger {
+    @include ad-btn-solid(var(--danger-fill), #fff);
+}
+
+.btn-outline-primary {
+    @include ad-btn-quiet(var(--accent-ink), var(--accent-line));
+}
+
+.btn-outline-success {
+    @include ad-btn-quiet(var(--ok), var(--ok-line));
+}
+
+.btn-outline-info {
+    @include ad-btn-quiet(var(--info), var(--info-line));
+}
+
+.btn-outline-warning {
+    @include ad-btn-quiet(var(--warn), var(--warn-line));
+}
+
+.btn-link {
+    --bs-btn-color: var(--accent-ink);
+    --bs-btn-hover-color: var(--accent-ink);
+    --bs-btn-active-color: var(--accent-ink);
+    --bs-btn-disabled-color: var(--text-3);
+    font-weight: 600;
+}
+
+.btn-close {
+    --bs-btn-close-focus-shadow: 0 0 0 2px var(--focus);
+}
+
+// Small "xs" buttons some old views use.
+.btn-xs {
+    --bs-btn-padding-y: .125rem;
+    --bs-btn-padding-x: .5rem;
+    --bs-btn-font-size: .75rem;
+    --bs-btn-border-radius: var(--r-xs);
+}
+
+// ---------- utilities that must stay readable in both modes
+.bg-primary {
+    background-color: rgba(var(--accent-ink-rgb), var(--bs-bg-opacity, 1)) !important;
+}
+
+.bg-success {
+    background-color: rgba(var(--ok-fill-rgb), var(--bs-bg-opacity, 1)) !important;
+}
+
+.bg-danger {
+    background-color: rgba(var(--danger-fill-rgb), var(--bs-bg-opacity, 1)) !important;
+}
+
+.bg-info {
+    background-color: rgba(var(--info-fill-rgb), var(--bs-bg-opacity, 1)) !important;
+}
+
+.bg-warning {
+    background-color: rgba(var(--warn-fill-rgb), var(--bs-bg-opacity, 1)) !important;
+}
+
+.bg-secondary {
+    background-color: var(--surface-3) !important;
+    color: var(--text-2);
+}
+
+// The old views use bg-light / bg-white for a quiet box or row, not for "always light": it follows the mode.
+.bg-light {
+    background-color: var(--bg-light) !important;
+}
+
+.bg-white {
+    background-color: var(--surface) !important;
+}
+
+.text-bg-primary {
+    background-color: var(--accent) !important;
+    color: var(--on-accent) !important;
+}
+
+.text-bg-secondary {
+    background-color: var(--surface-3) !important;
+    color: var(--text-2) !important;
+}
+
+.text-muted,
+.text-secondary {
+    color: var(--text-2) !important;
+}
+
+.text-primary {
+    color: var(--accent-ink) !important;
+}
+
+.border-primary {
+    border-color: var(--accent-line) !important;
+}
+
+// Badges are calm: soft fill + status ink (readable in light and dark).
+.badge {
+    --bs-badge-border-radius: var(--r-pill);
+    --bs-badge-color: var(--text-2);
+    background-color: var(--surface-3);
+    line-height: 1.15;
+
+    &.bg-primary,
+    &.text-bg-primary {
+        background-color: var(--accent-soft) !important;
+        color: var(--text) !important;
+    }
+
+    &.bg-success,
+    &.text-bg-success {
+        background-color: var(--ok-soft) !important;
+        color: var(--ok) !important;
+    }
+
+    &.bg-danger,
+    &.text-bg-danger {
+        background-color: var(--danger-soft) !important;
+        color: var(--danger) !important;
+    }
+
+    &.bg-warning,
+    &.text-bg-warning {
+        background-color: var(--warn-soft) !important;
+        color: var(--warn) !important;
+    }
+
+    &.bg-info,
+    &.text-bg-info {
+        background-color: var(--info-soft) !important;
+        color: var(--info) !important;
+    }
+
+    &.bg-secondary,
+    &.bg-light,
+    &.bg-dark,
+    &.text-bg-secondary,
+    &.text-bg-light,
+    &.text-bg-dark {
+        background-color: var(--surface-3) !important;
+        color: var(--text-2) !important;
+    }
+}
+
+// ---------- cards, lists, accordions
+.card {
+    --bs-card-border-color: var(--border);
+    --bs-card-cap-bg: var(--surface);
+    --bs-card-cap-color: var(--text);
+    --bs-card-bg: var(--surface);
+    --bs-card-color: var(--text);
+    box-shadow: var(--shadow-raise);
+}
+
+.card-header {
+    border-bottom-color: var(--border);
+
+    h5,
+    .h5,
+    h6,
+    .h6 {
+        font-size: var(--fs-lg);
+        line-height: var(--lh-lg);
+    }
+}
+
+.card-footer {
+    background-color: var(--surface-2);
+}
+
+.shadow,
+.shadow-lg {
+    box-shadow: var(--shadow-raise) !important;
+}
+
+.list-group {
+    --bs-list-group-color: var(--text);
+    --bs-list-group-bg: var(--surface);
+    --bs-list-group-border-color: var(--border);
+    --bs-list-group-action-color: var(--text);
+    --bs-list-group-action-hover-color: var(--text);
+    --bs-list-group-action-hover-bg: var(--surface-2);
+    --bs-list-group-action-active-bg: var(--surface-3);
+    --bs-list-group-active-color: var(--text);
+    --bs-list-group-active-bg: var(--accent-soft);
+    --bs-list-group-active-border-color: var(--accent-line);
+    --bs-list-group-disabled-color: var(--text-3);
+}
+
+.accordion {
+    --bs-accordion-bg: var(--surface);
+    --bs-accordion-color: var(--text);
+    --bs-accordion-border-color: var(--border);
+    --bs-accordion-btn-color: var(--text);
+    --bs-accordion-btn-bg: var(--surface);
+    --bs-accordion-active-color: var(--text);
+    --bs-accordion-active-bg: var(--surface-2);
+    --bs-accordion-btn-focus-box-shadow: inset 0 0 0 2px var(--focus);
+}
+
+html[data-theme="dark"] .accordion-button::after,
+html[data-theme="dark"] .btn-close {
+    filter: invert(1) grayscale(100%) brightness(200%);
+}
+
+@media (prefers-color-scheme: dark) {
+    html:not([data-theme]) .accordion-button::after,
+    html:not([data-theme]) .btn-close {
+        filter: invert(1) grayscale(100%) brightness(200%);
+    }
+}
+
+// ---------- tables
+.table {
+    --bs-table-color: var(--text);
+    --bs-table-bg: transparent;
+    --bs-table-border-color: var(--border);
+    --bs-table-striped-color: var(--text);
+    --bs-table-active-color: var(--text);
+    --bs-table-hover-color: var(--text);
+    --bs-table-hover-bg: var(--surface-2);
+    --bs-table-striped-bg: var(--table-stripe);
+
+    > thead th,
+    > thead td {
+        font-size: var(--fs-sm);
+        font-weight: 600;
+        color: var(--text-2);
+        white-space: nowrap;
+    }
+
+    > :not(caption) > * > * {
+        vertical-align: middle;
+    }
+}
+
+.table-light,
+.table > thead.table-light > tr > *,
+.table-light > tr > * {
+    --bs-table-color: var(--text-2);
+    --bs-table-bg: var(--surface-2);
+    --bs-table-border-color: var(--border);
+    --bs-table-striped-bg: var(--surface-2);
+    --bs-table-hover-bg: var(--surface-3);
+    color: var(--text-2);
+}
+
+.table-dark {
+    --bs-table-color: var(--text);
+    --bs-table-bg: var(--surface-3);
+    --bs-table-border-color: var(--border-strong);
+}
+
+.table-warning {
+    --bs-table-color: var(--text);
+    --bs-table-bg: var(--warn-soft);
+    --bs-table-border-color: var(--warn-line);
+}
+
+.table-success {
+    --bs-table-color: var(--text);
+    --bs-table-bg: var(--ok-soft);
+    --bs-table-border-color: var(--ok-line);
+}
+
+.table-secondary {
+    --bs-table-color: var(--text-2);
+    --bs-table-bg: var(--surface-3);
+    --bs-table-border-color: var(--border);
+}
+
+.table-danger {
+    --bs-table-color: var(--text);
+    --bs-table-bg: var(--danger-soft);
+    --bs-table-border-color: var(--danger-line);
+}
+
+// ---------- forms
+.form-control,
+.form-select {
+    border-color: var(--border-input);
+    background-color: var(--surface);
+    color: var(--text);
+
+    &:focus {
+        border-color: var(--focus);
+        box-shadow: 0 0 0 1px var(--focus);
+        background-color: var(--surface);
+        color: var(--text);
+    }
+
+    &::placeholder {
+        color: var(--text-3);
+    }
+
+    &:disabled,
+    &[readonly] {
+        background-color: var(--surface-2);
+    }
+}
+
+.form-select {
+    --bs-form-select-bg-img: var(--select-chevron);
+}
+
+.form-label {
+    font-weight: 600;
+    margin-bottom: .25rem;
+}
+
+.form-text {
+    color: var(--text-2);
+    font-size: var(--fs-sm);
+}
+
+.input-group-text {
+    background-color: var(--surface-2);
+    border-color: var(--border-input);
+    color: var(--text-2);
+}
+
+.form-check-input {
+    border-color: var(--border-input);
+    background-color: var(--surface);
+
+    &:checked,
+    &[type="checkbox"]:indeterminate {
+        background-color: var(--accent);
+        // The accent ink outline keeps a ticked box 3:1 against dark panels too.
+        border-color: var(--accent-ink);
+    }
+
+    &:focus {
+        border-color: var(--focus);
+        box-shadow: 0 0 0 2px var(--accent-soft);
+    }
+}
+
+.form-switch .form-check-input:not(:checked) {
+    background-color: var(--border-input);
+    --bs-form-switch-bg: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'%3e%3ccircle r='3' fill='%23fff'/%3e%3c/svg%3e");
+}
+
+.form-range {
+    &::-webkit-slider-thumb {
+        background-color: var(--accent);
+    }
+
+    &::-moz-range-thumb {
+        background-color: var(--accent);
+    }
+
+    &::-webkit-slider-runnable-track {
+        background-color: var(--surface-3);
+    }
+
+    &::-moz-range-track {
+        background-color: var(--surface-3);
+    }
+}
+
+.form-control-color {
+    padding: .25rem;
+}
+
+// ---------- navigation
+.nav-tabs {
+    --bs-nav-tabs-border-color: var(--border);
+    --bs-nav-tabs-link-hover-border-color: transparent;
+    --bs-nav-tabs-link-active-color: var(--text);
+    --bs-nav-tabs-link-active-bg: transparent;
+    --bs-nav-tabs-link-active-border-color: transparent;
+    gap: var(--s4);
+
+    .nav-link {
+        --bs-nav-link-color: var(--text-2);
+        --bs-nav-link-hover-color: var(--text);
+        border: 0;
+        border-bottom: 2px solid transparent;
+        border-radius: 0;
+        padding-inline: 2px;
+
+        &.active {
+            border-bottom-color: var(--accent);
+            font-weight: 600;
+        }
+    }
+}
+
+.nav-pills {
+    --bs-nav-pills-border-radius: var(--r-sm);
+    --bs-nav-pills-link-active-color: var(--text);
+    --bs-nav-pills-link-active-bg: var(--accent-soft);
+    --bs-nav-link-color: var(--text-2);
+    --bs-nav-link-hover-color: var(--text);
+
+    .nav-link.active {
+        font-weight: 600;
+    }
+}
+
+.breadcrumb {
+    --bs-breadcrumb-divider-color: var(--text-3);
+    --bs-breadcrumb-item-active-color: var(--text-2);
+    font-size: var(--fs-sm);
+}
+
+.pagination {
+    --bs-pagination-color: var(--text-2);
+    --bs-pagination-bg: var(--surface);
+    --bs-pagination-border-color: var(--border);
+    --bs-pagination-hover-color: var(--text);
+    --bs-pagination-hover-bg: var(--surface-2);
+    --bs-pagination-hover-border-color: var(--border-strong);
+    --bs-pagination-focus-color: var(--text);
+    --bs-pagination-focus-bg: var(--surface-2);
+    --bs-pagination-focus-box-shadow: 0 0 0 2px var(--focus);
+    --bs-pagination-active-color: var(--text);
+    --bs-pagination-active-bg: var(--surface-3);
+    --bs-pagination-active-border-color: var(--border-strong);
+    --bs-pagination-disabled-color: var(--text-3);
+    --bs-pagination-disabled-bg: var(--surface);
+    --bs-pagination-disabled-border-color: var(--border);
+    margin-bottom: 0;
+
+    .active > .page-link {
+        font-weight: 600;
+    }
+}
+
+// ---------- feedback
+.alert {
+    --bs-alert-color: var(--text);
+    --bs-alert-border-color: var(--info-line);
+    --bs-alert-bg: var(--info-soft);
+    --bs-alert-link-color: var(--accent-ink);
+}
+
+@each $kind, $token in (success: ok, info: info, warning: warn, danger: danger) {
+    .alert-#{$kind} {
+        --bs-alert-color: var(--text);
+        --bs-alert-bg: var(--#{$token}-soft);
+        --bs-alert-border-color: var(--#{$token}-line);
+        --bs-alert-link-color: var(--#{$token});
+    }
+}
+
+.alert-secondary,
+.alert-light,
+.alert-dark,
+.alert-primary {
+    --bs-alert-color: var(--text);
+    --bs-alert-bg: var(--surface-2);
+    --bs-alert-border-color: var(--border);
+    --bs-alert-link-color: var(--accent-ink);
+}
+
+.progress,
+.progress-stacked {
+    --bs-progress-bg: var(--surface-3);
+    --bs-progress-bar-bg: var(--accent);
+    --bs-progress-bar-color: var(--on-accent);
+}
+
+// No infinite animation in the admin: animated stripes stand still.
+.progress-bar-animated {
+    animation: none;
+}
+
+.toast {
+    --bs-toast-bg: var(--surface);
+    --bs-toast-border-color: var(--border);
+    --bs-toast-header-bg: var(--surface-2);
+    --bs-toast-header-color: var(--text);
+    --bs-toast-color: var(--text);
+}
+
+.modal {
+    --bs-modal-bg: var(--surface);
+    --bs-modal-color: var(--text);
+    --bs-modal-border-color: var(--border);
+    --bs-modal-header-border-color: var(--border);
+    --bs-modal-footer-border-color: var(--border);
+    --bs-modal-box-shadow: var(--shadow-overlay);
+}
+
+.modal-backdrop {
+    --bs-backdrop-bg: var(--overlay);
+    --bs-backdrop-opacity: 1;
+}
+
+.modal-footer {
+    background-color: var(--surface-2);
+    border-bottom-right-radius: var(--bs-modal-inner-border-radius);
+    border-bottom-left-radius: var(--bs-modal-inner-border-radius);
+}
+
+.modal-title {
+    font-size: var(--fs-xl);
+    line-height: var(--lh-xl);
+}
+
+@media (forced-colors: active) {
+    .btn,
+    .badge,
+    .card,
+    .form-check-input,
+    .nav-link.active {
+        border: 1px solid CanvasText;
+    }
+
+    // Bootstrap draws focus rings as box-shadows, which forced colours remove: an outline instead.
+    :is(.btn, .btn-close, .nav-link, .page-link, .accordion-button, .form-check-input):focus-visible,
+    :is(.form-control, .form-select):focus {
+        outline: 2px solid Highlight;
+        outline-offset: 2px;
+    }
+}

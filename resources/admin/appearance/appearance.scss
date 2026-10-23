@@ -1,0 +1,582 @@
+// The Appearance pages only (loaded with resources/admin/appearance/appearance.ts): the preview column, the gallery
+// (looks, themes, colour styles), the effects level and speed card, the daily calendar and the history list.
+// Admin tokens only (components/_tokens.scss); logical properties so Arabic mirrors; no effects of its own.
+
+.ad-appearance {
+    align-items: start;
+
+    > form { min-width: 0; }
+}
+
+// The preview column stays in view while the settings scroll.
+.ad-appearance-side {
+    position: sticky;
+    top: calc(var(--top-h) + 16px);
+    display: grid;
+    gap: var(--s4);
+    min-width: 0;
+    max-height: calc(100vh - var(--top-h) - 32px);
+    overflow-y: auto;
+
+    .ad-monitor { position: static; }
+}
+
+.ad-appearance-note { margin-top: var(--s4); }
+
+// Rows changed in the draft.
+.ad-appearance-form {
+    .ad-field.is-changed,
+    .ad-toggle-row.is-changed,
+    .ad-fx-row.is-changed {
+        box-shadow: inset 3px 0 0 var(--accent);
+    }
+
+    [dir="rtl"] & .is-changed { box-shadow: inset -3px 0 0 var(--accent); }
+
+    .ad-changed-meta { margin-top: 6px; }
+
+    // Segmented choices of the settings rows show the picked one without a script.
+    .ad-seg label:has(.ad-sr:checked) {
+        background: var(--surface);
+        color: var(--text);
+        box-shadow: 0 1px 2px rgba(16, 24, 40, .12);
+        font-weight: 600;
+    }
+
+    .ad-rc:has(.ad-sr:checked) { border-color: var(--accent); }
+}
+
+html[data-theme="dark"] .ad-appearance-form .ad-seg label:has(.ad-sr:checked) {
+    background: var(--surface-2);
+    box-shadow: inset 0 0 0 1px var(--border-strong);
+}
+
+// ---------- pickers
+.ad-pick-field .ad-control { margin-top: 10px; }
+
+.ad-pickers.is-small { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+.ad-pickers.is-fonts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+
+    img {
+        aspect-ratio: 4 / 1;
+        object-fit: cover;
+        background: #fff;
+    }
+}
+
+.ad-pick {
+    &.is-retired { border-style: dashed; }
+
+    .ad-pick-ph {
+        display: grid;
+        place-items: center;
+        aspect-ratio: 4 / 1;
+        border-radius: 5px;
+        background: var(--surface-2);
+        border: 1px solid var(--border);
+        font-size: 26px;
+        color: var(--text-2);
+    }
+}
+
+// ---------- current look
+.ad-current {
+    display: flex;
+    gap: var(--s4);
+    align-items: center;
+    padding: var(--s4);
+
+    > img {
+        width: 132px;
+        height: 82px;
+        object-fit: cover;
+        object-position: top left;
+        border-radius: var(--r-sm);
+        border: 1px solid var(--border);
+        flex: none;
+    }
+}
+
+.ad-current-text {
+    flex: 1;
+    min-width: 0;
+
+    .ad-h2 { margin: 6px 0 2px; }
+    p { margin: 2px 0 0; }
+}
+
+.ad-current-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 14px;
+    align-items: baseline;
+}
+
+// Links inside sentences are underlined (not told apart by colour alone).
+.ad-appearance :is(p, .ad-help, .ad-field-meta) a:not(.ad-btn) {
+    color: var(--accent-ink);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.ad-appearance .ad-link {
+    background: none;
+    border: 0;
+    padding: 0;
+    font: inherit;
+    color: var(--accent-ink);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+}
+
+// ---------- gallery
+.ad-gallery-tabs { margin: var(--s5) 0 var(--s3); }
+
+.ad-gallery-panel > .ad-help { margin: 0 0 var(--s3); }
+
+.ad-families { margin: 0 0 var(--s3); }
+
+.ad-gallery-search {
+    display: flex;
+    gap: var(--s2);
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: var(--s3);
+
+    .ad-search-field { flex: 1 1 240px; }
+}
+
+.ad-search-field {
+    position: relative;
+    display: block;
+    min-width: 0;
+
+    > .ad-i {
+        position: absolute;
+        inset-inline-start: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--text-3);
+        pointer-events: none;
+    }
+
+    .ad-input { padding-inline-start: 32px; width: 100%; }
+}
+
+.ad-themes,
+.ad-looks {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+
+    &[aria-busy="true"] { opacity: .6; }
+}
+
+.ad-looks { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+.ad-theme,
+.ad-look {
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    overflow: hidden;
+    background: var(--surface);
+    min-width: 0;
+
+    &.is-on { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+}
+
+.ad-theme-pick,
+.ad-look-pick {
+    display: block;
+    width: 100%;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    text-align: start;
+    text-decoration: none !important;
+    font: inherit;
+    cursor: pointer;
+
+    img,
+    .ad-theme-ph {
+        display: block;
+        width: 100%;
+        height: auto;
+        aspect-ratio: 16 / 10;
+        object-fit: cover;
+        object-position: top left;
+        border-bottom: 1px solid var(--border);
+        background: var(--surface-3);
+    }
+
+    .ad-theme-ph {
+        display: grid;
+        place-items: center;
+
+        .ad-pie { width: 44px; height: 44px; }
+    }
+
+    &:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+}
+
+.ad-theme-b {
+    display: block;
+    padding: 10px 12px 12px;
+
+    b {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 6px;
+        font-size: var(--fs-md);
+        font-weight: 600;
+    }
+
+    small {
+        display: block;
+        color: var(--text-3);
+        font-size: var(--fs-xs);
+        line-height: 16px;
+        margin-top: 2px;
+    }
+
+    .ad-badge { height: 20px; line-height: 20px; font-size: 11.5px; }
+}
+
+.ad-look-best {
+    display: block;
+    color: var(--text-2);
+    font-size: var(--fs-sm);
+    line-height: 19px;
+    margin-top: 4px;
+}
+
+.ad-dots {
+    display: flex;
+    gap: 4px;
+    margin-top: 8px;
+
+    svg { width: 14px; height: 14px; display: block; }
+    circle { stroke: rgba(127, 127, 127, .45); stroke-width: 1; }
+}
+
+.ad-gallery-more { margin: var(--s3) 0 0; text-align: center; }
+
+.ad-theme-apply { padding: 0 12px 12px; }
+
+.ad-pie { width: 26px; height: 26px; display: block; flex: none; border-radius: 50%; }
+
+// colour styles
+.ad-flavors { margin-top: var(--s5); }
+
+.ad-swatches {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.ad-swatch {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-block: 6px;
+    padding-inline: 6px 12px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--r-pill);
+    background: var(--surface);
+    font-size: var(--fs-sm);
+    cursor: pointer;
+    margin: 0;
+
+    &:has(input:checked) { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); font-weight: 600; }
+    &:has(input:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; }
+}
+
+.ad-check-line {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-top: var(--s3);
+    font-size: var(--fs-sm);
+    color: var(--text-2);
+    cursor: pointer;
+}
+
+.ad-colour-note {
+    display: flex;
+    gap: 6px;
+    align-items: flex-start;
+    margin-top: var(--s3);
+}
+
+.ad-autofix { margin-top: var(--s3); }
+
+// A card's link to the admin page that manages the rest of its subject (AppearancePages::cardLink()).
+.ad-card-link {
+    margin: 0;
+    color: var(--text-2);
+}
+
+// ---------- effects level and speed
+.ad-level-opt {
+    position: relative;
+    display: block;
+    padding: var(--s3) var(--s4) var(--s4);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--r-md);
+    background: var(--surface);
+    cursor: pointer;
+    margin: 0;
+
+    b { font-weight: 600; display: block; }
+    > span:not(.ad-speed) { color: var(--text-2); font-size: var(--fs-sm); line-height: 19px; display: block; margin-top: 2px; }
+
+    &:has(input:checked) { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: var(--accent-soft); }
+    &:has(input:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; }
+}
+
+.ad-split .ad-level { grid-template-columns: 1fr 1fr; }
+
+.ad-speed {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.ad-speed-bars {
+    display: flex;
+    gap: 3px;
+    flex: 1;
+
+    i {
+        height: 5px;
+        flex: 1;
+        border-radius: 3px;
+        background: var(--surface-3);
+        box-shadow: inset 0 0 0 1px var(--border);
+    }
+}
+
+.ad-speed.is-fast .ad-speed-bars i.on { background: var(--ok); box-shadow: none; }
+.ad-speed.is-ok .ad-speed-bars i.on { background: var(--warn-fill); box-shadow: none; }
+.ad-speed.is-slow .ad-speed-bars i.on { background: var(--danger); box-shadow: none; }
+
+.ad-speed-word {
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    color: var(--text-2);
+    min-width: 44px;
+    text-align: end;
+}
+
+.ad-speedcard {
+    .ad-panel-h h2 { font-size: var(--fs-lg); font-weight: 600; margin: 0; }
+    .ad-panel-b { display: grid; gap: var(--s3); }
+}
+
+.ad-speed-head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+
+    strong { font-size: 28px; line-height: 34px; font-weight: 650; }
+}
+
+.ad-speed-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+
+    li {
+        display: flex;
+        gap: 10px;
+        align-items: flex-start;
+        padding: 10px 0;
+        border-top: 1px solid var(--border);
+
+        &:first-child { border-top: 0; }
+        > .ad-i { margin-top: 2px; flex: none; color: var(--text-2); }
+        b { display: block; font-weight: 600; }
+        span span { display: block; color: var(--text-2); font-size: var(--fs-sm); }
+    }
+}
+
+// effect rows: name + help, impact, switch
+.ad-fx-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: var(--s4);
+    align-items: center;
+    padding: 12px var(--s5);
+    border-top: 1px solid var(--border);
+    cursor: pointer;
+    position: relative;
+    margin: 0;
+
+    &:first-child { border-top: 0; }
+    b { font-weight: 600; display: block; }
+    .ad-help { margin-top: 1px; }
+}
+
+.ad-fx-impact {
+    display: grid;
+    justify-items: end;
+    gap: 2px;
+}
+
+// ---------- daily calendar
+.ad-cal {
+    margin-top: var(--s4);
+
+    .ad-panel-h {
+        display: flex;
+        align-items: center;
+        gap: var(--s2);
+
+        h2 { flex: 1; text-align: center; font-size: var(--fs-md); font-weight: 600; margin: 0; }
+    }
+}
+
+.ad-cal-grid,
+.ad-cal-head {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 6px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+
+    &.is-page { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+}
+
+.ad-cal-head {
+    margin-bottom: 6px;
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    color: var(--text-2);
+    text-align: center;
+
+    span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
+
+.ad-cal-day {
+    min-width: 0;
+
+    button,
+    a {
+        display: grid;
+        justify-items: center;
+        gap: 4px;
+        width: 100%;
+        min-height: 64px;
+        padding: 6px 4px;
+        border: 1px solid var(--border);
+        border-radius: var(--r-md);
+        background: var(--surface);
+        color: inherit;
+        font: inherit;
+        cursor: pointer;
+        text-decoration: none !important;
+
+        &:hover { border-color: var(--border-strong); }
+        &:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+    }
+
+    .ad-pie { width: 22px; height: 22px; }
+    small { font-size: 10.5px; line-height: 13px; color: var(--text-2); text-align: center; overflow-wrap: anywhere; }
+
+    &.is-today button,
+    &.is-today a { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+}
+
+.ad-cal-n { font-size: var(--fs-sm); font-weight: 600; }
+.ad-cal-l { font-size: var(--fs-xs); color: var(--text-2); text-align: center; }
+
+// ---------- history
+.ad-history { width: min(620px, calc(100vw - 32px)); }
+
+.ad-history-list {
+    list-style: none;
+    margin: var(--s4) 0 0;
+    padding: 0;
+    max-height: 52vh;
+    overflow-y: auto;
+
+    &.is-page { max-height: none; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); }
+
+    li {
+        display: flex;
+        align-items: center;
+        gap: var(--s3);
+        padding: 12px var(--s4);
+        border-top: 1px solid var(--border);
+
+        &:first-child { border-top: 0; }
+        form { margin: 0; }
+    }
+}
+
+.ad-history-text {
+    flex: 1;
+    min-width: 0;
+
+    b { display: block; font-weight: 600; }
+    .ad-muted { font-size: var(--fs-sm); }
+}
+
+.ad-gallery-pages { margin-top: var(--s4); gap: var(--s2); flex-wrap: wrap; }
+
+.ad-appearance-filter { margin-bottom: var(--s4); }
+
+// ---------- smaller screens
+@media (max-width: 1199.98px) {
+    .ad-appearance-side { position: static; max-height: none; overflow: visible; }
+    .ad-themes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+    // The preview sits under the settings here: the publish bar stays at the bottom of the window while
+    // something is unpublished.
+    .ad-appearance.has-changes {
+        padding-bottom: 76px;
+
+        .ad-publish {
+            position: fixed;
+            inset-inline: 0;
+            bottom: 0;
+            z-index: 50;
+            background: var(--surface);
+            border-top: 1px solid var(--border-strong);
+            box-shadow: 0 -4px 16px rgba(16, 24, 40, .12);
+            padding-bottom: max(var(--s3), env(safe-area-inset-bottom));
+        }
+    }
+}
+
+@media (max-width: 767.98px) {
+    .ad-themes,
+    .ad-looks { grid-template-columns: 1fr; }
+    .ad-pickers.is-small,
+    .ad-pickers.is-fonts { grid-template-columns: 1fr 1fr; }
+    .ad-current > img { width: 96px; height: 60px; }
+    .ad-fx-row { grid-template-columns: minmax(0, 1fr) auto; padding: 12px var(--s4); }
+    .ad-fx-impact { grid-column: 1; grid-row: 2; justify-items: start; }
+    .ad-cal-grid,
+    .ad-cal-head { gap: 3px; }
+    .ad-cal-day small { display: none; }
+}
+
+@media (forced-colors: active) {
+    .ad-theme.is-on,
+    .ad-look.is-on,
+    .ad-swatch:has(input:checked),
+    .ad-level-opt:has(input:checked) { outline: 2px solid CanvasText; }
+    .ad-speed-bars i.on { background: CanvasText !important; }
+}

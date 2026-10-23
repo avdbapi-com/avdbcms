@@ -1,0 +1,77 @@
+<IfModule mod_rewrite.c>
+    <IfModule !mod_litespeed.c>
+        <IfModule mod_negotiation.c>
+            Options -MultiViews -Indexes
+        </IfModule>
+    </IfModule>
+
+    RewriteEngine On
+
+    # Handle Authorization Header
+    RewriteCond %{HTTP:Authorization} .
+    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+    # Normalize localized or public-prefixed build asset requests directly to build/
+    RewriteRule ^([a-zA-Z_-]+/)?(public/)?build/(assets/.*)$ build/$3 [L,NC]
+
+    # Send Requests To Front Controller...
+    # Trailing slash redirect is handled in index.php (server-agnostic, works on Nginx/LiteSpeed too)
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteRule ^ index.php [L]
+</IfModule>
+
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresDefault "access plus 2 days"
+    ExpiresByType text/css "access plus 1 year"
+    ExpiresByType application/javascript "access plus 1 year"
+    ExpiresByType application/x-javascript "access plus 1 year"
+    ExpiresByType text/javascript "access plus 1 year"
+    ExpiresByType font/woff2 "access plus 1 year"
+    ExpiresByType font/woff "access plus 1 year"
+    ExpiresByType font/ttf "access plus 1 year"
+    ExpiresByType font/otf "access plus 1 year"
+    ExpiresByType image/webp "access plus 1 month"
+    ExpiresByType image/jpeg "access plus 1 month"
+    ExpiresByType image/png "access plus 1 month"
+    ExpiresByType image/gif "access plus 1 month"
+    ExpiresByType image/svg+xml "access plus 1 month"
+    ExpiresByType image/x-icon "access plus 1 year"
+</IfModule>
+
+<IfModule mod_headers.c>
+    # Fingerprinted Vite build assets are content-hashed and immutable
+    <FilesMatch "\.(js|css|woff2|woff|ttf)$">
+        Header set Cache-Control "public, max-age=31536000, immutable"
+    </FilesMatch>
+    <FilesMatch "\.(jpg|jpeg|png|gif|webp|svg|ico)$">
+        Header set Cache-Control "public, max-age=2592000, stale-while-revalidate=86400"
+    </FilesMatch>
+</IfModule>
+
+
+# --------------------------------------------------------------------------
+# Compression (added: cut transfer size on all devices, especially mobile).
+# Both blocks are module-guarded, so a host without the module simply skips
+# them - safe on Apache and LiteSpeed with zero manual configuration.
+# Already-compressed types (woff2/woff/images) are intentionally excluded.
+# --------------------------------------------------------------------------
+<IfModule mod_deflate.c>
+    <IfModule mod_filter.c>
+        AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript
+        AddOutputFilterByType DEFLATE application/javascript application/x-javascript application/json
+        AddOutputFilterByType DEFLATE application/xml application/rss+xml application/ld+json
+        AddOutputFilterByType DEFLATE application/vnd.ms-fontobject application/x-font-ttf
+        AddOutputFilterByType DEFLATE font/ttf font/otf image/svg+xml image/x-icon
+    </IfModule>
+</IfModule>
+<IfModule mod_brotli.c>
+    <IfModule mod_filter.c>
+        AddOutputFilterByType BROTLI_COMPRESS text/html text/plain text/xml text/css text/javascript
+        AddOutputFilterByType BROTLI_COMPRESS application/javascript application/x-javascript application/json
+        AddOutputFilterByType BROTLI_COMPRESS application/xml application/rss+xml application/ld+json
+        AddOutputFilterByType BROTLI_COMPRESS application/vnd.ms-fontobject application/x-font-ttf
+        AddOutputFilterByType BROTLI_COMPRESS font/ttf font/otf image/svg+xml image/x-icon
+    </IfModule>
+</IfModule>

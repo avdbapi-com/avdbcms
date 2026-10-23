@@ -1,0 +1,32 @@
+/* Hero decoration bento_holo (Phase B): ships at the end of the token file of the theme whose recipe names it
+   (php artisan avd:themes:build), so it loads with that theme only. Every rule is keyed
+   html[data-avd-hero-deco="bento_holo"][data-avd-theme] (App\Support\ThemeTokens::heroDecoProblems). */
+html[data-avd-hero-deco="bento_holo"][data-avd-theme] .avd-bt {
+    border: 2px solid transparent;
+    background: linear-gradient(var(--avd-surface-1), var(--avd-surface-1)) padding-box, var(--avd-x-holo) border-box;
+}
+/* A holo card stack (md+): the lead stands in the middle column, the second video above the channel card on the
+   inline start, the third video as a tall card on the inline end - not the lead-left bento of Obsidian & Gold, Ultraviolet
+   or Aurora (structure twin with Obsidian & Gold in light mode: 0.70 -> 0.39). Phones keep the shared 2-column bento. */
+@media (min-width: 768px) {
+    html[data-avd-hero-deco="bento_holo"][data-avd-theme] .avd-bento {
+        grid-template-columns: 1fr 2fr 1fr;
+        grid-template-rows: 200px 200px;
+    }
+    html[data-avd-hero-deco="bento_holo"][data-avd-theme] .avd-bento > .avd-bt.big {
+        grid-column: 2;
+        grid-row: 1 / span 2;
+    }
+    html[data-avd-hero-deco="bento_holo"][data-avd-theme] .avd-bento > .avd-bt:nth-child(2) {
+        grid-column: 1;
+        grid-row: 1;
+    }
+    html[data-avd-hero-deco="bento_holo"][data-avd-theme] .avd-bento > .avd-bt:nth-child(3) {
+        grid-column: 1;
+        grid-row: 2;
+    }
+    html[data-avd-hero-deco="bento_holo"][data-avd-theme] .avd-bento > .avd-bt.wide {
+        grid-column: 3;
+        grid-row: 1 / span 2;
+    }
+}

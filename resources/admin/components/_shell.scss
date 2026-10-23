@@ -1,0 +1,965 @@
+// The admin shell: sidebar (desktop 248px, tablet 64px rail with flyouts, phone drawer), top bar, page header.
+// Reference: spec/admin/mockups/src/admin.css. No blur, glow, shimmer or infinite animation.
+
+.ad-i {
+    width: 18px;
+    height: 18px;
+    flex: none;
+    display: inline-block;
+    vertical-align: -4px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.75;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+
+    &.sm {
+        width: 16px;
+        height: 16px;
+        vertical-align: -3px;
+    }
+
+    &.lg {
+        width: 22px;
+        height: 22px;
+    }
+}
+
+.ad-sprite {
+    position: absolute;
+    width: 0;
+    height: 0;
+    overflow: hidden;
+}
+
+.ad-vh,
+.ad-skip:not(:focus) {
+    position: absolute !important;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}
+
+.ad-skip:focus {
+    position: fixed;
+    z-index: 90;
+    inset-inline-start: var(--s3);
+    top: var(--s3);
+    padding: var(--s2) var(--s3);
+    border-radius: var(--r-sm);
+    background: var(--surface);
+    box-shadow: var(--shadow-overlay);
+}
+
+.ad-muted { color: var(--text-2); }
+.ad-faint { color: var(--text-3); }
+.ad-small { font-size: var(--fs-sm); line-height: var(--lh-sm); }
+.ad-xs { font-size: var(--fs-xs); line-height: var(--lh-xs); }
+.ad-mono { font-family: var(--mono); font-size: 13px; }
+.ad-row { display: flex; align-items: center; gap: var(--s2); }
+.ad-row.wrap { flex-wrap: wrap; }
+.ad-spacer { flex: 1 1 auto; }
+.ad-stack > * + * { margin-top: var(--s4); }
+
+.ad-kbd {
+    display: inline-block;
+    min-width: 20px;
+    padding: 0 5px;
+    border: 1px solid var(--border-strong);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    font: 500 11px/17px var(--font);
+    color: var(--text-2);
+    text-align: center;
+    background: var(--surface);
+}
+
+// ---------- layout
+.ad-body {
+    min-height: 100vh;
+    margin: 0;
+    font-size: var(--fs-md);
+    line-height: var(--lh-md);
+}
+
+.ad-shell {
+    display: grid;
+    grid-template-columns: var(--side-w) minmax(0, 1fr);
+    min-height: 100vh;
+}
+
+.ad-side {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    background: var(--surface);
+    border-inline-end: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    scrollbar-width: thin;
+    z-index: 30;
+}
+
+.ad-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    height: var(--top-h);
+    padding: 0 var(--s4);
+    border-bottom: 1px solid var(--border);
+    flex: none;
+    color: var(--text);
+    text-decoration: none !important;
+}
+
+.ad-brand-logo {
+    width: 28px;
+    height: 28px;
+    border-radius: 7px;
+    background: var(--accent);
+    color: var(--on-accent);
+    display: grid;
+    place-items: center;
+    flex: none;
+    overflow: hidden;
+
+    img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        background: var(--surface);
+    }
+
+    .ad-i {
+        width: 14px;
+        height: 14px;
+        fill: currentColor;
+        stroke: none;
+    }
+}
+
+.ad-brand-name {
+    font-weight: 600;
+    font-size: var(--fs-md);
+    line-height: 18px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+
+    small {
+        display: block;
+        font-weight: 400;
+        font-size: var(--fs-xs);
+        line-height: 16px;
+        color: var(--text-3);
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+}
+
+.ad-nav {
+    padding: var(--s3) var(--s2) var(--s4);
+    flex: 1 1 auto;
+}
+
+.ad-nav-sep {
+    height: 1px;
+    background: var(--border);
+    margin: var(--s2);
+}
+
+.ad-nav-group {
+    position: relative;
+}
+
+.ad-nav-row {
+    display: flex;
+    align-items: center;
+    position: relative;
+}
+
+.ad-nav-item {
+    display: flex;
+    flex: 1 1 auto;
+    min-width: 0;
+    align-items: center;
+    gap: 10px;
+    height: 36px;
+    padding: 0 10px;
+    border-radius: var(--r-sm);
+    color: var(--text-2);
+    font-weight: 500;
+    position: relative;
+    text-decoration: none !important;
+
+    &:hover {
+        background: var(--surface-2);
+        color: var(--text);
+    }
+
+    > .ad-i {
+        color: var(--text-3);
+    }
+
+    .is-open > .ad-nav-row > &,
+    &.is-open {
+        color: var(--text);
+
+        > .ad-i {
+            color: var(--text-2);
+        }
+    }
+
+    &.is-active {
+        background: var(--accent-soft);
+        color: var(--text);
+
+        > .ad-i {
+            color: var(--accent-ink);
+        }
+    }
+}
+
+.ad-label-t {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ad-nav-toggle {
+    position: absolute;
+    inset-inline-end: 2px;
+    top: 4px;
+    width: 28px;
+    height: 28px;
+    display: grid;
+    place-items: center;
+    border: 0;
+    border-radius: var(--r-sm);
+    background: transparent;
+    color: var(--text-3);
+    cursor: pointer;
+
+    &:hover {
+        background: var(--surface-3);
+        color: var(--text);
+    }
+
+    .ad-i {
+        width: 16px;
+        height: 16px;
+        transition: transform var(--dur);
+    }
+
+    &[aria-expanded="true"] .ad-i {
+        transform: rotate(90deg);
+    }
+}
+
+[dir="rtl"] .ad-nav-toggle[aria-expanded="false"] .ad-i {
+    transform: scaleX(-1);
+}
+
+.ad-nav-row:has(.ad-nav-toggle) .ad-nav-item {
+    padding-inline-end: 34px;
+}
+
+.ad-nav-sub {
+    margin: 2px 0 6px;
+    padding: 0;
+    list-style: none;
+
+    &.is-collapsed {
+        display: none;
+    }
+
+    a,
+    button {
+        display: flex;
+        width: 100%;
+        align-items: center;
+        gap: 8px;
+        min-height: 32px;
+        padding-block: 0;
+        padding-inline: 38px 10px;
+        border: 0;
+        border-radius: var(--r-sm);
+        background: transparent;
+        color: var(--text-2);
+        font-size: var(--fs-md);
+        position: relative;
+        text-align: start;
+        text-decoration: none !important;
+        cursor: pointer;
+
+        &:hover {
+            background: var(--surface-2);
+            color: var(--text);
+        }
+    }
+
+    a.is-active {
+        color: var(--text);
+        font-weight: 600;
+        background: var(--accent-soft);
+
+        &::before {
+            content: "";
+            position: absolute;
+            inset-inline-start: 24px;
+            top: 9px;
+            bottom: 9px;
+            width: 3px;
+            border-radius: 2px;
+            background: var(--accent);
+        }
+    }
+
+    .ad-more {
+        color: var(--text-3);
+        font-size: var(--fs-sm);
+        min-height: 28px;
+    }
+
+    li[hidden] {
+        display: none;
+    }
+}
+
+.ad-flyout-title {
+    display: none;
+}
+
+.ad-count {
+    margin-inline-start: auto;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: var(--r-pill);
+    background: var(--surface-3);
+    color: var(--text-2);
+    font: 600 11px/20px var(--font);
+    text-align: center;
+    flex: none;
+
+    &.is-attn {
+        background: var(--accent);
+        color: var(--on-accent);
+    }
+}
+
+.ad-dot-warn,
+.ad-dot-run {
+    margin-inline-start: auto;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--warn);
+    flex: none;
+}
+
+.ad-dot-run {
+    background: var(--text-3);
+}
+
+.ad-side-foot {
+    padding: var(--s3) var(--s4) var(--s4);
+    border-top: 1px solid var(--border);
+    font-size: var(--fs-sm);
+    color: var(--text-3);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+
+    a,
+    button {
+        color: var(--text-2);
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        padding: 0;
+        border: 0;
+        background: none;
+        font: inherit;
+        text-align: start;
+        cursor: pointer;
+
+        &:hover {
+            color: var(--text);
+        }
+    }
+
+    .ad-kbd {
+        margin-inline-start: auto;
+    }
+}
+
+.ad-main {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.ad-scrim-nav {
+    display: none;
+}
+
+// ---------- top bar
+.ad-top {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    height: var(--top-h);
+    display: flex;
+    align-items: center;
+    gap: var(--s3);
+    padding: 0 var(--s6);
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+
+    .ad-top-menu {
+        display: none;
+    }
+}
+
+.ad-search {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: min(440px, 100%);
+    height: 36px;
+    padding: 0 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--r-sm);
+    background: var(--surface-2);
+    color: var(--text-3);
+    cursor: text;
+    font-size: var(--fs-md);
+
+    &:hover {
+        border-color: var(--border-strong);
+    }
+
+    .ad-search-t {
+        flex: 1;
+        text-align: start;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+}
+
+.ad-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 32px;
+    padding: 0 12px;
+    border-radius: var(--r-pill);
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-2);
+    font-size: var(--fs-sm);
+    font-weight: 500;
+    white-space: nowrap;
+    cursor: pointer;
+
+    b {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--ok);
+        display: inline-block;
+        box-shadow: 0 0 0 3px var(--ok-soft);
+        flex: none;
+    }
+
+    &.is-warn b {
+        background: var(--warn);
+        box-shadow: 0 0 0 3px var(--warn-soft);
+    }
+}
+
+.ad-iconbtn {
+    width: 36px;
+    height: 36px;
+    display: inline-grid;
+    place-items: center;
+    border-radius: var(--r-sm);
+    border: 0;
+    background: transparent;
+    color: var(--text-2);
+    cursor: pointer;
+    position: relative;
+    flex: none;
+    text-decoration: none !important;
+
+    &:hover {
+        background: var(--surface-2);
+        color: var(--text);
+    }
+
+    .ad-pip {
+        position: absolute;
+        top: 7px;
+        inset-inline-end: 7px;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--accent);
+        border: 2px solid var(--surface);
+    }
+}
+
+.ad-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font: 600 12px/1 var(--font);
+    color: var(--text);
+    background: var(--surface-3);
+    border: 1px solid var(--border);
+    flex: none;
+    overflow: hidden;
+
+    img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+}
+
+.ad-popwrap {
+    position: relative;
+}
+
+// ---------- content
+.ad-content {
+    width: 100%;
+    max-width: var(--content-max);
+    margin: 0 auto;
+    padding: var(--s6) var(--s8) var(--s12);
+    flex: 1 0 auto;
+
+    &.is-form {
+        max-width: var(--form-max);
+    }
+
+    &.is-wide {
+        max-width: none;
+    }
+
+    &:focus {
+        outline: 0;
+    }
+}
+
+// ---------- page header
+.ad-crumbs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+    font-size: var(--fs-sm);
+    color: var(--text-3);
+    margin-bottom: 6px;
+
+    a {
+        color: var(--text-2);
+    }
+
+    .ad-i {
+        width: 14px;
+        height: 14px;
+        color: var(--text-3);
+    }
+}
+
+.ad-ph {
+    display: flex;
+    gap: var(--s4);
+    align-items: flex-start;
+    margin-bottom: var(--s5);
+
+    h1 {
+        margin: 0;
+        font-size: var(--fs-2xl);
+        line-height: var(--lh-2xl);
+        font-weight: 650;
+        letter-spacing: -.01em;
+    }
+
+    p {
+        margin: 4px 0 0;
+        color: var(--text-2);
+        max-width: 72ch;
+    }
+}
+
+.ad-ph-text {
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.ad-ph-actions {
+    display: flex;
+    gap: var(--s2);
+    flex: none;
+    align-items: center;
+    padding-top: 22px;
+}
+
+.ad-tabs {
+    display: flex;
+    gap: var(--s5);
+    border-bottom: 1px solid var(--border);
+    margin: 0 0 var(--s5);
+    overflow-x: auto;
+    scrollbar-width: none;
+
+    a {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        height: 40px;
+        color: var(--text-2);
+        font-weight: 500;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -1px;
+        white-space: nowrap;
+        text-decoration: none !important;
+
+        &:hover {
+            color: var(--text);
+        }
+
+        &.is-active {
+            color: var(--text);
+            border-bottom-color: var(--accent);
+            font-weight: 600;
+        }
+    }
+
+    .ad-count {
+        margin-inline-start: 2px;
+    }
+}
+
+// Legacy views keep their own title row under the page header: it reads as a section title.
+.ad-legacy {
+    > :first-child :is(h1, h2, h3):first-child,
+    > :first-child > :first-child > :is(h1, h2, h3):first-child {
+        font-size: var(--fs-xl);
+        line-height: var(--lh-xl);
+        font-weight: 600;
+    }
+}
+
+.ad-flash {
+    margin-bottom: var(--s4);
+}
+
+// ---------- tablet: icon rail with flyouts
+@media (max-width: 1199.98px) {
+    .ad-shell {
+        grid-template-columns: var(--rail-w) minmax(0, 1fr);
+    }
+
+    .ad-side {
+        overflow: visible;
+    }
+
+    .ad-brand {
+        padding: 0;
+        justify-content: center;
+    }
+
+    .ad-brand-name,
+    .ad-nav-item .ad-label-t,
+    .ad-nav-toggle,
+    .ad-side-foot,
+    .ad-nav-item .ad-count,
+    .ad-nav-item .ad-dot-warn,
+    .ad-nav-item .ad-dot-run {
+        display: none;
+    }
+
+    .ad-nav {
+        padding: var(--s3) 10px;
+    }
+
+    .ad-nav-item {
+        justify-content: center;
+        padding: 0 !important;
+        height: 44px;
+
+        > .ad-i {
+            width: 20px;
+            height: 20px;
+        }
+
+        // the rail shows the section of the current page
+        &.is-open {
+            background: var(--accent-soft);
+
+            > .ad-i {
+                color: var(--accent-ink);
+            }
+        }
+
+        &.has-attn::after {
+            content: "";
+            position: absolute;
+            top: 8px;
+            inset-inline-end: 8px;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent);
+            border: 2px solid var(--surface);
+        }
+
+        &.has-warn::after {
+            background: var(--warn);
+        }
+    }
+
+    .ad-nav-sub,
+    .ad-nav-sub.is-collapsed {
+        display: none;
+        position: absolute;
+        inset-inline-start: calc(100% + 6px);
+        top: 0;
+        min-width: 220px;
+        margin: 0;
+        padding: 6px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--r-md);
+        box-shadow: var(--shadow-overlay);
+        z-index: 40;
+
+        a,
+        button {
+            padding: 0 10px;
+            min-height: 34px;
+        }
+
+        a.is-active::before {
+            display: none;
+        }
+    }
+
+    .ad-flyout-title {
+        display: block;
+        padding: 6px 10px 4px;
+        font-size: var(--fs-xs);
+        font-weight: 600;
+        color: var(--text-3);
+    }
+
+    .ad-nav-group:hover > .ad-nav-sub,
+    .ad-nav-group:focus-within > .ad-nav-sub {
+        display: block;
+    }
+
+    // a bridge so the pointer can travel from the rail icon to the flyout
+    .ad-nav-group:hover::after {
+        content: "";
+        position: absolute;
+        inset-inline-start: 100%;
+        top: 0;
+        width: 10px;
+        height: 44px;
+    }
+
+    .ad-content {
+        padding: var(--s5) var(--s6) var(--s10);
+    }
+}
+
+// ---------- phone: drawer from the menu button
+@media (max-width: 767.98px) {
+    .ad-shell {
+        display: block;
+    }
+
+    .ad-side {
+        display: none;
+    }
+
+    html.nav-open {
+        overflow: hidden;
+
+        .ad-side {
+            display: flex;
+            position: fixed;
+            inset-block: 0;
+            inset-inline: 0 auto;
+            width: min(320px, 86vw);
+            height: 100%;
+            z-index: 80;
+            box-shadow: var(--shadow-overlay);
+            overflow-y: auto;
+        }
+
+        .ad-brand {
+            justify-content: flex-start;
+            padding: 0 var(--s4);
+        }
+
+        .ad-brand-name,
+        .ad-nav-item .ad-label-t,
+        .ad-nav-toggle,
+        .ad-side-foot {
+            display: revert;
+        }
+
+        .ad-side-foot {
+            display: flex;
+        }
+
+        .ad-nav-toggle {
+            display: grid;
+        }
+
+        .ad-nav-item {
+            justify-content: flex-start;
+            padding: 0 10px !important;
+            height: 44px;
+
+            .ad-count {
+                display: inline-block;
+            }
+
+            .ad-dot-warn,
+            .ad-dot-run {
+                display: inline-block;
+            }
+
+            &.has-attn::after {
+                display: none;
+            }
+        }
+
+        .ad-nav-sub {
+            position: static;
+            display: block;
+            min-width: 0;
+            padding: 0;
+            border: 0;
+            box-shadow: none;
+            background: transparent;
+
+            &.is-collapsed {
+                display: none;
+            }
+
+            a,
+            button {
+                min-height: 40px;
+                padding-block: 0;
+        padding-inline: 38px 10px;
+            }
+
+            a.is-active::before {
+                display: block;
+            }
+        }
+
+        .ad-flyout-title {
+            display: none;
+        }
+
+        .ad-scrim-nav {
+            display: block;
+        }
+    }
+
+    .ad-scrim-nav {
+        position: fixed;
+        inset: 0;
+        background: var(--overlay);
+        z-index: 79;
+        border: 0;
+    }
+
+    .ad-top {
+        padding-block: 0;
+        padding-inline: var(--s1) var(--s2);
+        gap: var(--s1);
+
+        .ad-top-menu {
+            display: inline-grid;
+        }
+
+        .hide-phone {
+            display: none !important;
+        }
+    }
+
+    .ad-search {
+        width: auto;
+        flex: 1;
+        min-width: 0;
+
+        .ad-kbd {
+            display: none;
+        }
+
+        .ad-search-t {
+            font-size: var(--fs-sm);
+        }
+    }
+
+    .ad-status {
+        padding: 0 10px;
+
+        // Only the dot shows on phones; screen readers still hear the state.
+        .ad-status-t {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            overflow: hidden;
+            clip: rect(0 0 0 0);
+            white-space: nowrap;
+        }
+    }
+
+    .ad-content {
+        padding: var(--s4) var(--s4) 96px;
+    }
+
+    .ad-ph {
+        flex-direction: column;
+        gap: var(--s3);
+        margin-bottom: var(--s4);
+
+        h1 {
+            font-size: 20px;
+            line-height: 26px;
+        }
+    }
+
+    .ad-ph-actions {
+        padding-top: 0;
+        width: 100%;
+        flex-wrap: wrap;
+
+        .ad-btn {
+            height: 44px;
+        }
+
+        .ad-btn.is-primary {
+            flex: 1;
+        }
+    }
+}

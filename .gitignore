@@ -1,0 +1,74 @@
+# AVDBCMS — public repository ignore list (source only; the release zips are built by scripts/build-community-release.ps1)
+
+# Secrets & environment
+.env
+.env.*
+!.env.example
+auth.json
+.user.ini
+
+# Installer state, raw dumps, backups
+/storage/app/installed.json
+/database/install/*
+!/database/install/example.sql
+*.bak
+*.bak_*
+*.sql.bak*
+
+# Private working material (never publish)
+/deploy/
+/ops/
+/scratch/
+/build/
+/chat-export*/
+/current_remote/
+/incident_patch/
+/remote_patch/
+/remote_domain_patch/
+/.agents/
+/.tools/
+/.tmp-*/
+/.playwright-mcp/
+/.vscode/
+/.idea/
+/CURRENT_STATE.md
+/scratch_themes.json
+/theme_test_report.json
+/scripts/fleet*
+/.r2-origin.json
+/.r2-serve.pid
+__pycache__/
+*.pyc
+
+# Dependencies & generated output
+/node_modules/
+/vendor/
+/public/build/
+/public/hot
+/public/storage
+/public/images/tr/
+/public/avatars/
+/public/thumbnails/
+/public/uploads/
+/bootstrap/cache/*
+!/bootstrap/cache/.gitignore
+!/bootstrap/cache/.gitkeep
+
+# Bundled FFmpeg builds: added to the full release zip by the build, never stored in git
+/bin/*
+!/bin/README.md
+
+# Laravel runtime: keep only scaffold files
+/storage/**
+!/storage/**/
+!/storage/**/.gitignore
+!/storage/**/.gitkeep
+
+# OS / editor / test noise
+.DS_Store
+Thumbs.db
+*.log
+*.tsv
+*.zip
+.phpunit.cache
+.phpunit.result.cache

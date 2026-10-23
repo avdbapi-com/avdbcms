@@ -1,0 +1,33 @@
+/* Hero decoration banner_soft (Phase B): ships at the end of the token file of the theme whose recipe names it
+   (php artisan avd:themes:build), so it loads with that theme only. Every rule is keyed
+   html[data-avd-hero-deco="banner_soft"][data-avd-theme] (App\Support\ThemeTokens::heroDecoProblems). */
+html[data-avd-hero-deco="banner_soft"][data-avd-theme] {
+    --avd-soft-shadow-rgb: 31, 35, 40;
+}
+html[data-avd-hero-deco="banner_soft"][data-avd-theme] .avd-soft-img img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+html[data-avd-hero-deco="banner_soft"][data-avd-theme] .avd-banner {
+    background: var(--avd-surface-1);
+    border-radius: 28px;
+    padding: 26px;
+    padding-inline-start: 36px;
+    box-shadow: 0 1px 2px rgba(var(--avd-shade-rgb), .04), 0 24px 50px -30px rgba(var(--avd-soft-shadow-rgb), .35);
+    grid-template-columns: 1fr 1.05fr;
+}
+html[data-avd-hero-deco="banner_soft"][data-avd-theme] .avd-soft-img {
+    aspect-ratio: 16 / 9;
+    border-radius: 20px;
+    overflow: hidden;
+}
+@media (max-width: 767.98px) {
+    html[data-avd-hero-deco="banner_soft"][data-avd-theme] .avd-banner .avd-soft-img {
+        display: none;
+    }
+    /* the phone values of layout-theme-b (= the mockup's phone rules), which this decoration's desktop rules out-rank */
+    html[data-avd-hero-deco="banner_soft"][data-avd-theme] .avd-banner {
+        grid-template-columns: 1fr;
+    }
+}

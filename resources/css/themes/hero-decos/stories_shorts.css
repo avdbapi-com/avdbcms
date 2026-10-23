@@ -1,0 +1,61 @@
+/* Hero decoration stories_shorts (Phase B): ships at the end of the token file of the theme whose recipe names it
+   (php artisan avd:themes:build), so it loads with that theme only. Every rule is keyed
+   html[data-avd-hero-deco="stories_shorts"][data-avd-theme] (App\Support\ThemeTokens::heroDecoProblems). */
+html[data-avd-hero-deco="stories_shorts"][data-avd-theme] .avd-stories {
+    display: flex;
+    gap: 18px;
+    margin-bottom: 18px;
+}
+html[data-avd-hero-deco="stories_shorts"][data-avd-theme] .avd-story {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 7px;
+    width: 78px;
+    font: 700 12px/1.1 var(--avd-font-body);
+    color: var(--avd-text);
+    text-align: center;
+}
+html[data-avd-hero-deco="stories_shorts"][data-avd-theme] .avd-story .avd-ring {
+    width: 70px;
+    height: 70px;
+    border-radius: 50%;
+    padding: 3px;
+    background: var(--avd-brand-gradient);
+}
+html[data-avd-hero-deco="stories_shorts"][data-avd-theme] .avd-story .avd-ring .avd-channel-avatar {
+    width: 100%;
+    height: 100%;
+    border: 3px solid var(--avd-bg);
+    font-size: 17px;
+}
+html[data-avd-hero-deco="stories_shorts"][data-avd-theme] .avd-shorts {
+    grid-template-columns: repeat(6, 1fr);
+}
+html[data-avd-hero-deco="stories_shorts"][data-avd-theme] .avd-sh {
+    aspect-ratio: 9 / 13.5;
+}
+@media (max-width: 767.98px) {
+    html[data-avd-hero-deco="stories_shorts"][data-avd-theme] .avd-sh {
+        aspect-ratio: 4 / 5;
+    }
+    html[data-avd-hero-deco="stories_shorts"][data-avd-theme] .avd-stories {
+        gap: 10px;
+        overflow: hidden;
+    }
+    html[data-avd-hero-deco="stories_shorts"][data-avd-theme] .avd-story {
+        width: 62px;
+    }
+    html[data-avd-hero-deco="stories_shorts"][data-avd-theme] .avd-story .avd-ring {
+        width: 56px;
+        height: 56px;
+    }
+    /* the page gutter (the hero zone runs edge to edge on phones) */
+    html[data-avd-hero-deco="stories_shorts"][data-avd-theme] .avd-stories {
+        padding-inline: 16px;
+    }
+    /* the phone values of layout-theme-b (= the mockup's phone rules), which this decoration's desktop rules out-rank */
+    html[data-avd-hero-deco="stories_shorts"][data-avd-theme] .avd-shorts {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}

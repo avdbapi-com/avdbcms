@@ -1,0 +1,83 @@
+/* Hero decoration billboard_fade (Phase B): ships at the end of the token file of the theme whose recipe names it
+   (php artisan avd:themes:build), so it loads with that theme only. Every rule is keyed
+   html[data-avd-hero-deco="billboard_fade"][data-avd-theme] (App\Support\ThemeTokens::heroDecoProblems). */
+html[data-avd-hero-deco="billboard_fade"][data-avd-theme] .avd-bb {
+    height: 470px;
+    border-radius: 0;
+}
+html[data-avd-hero-deco="billboard_fade"][data-avd-theme] .avd-bb-track {
+    margin: -1rem calc(-1 * var(--avd-page-gutter)) 0;
+    border-radius: 0;
+}
+html[data-avd-hero-deco="billboard_fade"][data-avd-theme] .avd-bb .avd-htitle {
+    font-size: 52px;
+}
+html[data-avd-hero-deco="billboard_fade"][data-avd-theme] .avd-after-hero {
+    margin-top: -70px;
+    position: relative;
+    z-index: 3;
+}
+html[data-avd-hero-deco="billboard_fade"][data-avd-theme] .avd-bb {
+    background: transparent;
+}
+html[data-avd-hero-deco="billboard_fade"][data-avd-theme] .avd-bb img,
+html[data-avd-hero-deco="billboard_fade"][data-avd-theme] .avd-bb .avd-scrim {
+    -webkit-mask-image: linear-gradient(180deg, #000 55%, transparent 100%);
+    mask-image: linear-gradient(180deg, #000 55%, transparent 100%);
+}
+@media (min-width: 768px) {
+    html[data-avd-hero-deco="billboard_fade"][data-avd-theme] .avd-bb {
+        height: 560px;
+    }
+    html[data-avd-hero-deco="billboard_fade"][data-avd-theme] .avd-bb .avd-scrim {
+        background: linear-gradient(90deg, rgba(var(--avd-shade-rgb), .9) 0%, rgba(var(--avd-shade-rgb), .84) 52%, rgba(var(--avd-shade-rgb), .3) 76%, rgba(var(--avd-shade-rgb), 0) 100%);
+    }
+    /* Light mode keeps the abyss: the picture on the inline start, a deep-water panel (the theme's dark depth,
+       --avd-abyss-rgb) holding the text on the inline end, so a light page still reads as Deep Trench and not as the
+       photo billboard of the other light cinema themes (structure twin with Velvet Lounge / Outrun light: 0.72 / 0.61
+       -> 0.53 / 0.56). The text column is solid panel: no text over the picture. */
+    html[data-avd-hero-deco="billboard_fade"][data-avd-theme][data-bs-theme="light"] {
+        --avd-abyss-rgb: 3, 20, 42;
+        --avd-abyss-mid-rgb: 6, 33, 61;
+        --avd-abyss-low-rgb: 11, 58, 99;
+    }
+    html[data-avd-hero-deco="billboard_fade"][data-avd-theme][data-bs-theme="light"] .avd-bb {
+        background: linear-gradient(180deg, rgb(var(--avd-abyss-rgb)) 0%, rgb(var(--avd-abyss-mid-rgb)) 60%, rgb(var(--avd-abyss-low-rgb)) 100%);
+    }
+    html[data-avd-hero-deco="billboard_fade"][data-avd-theme][data-bs-theme="light"] .avd-bb > img {
+        position: absolute;
+        inset-block: 0;
+        inset-inline-start: 0;
+        inset-inline-end: auto;
+        width: 60%;
+        height: 100%;
+        object-fit: cover;
+    }
+    html[data-avd-hero-deco="billboard_fade"][data-avd-theme][data-bs-theme="light"] .avd-bb .avd-scrim {
+        background: linear-gradient(90deg, rgba(var(--avd-abyss-rgb), 0) 22%, rgba(var(--avd-abyss-rgb), .5) 42%, rgb(var(--avd-abyss-rgb)) 54%, rgb(var(--avd-abyss-rgb)) 100%);
+    }
+    /* (on /ar the shared html[dir="rtl"] .avd-scrim mirror flips the panel to the left, under the text) */
+    html[data-avd-hero-deco="billboard_fade"][data-avd-theme][data-bs-theme="light"] .avd-bb .avd-content {
+        inset-inline-start: auto;
+        inset-inline-end: 0;
+        width: 46%;
+        padding: 0 40px;
+    }
+}
+@media (max-width: 767.98px) {
+    html[data-avd-hero-deco="billboard_fade"][data-avd-theme] .avd-dots {
+        top: 12px;
+        bottom: auto;
+    }
+    html[data-avd-hero-deco="billboard_fade"][data-avd-theme] .avd-bb-track {
+        margin: -12px -12px 0;
+    }
+    html[data-avd-hero-deco="billboard_fade"][data-avd-theme] .avd-bb {
+        height: 330px;
+    }
+    /* layout-theme-b's phone title size (its html[data-avd-hero-deco] .avd-bb .avd-htitle rule came after
+       this decoration's desktop size; keyed with two attributes, the desktop size would win here) */
+    html[data-avd-hero-deco="billboard_fade"][data-avd-theme] .avd-bb .avd-htitle {
+        font-size: 26px;
+    }
+}

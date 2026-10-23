@@ -1,0 +1,497 @@
+{
+    "about": "Brand and product names that must reach every locale unchanged (review I18N #2). \"brands\": a name found in the English text (ASCII word boundaries, case-sensitive) must appear in the translation verbatim, or as one of the approved spellings listed for that locale (official local names and standard transliterations where a script change is normal: ja ストライプ, ko 스트라이프). A literal translation (\"Stripe\" = band, \"Upload18\" = \"upload 18\") is never right. \"keys\": words that are brands only in these keys (Laravel Horizon, the Resend mail service, the Laravel bootstrap folder). \"not_brands\": look-alikes that are translated normally. Read by Avd\\I18n\\Brands (scripts/i18n/I18n.php: scripts/i18n_check.php) and by scripts/translate_engine.mjs, which masks the names before machine translation.",
+    "brands": {
+        "Stripe": {
+            "ja": [
+                "ストライプ"
+            ],
+            "ko": [
+                "스트라이프"
+            ],
+            "hi": [
+                "स्ट्राइप"
+            ],
+            "ar": [
+                "سترايب"
+            ],
+            "th": [
+                "สไตรพ์"
+            ],
+            "ru": [
+                "Страйп"
+            ]
+        },
+        "PayPal": {
+            "ja": [
+                "ペイパル"
+            ],
+            "ko": [
+                "페이팔"
+            ],
+            "hi": [
+                "पेपैल",
+                "पेपाल"
+            ],
+            "ar": [
+                "باي بال",
+                "بايبال"
+            ],
+            "th": [
+                "เพย์พาล"
+            ],
+            "zh": [
+                "贝宝"
+            ]
+        },
+        "Google": {
+            "ja": [
+                "グーグル"
+            ],
+            "ko": [
+                "구글"
+            ],
+            "hi": [
+                "गूगल"
+            ],
+            "ar": [
+                "جوجل",
+                "غوغل",
+                "قوقل"
+            ],
+            "th": [
+                "กูเกิล"
+            ],
+            "zh": [
+                "谷歌"
+            ]
+        },
+        "Redis": {
+            "ko": [
+                "레디스"
+            ],
+            "hi": [
+                "रेडिस"
+            ],
+            "ar": [
+                "ريديس"
+            ]
+        },
+        "Cloudflare": {
+            "ja": [
+                "クラウドフレア"
+            ],
+            "ko": [
+                "클라우드플레어"
+            ],
+            "hi": [
+                "क्लाउडफ्लेयर"
+            ],
+            "ar": [
+                "كلاودفلير"
+            ]
+        },
+        "Telegram": {
+            "ja": [
+                "テレグラム"
+            ],
+            "ko": [
+                "텔레그램"
+            ],
+            "hi": [
+                "टेलीग्राम"
+            ],
+            "ar": [
+                "تيليجرام",
+                "تليجرام",
+                "تلغرام",
+                "تيليغرام",
+                "تيلجرام"
+            ],
+            "th": [
+                "เทเลแกรม"
+            ],
+            "ru": [
+                "Телеграм"
+            ]
+        },
+        "YouTube": {
+            "ja": [
+                "ユーチューブ"
+            ],
+            "ko": [
+                "유튜브"
+            ],
+            "hi": [
+                "यूट्यूब"
+            ],
+            "ar": [
+                "يوتيوب"
+            ],
+            "th": [
+                "ยูทูบ"
+            ]
+        },
+        "Upload18": {},
+        "AVDBAPI": {},
+        "XVIDAPI": {},
+        "AVDBCMS": {},
+        "GitHub": {},
+        "Font Awesome": {},
+        "FontAwesome": {},
+        "AdSense": {
+            "ja": [
+                "アドセンス"
+            ],
+            "ko": [
+                "애드센스"
+            ]
+        },
+        "aaPanel": {},
+        "HestiaCP": {},
+        "CyberPanel": {},
+        "1Panel": {},
+        "Nginx": {},
+        "OpenLiteSpeed": {},
+        "Laravel": {
+            "ja": [
+                "ララベル"
+            ],
+            "ko": [
+                "라라벨"
+            ],
+            "hi": [
+                "लारवेल"
+            ],
+            "ar": [
+                "لارافيل"
+            ]
+        },
+        "Artisan": {},
+        "Sanctum": {},
+        "Pusher": {},
+        "Soketi": {},
+        "Tailwind": {},
+        "PHP": {},
+        "Gmail": {
+            "ko": [
+                "지메일"
+            ],
+            "hi": [
+                "जीमेल"
+            ],
+            "ar": [
+                "جيميل"
+            ],
+            "th": [
+                "จีเมล"
+            ]
+        },
+        "Zoho": {},
+        "Brevo": {},
+        "Mailgun": {},
+        "Postmark": {},
+        "Amazon SES": {},
+        "reCAPTCHA": {},
+        "Turnstile": {},
+        "IndexNow": {
+            "ja": [
+                "インデックスナウ"
+            ]
+        },
+        "Bing": {
+            "ja": [
+                "ビング"
+            ],
+            "ko": [
+                "빙"
+            ],
+            "hi": [
+                "बिंग"
+            ],
+            "ar": [
+                "بينج"
+            ],
+            "th": [
+                "บิง"
+            ]
+        },
+        "Yandex": {
+            "ja": [
+                "ヤンデックス"
+            ],
+            "ko": [
+                "얀덱스"
+            ],
+            "hi": [
+                "यांडेक्स"
+            ],
+            "ar": [
+                "ياندكس"
+            ],
+            "ru": [
+                "Яндекс"
+            ]
+        },
+        "Search Console": {
+            "ja": [
+                "サーチコンソール",
+                "サーチ コンソール"
+            ],
+            "ko": [
+                "서치 콘솔"
+            ],
+            "hi": [
+                "सर्च कंसोल"
+            ]
+        },
+        "Open Graph": {
+            "ja": [
+                "オープングラフ"
+            ]
+        },
+        "Umami": {},
+        "Facebook": {
+            "ja": [
+                "フェイスブック"
+            ],
+            "ko": [
+                "페이스북"
+            ],
+            "hi": [
+                "फेसबुक",
+                "फ़ेसबुक"
+            ],
+            "ar": [
+                "فيسبوك",
+                "فيس بوك"
+            ],
+            "th": [
+                "เฟซบุ๊ก",
+                "เฟสบุ๊ค"
+            ],
+            "zh": [
+                "脸书"
+            ],
+            "ru": [
+                "Фейсбук"
+            ]
+        },
+        "Twitter": {
+            "ja": [
+                "ツイッター"
+            ],
+            "ko": [
+                "트위터"
+            ],
+            "hi": [
+                "ट्विटर"
+            ],
+            "ar": [
+                "تويتر"
+            ],
+            "th": [
+                "ทวิตเตอร์"
+            ],
+            "zh": [
+                "推特"
+            ],
+            "ru": [
+                "Твиттер"
+            ]
+        },
+        "Instagram": {
+            "ja": [
+                "インスタグラム"
+            ],
+            "ko": [
+                "인스타그램"
+            ],
+            "hi": [
+                "इंस्टाग्राम"
+            ],
+            "ar": [
+                "إنستغرام",
+                "انستغرام",
+                "إنستجرام",
+                "انستجرام"
+            ],
+            "th": [
+                "อินสตาแกรม"
+            ],
+            "ru": [
+                "Инстаграм"
+            ]
+        },
+        "TikTok": {
+            "ja": [
+                "ティックトック"
+            ],
+            "ko": [
+                "틱톡"
+            ],
+            "hi": [
+                "टिकटॉक",
+                "टिक टॉक"
+            ],
+            "ar": [
+                "تيك توك"
+            ],
+            "th": [
+                "ติ๊กต๊อก"
+            ],
+            "ru": [
+                "ТикТок",
+                "Тик Ток"
+            ]
+        },
+        "Discord": {
+            "ja": [
+                "ディスコード"
+            ],
+            "ko": [
+                "디스코드"
+            ],
+            "hi": [
+                "डिस्कॉर्ड"
+            ],
+            "ar": [
+                "ديسكورد"
+            ],
+            "th": [
+                "ดิสคอร์ด"
+            ],
+            "ru": [
+                "Дискорд"
+            ]
+        },
+        "Twitch": {
+            "ko": [
+                "트위치"
+            ]
+        },
+        "Netflix": {
+            "ja": [
+                "ネットフリックス"
+            ],
+            "ko": [
+                "넷플릭스"
+            ],
+            "hi": [
+                "नेटफ्लिक्स"
+            ],
+            "ar": [
+                "نتفليكس"
+            ],
+            "th": [
+                "เน็ตฟลิกซ์"
+            ],
+            "zh": [
+                "网飞"
+            ],
+            "ru": [
+                "Нетфликс"
+            ]
+        },
+        "Apple": {
+            "ja": [
+                "アップル"
+            ],
+            "ko": [
+                "애플"
+            ],
+            "hi": [
+                "एप्पल",
+                "ऐप्पल"
+            ],
+            "ar": [
+                "أبل",
+                "آبل"
+            ],
+            "th": [
+                "แอปเปิล"
+            ],
+            "zh": [
+                "苹果"
+            ]
+        },
+        "Windows": {
+            "ja": [
+                "ウィンドウズ"
+            ],
+            "ko": [
+                "윈도우"
+            ],
+            "hi": [
+                "विंडोज",
+                "विंडोज़"
+            ],
+            "ar": [
+                "ويندوز"
+            ],
+            "th": [
+                "วินโดวส์"
+            ]
+        },
+        "macOS": {},
+        "Linux": {},
+        "HLS": {},
+        "ffmpeg": {},
+        "FFmpeg": {},
+        "SMTP": {},
+        "SSL": {},
+        "TLS": {},
+        "CDN": {},
+        "JSON": {}
+    },
+    "keys": {
+        "Bootstrap Cache": [
+            "Bootstrap"
+        ],
+        "Checking Horizon...": [
+            "Horizon"
+        ],
+        "Dispatched to Laravel queue. Start a Laravel queue worker or Horizon to process it.": [
+            "Horizon"
+        ],
+        "For shared hosts and aaPanel installs using the database queue, use the built-in Queue Monitor and Laravel scheduler cron. Horizon is only needed when Redis is configured correctly for queue workers.": [
+            "Horizon"
+        ],
+        "Horizon": [
+            "Horizon"
+        ],
+        "Horizon Redis connection": [
+            "Horizon"
+        ],
+        "Horizon Unavailable": [
+            "Horizon"
+        ],
+        "Horizon installed": [
+            "Horizon"
+        ],
+        "Horizon needs a working Redis connection. This installation can still use the database queue and the built-in Queue Monitor.": [
+            "Horizon"
+        ],
+        "Horizon not active": [
+            "Horizon"
+        ],
+        "Resend": [
+            "Resend"
+        ],
+        "System > Horizon": [
+            "Horizon"
+        ],
+        "The admin panel is running, but Horizon cannot connect to Redis on this server.": [
+            "Horizon"
+        ]
+    },
+    "not_brands": {
+        "Chrome": "theme name \"Chrome\" (the metal finish) and the font pairing \"Retro Chrome: Exo 2\"; the browser names of the sessions list are :browser replacements, never translated",
+        "Edge": "\"Cyberpunk Specular Edge & Neon Contrast\": an edge of a border",
+        "Line": "\"1 Line (Truncated)\": a line of text",
+        "Resend": "a brand only in the key \"Resend\" (the mail service, see \"keys\"); a verb in \"Resend verification code/email\"",
+        "Horizon": "a brand (Laravel Horizon) only in the keys listed under \"keys\"; the theme names \"Event Horizon\" / \"Tokyo Neon Horizon\" are not",
+        "Bootstrap": "a name only in \"Bootstrap Cache\" (the Laravel bootstrap/cache folder, see \"keys\")",
+        "Bunny": "\"Bunny Girl\" is a tag, not BunnyCDN",
+        "Cron": "a technical noun, may be transliterated"
+    }
+}

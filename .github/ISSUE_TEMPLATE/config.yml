@@ -1,0 +1,14 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Help center (AVDBCMS guides)
+    url: https://help.avdbapi.com/documentation/avdbcms-error-fixes/
+    about: Fixes for common errors, and guides for installing, updating, imports, themes and ads.
+  - name: Questions and setup help (Telegram group)
+    url: https://t.me/avdb_api
+    about: Ask the community and the team in the AVDB API Telegram group.
+  - name: Private help (Telegram support)
+    url: https://t.me/avdbapi_support
+    about: Ask the team in a private Telegram chat.
+  - name: Report a security problem privately
+    url: https://github.com/avdbapi-com/avdbcms/security/advisories/new
+    about: Please do not open a public issue for security problems.

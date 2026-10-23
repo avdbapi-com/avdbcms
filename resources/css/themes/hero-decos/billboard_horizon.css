@@ -1,0 +1,75 @@
+/* Hero decoration billboard_horizon (Phase B): ships at the end of the token file of the theme whose recipe names it
+   (php artisan avd:themes:build), so it loads with that theme only. Every rule is keyed
+   html[data-avd-hero-deco="billboard_horizon"][data-avd-theme] (App\Support\ThemeTokens::heroDecoProblems). */
+html[data-avd-hero-deco="billboard_horizon"][data-avd-theme] {
+    --avd-horizon-title: linear-gradient(180deg, #ffffff 0%, #ffe3f3 45%, #ff9fcb 52%, #ffd27a 100%);
+    --avd-sun-fill: linear-gradient(180deg, #ffd319 0%, #ff8a3d 45%, #ff2975 100%);
+}
+html[data-avd-hero-deco="billboard_horizon"][data-avd-theme][data-bs-theme="light"] {
+    --avd-horizon-title: linear-gradient(180deg, #ffffff 0%, #ffe3f3 45%, #ffb3d4 52%, #ffe08a 100%);
+}
+html[data-avd-hero-deco="billboard_horizon"][data-avd-theme] .avd-bb {
+    height: 410px;
+    border-radius: 10px;
+    box-shadow: 0 0 0 1px rgba(var(--avd-brand-rgb),.35), 0 30px 60px -30px rgba(var(--avd-brand-rgb),.55);
+}
+html[data-avd-hero-deco="billboard_horizon"][data-avd-theme] .avd-bb .avd-htitle {
+    font-size: 54px;
+    background: var(--avd-display-fill);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    filter: drop-shadow(0 2px 0 rgba(0,0,0,.35));
+}
+html[data-avd-hero-deco="billboard_horizon"][data-avd-theme] .avd-bb .avd-htitle {
+    background: var(--avd-horizon-title);
+    -webkit-background-clip: text;
+    background-clip: text;
+}
+html[data-avd-hero-deco="billboard_horizon"][data-avd-theme] .avd-sunstripes {
+    position: absolute;
+    inset-inline-end: 36px;
+    top: 40px;
+    width: 150px;
+    height: 150px;
+    border-radius: 50%;
+    z-index: 1;
+    opacity: .95;
+    background: var(--avd-sun-fill);
+    -webkit-mask-image: repeating-linear-gradient(180deg, #000 0 14px, transparent 14px 19px);
+    mask-image: repeating-linear-gradient(180deg, #000 0 14px, transparent 14px 19px);
+}
+@media (min-width: 768px) {
+    html[data-avd-hero-deco="billboard_horizon"][data-avd-theme] .avd-bb {
+        height: 300px;
+    }
+    html[data-avd-hero-deco="billboard_horizon"][data-avd-theme] .avd-bb .avd-scrim {
+        background: linear-gradient(90deg, rgba(var(--avd-shade-rgb), .9) 0%, rgba(var(--avd-shade-rgb), .84) 52%, rgba(var(--avd-shade-rgb), .2) 78%, rgba(var(--avd-shade-rgb), 0) 100%);
+    }
+    html[data-avd-hero-deco="billboard_horizon"][data-avd-theme] .avd-bb .avd-htitle {
+        font-size: 46px;
+    }
+    html[data-avd-hero-deco="billboard_horizon"][data-avd-theme] .avd-bb .avd-desc2 {
+        display: none !important;
+    }
+}
+@media (max-width: 767.98px) {
+    html[data-avd-hero-deco="billboard_horizon"][data-avd-theme] .avd-dots {
+        top: 12px;
+        bottom: auto;
+        inset-inline: 14px auto;
+    }
+    html[data-avd-hero-deco="billboard_horizon"][data-avd-theme] .avd-bb {
+        height: 260px;
+    }
+    html[data-avd-hero-deco="billboard_horizon"][data-avd-theme] .avd-sunstripes {
+        width: 80px;
+        height: 80px;
+        inset-inline-end: 14px;
+        top: 14px;
+    }
+    /* layout-theme-b's phone title size (see billboard_fade.css) */
+    html[data-avd-hero-deco="billboard_horizon"][data-avd-theme] .avd-bb .avd-htitle {
+        font-size: 26px;
+    }
+}

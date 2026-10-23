@@ -1,0 +1,89 @@
+theme-switch {
+    height: 26px;
+}
+
+.input-switch {
+    input {
+        position: absolute;
+        top: 0;
+        inset-inline-start: 0;
+        opacity: 0;
+        cursor: pointer;
+        min-height: auto;
+    }
+    label {
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+        cursor: pointer;
+        margin-bottom: 0!important;
+    }
+    .switch {
+        flex: none;
+        width: 55px;
+        height: 26px;
+        display: inline-block;
+        background: var(--avd-surface-soft);
+        border: 1px solid var(--avd-border);
+        box-shadow: var(--avd-shadow-soft);
+        border-radius: 100px;
+        margin-inline-end: calc(1 * 8px);
+        transition: background .3s;
+
+        &::before {
+            content: "";
+            display: block;
+            height: 24px;
+            width: 24px;
+            background: var(--avd-surface-solid);
+            border: 1px solid var(--avd-border);
+            box-shadow: var(--avd-shadow-soft);
+            border-radius: 100px;
+            transition: transform .3s;
+        }
+    }
+    .icon {
+        position: absolute;
+        inset-inline-start: 5px;
+        top: 5px;
+        width: 16px;
+        height: 16px;
+        color: var(--avd-brand-ink);
+        opacity: 1;
+        transition: .3s;
+    }
+    .icon-on {
+        color: var(--avd-accent-ink, var(--avd-cyan));
+    }
+}
+
+// Keyboard focus lands on the invisible checkbox: the visible track shows the ring.
+.input-switch input:focus-visible+label .switch {
+    outline: 2px solid var(--avd-focus, currentColor);
+    outline-offset: 2px;
+}
+
+.input-switch input:checked+label .switch::before {
+    transform: translateX(31px);
+    background: var(--avd-cyan) !important;
+}
+
+[dir="rtl"] .input-switch input:checked+label .switch::before {
+    transform: translateX(-31px);
+}
+
+.input-switch input:checked+label .switch {
+    background: var(--bs-primary-bg-subtle) !important
+}
+
+.input-switch input:not(:checked)+label .icon-on {
+    opacity: 0;
+}
+
+.input-switch input:checked+label .icon-off {
+    opacity: 0;
+}
+
+.input-switch input:checked+label .icon {
+    transform: translateX(31px);
+}

@@ -1,0 +1,134 @@
+import {VideoSkeleton} from "@/components/Skeletons/VideoSkeleton";
+import {QueryClient, QueryClientProvider, useQuery, useQueryClient} from "@tanstack/react-query";
+import {clearHistoryAll, getMyHistory} from '@/api/avdbclip'
+import HistoryDate from "@/components/History/HistoryDate";
+import {useErrorMutation} from "@/hooks";
+import {HistoryType} from "@/types";
+import {produce} from "immer";
+import {Button, Modal} from "react-bootstrap";
+import {useState} from "preact/hooks";
+import {useTranslation} from "react-i18next";
+import {ApiError} from "@/components/Commons";
+
+function Main () {
+
+    const queryClient = useQueryClient();
+
+    const [confirm, setConfirm] = useState<boolean>(false);
+
+    const { t } = useTranslation();
+
+    const {
+        data: history,
+        isLoading,
+        isError,
+        error,
+        refetch,
+    } = useQuery({
+        queryKey: ['history'],
+        queryFn: () => getMyHistory(),
+    });
+
+    const {
+        mutateAsync,
+        isPending
+    } = useErrorMutation({
+        mutationKey: ['history.clearAll'],
+        mutationFn: () => clearHistoryAll(),
+        onSuccess: () => {
+            queryClient.setQueryData(['history'], (oldData: HistoryType | undefined) => {
+                if (!oldData) return undefined;
+                return produce(oldData, draft => {
+                    draft.data = [];
+                });
+            });
+        }
+    });
+
+    const handleDelete = async () => {
+        await mutateAsync();
+        setConfirm(false);
+    }
+
+    return (
+        <>
+            {
+                isError &&
+                <div className={'row align-items-center h-75 mt-5'}>
+                    <div className={'col-10 offset-1 col-xxl-8 offset-xxl-2'}>
+                        <ApiError refetch={refetch} error={error}/>
+                    </div>
+                </div>
+            }
+            <div>
+                {
+                    history && (
+                        history.data.length > 0 ? (
+                            <>
+                                <div className={'d-flex justify-content-end p-2 mb-3'}>
+                                    <button className="btn btn-danger btn-sm d-flex align-items-center gap-2" onClick={() => setConfirm(true)}>
+                                        <i className="fa-solid fa-trash"></i>
+                                        <span>{t('Clear watch history')}</span>
+                                    </button>
+                                </div>
+                                {history.data.map((item, i) => (
+                                    item.views.length > 0 && (
+                                        <HistoryDate key={i} item={item}/>
+                                    )
+                                ))}
+                            </>
+                        ) : (
+                            <div className="avd-empty-state d-flex flex-column align-items-center justify-content-center text-center p-4 p-md-5 my-4">
+                                <i className="fa-solid fa-clock-rotate-left fa-3x text-muted mb-3"></i>
+                                <h1 className="h4 fw-black mb-2">{t('Your history is empty')}</h1>
+                                <p className="text-muted mb-3">{t('Watch videos and they will appear here')}</p>
+                                <a href="/" className="btn btn-outline-primary rounded-5 d-inline-flex align-items-center gap-2">
+                                    <i className="fa-solid fa-play"></i>
+                                    <span>{t('See videos')}</span>
+                                </a>
+                            </div>
+                            )
+                    )
+                }
+                {
+                    isLoading &&
+                    <div className={'row mx-0 gx-3 gy-3 gy-sm-4 row-cols-1 row-cols-sm-2 row-cols-md-2 row-cols-lg-2 row-cols-xl-3 row-cols-xxl-3'}>
+                        {[...Array(16).keys()].map(i => <VideoSkeleton key={i}/>)}
+                    </div>
+                }
+            </div>
+            <Modal show={confirm} onHide={() => setConfirm(false)}>
+                <Modal.Header closeButton>
+                    <h5 className="modal-title">{t('Clear watch history') + ' ?'}</h5>
+                </Modal.Header>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={() => setConfirm(false)}>
+                        {t('Cancel')}
+                    </Button>
+                    <Button variant="danger" onClick={handleDelete} disabled={isPending}>
+                        {isPending && <span className="spinner-border spinner-border-sm mr-2" role="status" aria-hidden="true"></span>}
+                        {t('Delete')}
+                    </Button>
+                </Modal.Footer>
+            </Modal>
+        </>
+    )
+}
+
+export function HistoryList() {
+
+    const queryClient = new QueryClient({
+        defaultOptions: {
+            queries: {
+                retry: false,
+            }
+        }
+    });
+
+
+    return (
+        <QueryClientProvider client={queryClient}>
+            <Main />
+        </QueryClientProvider>
+    )
+}

@@ -1,0 +1,68 @@
+/* Hero decoration banner_zen (Phase B): ships at the end of the token file of the theme whose recipe names it
+   (php artisan avd:themes:build), so it loads with that theme only. Every rule is keyed
+   html[data-avd-hero-deco="banner_zen"][data-avd-theme] (App\Support\ThemeTokens::heroDecoProblems). */
+html[data-avd-hero-deco="banner_zen"][data-avd-theme] .avd-zen-img img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+html[data-avd-hero-deco="banner_zen"][data-avd-theme] .avd-banner {
+    grid-template-columns: 54px 1fr 1.15fr;
+    gap: 34px;
+    padding: 24px 0 14px;
+}
+html[data-avd-hero-deco="banner_zen"][data-avd-theme] .avd-vkick {
+    writing-mode: vertical-rl;
+    font: 500 12px/1 var(--avd-font-body);
+    letter-spacing: .5em;
+    text-transform: uppercase;
+    color: var(--avd-brand-ink);
+    border-inline-start: 1px solid var(--avd-border-strong);
+    padding-inline-start: 14px;
+    height: 300px;
+}
+html[data-avd-hero-deco="banner_zen"][data-avd-theme] .avd-zen-img {
+    aspect-ratio: 4 / 3;
+    overflow: hidden;
+    box-shadow: inset 0 0 0 1px var(--avd-border-strong);
+    padding: 10px;
+    background: var(--avd-surface-1);
+}
+html[data-avd-hero-deco="banner_zen"][data-avd-theme] .avd-htitle {
+    font-size: 46px;
+    font-weight: 500;
+    line-height: 1.12;
+}
+html[data-avd-hero-deco="banner_zen"][data-avd-theme] .avd-seal {
+    width: 44px;
+    height: 44px;
+    background: var(--avd-brand-fill);
+    color: var(--avd-on-brand);
+    display: grid;
+    place-items: center;
+    font: 600 15px/1 var(--avd-font-display);
+    margin-top: 20px;
+}
+@media (max-width: 767.98px) {
+    html[data-avd-hero-deco="banner_zen"][data-avd-theme] .avd-banner .avd-seal,
+    html[data-avd-hero-deco="banner_zen"][data-avd-theme] .avd-banner .avd-zen-img,
+    html[data-avd-hero-deco="banner_zen"][data-avd-theme] .avd-vkick {
+        display: none;
+    }
+    html[data-avd-hero-deco="banner_zen"][data-avd-theme] .avd-banner {
+        grid-template-columns: 1fr;
+        gap: 14px;
+    }
+    /* the phone values of layout-theme-b (= the mockup's phone rules), which this decoration's desktop rules out-rank */
+    html[data-avd-hero-deco="banner_zen"][data-avd-theme] .avd-banner {
+        padding-inline: 16px;
+    }
+    html[data-avd-hero-deco="banner_zen"][data-avd-theme] .avd-htitle {
+        font-size: 26px;
+    }
+}
+/* No letter spacing or capitals for Arabic, Hindi, Thai, Japanese, Korean or Chinese (layout-theme-b's rule). */
+html[data-avd-hero-deco="banner_zen"][data-avd-theme]:is([lang|="ar"], [lang|="hi"], [lang|="th"], [lang|="ja"], [lang|="ko"], [lang|="zh"]) .avd-vkick {
+    letter-spacing: 0;
+    text-transform: none;
+}

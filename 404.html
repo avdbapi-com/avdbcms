@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Redirecting...</title>
+    <script>
+        (function() {
+            var path = window.location.pathname || '';
+            var search = window.location.search || '';
+            var hash = window.location.hash || '';
+            if (path && !path.startsWith('/index.php')) {
+                window.location.replace('/index.php' + path + search + hash);
+            } else {
+                window.location.replace('/index.php/');
+            }
+        })();
+    </script>
+</head>
+<body style="background:#0f172a;color:#e2e8f0;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">
+    <noscript>
+        <meta http-equiv="refresh" content="0;url=/index.php/">
+        <p>Loading... If not redirected, please click <a href="/index.php/" style="color:#38bdf8;">here</a>.</p>
+    </noscript>
+</body>
+</html>

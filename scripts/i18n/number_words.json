@@ -1,0 +1,22 @@
+{
+    "about": "Words that say 'one' (or the singular article / classifier that stands for it) per locale. A trans_choice() form for 1 whose English text shows the digit ('1 found nothing.') must keep the digit or say one of these words; otherwise the machine translator has read the sample '1' as something else ('I found nothing.'). Latin-script words must stand alone; other scripts may be part of a longer word (ja 一件, zh 一个, th หนึ่ง, ar واحدة). Read by Plurals::lostOne() (scripts/i18n/I18n.php) and scripts/translate_engine.mjs.",
+    "locales": {
+        "ar": ["واحد", "واحدة", "وحيد"],
+        "de": ["ein", "eine", "einen", "einem", "einer", "eines", "eins", "einzige", "einzigen", "einmal"],
+        "es": ["un", "una", "uno", "única", "único"],
+        "fil": ["isa", "isang", "iisa", "iisang", "minsan"],
+        "fr": ["un", "une", "seul", "seule"],
+        "hi": ["एक"],
+        "id": ["satu", "sebuah", "seorang", "sekali"],
+        "ja": ["一", "１", "ひと"],
+        "ko": ["한", "하나", "일"],
+        "ms": ["satu", "sebuah", "seorang", "sekali"],
+        "pt": ["um", "uma", "único", "única"],
+        "ru": ["один", "одна", "одно", "одного", "одной", "одну", "одним", "одном", "единственный", "единственная", "единственное"],
+        "th": ["หนึ่ง", "เดียว"],
+        "tl": ["isa", "isang", "iisa", "iisang", "minsan"],
+        "tr": ["bir", "tek"],
+        "vi": ["một"],
+        "zh": ["一", "１"]
+    }
+}

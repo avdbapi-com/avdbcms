@@ -1,0 +1,2308 @@
+/*
+ * Theme CSS, part B (perf plan step 24; theme v2: token-driven, see layout-theme-a.css). It sits after
+ * the inline #avd-custom-css and before the inline #avd-theme-tail, so the admin switches, the tier
+ * matrix, the hero designs, the phone rules, right-to-left and the reduced motion / transparency /
+ * forced-colour rules below win over part A at equal specificity.
+ *
+ * Plain CSS only: no Blade, no relative url(); the build only strips whitespace and comments.
+ */
+html[data-avd-hover-effects="off"] .btn:hover,
+html[data-avd-hover-effects="off"] .avd-icon-button:hover,
+html[data-avd-hover-effects="off"] .avd-sidebar-toggle:hover,
+html[data-avd-hover-effects="off"] .avd-avatar-button:hover,
+html[data-avd-hover-effects="off"] .avd-video-card:hover,
+html[data-avd-hover-effects="off"] .suggested_video.avd-related-card:hover,
+html[data-avd-hover-effects="off"] .avd-discovery-card:hover,
+html[data-avd-hover-effects="off"] .avd-channel-card:hover,
+html[data-avd-hover-effects="off"] .avd-playlist-row:hover,
+html[data-avd-hover-effects="off"] .avd-player-control:hover,
+html[data-avd-hover-effects="off"] .video-upload-dropzone:hover,
+html[data-avd-hover-effects="off"] .back-to-top:hover {
+    transform: none !important;
+}
+/* Child hover transforms (thumbnail zoom incl. hover-expand and tilt-3d, chip lift,
+   sidebar nudge). Anime.js entrances used to leave an inline transform on these
+   elements that happened to mask them; the WAAPI entrances leave none, so the
+   switches now turn them off explicitly. */
+html[data-avd-hover-effects="off"] .avd-sidebar-link:hover,
+html[data-avd-hover-effects="off"] .avd-video-card:hover .avd-thumb img,
+html[data-avd-hover-effects="off"] .avd-thumb.hover img,
+html[data-avd-hover-effects="off"] .avd-image-loaded.hover .avd-image-loaded-img {
+    transform: none !important;
+}
+/* Not !important: this drops the CSS chip lift but leaves the anime magnet's inline
+   transform working as before (an !important none would hold it during hover and
+   let it pop back on mouse-out). */
+html[data-avd-hover-effects="off"] .avd-tag:hover {
+    transform: none;
+}
+html[data-avd-hover-effects="off"] .btn:hover::before,
+html[data-avd-hover-effects="off"] .avd-icon-button:hover::before,
+html[data-avd-hover-effects="off"] .avd-tag:hover::before,
+html[data-avd-hover-effects="off"] .avd-sidebar-link:hover::before,
+html[data-avd-hover-effects="off"] .avd-social-btn:hover::before,
+html[data-avd-hover-effects="off"] .avd-player-control:hover::before,
+html[data-avd-hover-effects="off"] .back-to-top:hover::before {
+    opacity: 0 !important;
+    transform: none !important;
+}
+html[data-avd-gradient-effects="off"] body.avd-app,
+html[data-avd-gradient-effects="off"] .avd-brand-mark,
+html[data-avd-gradient-effects="off"] .avd-premium-chip,
+html[data-avd-gradient-effects="off"] .avd-upload-btn,
+html[data-avd-gradient-effects="off"] .avd-upload-modal,
+html[data-avd-gradient-effects="off"] .avd-upload-header-icon,
+html[data-avd-gradient-effects="off"] .video-upload-dropzone,
+html[data-avd-gradient-effects="off"] .video-upload-orbit__trail,
+html[data-avd-gradient-effects="off"] .video-upload-orbit__core,
+html[data-avd-gradient-effects="off"] .avd-action-pill,
+html[data-avd-gradient-effects="off"] .avd-scroll-progress,
+html[data-avd-gradient-effects="off"] .back-to-top,
+html[data-avd-title-accent="off"] .avd-home-title,
+html[data-avd-title-accent="off"] .avd-watch-title {
+    background-image: none !important;
+}
+html[data-avd-title-accent="off"] .avd-home-title,
+html[data-avd-title-accent="off"] .avd-watch-title {
+    -webkit-background-clip: initial !important;
+    background-clip: initial !important;
+    color: var(--avd-text) !important;
+    animation: none !important;
+}
+html[data-avd-title-accent-animation="off"] .avd-home-title,
+html[data-avd-title-accent-animation="off"] .avd-watch-title {
+    animation: none !important;
+}
+html[data-avd-gradient-effects="off"] .btn-primary,
+html[data-avd-gradient-effects="off"] .avd-tag.active {
+    background: var(--avd-brand-fill) !important;
+}
+html[data-avd-gradient-effects="off"] body.avd-app::before {
+    content: none;
+}
+html[data-avd-gradient-effects="off"] .btn::before,
+html[data-avd-gradient-effects="off"] .avd-icon-button::before,
+html[data-avd-gradient-effects="off"] .avd-tag::before,
+html[data-avd-gradient-effects="off"] .avd-sidebar-link::before,
+html[data-avd-gradient-effects="off"] .avd-social-btn::before,
+html[data-avd-gradient-effects="off"] .avd-player-control::before,
+html[data-avd-gradient-effects="off"] .avd-video-card::before,
+html[data-avd-gradient-effects="off"] .avd-section-card::before,
+html[data-avd-gradient-effects="off"] .avd-feed-shell::before,
+html[data-avd-gradient-effects="off"] .avd-watch-primary::before,
+html[data-avd-gradient-effects="off"] .video-upload-dropzone::before,
+html[data-avd-gradient-effects="off"] .video-upload-dropzone::after,
+html[data-avd-gradient-effects="off"] .back-to-top::before {
+    display: none !important;
+}
+
+html[data-avd-shimmer="off"] .avd-placeholder-thumb,
+html[data-avd-shimmer="off"] .avd-placeholder,
+html[data-avd-shimmer="off"] .placeholder,
+html[data-avd-shimmer="off"] [class*="skeleton"] {
+    animation: none !important;
+    background-size: auto !important;
+}
+/* The skeleton sweep is a compositor-only ::after layer (video.scss). */
+html[data-avd-shimmer="off"] .avd-placeholder::after {
+    content: none;
+}
+html[data-avd-card-hover="off"] .avd-video-card,
+html[data-avd-card-hover="off"] .suggested_video.avd-related-card,
+html[data-avd-card-hover="off"] .avd-discovery-card,
+html[data-avd-card-hover="off"] .avd-channel-card,
+html[data-avd-card-hover="off"] .avd-playlist-row {
+    transition: none !important;
+}
+html[data-avd-card-hover="off"] .avd-video-card:hover,
+html[data-avd-card-hover="off"] .suggested_video.avd-related-card:hover,
+html[data-avd-card-hover="off"] .avd-discovery-card:hover,
+html[data-avd-card-hover="off"] .avd-channel-card:hover,
+html[data-avd-card-hover="off"] .avd-playlist-row:hover,
+html[data-avd-card-hover="off"] .avd-video-card:hover .avd-thumb img,
+html[data-avd-card-hover="off"] .avd-thumb.hover img,
+html[data-avd-card-hover="off"] .avd-image-loaded.hover .avd-image-loaded-img {
+    transform: none !important;
+}
+html[data-avd-sidebar-sticky="off"] .avd-watch-sidebar {
+    position: static !important;
+    top: auto !important;
+}
+@media (min-width: 768px) {
+    #responsive-sidebar.show_sidebar {
+        margin-top: var(--sidebar-top, 64px) !important;
+        height: calc(100vh - var(--sidebar-top, 64px)) !important;
+    }
+}
+body.avd-admin .table td > form {
+    margin: 0;
+}
+body.avd-admin .table .btn.btn-sm {
+    min-width: 2rem;
+    min-height: 2rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: .25rem;
+    line-height: 1;
+}
+body.avd-admin .table .btn.btn-sm > i {
+    width: 1em;
+    text-align: center;
+    line-height: 1;
+}
+body.avd-admin .admin-bulk-actions {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    flex-wrap: wrap;
+}
+body.avd-admin .admin-bulk-actions form {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    flex-wrap: wrap;
+    margin: 0;
+}
+body.avd-admin .admin-bulk-actions .form-select {
+    width: 13rem;
+    max-width: 100%;
+}
+body.avd-admin .admin-bulk-actions .btn {
+    min-height: 2rem;
+}
+
+/* Honor the horizontal rail scrollbar setting. */
+.scrollbar-none,
+html[data-avd-rail-scrollbars="hidden"] .avd-slider-track,
+html[data-avd-rail-scrollbars="hidden"] #avdHeroSliderTrack,
+html[data-avd-rail-scrollbars="hidden"] .avd-category-tabs,
+html[data-avd-rail-scrollbars="hidden"] #category-tabs,
+html[data-avd-rail-scrollbars="hidden"] .avd-shelf-track,
+html[data-avd-rail-scrollbars="hidden"] .avd-discovery-track,
+html[data-avd-rail-scrollbars="hidden"] .avd-discovery-rail,
+html[data-avd-rail-scrollbars="hidden"] .avd-creator-track,
+html[data-avd-rail-scrollbars="hidden"] .avd-creator-spotlight .row,
+html[data-avd-rail-scrollbars="hidden"] .avd-pill-bar,
+html[data-avd-rail-scrollbars="hidden"] .overflow-x-auto {
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+}
+.scrollbar-none::-webkit-scrollbar,
+html[data-avd-rail-scrollbars="hidden"] .avd-slider-track::-webkit-scrollbar,
+html[data-avd-rail-scrollbars="hidden"] #avdHeroSliderTrack::-webkit-scrollbar,
+html[data-avd-rail-scrollbars="hidden"] .avd-category-tabs::-webkit-scrollbar,
+html[data-avd-rail-scrollbars="hidden"] #category-tabs::-webkit-scrollbar,
+html[data-avd-rail-scrollbars="hidden"] .avd-shelf-track::-webkit-scrollbar,
+html[data-avd-rail-scrollbars="hidden"] .avd-discovery-track::-webkit-scrollbar,
+html[data-avd-rail-scrollbars="hidden"] .avd-discovery-rail::-webkit-scrollbar,
+html[data-avd-rail-scrollbars="hidden"] .avd-creator-track::-webkit-scrollbar,
+html[data-avd-rail-scrollbars="hidden"] .avd-creator-spotlight .row::-webkit-scrollbar,
+html[data-avd-rail-scrollbars="hidden"] .avd-pill-bar::-webkit-scrollbar,
+html[data-avd-rail-scrollbars="hidden"] .overflow-x-auto::-webkit-scrollbar {
+    display: none !important;
+    height: 0 !important;
+}
+
+/* ==========================================================================
+   MULTI-LINE TEXT TRUNCATION (PREVENT OVERFLOW IN HERO & VIDEO CARDS)
+   ========================================================================== */
+.text-truncate-1, .line-clamp-1 {
+    display: -webkit-box !important;
+    -webkit-line-clamp: 1 !important;
+    -webkit-box-orient: vertical !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    word-break: break-word;
+}
+.text-truncate-2, .line-clamp-2 {
+    display: -webkit-box !important;
+    -webkit-line-clamp: 2 !important;
+    -webkit-box-orient: vertical !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    word-break: break-word;
+}
+.text-truncate-3, .line-clamp-3 {
+    display: -webkit-box !important;
+    -webkit-line-clamp: 3 !important;
+    -webkit-box-orient: vertical !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    word-break: break-word;
+}
+
+/* ==========================================================================
+   CINEMA HERO FROSTED GLASS & VIGNETTE POLISH
+   ========================================================================== */
+
+/* ==========================================================================
+   TOP-NOTCH NAVIGATION CHEVRONS & CHIPS SCROLLER STYLING
+   ========================================================================== */
+.avd-chips-scroller-wrapper {
+    position: relative;
+    width: 100%;
+    display: flex;
+    align-items: center;
+}
+.avd-chips-scroller-wrapper .avd-category-tabs {
+    width: 100%;
+    padding: 4px 6px;
+    margin-bottom: 0 !important;
+    -webkit-overflow-scrolling: touch !important;
+    overscroll-behavior-x: contain !important;
+    touch-action: pan-x pan-y !important;
+}
+@media (min-width: 992px) {
+    .avd-chips-scroller-wrapper .avd-category-tabs {
+        scroll-behavior: smooth;
+        mask-image: linear-gradient(var(--avd-inline-dir), transparent 0%, black 42px, black calc(100% - 42px), transparent 100%);
+        -webkit-mask-image: linear-gradient(var(--avd-inline-dir), transparent 0%, black 42px, black calc(100% - 42px), transparent 100%);
+        transition: mask-image 0.22s ease;
+    }
+    .avd-chips-scroller-wrapper.at-start .avd-category-tabs {
+        mask-image: linear-gradient(var(--avd-inline-dir), black 0%, black calc(100% - 42px), transparent 100%);
+        -webkit-mask-image: linear-gradient(var(--avd-inline-dir), black 0%, black calc(100% - 42px), transparent 100%);
+    }
+    .avd-chips-scroller-wrapper.at-end .avd-category-tabs {
+        mask-image: linear-gradient(var(--avd-inline-dir), transparent 0%, black 42px, black 100%);
+        -webkit-mask-image: linear-gradient(var(--avd-inline-dir), transparent 0%, black 42px, black 100%);
+    }
+    .avd-chips-scroller-wrapper.no-scroll .avd-category-tabs {
+        mask-image: none !important;
+        -webkit-mask-image: none !important;
+    }
+}
+@media (max-width: 991px) {
+    .avd-chips-scroller-wrapper .avd-category-tabs,
+    .avd-chips-scroller-wrapper.at-start .avd-category-tabs,
+    .avd-chips-scroller-wrapper.at-end .avd-category-tabs {
+        mask-image: none !important;
+        -webkit-mask-image: none !important;
+        transition: none !important;
+    }
+}
+.avd-chips-nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 10;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: var(--avd-surface-solid);
+    border: 1px solid var(--avd-border-strong);
+    color: var(--avd-text);
+    box-shadow: 0 4px 16px rgba(var(--avd-shade-rgb), 0.25);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.22s cubic-bezier(0.2, 0, 0, 1), border-color 0.22s cubic-bezier(0.2, 0, 0, 1), color 0.22s cubic-bezier(0.2, 0, 0, 1), transform 0.22s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.22s cubic-bezier(0.2, 0, 0, 1);
+    font-size: 0.85rem;
+}
+.avd-chips-nav:hover {
+    background: var(--avd-brand-fill);
+    border-color: var(--avd-brand-fill);
+    color: var(--avd-on-brand);
+    transform: translateY(-50%) scale(1.12);
+    box-shadow: 0 6px 22px var(--avd-glow);
+}
+.avd-chips-nav-left {
+    inset-inline-start: -6px;
+}
+.avd-chips-nav-right {
+    inset-inline-end: -6px;
+}
+
+/* Netflix Shelf Paddles */
+.avd-shelf-track-container {
+    position: relative;
+}
+.avd-shelf-paddle {
+    position: absolute;
+    top: 0;
+    bottom: 12px;
+    width: 44px;
+    z-index: 10;
+    border: none;
+    background: rgba(var(--avd-shade-rgb), 0.66);
+    color: var(--avd-hero-title);
+    font-size: 1.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.25s ease, background-color 0.2s ease, transform 0.2s ease;
+}
+.avd-shelf-track-container:hover .avd-shelf-paddle,
+.avd-shelf-row-wrapper:hover .avd-shelf-paddle {
+    opacity: 0.92;
+}
+.avd-shelf-paddle:hover {
+    opacity: 1 !important;
+    background: var(--avd-brand-fill) !important;
+    color: var(--avd-on-brand) !important;
+    transform: scale(1.04);
+}
+.avd-shelf-paddle-left {
+    inset-inline-start: 0;
+    border-start-end-radius: 8px;
+    border-end-end-radius: 8px;
+}
+.avd-shelf-paddle-right {
+    inset-inline-end: 0;
+    border-start-start-radius: 8px;
+    border-end-start-radius: 8px;
+}
+
+/* ==========================================================================
+   COMPREHENSIVE MOBILE RESPONSIVENESS & MODERN DESIGN SYSTEM (< 768px & < 576px)
+   ========================================================================== */
+@media (max-width: 768px) {
+    /* Only scrolling filter chips require an unbroken label. Other
+       controls may wrap translated text inside the viewport. */
+    .avd-category-tabs .avd-tag {
+        white-space: nowrap;
+    }
+
+}
+
+@media (max-width: 576px) {
+    /* Category Chips Scroller: Ultra-Sleek, Compact YouTube/TikTok Style */
+    .avd-chips-scroller-wrapper {
+        margin-bottom: 0.75rem !important;
+    }
+    .avd-chips-scroller-wrapper .avd-category-tabs {
+        padding: 2px 4px !important;
+        gap: 0.35rem !important;
+    }
+    .avd-category-tabs .avd-tag {
+        min-height: 44px;
+        height: auto;
+        padding: 0 12px !important;
+        font-size: 0.80rem !important;
+        font-weight: 600 !important;
+        gap: 0.35rem !important;
+    }
+    .avd-tag i {
+        font-size: 0.72rem !important;
+    }
+    .avd-chips-nav {
+        display: none !important;
+    }
+
+    /* Typography, card density and media sizing come from the shared
+       component styles and the saved appearance settings. */
+
+    /* Netflix Shelf Rails on Mobile */
+    .avd-shelf-track {
+        gap: 0.6rem !important;
+        padding-bottom: 0.5rem !important;
+    }
+    .avd-shelf-paddle {
+        display: none !important;
+    }
+}
+/* Interactive Card Spotlight Cursor Light */
+[data-avd-card-spotlight="on"] .avd-video-card,
+[data-avd-card-spotlight="on"] .avd-bento-card,
+[data-avd-card-spotlight="on"] .studio-preview-card,
+[data-avd-card-spotlight="on"] .studio-card-preview {
+    position: relative;
+}
+/* Admin Theme Studio previews only (see the Magic Card spotlight rules above); public pages use the
+   .avd-card-spotlight rules in motion.scss. */
+[data-avd-card-spotlight="on"] :where(body.avd-admin) .avd-card-spotlight {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0;
+    border-radius: inherit;
+    background: radial-gradient(350px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(var(--avd-primary-rgb, 255, 61, 97), 0.16), transparent 70%);
+    transition: opacity 0.3s ease;
+    z-index: 2;
+}
+[data-avd-card-spotlight="on"] :where(body.avd-admin) .avd-video-card:hover .avd-card-spotlight,
+[data-avd-card-spotlight="on"] :where(body.avd-admin) .avd-bento-card:hover .avd-card-spotlight,
+[data-avd-card-spotlight="on"] :where(body.avd-admin) .studio-preview-card:hover .avd-card-spotlight,
+[data-avd-card-spotlight="on"] :where(body.avd-admin) .studio-card-preview:hover .avd-card-spotlight {
+    opacity: 1;
+}
+
+/* Video Player Cinema Tone & LUT Filter Engine */
+[data-avd-cinema-filter="hdr_vibrant"] .avd-player-wrapper video,
+[data-avd-cinema-filter="hdr_vibrant"] .avd-player-shell video,
+[data-avd-cinema-filter="hdr_vibrant"] .avd-video-thumbnail img,
+.avd-cinema-filter-hdr_vibrant {
+    filter: contrast(1.08) saturate(1.15) brightness(1.02) !important;
+}
+[data-avd-cinema-filter="warm_35mm"] .avd-player-wrapper video,
+[data-avd-cinema-filter="warm_35mm"] .avd-player-shell video,
+[data-avd-cinema-filter="warm_35mm"] .avd-video-thumbnail img,
+.avd-cinema-filter-warm_35mm {
+    filter: sepia(0.18) contrast(1.06) saturate(1.08) hue-rotate(-6deg) !important;
+}
+[data-avd-cinema-filter="cyber_glow"] .avd-player-wrapper video,
+[data-avd-cinema-filter="cyber_glow"] .avd-player-shell video,
+[data-avd-cinema-filter="cyber_glow"] .avd-video-thumbnail img,
+.avd-cinema-filter-cyber_glow {
+    filter: contrast(1.16) saturate(1.28) hue-rotate(6deg) !important;
+}
+[data-avd-cinema-filter="cool_scifi"] .avd-player-wrapper video,
+[data-avd-cinema-filter="cool_scifi"] .avd-player-shell video,
+[data-avd-cinema-filter="cool_scifi"] .avd-video-thumbnail img,
+.avd-cinema-filter-cool_scifi {
+    filter: contrast(1.12) saturate(1.1) hue-rotate(185deg) brightness(0.98) !important;
+}
+[data-avd-cinema-filter="monochrome_noir"] .avd-player-wrapper video,
+[data-avd-cinema-filter="monochrome_noir"] .avd-player-shell video,
+[data-avd-cinema-filter="monochrome_noir"] .avd-video-thumbnail img,
+.avd-cinema-filter-monochrome_noir {
+    filter: grayscale(1) contrast(1.28) brightness(0.96) !important;
+}
+
+/* Animated Border Beam Engine (Conic Gradient Orbit) */
+@keyframes avd-border-beam-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+[data-avd-border-beam="on"] .avd-border-beam,
+.avd-border-beam-active {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    overflow: hidden;
+    z-index: 3;
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    padding: 1.5px;
+    opacity: 0.85;
+    transition: opacity 0.3s ease;
+}
+[data-avd-border-beam="on"] .avd-border-beam::after,
+.avd-border-beam-active::after {
+    content: '';
+    position: absolute;
+    inset: -50%;
+    background: conic-gradient(from 0deg at 50% 50%, transparent 0deg, var(--avd-primary, #ff3d61) 35deg, var(--avd-accent, #18c8d8) 70deg, transparent 95deg);
+    animation: avd-border-beam-spin var(--avd-beam-duration, 5s) linear infinite;
+}
+[data-avd-border-beam-speed="slow"] { --avd-beam-duration: 8s; }
+[data-avd-border-beam-speed="normal"] { --avd-beam-duration: 5s; }
+[data-avd-border-beam-speed="fast"] { --avd-beam-duration: 3s; }
+
+/* Film grain: rendered once, by body.avd-app::after ("Film Grain / Analog Organic
+   Texture Overlay" above). The second full-viewport copy on <html> (z 99999, 2.8%) was
+   folded into it: two stacked fixed layers were composited on every frame. */
+
+/* Reactive Video Player Ambilight Halo Backlight Engine */
+[data-avd-ambilight="on"] .avd-player-wrap,
+[data-avd-ambilight="on"] .avd-player-wrapper,
+[data-avd-ambilight="on"] .avd-player-shell,
+[data-avd-ambilight="on"] .player-wrapper {
+    position: relative;
+}
+/* One definition for both ambilight engines. Filter-free: the old blur(36px) is baked
+   into a pre-softened gradient on a larger box; the pulse animates opacity/transform
+   only (compositor). These keyframes carry the values the watch page actually ran. */
+[data-avd-ambilight="on"] .avd-player-wrap::after,
+[data-avd-ambilight="on"] .avd-player-wrapper::after,
+[data-avd-ambilight="on"] .avd-player-shell::after,
+[data-avd-ambilight="on"] .player-wrapper::after {
+    content: "";
+    position: absolute;
+    inset: -58px -70px;
+    background: radial-gradient(closest-side, rgba(var(--avd-primary-rgb, 255, 61, 97), 0.36) 0%, rgba(var(--avd-accent-rgb, 24, 200, 216), 0.16) 55%, rgba(var(--avd-accent-rgb, 24, 200, 216), 0.077) 70%, rgba(var(--avd-accent-rgb, 24, 200, 216), 0.026) 85%, rgba(var(--avd-accent-rgb, 24, 200, 216), 0) 100%);
+    filter: none;
+    z-index: -1;
+    pointer-events: none;
+    border-radius: inherit;
+    opacity: 0.92;
+    transition: opacity 0.4s ease;
+}
+[data-avd-ambilight="on"] .avd-player-wrapper::after,
+[data-avd-ambilight="on"] .avd-player-shell::after {
+    animation: avdAmbilightPulse 6s ease-in-out infinite alternate;
+}
+@keyframes avdAmbilightPulse {
+    0% { opacity: 0.52; transform: scale(0.98); }
+    50% { opacity: 0.8; transform: scale(1.03); }
+    100% { opacity: 0.62; transform: scale(1); }
+}
+
+/* =========================================================
+   NEXT-GEN AMBIENT ATMOSPHERE MESH ENGINES (HARDWARE ACCEL)
+   ========================================================= */
+@keyframes avd-atmosphere-drift {
+    0% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(25px, -20px) scale(1.05); }
+    100% { transform: translate(0, 0) scale(1); }
+}
+@keyframes avd-solar-flare-pulse {
+    0%, 100% { opacity: 0.16; transform: scale(1); }
+    50% { opacity: 0.28; transform: scale(1.08); }
+}
+@keyframes avd-aurora-wave {
+    0%, 100% { transform: scale(1) rotate(0deg); opacity: 0.25; }
+    50% { transform: scale(1.15) rotate(4deg); opacity: 0.42; }
+}
+
+/* 1. Cosmic Floating Stardust Particles */
+[data-avd-atmosphere="cosmic_particles"] body.avd-app::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: -2;
+    opacity: 0.55;
+    background-image:
+        radial-gradient(1.5px 1.5px at 20px 30px, var(--avd-text), rgba(var(--avd-shade-rgb), 0)),
+        radial-gradient(1px 1px at 60px 80px, var(--avd-brand), rgba(var(--avd-shade-rgb), 0)),
+        radial-gradient(1.5px 1.5px at 120px 50px, var(--avd-accent), rgba(var(--avd-shade-rgb), 0)),
+        radial-gradient(2px 2px at 180px 140px, var(--avd-text), rgba(var(--avd-shade-rgb), 0)),
+        radial-gradient(1px 1px at 240px 90px, var(--avd-brand), rgba(var(--avd-shade-rgb), 0));
+    background-size: 300px 300px;
+    animation: avd-atmosphere-drift 28s ease-in-out infinite alternate;
+}
+
+/* 2. Drifting Aurora Ambient Mesh. No filter: on blobs this large (radius ~45% of a
+   140vw x 140vh box) the 60px blur only rounded the peaks, so it is dropped instead of
+   re-filtering the whole layer on every animation frame (side-by-side: <= 2 levels). */
+[data-avd-atmosphere="aurora_glow"] body.avd-app::before {
+    content: "";
+    position: fixed;
+    inset: -20%;
+    width: 140%;
+    height: 140%;
+    pointer-events: none;
+    z-index: -2;
+    filter: none;
+    background: radial-gradient(circle at 30% 20%, rgba(var(--avd-accent-rgb), 0.15) 0%, transparent 45%),
+                radial-gradient(circle at 75% 65%, rgba(var(--avd-brand-2-rgb), 0.16) 0%, transparent 50%),
+                radial-gradient(circle at 50% 80%, rgba(var(--avd-brand-rgb), 0.12) 0%, transparent 45%);
+    animation: avd-aurora-wave 18s ease-in-out infinite;
+}
+
+/* 3. Cyberpunk Digital Matrix Grid */
+[data-avd-atmosphere="cyber_grid"] body.avd-app::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: -2;
+    opacity: 0.35;
+    background-image:
+        linear-gradient(to right, rgba(var(--avd-primary-rgb, 255, 61, 97), 0.12) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(var(--avd-primary-rgb, 255, 61, 97), 0.12) 1px, transparent 1px);
+    background-size: 48px 48px;
+    mask-image: radial-gradient(ellipse 80% 70% at 50% 35%, #000 30%, transparent 80%);
+    -webkit-mask-image: radial-gradient(ellipse 80% 70% at 50% 35%, #000 30%, transparent 80%);
+}
+
+/* 4. Mesh Nebula Ambient Gradient Diffusion. Filter-free: the box grows by 150px on
+   every side, the two ellipses keep their exact old geometry (explicit radii/centres
+   = the old farthest-corner ellipses of the 80vw x 80vh box), their peaks/tails are
+   pre-softened, and a static edge mask replaces the soft clip the 75px blur used to
+   give the box edges (fitted side by side; transform-origin is unchanged). */
+[data-avd-atmosphere="mesh_nebula"] body.avd-app::before {
+    content: "";
+    position: fixed;
+    top: calc(-15% - 150px);
+    inset-inline-start: calc(10% - 150px);
+    width: calc(80vw + 300px);
+    height: calc(80vh + 300px);
+    pointer-events: none;
+    z-index: -2;
+    filter: none;
+    background: radial-gradient(67.88vw 67.88vh at calc(32vw + 150px) calc(32vh + 150px), rgba(var(--avd-primary-rgb, 255, 61, 97), 0.1485) 0%, rgba(var(--avd-primary-rgb, 255, 61, 97), 0.126) 15%, rgba(var(--avd-primary-rgb, 255, 61, 97), 0.0081) 60%, rgba(var(--avd-primary-rgb, 255, 61, 97), 0) 78%),
+                radial-gradient(79.2vw 67.88vh at calc(56vw + 150px) calc(48vh + 150px), rgba(var(--avd-accent-rgb, 24, 200, 216), 0.112) 0%, rgba(var(--avd-accent-rgb, 24, 200, 216), 0.098) 15.13%, rgba(var(--avd-accent-rgb, 24, 200, 216), 0.0042) 55%, rgba(var(--avd-accent-rgb, 24, 200, 216), 0) 63.25%);
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 300px, #000 calc(100% - 300px), transparent), linear-gradient(to bottom, transparent, #000 300px, #000 calc(100% - 300px), transparent);
+    mask-image: linear-gradient(to right, transparent, #000 300px, #000 calc(100% - 300px), transparent), linear-gradient(to bottom, transparent, #000 300px, #000 calc(100% - 300px), transparent);
+    -webkit-mask-composite: source-in;
+    mask-composite: intersect;
+    animation: avd-atmosphere-drift 22s ease-in-out infinite alternate;
+}
+@media (max-width: 767.98px) {
+    /* A narrow box makes the old 75px blur relatively much wider: softer stops. */
+    [data-avd-atmosphere="mesh_nebula"] body.avd-app::before {
+        background: radial-gradient(67.88vw 67.88vh at calc(32vw + 150px) calc(32vh + 150px), rgba(var(--avd-primary-rgb, 255, 61, 97), 0.126) 0%, rgba(var(--avd-primary-rgb, 255, 61, 97), 0.1215) 4.88%, rgba(var(--avd-primary-rgb, 255, 61, 97), 0.0297) 60%, rgba(var(--avd-primary-rgb, 255, 61, 97), 0) 84%),
+                    radial-gradient(79.2vw 67.88vh at calc(56vw + 150px) calc(48vh + 150px), rgba(var(--avd-accent-rgb, 24, 200, 216), 0.098) 0%, rgba(var(--avd-accent-rgb, 24, 200, 216), 0.098) 9.63%, rgba(var(--avd-accent-rgb, 24, 200, 216), 0.021) 55%, rgba(var(--avd-accent-rgb, 24, 200, 216), 0) 88%);
+    }
+}
+
+/* 5. Solar Flare Amber Shimmer Dust. One rule carrying the values that were in
+   effect: box, z-index, gradients and the 14s alternate timing came from an older
+   higher-specificity duplicate that is folded in here. No filter: the 36px blur
+   over gradients this large only rounded their peaks, so it is baked out instead
+   of re-filtering a 120vw x 120vh layer on every animation frame. */
+html[data-avd-atmosphere="solar_flare"] body.avd-app::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    width: 120%;
+    height: 120%;
+    pointer-events: none;
+    z-index: 0;
+    filter: none;
+    background: radial-gradient(circle at 75% 20%, rgba(var(--avd-warning-rgb), 0.16), transparent 48%),
+                radial-gradient(circle at 25% 70%, rgba(var(--avd-brand-rgb), 0.12), transparent 52%),
+                radial-gradient(circle at 50% 50%, rgba(var(--avd-brand-2-rgb), 0.08), transparent 60%);
+    animation: avd-solar-flare-pulse 14s ease-in-out infinite alternate;
+}
+
+/* 6. Quantum Matrix Digital Phosphor Rain. The rain moves the layer on the
+   compositor (transform) instead of repainting the whole viewport every frame
+   (background-position): 48px is 12 scanline periods, travelled in 1.68s = the old
+   28.6px/s. The layer starts 48px above the viewport so it always covers it. */
+[data-avd-atmosphere="quantum_matrix"] body.avd-app::before {
+    content: "";
+    position: fixed;
+    top: -48px;
+    bottom: auto;
+    inset-inline: 0;
+    height: calc(100vh + 48px);
+    pointer-events: none;
+    z-index: -2;
+    opacity: 0.18;
+    background: repeating-linear-gradient(0deg, rgba(var(--avd-primary-rgb, 0, 255, 136), 0.2) 0px, transparent 2px, transparent 4px),
+                repeating-linear-gradient(90deg, rgba(var(--avd-accent-rgb, 0, 229, 255), 0.12) 0px, transparent 3px, transparent 48px);
+    background-size: 100% 4px, 48px 100%;
+    animation: avd-matrix-rain-y 1.68s linear infinite;
+}
+@keyframes avd-matrix-rain-y {
+    from { transform: translate3d(0, 0, 0); }
+    to { transform: translate3d(0, 48px, 0); }
+}
+
+/* =========================================================
+   LIQUID GLOW BUTTON SHIMMER & TACTILE PRESS
+   ========================================================= */
+@keyframes avd-liquid-shimmer-sweep {
+    0% { transform: translateX(-150%) skewX(-25deg); }
+    100% { transform: translateX(260%) skewX(-25deg); }
+}
+[data-avd-liquid-shimmer="on"] .btn-primary,
+[data-avd-liquid-shimmer="on"] .btn-brand,
+[data-avd-liquid-shimmer="on"] .avd-btn-shimmer,
+[data-avd-liquid-shimmer="on"] .avd-watch-action-btn.active {
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease;
+}
+[data-avd-liquid-shimmer="on"] .btn-primary::before,
+[data-avd-liquid-shimmer="on"] .btn-brand::before,
+[data-avd-liquid-shimmer="on"] .avd-btn-shimmer::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    inset-inline-start: 0;
+    width: 65%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(var(--avd-glint-rgb), 0.34), transparent);
+    transform: translateX(-150%) skewX(-25deg);
+    pointer-events: none;
+}
+[data-avd-liquid-shimmer="on"] .btn-primary:hover::before,
+[data-avd-liquid-shimmer="on"] .btn-brand:hover::before,
+[data-avd-liquid-shimmer="on"] .avd-btn-shimmer:hover::before {
+    animation: avd-liquid-shimmer-sweep 1.25s infinite ease-in-out;
+}
+[data-avd-liquid-shimmer="on"] .btn-primary:active,
+[data-avd-liquid-shimmer="on"] .btn-brand:active {
+    transform: translateY(1.5px) scale(0.985);
+}
+
+/* =========================================================
+   AMBIENT CURSOR HALO FOLLOWER
+   One rule (it was two, whose margins and translate stacked into a ~190 px offset): the halo is
+   centred on the cursor by a compositor transform (resources/js/motion/pointerFx.ts, which uses
+   half this box), with no left/top layout and no blur filter. The two gradients are the old
+   320px glow (primary .14, accent .04 at 45%, clear at 70%) as its blur(24px) rendered it,
+   pre-blurred: a .1 peak with a softer edge out to ~190px. The primary layer sits over the
+   accent one, whose alphas are raised to make up for the overlap.
+   ========================================================= */
+.avd-cursor-halo {
+    position: fixed;
+    top: 0;
+    left: 0;
+    margin: 0;
+    width: 400px;
+    height: 400px;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 99998;
+    transform: translate3d(-500px, -500px, 0);
+    background:
+        radial-gradient(circle 200px at center, rgba(var(--avd-primary-rgb, 255, 61, 97), 0.099) 0px, rgba(var(--avd-primary-rgb, 255, 61, 97), 0.092) 20px, rgba(var(--avd-primary-rgb, 255, 61, 97), 0.074) 40px, rgba(var(--avd-primary-rgb, 255, 61, 97), 0.051) 60px, rgba(var(--avd-primary-rgb, 255, 61, 97), 0.029) 80px, rgba(var(--avd-primary-rgb, 255, 61, 97), 0.012) 100px, rgba(var(--avd-primary-rgb, 255, 61, 97), 0.0035) 120px, transparent 145px),
+        radial-gradient(circle 200px at center, rgba(var(--avd-accent-rgb, 24, 200, 216), 0.013) 0px, rgba(var(--avd-accent-rgb, 24, 200, 216), 0.015) 20px, rgba(var(--avd-accent-rgb, 24, 200, 216), 0.02) 40px, rgba(var(--avd-accent-rgb, 24, 200, 216), 0.026) 60px, rgba(var(--avd-accent-rgb, 24, 200, 216), 0.031) 80px, rgba(var(--avd-accent-rgb, 24, 200, 216), 0.03) 100px, rgba(var(--avd-accent-rgb, 24, 200, 216), 0.023) 120px, rgba(var(--avd-accent-rgb, 24, 200, 216), 0.014) 140px, rgba(var(--avd-accent-rgb, 24, 200, 216), 0.006) 160px, rgba(var(--avd-accent-rgb, 24, 200, 216), 0.0015) 180px, transparent 200px);
+    opacity: 0;
+    transition: opacity 0.35s ease;
+    will-change: transform;
+}
+@media (hover: none), (pointer: coarse), (prefers-reduced-motion: reduce) {
+    .avd-cursor-halo { display: none !important; }
+}
+
+/* ==========================================================================
+   TERMINAL MOBILE SMOOTHNESS & GPU CONSERVATION ENGINE
+   Guarantees final cascade priority across all layouts, cards, and pages.
+   ========================================================================== */
+.avd-category-tabs,
+.avd-chips-scroller-wrapper,
+.avd-shelf-track {
+    -webkit-overflow-scrolling: touch !important;
+    scroll-behavior: smooth !important;
+    overscroll-behavior-x: contain !important;
+    touch-action: pan-x pan-y !important;
+}
+.avd-discovery-track,
+.avd-creator-track,
+.avd-creator-spotlight .row {
+    -webkit-overflow-scrolling: touch !important;
+    overscroll-behavior-x: contain !important;
+    touch-action: pan-x pan-y !important;
+}
+.avd-discovery-track.avd-home-auto-motion,
+.avd-creator-track.avd-home-auto-motion,
+.avd-creator-spotlight .row.avd-home-auto-motion {
+    scroll-behavior: auto !important;
+}
+@media (max-width: 991.98px) {
+    /* Guaranteed Zero Horizontal Page Sway & Clean Mobile Viewport */
+    html, body {
+        overflow-x: clip !important;
+        max-width: 100vw !important;
+    }
+    .page-wrapper,
+    .avd-shell,
+    .avd-main,
+    #main-container {
+        overflow-x: clip !important;
+        max-width: 100vw !important;
+    }
+
+    /* Suppress offcanvas sidebar scrollbars & layout reservation when closed on mobile */
+    #responsive-sidebar:not(.show) {
+        display: none !important;
+        overflow: hidden !important;
+        scrollbar-width: none !important;
+    }
+    #responsive-sidebar:not(.show) .avd-sidebar-body {
+        overflow: hidden !important;
+        scrollbar-width: none !important;
+    }
+    #responsive-sidebar.show {
+        scrollbar-width: thin;
+    }
+
+    /* Hardware-accelerated touch swipe for category chips & discovery tracks */
+    .avd-category-tabs .avd-tag,
+    .avd-discovery-card,
+    .avd-video-card {
+        -webkit-tap-highlight-color: transparent;
+    }
+}
+
+/* Keep touch scrolling native. Smooth scrolling remains available to
+   keyboard/mouse rails and explicit desktop navigation controls. */
+@media (hover: none), (pointer: coarse) {
+    .avd-category-tabs,
+    .avd-chips-scroller-wrapper,
+    .avd-shelf-track {
+        scroll-behavior: auto !important;
+    }
+}
+
+/* Dedicated Touch & Coarse Pointer Ergonomics (Full Motion + Native Touch Feedback) */
+@media (hover: none) and (pointer: coarse) {
+    /* Suppress mouse-only hover cursor halos and trail */
+    .avd-cursor-halo,
+    .cursor-glow-trail {
+        display: none !important;
+    }
+    /* Tactile micro-interaction feedback on tap */
+    .avd-video-card:active,
+    .avd-discovery-card:active,
+    .avd-category-card:active {
+        transform: scale(0.975);
+        transition: transform 0.12s cubic-bezier(0.2, 0, 0, 1);
+    }
+}
+
+/* ==========================================================================
+   MOBILE GPU RELIEF (added) — still full-screen DECORATIVE motion on touch
+   devices (phones/tablets). The gradients, glows and beams stay PAINTED;
+   only their per-frame animation and permanent compositor layers are stopped,
+   which is the main cause of scroll/tap lag on real phones where many effects
+   animate at once. Functional motion (spinners, progress, toasts, skeletons,
+   :active feedback) is untouched. Scoped to (hover:none) and (pointer:coarse).
+   Appended last so `animation:none !important` wins over earlier rules of
+   equal specificity.
+   ========================================================================== */
+@media (hover: none) and (pointer: coarse) {
+    /* Background atmosphere (aurora / cosmic / mesh / solar / matrix) — every
+       variant renders on body.avd-app::before, so one rule stills them all. */
+    body.avd-app::before,
+    body.avd-app::after {
+        animation: none !important;
+        will-change: auto !important;
+    }
+    /* Player glow layers around the video/hero: cinema-diffusion animates
+       blur(40px->58px) (the single heaviest mobile effect) + ambilight pulse. */
+    [data-avd-cinema-diffusion="on"] .avd-player-wrapper::before,
+    [data-avd-cinema-diffusion="on"] .avd-player-shell::before,
+    [data-avd-ambilight="on"] .avd-player-wrapper::after,
+    [data-avd-ambilight="on"] .avd-player-shell::after,
+    .avd-ambilight-glow {
+        animation: none !important;
+        will-change: auto !important;
+    }
+    /* Spinning conic border beams (decorative). The neon avatar ring is static now. */
+    .avd-border-beam::before {
+        animation: none !important;
+        will-change: auto !important;
+    }
+}
+
+/* ==========================================================================
+   AVD-MOBILE-PAINT-PATCH -- appended to MOBILE GPU RELIEF. TIER 2 below is
+   visible relief under html[data-avd-perf="lite"] only (devices the <head>
+   script flagged as weak/old). The former TIER 1 (touch-only will-change /
+   translateZ(0) resets) is gone because those permanent compositor hints no
+   longer exist anywhere (motion.scss and the card grid rules above).
+   ========================================================================== */
+
+/* TIER 2 -- VISIBLE relief, only for html[data-avd-perf="lite"] (weak/old
+   devices the <head> script flagged). Each selector is >= the original's
+   specificity and carries !important wherever the original rule does, so the
+   desktop/full-perf rendering is never affected. Backdrop blur is the heaviest
+   repeating mobile cost (a compositor + blur pass per element every scroll
+   frame); every target already paints a solid-translucent background, so
+   dropping the blur keeps the surface and its contrast. */
+/* Secondary slide CTA -- blur(12px) over the hero photo on a 14%-white fill.
+   Dropping the blur alone would leave the white label low-contrast, so lift the
+   translucent white fill to keep the glass look legible without a blur pass. */
+/* Hero slide image -- brightness/saturate filter set inline on the <img>
+   (specificity of an inline style), so only !important can clear it. Removes a
+   full-frame filter pass behind the slider. */
+/* Pause the infinite DECORATIVE keyframes (soft-pulse, the gradient-shift glow
+   behind buttons/tags, the footer gradient line + footer surface-scan, the
+   title sheen, the sidebar icon breathe, the conic border beams and the ambient
+   background atmosphere). Functional motion -- spinners, progress bars,
+   skeletons, toasts, :active feedback -- is NOT listed and keeps running. */
+html[data-avd-perf="lite"] .avd-tag.active,
+html[data-avd-perf="lite"] .btn-primary::after,
+html[data-avd-perf="lite"] .avd-tag.active::after,
+html[data-avd-perf="lite"] .back-to-top::after,
+html[data-avd-perf="lite"] .avd-footer-accent,
+html[data-avd-perf="lite"] .avd-footer-accent::before,
+html[data-avd-perf="lite"] .avd-footer::before,
+html[data-avd-perf="lite"] .avd-home-title,
+html[data-avd-perf="lite"] .avd-watch-title,
+html[data-avd-perf="lite"] .avd-sidebar-link.menu-selected i,
+html[data-avd-perf="lite"] .avd-border-beam::before,
+html[data-avd-perf="lite"] body.avd-app::before,
+html[data-avd-perf="lite"] body.avd-app::after {
+    animation: none !important;
+}
+
+/* ==========================================================================
+   TIER MATRIX (perf v2). html[data-avd-tier] = rich | balanced | lite, set by the
+   <head> tier script before the first paint (html[data-avd-perf="lite"] is the lite
+   alias, so the lite rules key on either). Rich keeps today's motion. Balanced keeps
+   the same still frames but none of the infinite decorative loops below (each layer
+   stays painted, frozen on its resting frame). The title sheen and active-chip pulse
+   are bounded on every tier in motion.scss and shortened on balanced there. Lite runs
+   no decorative loop at all. Every selector repeats html plus the original data-avd-*
+   attribute or out-ranks the original, and carries !important like it.
+   ========================================================================== */
+html:not([data-avd-tier="rich"])[data-avd-atmosphere] body.avd-app::before,
+html:not([data-avd-tier="rich"]) .avd-border-beam::before,
+html:not([data-avd-tier="rich"]) .avd-border-beam::after,
+html:not([data-avd-tier="rich"]) .avd-border-beam-active::after,
+html:not([data-avd-tier="rich"])[data-avd-cinema-diffusion] .avd-player-wrapper::before,
+html:not([data-avd-tier="rich"])[data-avd-cinema-diffusion] .avd-player-shell::before,
+html:not([data-avd-tier="rich"])[data-avd-ambilight] .avd-player-wrapper::after,
+html:not([data-avd-tier="rich"])[data-avd-ambilight] .avd-player-shell::after,
+html:not([data-avd-tier="rich"]) .avd-ambilight-glow.active,
+html:not([data-avd-tier="rich"]) .avd-ambilight-glow.glow-pulse,
+html:not([data-avd-tier="rich"]) .avd-footer-accent::before,
+html:not([data-avd-tier="rich"]) .avd-footer::before,
+html:not([data-avd-tier="rich"]) .avd-sidebar-link.menu-selected i {
+    animation: none !important;
+}
+/* Lite completions: the skeleton sweep, the hero ticker's LIVE dot and the progress
+   strips (the hero and cinema autoplay keep running, without the bar). */
+html[data-avd-perf="lite"] .avd-placeholder::after {
+    content: none;
+}
+html[data-avd-perf="lite"] .avd-live-dot::before,
+html[data-avd-perf="lite"] .avd-live-dot::after {
+    animation: none !important;
+}
+html[data-avd-perf="lite"] .avd-scroll-progress {
+    display: none;
+}
+html[data-avd-perf="lite"][data-avd-liquid-shimmer="on"] .btn-primary::after,
+html[data-avd-perf="lite"][data-avd-liquid-shimmer="on"] .btn-danger::after,
+html[data-avd-perf="lite"][data-avd-liquid-shimmer="on"] .avd-btn-shimmer::after,
+html[data-avd-perf="lite"][data-avd-liquid-shimmer="on"] .avd-play-btn::after {
+    transition: none;
+}
+
+/* Small controls over thumbnails: dense fills instead of blur. */
+html .avd-card-menu .btn {
+    background: rgba(var(--avd-shade-rgb), 0.66);
+}
+html .avd-discovery-icon {
+    background: rgba(var(--avd-glint-rgb), 0.22);
+    box-shadow: inset 0 0 0 1px rgba(var(--avd-glint-rgb), 0.18);
+}
+html[data-bs-theme] #avdStickyWatchBar {
+    background: rgba(15, 23, 42, 0.97) !important;
+}
+
+/* No blur outside the header, the floating sidebar and the split-glass hero panel. Blurs that views still set
+   (inline styles; partial and watch-page <style> blocks, which come later and are often !important) are
+   dropped on every tier by selectors that out-rank them; the player's menus and sheets keep today's rule
+   (no blur on lite). */
+.modal-backdrop,
+.modal[style*="backdrop-filter"],
+.modal-content[style*="backdrop-filter"],
+html[data-bs-theme] .avd-up-next-card,
+html[data-bs-theme] .avd-duration,
+html[data-bs-theme] .avd-cinema-dock,
+html[data-bs-theme] #avdStickyWatchBar,
+html[data-avd-perf="lite"][data-bs-theme][data-avd-surface] .dropdown-menu,
+html[data-avd-perf="lite"][data-bs-theme] .offcanvas {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+}
+.modal-backdrop {
+    --bs-backdrop-opacity: .8;
+}
+/* ==========================================================================
+   HOME HERO DESIGNS (data-avd-hero-deco), ported from the theme mockups (spec/theme/mockups/assets/base.css).
+   Markup contract with WP5: every mockup class X is .avd-X here (modifiers such as .big, .r1, .tl stay
+   compound, .on is .active). Text over pictures uses the hero tokens (white on a scrim) in both modes.
+   ========================================================================== */
+html[data-avd-theme] {
+    --avd-photo-bg: #000000;
+    --avd-pop-ink: #111111;
+}
+.avd-hero {
+    position: relative;
+}
+.avd-hero-photo {
+    position: relative;
+    overflow: hidden;
+    background: var(--avd-photo-bg);
+}
+.avd-scrim {
+    position: absolute;
+    inset: 0;
+    background: var(--avd-hero-scrim);
+}
+html[dir="rtl"] .avd-scrim {
+    transform: scaleX(-1);
+}
+.avd-htitle {
+    font-family: var(--avd-font-display);
+    font-weight: var(--avd-display-weight);
+    letter-spacing: var(--avd-display-tracking);
+    text-transform: var(--avd-display-case);
+    font-style: var(--avd-display-style);
+    line-height: 1.05;
+}
+/* A video's title and description take the direction of their own script (a Latin title on an Arabic page is cut
+   and punctuated at its own end), still aligned like the page around them. */
+.avd-hero-zone .avd-htitle,
+.avd-hero-zone p {
+    unicode-bidi: plaintext;
+    text-align: match-parent;
+}
+.avd-hmeta {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    font-size: 13px;
+    flex-wrap: wrap;
+}
+.avd-hbtns {
+    display: flex;
+    gap: 10px;
+    margin-top: 18px;
+}
+.avd-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 22px;
+    padding: 0 9px;
+    border-radius: var(--avd-r-badge);
+    background: var(--avd-badge-bg);
+    color: var(--avd-badge-text);
+    font: 800 10.5px/1 var(--avd-font-body);
+    text-transform: uppercase;
+    letter-spacing: .08em;
+}
+.avd-badge.ghost {
+    background: rgba(var(--avd-glint-rgb), .16);
+    color: var(--avd-hero-title);
+}
+.avd-badge.live {
+    background: var(--avd-live-strong, var(--avd-live-fill));
+    color: var(--avd-hero-title);
+}
+/* Pictures fill their frame. */
+.avd-hero-photo img,
+.avd-tkr .avd-tt img,
+.avd-split .avd-pv img,
+.avd-bt img,
+.avd-cw .avd-row .avd-tt img,
+.avd-lead .avd-l .avd-ph img,
+.avd-mw .avd-tt img,
+.avd-hud .avd-feat img,
+.avd-hud .avd-mini .avd-tt img,
+.avd-sh img,
+.avd-rk-it .avd-post img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+/* Whole-row links (WP5 markup): they inherit the text colour, never underline. */
+.avd-tkr, .avd-mw, .avd-sh, .avd-bt, .avd-swi, .avd-row, .avd-mini, .avd-story, .avd-rk-it, .avd-chan, .avd-pad,
+.avd-print, .avd-swl, .avd-pv, .avd-feat, .avd-ph, .avd-arch, .avd-frame, .avd-htitle a {
+    color: inherit;
+    text-decoration: none;
+}
+/* billboard family: the slides sit in a scroll-snap track (WP5 carousel), which takes the full-bleed margins */
+.avd-bb {
+    height: 400px;
+    border-radius: var(--avd-hero-r);
+}
+.avd-bb-track {
+    display: flex;
+    overflow: auto hidden;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+    overscroll-behavior-x: contain;
+    border-radius: var(--avd-hero-r);
+}
+.avd-bb-track::-webkit-scrollbar {
+    display: none;
+}
+.avd-bb-track > .avd-bb {
+    flex: 0 0 100%;
+    scroll-snap-align: start;
+}
+html[data-avd-hero-deco="billboard_full"] .avd-bb-track {
+    margin: -1rem calc(-1 * var(--avd-page-gutter)) 0;
+    border-radius: 0;
+}
+.avd-dot-btn {
+    padding: 6px 2px;
+    border: 0;
+    background: none;
+}
+.avd-bb .avd-content {
+    position: absolute;
+    inset-inline-start: 0;
+    bottom: 0;
+    top: 0;
+    width: 56%;
+    padding: 0 44px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    color: var(--avd-hero-title);
+    z-index: 2;
+}
+.avd-bb .avd-htitle {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    font-size: 46px;
+    margin: 12px 0 10px;
+    max-width: 640px;
+}
+.avd-bb .avd-desc2 {
+    color: var(--avd-hero-meta);
+    font-size: 14.5px;
+    max-width: 520px;
+    line-height: 1.5;
+    margin-top: 8px;
+}
+.avd-bb .avd-hmeta {
+    color: var(--avd-hero-meta);
+}
+/* Hero buttons: the theme's play pair (mockup .btn-play; above dark.scss's link colour); a secondary button over the
+   photo is the grey glass one. */
+.btn.avd-play-btn,
+.btn.avd-play-btn:hover,
+.btn.avd-play-btn:focus-visible {
+    border: 0;
+    background: var(--avd-play-bg);
+    color: var(--avd-play-text);
+}
+.avd-bb .avd-btn2 {
+    border: 0 !important;
+    background: rgba(var(--avd-photo-btn-rgb), .7) !important;
+    color: var(--avd-hero-title) !important;
+}
+/* Light mode on a wide screen: the side scrim fades toward the button, so a white poster showed through the glass
+   (Noir Premiere light, white label 4.27:1): the fill is opaque there (5.2:1). Phones keep the bottom-up shade.
+   (A decoration that puts the button on its own panel out-ranks this with [data-bs-theme] in its file.) */
+@media (min-width: 768px) {
+    html[data-bs-theme="light"] .avd-bb .avd-btn2 {
+        background: rgb(var(--avd-photo-btn-rgb)) !important;
+    }
+}
+.avd-dots {
+    position: absolute;
+    inset-inline-end: 26px;
+    bottom: 22px;
+    display: flex;
+    gap: 6px;
+    z-index: 2;
+    padding: 3px 8px;
+    border-radius: 99px;
+    background: rgba(var(--avd-shade-rgb), .62);
+}
+.avd-dots i {
+    width: 7px;
+    height: 7px;
+    border-radius: 99px;
+    background: rgba(var(--avd-glint-rgb), .7);
+    display: block;
+}
+.avd-dots .avd-dot-btn:focus-visible {
+    outline-color: var(--avd-hero-title);
+    outline-offset: 0;
+}
+.avd-dots i.active {
+    width: 22px;
+    background: var(--avd-hero-title);
+}
+html[data-avd-hero-deco="billboard_full"] .avd-bb {
+    height: 590px;
+    border-radius: 0;
+}
+html[data-avd-hero-deco="billboard_full"] .avd-bb .avd-content {
+    padding: 150px 60px 0;
+    width: 50%;
+    justify-content: flex-start;
+}
+html[data-avd-hero-deco="billboard_full"] .avd-bb .avd-htitle {
+    font-size: 64px;
+}
+html[data-avd-hero-deco="billboard_full"] .avd-bb::after {
+    content: "";
+    position: absolute;
+    inset-inline-start: 0;
+    inset-inline-end: 0;
+    bottom: 0;
+    height: 160px;
+    background: linear-gradient(180deg, transparent, var(--avd-bg));
+    z-index: 1;
+}
+/* Light mode: the after-hero's dark heading must sit on the page colour, not on the half-faded photo. */
+html[data-bs-theme="light"][data-avd-hero-deco="billboard_full"] .avd-bb::after {
+    height: 220px;
+    background: linear-gradient(180deg, transparent, var(--avd-bg) 45%);
+}
+html[data-avd-hero-deco="billboard_full"] .avd-after-hero {
+    margin-top: -120px;
+    position: relative;
+    z-index: 3;
+}
+@media (min-width: 768px) {
+    html[data-avd-hero-deco="billboard_full"] .avd-hero--billboard:has(+ .avd-after-hero) .avd-dots {
+        bottom: 142px;
+    }
+}
+html[data-avd-hero-deco="billboard_inset"] .avd-bb {
+    height: 420px;
+    border-radius: 26px;
+}
+html[data-avd-hero-deco="billboard_inset"] .avd-bb .avd-scrim {
+    background: radial-gradient(120% 120% at 20% 60%, rgba(var(--avd-inset-scrim-rgb), .86) 0%, rgba(var(--avd-inset-scrim-rgb), .55) 45%, rgba(var(--avd-inset-scrim-rgb), .1) 80%);
+}
+html[data-avd-hero-deco="billboard_inset"] .avd-bb .avd-htitle {
+    font-size: 54px;
+    font-weight: 600;
+}
+/* Wider screens: the vignette alone leaves the meta row above the title under 4.5:1 on a white poster, so the text
+   block gets a soft backplate of its own. The content box hugs the text (still centred) and the plate sits under it
+   only; the rest of the picture keeps the vignette. (Phones: the bottom-up text shade of the phone rules.) */
+@media (min-width: 768px) {
+    html[data-avd-hero-deco="billboard_inset"] .avd-bb .avd-content {
+        height: fit-content;
+        margin-block: auto;
+    }
+    html[data-avd-hero-deco="billboard_inset"] .avd-bb .avd-content::before {
+        content: "";
+        position: absolute;
+        inset: -10px 24px;
+        z-index: -1;
+        border-radius: 40px;
+        background: rgba(var(--avd-inset-scrim-rgb), .38);
+        box-shadow: 0 0 64px 36px rgba(var(--avd-inset-scrim-rgb), .38);
+        pointer-events: none;
+    }
+}
+/* ticker (two ranked lists) */
+.avd-tk-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+.avd-tk-head .avd-ttl {
+    font: var(--avd-display-weight) 18px/1 var(--avd-font-display);
+    font-style: var(--avd-display-style);
+    text-transform: var(--avd-display-case);
+    letter-spacing: var(--avd-display-tracking);
+}
+.avd-tk-head .avd-aux {
+    margin-inline-start: auto;
+    font-size: 12.5px;
+    color: var(--avd-muted);
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+.avd-tk {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+}
+.avd-tkp {
+    background: var(--avd-surface-1);
+    border: 1px solid var(--avd-border);
+    border-radius: var(--avd-r-card);
+    padding: 14px;
+}
+.avd-tkp-h {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+    font: 800 12px/1 var(--avd-font-body);
+    text-transform: uppercase;
+    letter-spacing: .08em;
+}
+.avd-tkp-h .avd-lbl {
+    color: var(--avd-brand-ink-strong, var(--avd-brand-ink));
+}
+.avd-tkp-h .avd-lbl2 {
+    color: var(--avd-accent-ink-strong, var(--avd-accent-ink));
+}
+.avd-tkp-h .avd-pill {
+    margin-inline-start: auto;
+    font-size: 10.5px;
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: var(--avd-brand-soft);
+    color: var(--avd-brand-ink-strong, var(--avd-brand-ink));
+    letter-spacing: .02em;
+    text-transform: none;
+}
+.avd-tkr {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px;
+    border-radius: calc(var(--avd-r-card) - 4px);
+    background: var(--avd-surface-2);
+    margin-top: 8px;
+}
+.avd-tkr .avd-rk {
+    width: 30px;
+    font: 800 17px/1 var(--avd-font-display);
+    color: var(--avd-muted);
+    text-align: center;
+    flex: none;
+}
+.avd-tkr .avd-rk.r1 {
+    color: var(--avd-brand-ink-strong, var(--avd-brand-ink));
+}
+.avd-tkr .avd-tt {
+    width: 112px;
+    aspect-ratio: 16/9;
+    border-radius: max(calc(var(--avd-r-thumb) - 2px), 0px);
+    overflow: hidden;
+    flex: none;
+    position: relative;
+}
+.avd-tkr .avd-tt .avd-duration {
+    inset-inline-end: 4px;
+    bottom: 4px;
+    font-size: 10px;
+    padding: 3px 4px;
+}
+.avd-tkr .avd-tx {
+    min-width: 0;
+    flex: 1;
+}
+.avd-tkr .avd-tx b {
+    font: 650 13.5px/1.3 var(--avd-font-title);
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    /* A title takes the direction of its own script, so a Latin title on an Arabic page is cut at its end. */
+    unicode-bidi: plaintext;
+}
+.avd-tkr .avd-tx span {
+    font-size: 12px;
+    color: var(--avd-muted);
+}
+.avd-tkr .avd-pl {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    background: var(--avd-surface-3);
+    color: var(--avd-text);
+    font-size: 10px;
+    flex: none;
+}
+/* split spotlight */
+.avd-split {
+    display: grid;
+    grid-template-columns: 1.35fr 1fr;
+    gap: 22px;
+    background: var(--avd-surface-1);
+    border: 1px solid var(--avd-border);
+    border-radius: var(--avd-r-card);
+    padding: 18px;
+    position: relative;
+    overflow: hidden;
+}
+.avd-split .avd-pv {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    border-radius: var(--avd-r-thumb);
+    overflow: hidden;
+}
+.avd-split .avd-pv .avd-play {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    background: var(--avd-brand-fill);
+    color: var(--avd-on-brand);
+    font-size: 20px;
+    box-shadow: 0 10px 30px rgba(var(--avd-shade-rgb), .4);
+}
+.avd-split .avd-info {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 10px;
+    min-width: 0;
+}
+.avd-split .avd-htitle {
+    font-size: 30px;
+}
+.avd-split .avd-chan {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 650;
+}
+.avd-split .avd-chan .avd-channel-avatar {
+    width: 38px;
+    height: 38px;
+}
+.avd-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-top: 4px;
+}
+.avd-stats div {
+    background: var(--avd-surface-2);
+    border-radius: max(calc(var(--avd-r-card) - 6px), 0px);
+    padding: 9px 10px;
+}
+.avd-stats b {
+    display: block;
+    font: 700 16px/1.1 var(--avd-font-label);
+}
+.avd-stats span {
+    font-size: 11px;
+    color: var(--avd-muted);
+    text-transform: uppercase;
+    letter-spacing: .08em;
+}
+.avd-split p {
+    color: var(--avd-muted);
+    font-size: 13.5px;
+    line-height: 1.5;
+}
+html[data-avd-hero-deco="split_glass"] .avd-split {
+    background: rgba(var(--avd-glint-rgb), .55);
+    border: 1px solid rgba(var(--avd-glint-rgb), .85);
+    box-shadow: inset 0 1px 0 rgba(var(--avd-glint-rgb), 1), 0 30px 60px -36px rgba(var(--avd-glass-shadow-rgb), .45);
+}
+html[data-bs-theme="dark"][data-avd-hero-deco="split_glass"] .avd-split {
+    background: rgba(var(--avd-glint-rgb), .07);
+    border-color: rgba(var(--avd-glint-rgb), .14);
+    box-shadow: inset 0 1px 0 rgba(var(--avd-glint-rgb), .18);
+}
+/* bento */
+.avd-bento {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr;
+    grid-template-rows: 200px 200px;
+    gap: 14px;
+}
+.avd-bt {
+    position: relative;
+    border-radius: var(--avd-r-card);
+    overflow: hidden;
+    background: var(--avd-surface-1);
+    border: 1px solid var(--avd-border);
+}
+.avd-bt.big {
+    grid-row: span 2;
+}
+.avd-bt.wide {
+    grid-column: span 2;
+}
+/* Captions over a picture (bento, HUD, shorts) at every width: a bottom-up shade of at least --avd-hero-text-scrim
+   behind the whole text block, fading out over the caption's top padding only (bright posters stay >= 4.5:1). */
+.avd-bt .avd-cap2 {
+    position: absolute;
+    inset-inline-start: 0;
+    inset-inline-end: 0;
+    bottom: 0;
+    padding: 40px 18px 16px;
+    background: linear-gradient(0deg, rgba(var(--avd-shade-rgb), .82) 0%, var(--avd-hero-text-scrim) calc(100% - 40px), rgba(var(--avd-shade-rgb), 0) 100%);
+    color: var(--avd-hero-title);
+}
+.avd-bt .avd-cap2 .avd-htitle {
+    font-size: 26px;
+    margin-top: 8px;
+}
+.avd-bt.big .avd-cap2 .avd-htitle {
+    font-size: 34px;
+}
+.avd-bt .avd-pad {
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    gap: 8px;
+}
+.avd-bt .avd-pad .avd-pad-av,
+.avd-bt .avd-pad .avd-channel-avatar {
+    display: block;
+    width: 54px;
+    height: 54px;
+    font-size: 16px;
+}
+/* "Visit channel" labels the whole tile link: drawn as the theme's small primary button, but not a .btn (nothing
+   inside a link can take focus). */
+.avd-bt .avd-pad .avd-pad-cta {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    border: var(--avd-btn-border);
+    border-radius: var(--avd-radius-button);
+    background: var(--avd-btn-bg);
+    color: var(--avd-btn-text);
+    clip-path: var(--avd-btn-clip, none);
+    font-size: 13px;
+    font-weight: var(--avd-btn-weight, 700);
+    letter-spacing: var(--avd-btn-tracking, 0);
+    text-transform: var(--avd-btn-case, none);
+}
+html[data-avd-hero-deco="bento"] .avd-bt {
+    border: 1px solid transparent;
+    background: linear-gradient(var(--avd-surface-1), var(--avd-surface-1)) padding-box, var(--avd-brand-gradient) border-box;
+}
+@media (min-width: 768px) {
+    html[data-avd-theme="electric_violet"] .avd-bento {
+        grid-template-columns: 1fr 1fr 2fr;
+    }
+    html[data-avd-theme="electric_violet"] .avd-bento > .avd-bt.big {
+        grid-column: 3;
+        grid-row: 1 / span 2;
+    }
+}
+html[data-avd-theme="obsidian_gold"] .avd-bt {
+    border: 1px solid var(--avd-border-strong);
+    background: var(--avd-surface-1);
+}
+html[data-avd-theme="obsidian_gold"] .avd-bt::after {
+    content: "";
+    position: absolute;
+    inset: 7px;
+    border: 1px solid rgba(var(--avd-brand-rgb), .45);
+    border-radius: 2px;
+    pointer-events: none;
+}
+/* banners */
+.avd-banner {
+    display: grid;
+    grid-template-columns: 1fr 420px;
+    gap: 32px;
+    align-items: center;
+    padding: 6px 0 2px;
+}
+.avd-banner .avd-htitle {
+    font-size: 40px;
+    margin: 10px 0 10px;
+}
+.avd-banner p {
+    color: var(--avd-muted);
+    font-size: 15px;
+    max-width: 560px;
+    line-height: 1.5;
+}
+.avd-cw {
+    display: grid;
+    gap: 10px;
+}
+.avd-cw .avd-row {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    background: var(--avd-surface-1);
+    border: 1px solid var(--avd-border);
+    border-radius: var(--avd-r-card);
+    padding: 8px;
+}
+.avd-cw .avd-row .avd-tt {
+    width: 120px;
+    aspect-ratio: 16/9;
+    border-radius: var(--avd-r-thumb);
+    overflow: hidden;
+    position: relative;
+    flex: none;
+}
+.avd-cw .avd-row .avd-bar {
+    position: absolute;
+    inset-inline-start: 0;
+    bottom: 0;
+    height: 3px;
+    background: var(--avd-brand-fill);
+}
+.avd-cw .avd-row b {
+    font: 650 13.5px/1.3 var(--avd-font-title);
+    display: block;
+}
+.avd-cw .avd-row span {
+    font-size: 12px;
+    color: var(--avd-muted);
+}
+/* editorial lead */
+.avd-lead {
+    display: grid;
+    grid-template-columns: 1.7fr 1fr;
+    gap: 0;
+    border-top: 1px solid var(--avd-text);
+}
+.avd-lead .avd-l {
+    padding-block: 16px 0;
+    padding-inline: 0 26px;
+    border-inline-end: 1px solid var(--avd-border-strong);
+}
+.avd-lead .avd-l .avd-ph {
+    display: block;
+    aspect-ratio: 16 / 7.6;
+    overflow: hidden;
+    position: relative;
+}
+.avd-lead .avd-l .avd-htitle {
+    font-size: 40px;
+    margin: 14px 0 8px;
+    line-height: 1.08;
+}
+.avd-lead .avd-l p {
+    font-size: 15px;
+    color: var(--avd-muted);
+    line-height: 1.5;
+    max-width: 760px;
+}
+.avd-lead .avd-byline {
+    font: 600 11.5px/1 var(--avd-font-label);
+    text-transform: uppercase;
+    letter-spacing: .1em;
+    color: var(--avd-muted);
+    margin-top: 10px;
+}
+.avd-lead .avd-r {
+    padding-block: 16px 0;
+    padding-inline: 26px 0;
+}
+.avd-lead .avd-r h3 {
+    font: 800 12px/1 var(--avd-font-label);
+    text-transform: uppercase;
+    letter-spacing: .14em;
+    color: var(--avd-brand-ink);
+    padding-bottom: 10px;
+    border-bottom: 3px double var(--avd-text);
+}
+.avd-mw {
+    display: grid;
+    grid-template-columns: 34px 1fr 96px;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--avd-border);
+    align-items: start;
+}
+.avd-mw .avd-n {
+    font: 700 28px/1 var(--avd-font-display);
+    color: var(--avd-brand-ink);
+}
+.avd-mw b {
+    font: 650 15.5px/1.25 var(--avd-font-display);
+    display: block;
+}
+.avd-mw span {
+    font: 600 11px/1.3 var(--avd-font-label);
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--avd-muted);
+}
+.avd-mw .avd-tt {
+    aspect-ratio: 16/9;
+    overflow: hidden;
+}
+/* HUD */
+.avd-hud {
+    display: grid;
+    grid-template-columns: 1.55fr 1fr;
+    gap: 16px;
+}
+.avd-hud .avd-feat {
+    position: relative;
+    aspect-ratio: 16 / 8.6;
+    overflow: hidden;
+    border: 1px solid var(--avd-border-strong);
+}
+.avd-hud .avd-feat .avd-cap2 {
+    position: absolute;
+    inset-inline-start: 0;
+    inset-inline-end: 0;
+    bottom: 0;
+    padding: 50px 22px 18px;
+    background: linear-gradient(0deg, rgba(var(--avd-shade-rgb), .84) 0%, var(--avd-hero-text-scrim) calc(100% - 50px), rgba(var(--avd-shade-rgb), 0) 100%);
+    color: var(--avd-hero-title);
+}
+.avd-hud .avd-feat .avd-cap2 .avd-htitle {
+    font-size: 26px;
+    margin-top: 8px;
+}
+.avd-brk {
+    position: absolute;
+    width: 26px;
+    height: 26px;
+    border-color: var(--avd-accent-ink);
+    border-style: solid;
+    border-width: 0;
+    z-index: 2;
+}
+.avd-brk.tl {
+    inset-inline-start: 8px;
+    top: 8px;
+    border-inline-start-width: 2px;
+    border-top-width: 2px;
+}
+.avd-brk.tr {
+    inset-inline-end: 8px;
+    top: 8px;
+    border-inline-end-width: 2px;
+    border-top-width: 2px;
+}
+.avd-brk.bl {
+    inset-inline-start: 8px;
+    bottom: 8px;
+    border-inline-start-width: 2px;
+    border-bottom-width: 2px;
+}
+.avd-brk.br {
+    inset-inline-end: 8px;
+    bottom: 8px;
+    border-inline-end-width: 2px;
+    border-bottom-width: 2px;
+}
+.avd-hud .avd-panel {
+    border: 1px solid var(--avd-border-strong);
+    background: var(--avd-surface-1);
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.avd-hud .avd-panel h4 {
+    font: 700 12px/1 var(--avd-font-display);
+    text-transform: uppercase;
+    letter-spacing: .14em;
+    color: var(--avd-accent-ink);
+    margin-bottom: 6px;
+}
+.avd-drow {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    padding: 6px 0;
+    border-bottom: 1px dashed var(--avd-border);
+}
+.avd-drow span {
+    color: var(--avd-muted);
+}
+.avd-drow b {
+    font-weight: 700;
+}
+.avd-hud .avd-mini {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-top: 6px;
+}
+.avd-hud .avd-mini .avd-tt {
+    width: 92px;
+    aspect-ratio: 16/9;
+    overflow: hidden;
+    flex: none;
+    position: relative;
+}
+.avd-hud .avd-mini b {
+    font: 650 12.5px/1.3 var(--avd-font-title);
+    display: block;
+}
+.avd-hud .avd-mini span {
+    font-size: 11.5px;
+    color: var(--avd-muted);
+}
+/* shorts shelf */
+.avd-shorts {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 14px;
+}
+.avd-sh {
+    position: relative;
+    aspect-ratio: 9 / 16;
+    border-radius: var(--avd-r-card);
+    overflow: hidden;
+}
+.avd-sh .avd-cap2 {
+    position: absolute;
+    inset-inline-start: 0;
+    inset-inline-end: 0;
+    bottom: 0;
+    padding: 44px 12px 12px;
+    background: linear-gradient(0deg, rgba(var(--avd-shade-rgb), .82) 0%, var(--avd-hero-text-scrim) calc(100% - 44px), rgba(var(--avd-shade-rgb), 0) 100%);
+    color: var(--avd-hero-title);
+}
+.avd-sh .avd-cap2 b {
+    font: 700 13.5px/1.25 var(--avd-font-title);
+    display: block;
+}
+.avd-sh .avd-cap2 span {
+    font-size: 11.5px;
+    opacity: .9;
+}
+.avd-sh .avd-views {
+    position: absolute;
+    inset-inline-start: 10px;
+    top: 10px;
+    background: rgba(var(--avd-shade-rgb), .6);
+    color: var(--avd-hero-title);
+    font: 700 11px/1 var(--avd-font-body);
+    padding: 5px 8px;
+    border-radius: 999px;
+}
+html[data-avd-card-frame="clay"] .avd-sh {
+    box-shadow: 0 14px 26px -14px rgba(var(--avd-brand-rgb), .6);
+    border: 4px solid var(--avd-surface-solid);
+}
+html[data-avd-card-frame="rim"] .avd-sh {
+    border: 2px solid transparent;
+    background: var(--avd-brand-gradient) border-box;
+}
+.avd-sh-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+.avd-sh-head .avd-ttl {
+    font: var(--avd-display-weight) 26px/1 var(--avd-font-display);
+    letter-spacing: var(--avd-display-tracking);
+}
+/* rank shelf (Top 10) */
+.avd-rank-shelf {
+    display: flex;
+    gap: 6px;
+}
+.avd-rk-it {
+    position: relative;
+    display: flex;
+    align-items: flex-end;
+    flex: none;
+}
+.avd-rk-it .avd-num {
+    font: 900 168px/.78 var(--avd-font-display);
+    color: var(--avd-bg);
+    -webkit-text-stroke: 3px var(--avd-rank-stroke);
+    letter-spacing: -.08em;
+    margin-inline-end: -28px;
+    position: relative;
+    z-index: 0;
+}
+.avd-rk-it .avd-post {
+    width: 128px;
+    aspect-ratio: 2 / 3;
+    overflow: hidden;
+    border-radius: 4px;
+    position: relative;
+    z-index: 1;
+    box-shadow: 0 10px 24px rgba(var(--avd-shade-rgb), .6);
+}
+/* stories + shorts (Bubblegum Pop) */
+/* angled bento (Pulse) */
+/* Right-to-left: the asymmetric hero cuts mirror (card, chip and button clips mirror in the token file). */
+/* billboard_fade masks the photo only, never the title and buttons (they faded to 1.9:1 in v1). */
+/* Hero kickers sit on tinted panels at 11.5px: the strong kicker ink (layout-theme-a.css). */
+.avd-hero-zone .avd-page-kicker {
+    color: var(--avd-kicker-strong, var(--avd-kicker-color));
+}
+/* Focus in the hero zone. Tiles and title links fill frames that clip a ring drawn outside them (photo frames, 2-line
+   clamps, the phone cap), so theirs is drawn inside; the lead photo's ring goes on its frame; over photos and in the
+   phone ad strip the ring takes the hero text colour (white on the scrim). */
+html[data-avd-theme] .avd-hero-zone a:not(.btn):focus-visible {
+    outline-offset: -2px;
+}
+html[data-avd-theme] .avd-hero-zone .avd-ph:has(> a:focus-visible) {
+    outline: 2px solid var(--avd-focus);
+    outline-offset: 2px;
+}
+html[data-avd-theme] .avd-hero-zone .avd-ph > a:focus-visible {
+    outline: 0;
+}
+/* A banner's picture link (Nordic, Matcha) and the Neo Pop card are not clipped by a frame: their ring goes outside,
+   on the page or banner colour it is fitted to, not over the photo or the card's ink border (2-4:1 there). */
+html[data-avd-theme] .avd-hero-zone a.avd-soft-img:focus-visible,
+html[data-avd-theme] .avd-hero-zone a.avd-zen-img:focus-visible {
+    outline-offset: 4px;
+}
+/* (The pop card's 6px offset shadow is white in dark mode: the ring clears it.) */
+html[data-avd-theme] .avd-hero-zone a.avd-pop-card:focus-visible {
+    outline-offset: 10px;
+}
+html[data-avd-theme] .avd-hero-photo :focus-visible,
+html[data-avd-theme] .ad-slot-mobile :focus-visible {
+    outline-color: var(--avd-hero-title);
+}
+/* A button's white ring over a bright part of the photo gets a dark band on both sides (the white Play button on /ar). */
+html[data-avd-theme] .avd-hero-photo .btn:focus-visible {
+    box-shadow: 0 0 0 6px rgba(var(--avd-shade-rgb), .72);
+}
+/* A hero title link's ring goes on its heading: the 2-line clamp clips the line boxes of the link itself. */
+html[data-avd-theme] .avd-hero-zone .avd-htitle:has(> a:focus-visible) {
+    outline: 2px solid var(--avd-focus);
+    outline-offset: 3px;
+}
+html[data-avd-theme] .avd-hero-zone .avd-htitle > a:focus-visible {
+    outline: 0;
+}
+html[data-avd-theme] .avd-hero-photo .avd-htitle:has(> a:focus-visible) {
+    outline-color: var(--avd-hero-title);
+}
+/* The billboard carousel is a focusable region that runs edge to edge (its ring outside was cut off): its ring is
+   drawn inside, in the two tones of the photo tiles below. */
+html[data-avd-theme] .avd-hero--billboard:focus-visible {
+    outline: 0;
+}
+html[data-avd-theme] .avd-hero--billboard:focus-visible::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    border: 2px solid var(--avd-hero-title);
+    box-shadow: inset 0 0 0 4px rgba(var(--avd-shade-rgb), .72);
+    pointer-events: none;
+}
+/* Photo tiles: a ring over a picture needs two tones - a white line and a dark band inside the tile, above the photo
+   (and above the Top 10 poster, which covered the ring of its rank item). */
+html[data-avd-theme] .avd-hero-zone :is(a.avd-bt, a.avd-feat, a.avd-pv, a.avd-sh, a.avd-rk-it):focus-visible {
+    outline: 0;
+}
+html[data-avd-theme] .avd-hero-zone :is(a.avd-bt, a.avd-feat, a.avd-pv, a.avd-sh, a.avd-rk-it):focus-visible::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    border: 2px solid var(--avd-hero-title);
+    border-radius: inherit;
+    box-shadow: inset 0 0 0 4px rgba(var(--avd-shade-rgb), .72);
+    pointer-events: none;
+}
+
+/* ==========================================================================
+   PHONE (<= 767.98px): the hero takes at most 45% of the screen (380px at 390x844) so two cards or a
+   three-row ranked list stay above the ad strip; secondary hero parts drop; text over pictures sits on a
+   bottom-up shade (>= 62% black) behind the whole text block.
+   ========================================================================== */
+@media (max-width: 767.98px) {
+    .avd-hero-zone {
+        position: relative;
+        max-height: 45vh;
+        max-height: 45svh;
+        overflow: hidden;
+    }
+    /* One 60px bar (the phone mockups): second rows, dateline and header links go (the menu button opens the
+       drawer), the island docks to the top edge. */
+    html[data-avd-theme][data-bs-theme] {
+        --avd-header-h: 60px;
+    }
+    .avd-hrow2,
+    .avd-dateline,
+    .avd-hnav {
+        display: none !important;
+    }
+    html[data-avd-header-deco="masthead"] .avd-header-inner,
+    html[data-avd-header-deco="brutal"] .avd-header-inner,
+    html[data-avd-header-deco="crest"] .avd-header-inner {
+        min-height: 0;
+        padding-inline: 12px;
+    }
+    html[data-avd-header-style="glass_island"] .avd-header {
+        max-width: none;
+        margin: 0;
+        border-radius: 0;
+        padding-inline: 0;
+    }
+    .avd-masthead-title {
+        font-size: 22px;
+    }
+    .avd-tk .avd-tkp:nth-child(2),
+    .avd-tkp .avd-tkr:nth-child(n+5) {
+        display: none;
+    }
+    .avd-tk {
+        grid-template-columns: 1fr;
+    }
+    .avd-tkr .avd-tt {
+        width: 96px;
+    }
+    .avd-bb {
+        height: 230px;
+    }
+    html[data-avd-hero-deco] .avd-bb .avd-htitle {
+        margin: 8px 0 6px;
+        font-size: 26px;
+    }
+    /* Title, meta and buttons on a bottom-up shade; only the photo above it fades (billboard_fade). */
+    .avd-bb .avd-scrim {
+        background: var(--avd-hero-scrim-phone);
+    }
+    html[data-avd-hero-deco] .avd-bb .avd-content {
+        top: auto;
+        bottom: 0;
+        height: auto;
+        width: 100%;
+        padding: 56px 16px 16px;
+        justify-content: flex-end;
+        background: linear-gradient(0deg, rgba(var(--avd-shade-rgb), .8) 0%, var(--avd-hero-text-scrim) calc(100% - 56px), rgba(var(--avd-shade-rgb), 0) 100%);
+    }
+    html[data-avd-hero-deco="billboard_full"] .avd-bb {
+        height: 380px;
+    }
+    html[data-avd-hero-deco="billboard_full"] .avd-bb-track {
+        margin: -12px -12px 0;
+    }
+    html[data-avd-hero-deco="billboard_inset"] .avd-bb {
+        height: 260px;
+    }
+    /* The slide dots sit in the photo's top corner: at the bottom they covered the end of the channel button
+       (the Phase B billboards place them there in their own decoration files). */
+    html[data-avd-hero-deco] .avd-hero--billboard .avd-dots {
+        top: 12px;
+        bottom: auto;
+    }
+    /* The full-bleed billboard starts under the see-through header: its dots go below the header. */
+    html[data-avd-hero-deco="billboard_full"] .avd-hero--billboard .avd-dots {
+        top: calc(var(--avd-header-height, 56px) + 12px);
+    }
+    .avd-split p,
+    .avd-split .avd-stats,
+    .avd-split .avd-chan,
+    .avd-bento .avd-bt:nth-child(n+4),
+    .avd-banner p,
+    .avd-banner .avd-cw .avd-row:nth-child(n+2),
+    .avd-lead .avd-r,
+    .avd-lead .avd-l p,
+    .avd-lead .avd-byline,
+    .avd-lead .avd-mw:nth-child(n+4),
+    .avd-hud .avd-panel,
+    .avd-sh:nth-child(n+4),
+    html[data-avd-section-style="ornament"] .avd-discovery-link {
+        display: none;
+    }
+    .avd-split {
+        grid-template-columns: 1fr;
+        gap: 10px;
+        padding: 10px;
+    }
+    .avd-split .avd-htitle {
+        font-size: 20px;
+    }
+    /* The preview fills the one column (with max-height its 16:9 ratio would shrink it to 284px of 368). */
+    .avd-split .avd-pv {
+        width: 100%;
+        max-height: 160px;
+        overflow: hidden;
+    }
+    .avd-bento {
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: 170px 120px;
+    }
+    .avd-bento .avd-bt.big {
+        grid-column: span 2;
+        grid-row: auto;
+    }
+    .avd-bt .avd-cap2 .avd-htitle,
+    .avd-bt.big .avd-cap2 .avd-htitle,
+    .avd-hud .avd-feat .avd-cap2 .avd-htitle {
+        font-size: 20px;
+    }
+    .avd-banner,
+    .avd-lead,
+    .avd-hud {
+        grid-template-columns: 1fr;
+        gap: 14px;
+    }
+    .avd-banner .avd-htitle {
+        font-size: 26px;
+    }
+    /* The home feed shell has no side padding on phones: the banner's text keeps the page gutter (as the lead's does). */
+    .avd-banner {
+        padding-inline: 16px;
+    }
+    .avd-lead .avd-l {
+        padding-inline-end: 0;
+        border-inline-end: 0;
+    }
+    .avd-lead .avd-l .avd-ph {
+        max-height: 200px;
+        overflow: hidden;
+    }
+    .avd-lead .avd-l .avd-htitle {
+        font-size: 24px;
+    }
+    /* The back-to-top button floats above the bottom bar and the ad strip (under them it could not show its focus). */
+    html[data-avd-theme] body.has-bottom-nav .back-to-top {
+        inset-block-end: calc(68px + env(safe-area-inset-bottom, 0px) + .75rem);
+    }
+    html[data-avd-theme] body.has-bottom-nav.has-mobile-ad .back-to-top {
+        inset-block-end: calc(142px + env(safe-area-inset-bottom, 0px) + .75rem);
+    }
+    /* The lead photo runs edge to edge; its kicker and headline keep the page gutter, and the rule above the lead
+       goes (under the one-row phone bar it drew an empty masthead band). */
+    .avd-lead .avd-l > .avd-page-kicker,
+    .avd-lead .avd-l > .avd-htitle {
+        padding-inline: 16px;
+    }
+    .avd-lead {
+        border-top: 0;
+    }
+    .avd-hud .avd-feat {
+        height: 210px;
+    }
+    .avd-shorts {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+    }
+    /* The tiles run edge to edge; the shelf's heading keeps the page gutter (as the banner's and the lead's text do). */
+    .avd-sh-head {
+        padding-inline: 16px;
+    }
+    .avd-sh .avd-cap2 b {
+        font-size: 11.5px;
+    }
+    .avd-rank-shelf .avd-rk-it .avd-num {
+        font-size: 120px;
+    }
+    .avd-rank-shelf .avd-rk-it .avd-post {
+        width: 92px;
+    }
+    html[data-avd-section-style="ornament"] .avd-sec-rule {
+        max-width: 40px;
+    }
+}
+
+/* ==========================================================================
+   RIGHT-TO-LEFT AND OTHER SCRIPTS. Layout mirrors through logical properties; pointing icons flip (play
+   icons do not). Arabic, Hindi, Thai, Japanese, Korean and Chinese pages get no capitals and no letter
+   spacing, and their display/title/label roles use the body stack; titles in those scripts (TitleScript,
+   .title-script-*) use the covering body font whatever the interface language.
+   ========================================================================== */
+/* The start-side drawer (the sidebar, pinned or not) sits on the right, as the content margin does. */
+html[dir="rtl"] .offcanvas-start {
+    inset-inline-start: 0;
+    inset-inline-end: auto;
+    transform: translateX(100%);
+}
+html[dir="rtl"] .offcanvas-start.showing,
+html[dir="rtl"] .offcanvas-start.show:not(.hiding) {
+    transform: none;
+}
+/* Bootstrap's LTR build resets only padding-left on lists; the browser's 40px start padding stays on the right. */
+html[dir="rtl"] .nav,
+html[dir="rtl"] .navbar-nav,
+html[dir="rtl"] .list-unstyled,
+html[dir="rtl"] .list-inline,
+html[dir="rtl"] .list-group,
+html[dir="rtl"] .pagination {
+    padding-inline-start: 0;
+}
+html[dir="rtl"] .fa-arrow-right,
+html[dir="rtl"] .fa-arrow-left,
+html[dir="rtl"] .fa-chevron-right,
+html[dir="rtl"] .fa-chevron-left,
+html[dir="rtl"] .fa-angle-right,
+html[dir="rtl"] .fa-angle-left {
+    transform: scaleX(-1);
+}
+html[lang|="ar"],
+html[lang|="hi"],
+html[lang|="th"],
+html[lang|="ja"],
+html[lang|="ko"],
+html[lang|="zh"] {
+    --avd-display-case: none;
+    --avd-display-tracking: 0;
+    --avd-kicker-case: none;
+    --avd-kicker-tracking: 0;
+    --avd-chip-case: none;
+    --avd-chip-tracking: 0;
+    --avd-btn-case: none;
+    --avd-btn-tracking: 0;
+    --avd-font-display: var(--avd-font-body);
+    --avd-font-title: var(--avd-font-body);
+    --avd-font-kicker: var(--avd-font-body);
+    --avd-font-label: var(--avd-font-body);
+}
+html[lang|="ar"] {
+    --avd-font-body: 'Segoe UI', Tahoma, 'Noto Sans Arabic', system-ui, sans-serif;
+}
+html[lang|="ar"] body.avd-app {
+    line-height: 1.6;
+}
+/* The fixed letter spacing and capitals of the theme CSS go too: header decorations, labels, badges, bylines, rank
+   numerals, duration badges, footer and side-menu headings (each list entry matches the rule that sets them; a new
+   fixed value needs its selector here). The locale switch keeps its language code in capitals (a Latin code). */
+html:is([lang|="ar"], [lang|="hi"], [lang|="th"], [lang|="ja"], [lang|="ko"], [lang|="zh"]) :is(.avd-sidebar-heading, .avd-hrow2,
+    .avd-dateline, .avd-masthead-title, .avd-brand, .avd-hnav, .avd-badge, .avd-tkp-h, .avd-tkp-h .avd-pill, .avd-stats span,
+    .avd-lead .avd-byline, .avd-lead .avd-r h3, .avd-mw span, .avd-hud .avd-panel h4, .avd-rk-it .avd-num, .avd-duration,
+    .avd-footer-col h6, .avd-sidebar-group-toggle, .avd-channel-kicker, .avd-channel-section-heading span, .avd-up-next-kicker,
+    .avd-secondary-kicker, .bg-gradient-warning) {
+    letter-spacing: 0;
+    text-transform: none;
+}
+html:is([lang|="ar"], [lang|="hi"], [lang|="th"], [lang|="ja"], [lang|="ko"], [lang|="zh"])[data-avd-secondary-pages="on"][data-avd-secondary-tables="on"] .avd-secondary-page .table thead th,
+html:is([lang|="ar"], [lang|="hi"], [lang|="th"], [lang|="ja"], [lang|="ko"], [lang|="zh"])[data-avd-secondary-pages="on"] .avd-profile-settings .avd-devices-table td::before {
+    text-transform: none;
+}
+/* Letter spacing that older views set inline (labels, quality badges, the Up next heading); the player keeps its own. */
+html:is([lang|="ar"], [lang|="hi"], [lang|="th"], [lang|="ja"], [lang|="ko"], [lang|="zh"]) body.avd-app [style*="letter-spacing"]:not(#avdPlayerWrapper *) {
+    letter-spacing: 0 !important;
+}
+.title-script-arabic,
+.title-script-devanagari,
+.title-script-thai,
+.title-script-cjk,
+.title-script-vietnamese,
+.title-script-cyrillic,
+.title-script-other {
+    font-family: var(--avd-font-body) !important;
+}
+.title-script-arabic,
+.title-script-devanagari,
+.title-script-thai,
+.title-script-cjk {
+    letter-spacing: 0 !important;
+    text-transform: none !important;
+}
+
+/* ==========================================================================
+   USER PREFERENCES WIN OVER DECORATION
+   ========================================================================== */
+@media (prefers-reduced-transparency: reduce) {
+    /* No blur at all (layout-theme-a.css); the see-through bars turn solid, and their ink follows the solid surface
+       (an overlay ink is often white). */
+    html[data-avd-header-style^="glass"] .avd-header,
+    html[data-avd-header-style="sidebar_rail"] .avd-header,
+    html[data-avd-header-style="transparent_overlay"] .avd-header {
+        --avd-header-text: var(--avd-text) !important;
+        background: var(--avd-surface-solid) !important;
+    }
+}
+/* A focused chip shows its whole ring: the rail's edge fades go while focus is inside it, and the ring hugs the chip
+   (the scrolling rail has only 2-4px of padding to draw it in). */
+.avd-category-tabs:focus-within,
+.avd-chips-scroller-wrapper .avd-category-tabs:focus-within {
+    -webkit-mask-image: none;
+    mask-image: none;
+}
+.avd-category-tabs .avd-tag:focus-visible {
+    outline-offset: 0;
+}
+/* The scrolling rail itself (a focusable region that runs edge to edge on phones) rings inside its box, and focus
+   scrolls a chip clear of the arrow buttons over the rail's ends (a chip half under an arrow hid its ring). */
+html[data-avd-theme] .avd-category-tabs:focus-visible {
+    outline-offset: -2px;
+}
+.avd-chips-scroller-wrapper .avd-category-tabs {
+    scroll-padding-inline: 44px;
+}
+/* The back-to-top button is a brand fill with a brand glow: its ring takes the page ink, which reads on the glow too. */
+html[data-avd-theme] .back-to-top:focus-visible {
+    outline-color: var(--avd-text);
+}
+@media (prefers-reduced-motion: reduce) {
+    .avd-video-card:hover,
+    .avd-video-card:hover .avd-thumb img,
+    .avd-tag:hover {
+        transform: none !important;
+    }
+}
+@media (forced-colors: active) {
+    .avd-tag,
+    .avd-video-card,
+    .btn,
+    .badge,
+    .avd-badge,
+    .avd-tkr,
+    .avd-bt {
+        border: 1px solid CanvasText;
+    }
+    .btn-primary,
+    .avd-tag.active {
+        forced-color-adjust: none;
+        background: Highlight;
+        color: HighlightText;
+        clip-path: none;
+    }
+}
+:root{--b:#742e6d}
