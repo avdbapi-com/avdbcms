@@ -58,9 +58,10 @@ How to install: [README.md](README.md). How to move a site from a community test
 - Easier to read: no text, button or badge is too faint in any of the 32 themes, in light or dark (the old designs had
   626 of these problems, 99 of them in focus rings); titles over bright video pictures meet a contrast of 4.5:1;
   keyboard focus rings are visible.
-- Phones: at least 2 whole videos on the first screen, and on the video page the title and 2 "Up next" videos show
-  without scrolling, in all 32 themes and 12 looks. On a phone the default look shows one ranked list (top 3) at the
-  top.
+- Phones: at least 2 whole videos on the first screen, in all 32 themes and 12 looks. On the video page, the title and
+  2 "Up next" videos show without scrolling with the video page layouts "Wide player on top" and "Centred, no
+  distractions" (the looks Cinema Night, Velvet Lounge, Shorts Feed and Deep Space Theater); with the other layouts,
+  "Up next" comes further down the page. On a phone the default look shows one ranked list (top 3) at the top.
 - Daily designs stay on for the sites that used them, with a new daily calendar.
 - Per page, the themes load at most 2 font families (3 font files, 90.4 KB) and at most 25.3 KB of compressed theme
   styles.
