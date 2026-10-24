@@ -15,7 +15,7 @@ $isDefault = $f['default'] !== null && ! $lazy && ! $errors->any() && (string) $
 // "Default: ... Reset" under the field, except where the row has its own line (passwords, keys, code, switches, ...).
 $meta = $f['default'] !== null && $f['default'] !== '' && ! $f['reveal'] && ! in_array($f['control'], ['secret', 'code', 'code_editor', 'toggle'], true)
   && ! in_array($f['key'], ['mail_mailer', 'indexnow_key', 'admin_ip_whitelist'], true);
-$data = 'data-key="'.e($id).'" data-group="'.e($f['group']).'"'.($f['type'] === 'bool' ? ' data-type="bool"' : '').($meta ? ' data-meta' : '')
+$data = 'data-key="'.e($id).'" data-group="'.e($f['group']).'"'.($f['type'] === 'bool' ? ' data-type="bool"' : '').($f['control'] === 'size' ? ' data-size' : '').($meta ? ' data-meta' : '')
   .($f['default'] !== null ? ($isDefault ? ' data-default-same' : ' data-default="'.e($f['default']).'"') : '')
   .($f['confirm'] ? ' data-confirm="'.e($f['confirm']).'" data-confirm-when="'.e($f['confirm_when']).'" data-confirm-action="'.e(__($f['confirm_action'])).'"' : '')
   .($f['secret'] || $f['reveal'] ? ' data-write-only="1" data-saved="'.($f['saved'] ? '1' : '0').'"' : '')
@@ -90,6 +90,11 @@ $data = 'data-key="'.e($id).'" data-group="'.e($f['group']).'"'.($f['type'] === 
 @break
 @case('number')
 <div class="ad-input-group"><input type="number" class="ad-input" id="{{ $id }}" name="{{ $f['name'] }}" value="{{ $value }}" aria-describedby="{{ $id }}-help" @required($f['required']) @if ($f['min'] !== null) min="{{ $f['min'] }}" @endif @if ($f['max'] !== null) max="{{ $f['max'] }}" @endif>@if ($f['suffix'])<span class="ad-suffix">{{ __($f['suffix']) }}</span>@endif</div>
+@break
+@case('size')
+{{-- Stored in bytes, typed in MB or GB: the page script sends "500 MB"; without it the unit comes as units[group][key]. --}}
+@php([$sizeNumber, $sizeUnit] = \App\Http\Controllers\Admin\SettingsPageController::sizeParts($value, old('units.'.$f['group'].'.'.$f['key'])))
+<div class="ad-input-group ad-size"><input type="number" class="ad-input" id="{{ $id }}" name="{{ $f['name'] }}" value="{{ $sizeNumber }}" min="0" step="any" inputmode="decimal" aria-describedby="{{ $id }}-help" @required($f['required'])><select class="ad-select" name="units[{{ $f['group'] }}][{{ $f['key'] }}]" aria-label="{{ __('Unit') }}" data-size-unit>@foreach (['MB', 'GB'] as $sizeOption)<option value="{{ $sizeOption }}" @selected($sizeOption === $sizeUnit)>{{ $sizeOption }}</option>@endforeach</select></div>
 @break
 @default
 <input type="{{ in_array($f['control'], ['email', 'url'], true) ? $f['control'] : 'text' }}" class="ad-input" id="{{ $id }}" name="{{ $f['name'] }}" value="{{ $f['reveal'] ? '' : $value }}" aria-describedby="{{ $id }}-help" @required($f['required'] && ! $f['reveal']) @if ($f['max'] !== null) maxlength="{{ $f['max'] }}" @endif @if ($f['reveal']) autocomplete="off" spellcheck="false" placeholder="{{ __('Type a new secret word to replace the link') }}" @endif>

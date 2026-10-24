@@ -82,7 +82,7 @@
             @if($resultsCount)
                 @foreach($results as $result)
                     @include('search.'.$result->type, [$result->type => $result])
-                    @if($loop->iteration === (int) config('site.ad_grid_position', 6))
+                    @if(\App\Support\FeedAdSlots::listAdAfter($loop->iteration, $loop->count, \App\Support\FeedAdSlots::adEvery(config('site.ad_grid_position', 6))))
                         <x-feed-ad-slot context="search_results" class="mb-3" />
                     @endif
                 @endforeach

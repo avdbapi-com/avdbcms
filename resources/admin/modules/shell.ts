@@ -140,7 +140,13 @@ const initMenus = (): void => {
     });
 
     document.addEventListener('focusin', (event) => {
-        if (openMenu && !openMenu.menu.contains(event.target as Node) && event.target !== openMenu.button) {
+        const target = event.target as Node;
+
+        // Safari (Mac, iPhone, iPad) does not focus a button or link on click: a click on a menu item focuses the
+        // nearest focusable element around it instead (the page's <main>), which closed the menu before the click
+        // arrived, so no row-menu button worked there. Focus that moves to an element holding the menu keeps it open
+        // (a click outside still closes it, see the click handler above).
+        if (openMenu && !openMenu.menu.contains(target) && target !== openMenu.button && !target.contains(openMenu.menu)) {
             closeMenu();
         }
     });

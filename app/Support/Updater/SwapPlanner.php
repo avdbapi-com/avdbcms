@@ -17,7 +17,9 @@ namespace App\Support\Updater;
  * Files the installed version shipped and this release no longer has (its "removed" list, or simply not in its files)
  * are deleted only in code folders (REMOVABLE), each into the backup first; a file the installed version never shipped
  * is the owner's and stays. Old public/build/assets files stay one more update, so pages cached in browsers keep their
- * CSS and JS: they are returned as kept_assets (state.json keeps them) and deleted by the next update.
+ * CSS and JS: they are returned as kept_assets (state.json keeps them) and deleted by the next update. A file the release
+ * renames by case only is replaced in place where case does not count; where it does, its old name is deleted too
+ * (only while exactly as shipped, and only when it certainly is another file than the new one).
  *
  * Order of the moves: new public/build/assets files and the copies next to kept files first, before the site goes
  * down (phase "pre"); then vendor/, the other files, the removals, and the entry points public/index.php, index.php
@@ -45,11 +47,13 @@ final class SwapPlanner
      * @param  callable(string): ?string  $readLive  path -> content of the live file
      * @param  callable(string): ?string  $readNew  path -> content of the staged (new) file
      * @param  list<string>  $keptAssets  built assets an earlier update kept for cached pages (state.json kept_assets)
+     * @param  (callable(string, string): bool)|null  $sameFile  do two paths (differing in case only) lead to one file?
+     *                                                             (sameFile() on the site; null: always assumed)
      * @return array{ops: list<array<string, mixed>>, merged: array<string, string>, report: array<string, mixed>, entries: list<array<string, mixed>>, kept_assets: list<string>}
      *               ops for SwapEngine; merged: path -> merged JSON to write as merged/<path>; entries: backup.json lines;
      *               kept_assets: the old built assets this update leaves for cached pages (the next one deletes them)
      */
-    public static function plan(Manifest $new, Manifest $installed, string $newManifestHash, callable $live, callable $readLive, callable $readNew, array $keptAssets = []): array
+    public static function plan(Manifest $new, Manifest $installed, string $newManifestHash, callable $live, callable $readLive, callable $readNew, array $keptAssets = [], ?callable $sameFile = null): array
     {
         $suffix = '.avdbcms-'.$new->version;
         $groups = ['pre' => [], 'vendor' => [], 'main' => [], 'delete' => [], 'entry' => [], 'last' => []];
@@ -62,7 +66,11 @@ final class SwapPlanner
         // A release may rename a file by case only (SEOController.php -> SeoController.php). Where the file system
         // ignores case (Windows, macOS) the new name finds the old file: it was shipped under its old name.
         $installedByCase = array_change_key_case($installed->files, CASE_LOWER);
-        $newByCase = array_change_key_case($new->files, CASE_LOWER);
+        $newNames = [];
+
+        foreach (array_keys($new->files) as $path) {
+            $newNames[strtolower((string) $path)] = (string) $path;
+        }
 
         foreach ($files as $path => $hash) {
             $path = (string) $path;
@@ -182,13 +190,22 @@ final class SwapPlanner
         // earlier update kept (state.json) and the ones the installed release itself dropped go now.
         $gone = [];
         $oldAssets = [];
+        $renamed = [];
 
         foreach (array_unique([...$new->removed, ...array_keys($installed->files)]) as $path) {
             $path = (string) $path;
 
-            // A path the release still has under another case is a rename by case: the put above replaces it (where
-            // case is ignored, deleting the old name would delete the new file). Elsewhere the old name stays unused.
-            if (isset($new->files[$path]) || isset($newByCase[strtolower($path)]) || $installed->hash($path) === null || ! self::removable($path)) {
+            if (isset($new->files[$path]) || $installed->hash($path) === null || ! self::removable($path)) {
+                continue;
+            }
+
+            // A path the release still has under another case is a rename by case (see below). Built assets have
+            // hashed names; an old one waits for the next update as always.
+            if (isset($newNames[strtolower($path)])) {
+                if (! str_starts_with($path, self::ASSETS)) {
+                    $renamed[$path] = $newNames[strtolower($path)];
+                }
+
                 continue;
             }
 
@@ -227,6 +244,32 @@ final class SwapPlanner
             if ($installed->hash($path) !== null && $installed->hash($path) !== $now) {
                 $report['overwritten'][] = $path;
             }
+        }
+
+        // The old name of a file renamed by case only. Where the file system ignores case (Windows, macOS) it IS the new
+        // file (the put above replaced it in place): nothing more to do, and deleting it would delete the new file.
+        // Where case counts (Linux), the old file would stay behind next to the new one: it goes (into the backup, like
+        // any removed file) when it is certainly another file than the new one and still exactly as shipped. A copy the
+        // owner changed stays, listed next to the new name.
+        ksort($renamed, SORT_STRING);
+
+        foreach ($renamed as $old => $newName) {
+            $old = (string) $old;
+            $now = $live($old);
+
+            if ($now === null || ! self::anotherFile($old, $newName, $live, $sameFile)) {
+                continue;
+            }
+
+            if ($now !== $installed->hash($old)) {
+                $report['kept'][] = ['path' => $old, 'copy' => $newName];
+
+                continue;
+            }
+
+            $groups['delete'][] = ['do' => 'delete', 'path' => $old, 'src' => null, 'old' => $now, 'new' => null];
+            $entries[] = ['path' => $old, 'action' => 'removed', 'old' => $now, 'new' => null];
+            $report['removed']++;
         }
 
         $manifestNow = $live(Manifest::FILE);
@@ -268,6 +311,39 @@ final class SwapPlanner
         }
 
         return str_starts_with($path, 'vendor/') ? 'vendor' : 'main';
+    }
+
+    /**
+     * Do two paths lead to one file (one name differing from the other in case, on a file system that ignores case)?
+     * Told by the files' device and inode numbers. Where either is no file, or the system gives no inode numbers (0),
+     * the answer is yes: the old name of a rename by case is then left alone rather than risk deleting the new file.
+     */
+    public static function sameFile(string $a, string $b): bool
+    {
+        clearstatcache(true, $a);
+        clearstatcache(true, $b);
+        $one = @stat($a);
+        $two = @stat($b);
+
+        if (! is_array($one) || ! is_array($two) || (int) $one['ino'] === 0 || (int) $two['ino'] === 0) {
+            return true;
+        }
+
+        return $one['dev'] === $two['dev'] && $one['ino'] === $two['ino'];
+    }
+
+    /**
+     * Is the old name of a file renamed by case only (it has a file) certainly another file than the new name? Yes when
+     * the new name finds no file (a file system that ignores case would find the old one under it), or when both find
+     * one and $sameFile says they are two. Anything else (no way to tell): no.
+     */
+    private static function anotherFile(string $old, string $new, callable $live, ?callable $sameFile): bool
+    {
+        if ($live($new) === null) {
+            return true;
+        }
+
+        return $sameFile !== null && $sameFile($old, $new) === false;
     }
 
     private static function removable(string $path): bool

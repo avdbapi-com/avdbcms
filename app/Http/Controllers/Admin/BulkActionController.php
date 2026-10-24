@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Models\Video;
 use App\Models\Playlist;
+use App\Enums\ReportStatus;
 use App\Enums\VideoStatus;
 use App\Models\User;
 use App\Models\Comment;
@@ -323,7 +324,12 @@ class BulkActionController
                 $msg = "Permanently deleted {$count} reports.";
                 break;
             case 'resolve':
-                $count = DB::table('reports')->whereIn('id', $ids)->update(['status' => 'cancelled']);
+                // The status column holds ReportStatus numbers (0 pending, 1 blocked, 2 cancelled): the word
+                // 'cancelled' became 0 (pending again) or a database error under strict SQL before 1.2.2.
+                $count = DB::table('reports')
+                    ->whereIn('id', $ids)
+                    ->where('status', '!=', ReportStatus::CANCELLED->value)
+                    ->update(['status' => ReportStatus::CANCELLED->value]);
                 $msg = "Resolved {$count} reports.";
                 break;
             default:

@@ -61,7 +61,9 @@ class ReportController extends Controller
         }
 
         return view('admin.reports.index', [
-            'reports' => $query->paginate(\App\Support\AdminPagination::perPage(null, 12))->withQueryString()
+            'reports' => $query->paginate(\App\Support\AdminPagination::perPage(null, 12))->withQueryString(),
+            // The badge counts the reports that still wait for a decision (it showed every report as "pending").
+            'pendingCount' => Report::query()->where('status', ReportStatus::PENDING)->count(),
         ]);
     }
 

@@ -69,6 +69,9 @@
                     @if($user->is_premium)
                         <span class="badge bg-warning">{{__('Premium')}}</span>
                     @endif
+                    @if(\App\Http\Middleware\ViewOnlyDemo::isViewOnlyUser($user))
+                        <span class="badge bg-info" data-view-only-badge>{{__('View-only')}}</span>
+                    @endif
                     @if($user->banned_at)
                         <span class="badge bg-dark">{{__('Banned')}}</span>
                     @endif
@@ -131,6 +134,27 @@
                     </form>
                 </div>
             </div>
+
+            @if(\App\Http\Middleware\ViewOnlyDemo::available($user))
+                @php($viewOnly = \App\Http\Middleware\ViewOnlyDemo::isViewOnlyUser($user))
+                <div class="card shadow mb-3" data-view-only="{{ $viewOnly ? '1' : '0' }}">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0">{{__('View-only demo account')}}</h6>
+                        <span class="badge {{ $viewOnly ? 'bg-info' : 'bg-secondary' }}">{{ $viewOnly ? __('On') : __('Off') }}</span>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted small mb-2">{{__('Can open the admin and the whole site, but nothing it does is saved.')}}@unless($user->is_admin) {{ $viewOnly ? __('To open the admin, it must be an administrator too.') : __('To open the admin, it must be an administrator too: turn this on first, then make it an administrator.') }}@endunless</p>
+                        @if($user->id !== auth()->id())
+                            @php($viewOnlyOff = __('Turn off view-only?').' '.__('It can change everything in this admin again. If other people know its password, give it a new password first.'))
+                            <form action="{{ route('admin.users.view-only', $user) }}" method="POST" @if(! $viewOnly) onsubmit='return confirm(@json(__('Make this account view-only?')))' @elseif($user->is_admin) onsubmit='return confirm(@json($viewOnlyOff))' @endif>
+                                @csrf
+                                <input type="hidden" name="view_only" value="{{ $viewOnly ? '0' : '1' }}">
+                                <button type="submit" class="btn btn-outline-secondary btn-sm w-100">{{ $viewOnly ? __('Turn off') : __('Turn on') }}</button>
+                            </form>
+                        @endif
+                    </div>
+                </div>
+            @endif
 
             <div class="card shadow">
                 <div class="card-header"><h6 class="mb-0">{{__('Account Details')}}</h6></div>

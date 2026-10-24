@@ -126,6 +126,9 @@
                                 @if($user->is_premium)
                                     <div class="badge bg-warning">{{__('Premium')}}</div>
                                 @endif
+                                @if(\App\Http\Middleware\ViewOnlyDemo::isViewOnlyUser($user))
+                                    <div class="badge bg-info" data-view-only-badge>{{__('View-only')}}</div>
+                                @endif
                                 @if(!$user->hasVerifiedEmail())
                                     <div class="badge bg-secondary">{{__('Unverified')}}</div>
                                 @endif

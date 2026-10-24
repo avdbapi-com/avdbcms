@@ -3,8 +3,10 @@
     users/edit and show): the account form (saved with the save bar, Ctrl+S or the header's Save), beside it the
     member's state, numbers and latest videos, and the member actions in the header's More menu - administrator rights
     through the bulk action (users.is_admin cannot be written by the form), block, confirm email, log in as, delete -
-    each risky one with its confirmation.
+    each risky one with its confirmation. The "View-only demo account" switch has its own small form beside them
+    (users.is_view_only is not written by the account form either); it shows once "Finish update" added the column.
 --}}
+@use('App\Http\Middleware\ViewOnlyDemo')
 @use('App\Support\AdminNav')
 @use('App\Support\AdminTheme')
 @extends('layouts.admin')
@@ -130,6 +132,26 @@
                     @endforeach
                 </dl>
             </section>
+
+            @if (ViewOnlyDemo::available($user))
+                @php($viewOnly = ViewOnlyDemo::isViewOnlyUser($user))
+                <section class="ad-panel" aria-labelledby="ad-user-view-only" data-view-only="{{ $viewOnly ? '1' : '0' }}">
+                    <div class="ad-panel-h">
+                        <h2 id="ad-user-view-only" class="ad-home-grow">{{ __('View-only demo account') }}</h2>
+                        <x-admin.status :type="$viewOnly ? 'info' : 'off'">{{ $viewOnly ? __('On') : __('Off') }}</x-admin.status>
+                    </div>
+                    {{-- The safe order for a demo account: view-only first, then administrator (never a full administrator in between). --}}
+                    <p class="ad-panel-b ad-muted">{{ __('Can open the admin and the whole site, but nothing it does is saved.') }}@unless ($user->is_admin) {{ $viewOnly ? __('To open the admin, it must be an administrator too.') : __('To open the admin, it must be an administrator too: turn this on first, then make it an administrator.') }}@endunless</p>
+                    @unless ($self)
+                        <form method="POST" action="{{ route('admin.users.view-only', $user) }}" class="ad-panel-f"
+                              @if (! $viewOnly) data-ad-confirm="{{ __('Make this account view-only?') }}" data-ad-confirm-body="{{ __('It can still sign in and look at everything, but nothing it does is saved.') }}" data-ad-confirm-label="{{ __('Turn on') }}" data-ad-confirm-tone="primary" @elseif ($user->is_admin) data-ad-confirm="{{ __('Turn off view-only?') }}" data-ad-confirm-body="{{ __('It can change everything in this admin again. If other people know its password, give it a new password first.') }}" data-ad-confirm-label="{{ __('Turn off') }}" @endif>
+                            @csrf
+                            <input type="hidden" name="view_only" value="{{ $viewOnly ? '0' : '1' }}">
+                            <button type="submit" class="ad-btn sm">{{ $viewOnly ? __('Turn off') : __('Turn on') }}</button>
+                        </form>
+                    @endunless
+                </section>
+            @endif
 
             <section class="ad-panel" aria-labelledby="ad-user-videos">
                 <div class="ad-panel-h">

@@ -1594,7 +1594,7 @@
                                     'showChannel' => $watchRelatedShowChannel,
                                     'showMeta' => $watchRelatedShowMeta,
                                 ])
-                                @if($loop->iteration === (int) config('site.ad_grid_position', 6))
+                                @if(\App\Support\FeedAdSlots::listAdAfter($loop->iteration, $loop->count, \App\Support\FeedAdSlots::adEvery(config('site.ad_grid_position', 6))))
                                     <x-feed-ad-slot context="watch_related" class="mb-3 w-100" />
                                 @endif
                             @endforeach

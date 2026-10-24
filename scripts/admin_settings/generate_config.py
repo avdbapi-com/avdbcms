@@ -172,6 +172,85 @@ SETTING_FIXES = {
     "footer_text": {
         "default": ("(c) 2026 AVDBClip. All rights reserved.", "(c) 2026 AVDBCMS. All rights reserved."),
     },
+    # 1.2.2: help texts checked against what the code does.
+    # allow_uploads: VideoPolicy::upload() refuses every upload while it is off (administrators too) and the upload
+    # window says so; the header Upload button follows header_upload_button_enabled only.
+    "allow_uploads": {
+        "help": (
+            "Shows the Upload button to signed-in members. Your own imports are not affected.",
+            "When off, nobody can upload, administrators too: the upload window says uploads are disabled. The Upload "
+            "button stays until you hide it in Appearance > Header, menus & footer. Imports are not affected.",
+        ),
+    },
+    "header_upload_button_enabled": {
+        "help": (
+            "For signed-in members who may upload.",
+            "Shown to every signed-in member, also while uploads are switched off.",
+        ),
+    },
+    # upload_rate_limit: the 'upload' rate limiter (RouteServiceProvider) counts every request of the upload API per
+    # member: start (config), the status checks while the video is processed, the finish and, when the site's own
+    # server stores the file, each chunk. Too many answer 429 "Too many attempts !" until the minute is over.
+    "upload_rate_limit": {
+        "help": (
+            "How many uploads one member may start per minute.",
+            "How many requests one member's uploads may send to your site per minute: the start, the checks while "
+            "the video is processed, the finish, and each piece of the file when your server stores it. More are "
+            "refused until the minute is over.",
+        ),
+    },
+    # ad_preroll_duration: Ad.tsx plays the video ad for this many seconds (1-60) and then starts the video; a shorter
+    # ad video ends the break when it ends; the Skip button works after min(3, seconds - 1) seconds.
+    "ad_preroll_duration": {
+        "label": ("Skip button after", "Ad break length"),
+        "help": (
+            "Seconds before viewers can skip the video ad.",
+            "How long the video ad plays before the video, from 1 to 60 seconds. A shorter ad video ends sooner. "
+            "Viewers can skip it after 3 seconds.",
+        ),
+        "control": ("number", 'number + "seconds" suffix'),
+    },
+    # The plan limits are shown on Money > Premium plans. VideoPolicy::upload(): a free member is stopped at
+    # free_max_uploads videos (0 stops every upload), free_max_storage and the plan's largest file; a premium member
+    # only by premium_max_file_size (the premium count and space are shown on the Premium page, never enforced). The
+    # sizes are stored in bytes and typed in MB or GB (control "size").
+    "free_max_uploads": {
+        "help": ("0 = no limit.", "How many videos one free member may upload. 0 = free members cannot upload."),
+    },
+    "free_max_file_size": {
+        "help": ("In MB.", "The biggest video file a free member may upload."),
+        "control": ("number", "size (MB or GB)"),
+    },
+    "free_max_storage": {
+        "help": ("In MB.", "All the videos of one free member together."),
+        "control": ("number", "size (MB or GB)"),
+    },
+    "premium_max_uploads": {
+        "help": (
+            "Leave empty for no limit.",
+            "Only shown on the Premium page: premium members can always upload more. Empty or 0 shows Unlimited.",
+        ),
+    },
+    "premium_max_file_size": {
+        "help": ("In MB.", "The biggest video file a premium member may upload."),
+        "control": ("number", "size (MB or GB)"),
+    },
+    "premium_max_storage": {
+        "help": (
+            "In MB. Leave empty for no limit.",
+            "Only shown on the Premium page: premium members are never stopped by total space. Empty or 0 shows "
+            "Unlimited.",
+        ),
+        "control": ("number", "size (MB or GB)"),
+    },
+    # trial_period_days: PremiumController::subscribe() gives it to Stripe as trial_period_days for a member without
+    # a premium subscription; PayPal checkouts have no trial.
+    "trial_period_days": {
+        "help": (
+            "Days of free premium for plans that include a trial.",
+            "Free premium days before the first card payment, for members who never had premium. 0 = no trial.",
+        ),
+    },
 }
 
 # Spec defaults that are PHP expressions of the old settings view, written out.
@@ -180,6 +259,33 @@ DEFAULT_LITERALS = {
     "\\App\\Enums\\VideoStatus::PUBLIC->value": "0",
     "$viewHistoryDefaults['retention_days'] ?? 90": "90",
 }
+
+
+# Card texts corrected after the spec was written: (page id, card id) -> {field: (spec value it replaces, new value)}.
+CARD_FIXES = {
+    # 1.2.2: the trial is not a plan option: Stripe checkouts of members who never had premium start with it.
+    ("money.plans", "trial"): {
+        "description": ("For plans that include a trial.", "Free premium days for new members who pay by card."),
+    },
+}
+
+
+def apply_card_fixes(spec):
+    """Put CARD_FIXES into the spec's cards (in memory only), like apply_setting_fixes()."""
+    cards = {}
+    for section in spec["ia"]["sections"]:
+        for page in section["pages"]:
+            for card in page.get("cards") or []:
+                cards[(page["id"], card["id"])] = card
+    for where, fields in CARD_FIXES.items():
+        if where not in cards:
+            raise ValueError("CARD_FIXES: %s/%s is not a card of the spec" % where)
+        for field, (old, new) in fields.items():
+            current = cards[where].get(field)
+            if current not in (old, new):
+                raise ValueError("CARD_FIXES: the spec's %s/%s %s is now %r (expected %r): check the fix" % (where + (field, current, old)))
+            cards[where][field] = new
+    return spec
 
 
 def apply_setting_fixes(spec):
@@ -241,6 +347,8 @@ def convert_control(key, spec_control):
         (r"textarea", lambda m: {"control": "textarea"}),
         (r"number", lambda m: {"control": "number"}),
         (r'number \+ "([^"]+)" suffix', lambda m: {"control": "number", "suffix": m.group(1)}),
+        # A size stored in bytes, typed as a number with an MB / GB choice (SettingsPageController::sizeBytes()).
+        (r"size \(MB or GB\)", lambda m: {"control": "size"}),
         (r"url", lambda m: {"control": "url"}),
         (r"email", lambda m: {"control": "email"}),
         (r"secret", lambda m: {"control": "secret"}),
@@ -544,7 +652,7 @@ def main():
     ap.add_argument("--schema")
     ap.add_argument("--check", action="store_true")
     a = ap.parse_args()
-    spec = apply_setting_fixes(json.load(open(a.spec, encoding="utf-8")))
+    spec = apply_card_fixes(apply_setting_fixes(json.load(open(a.spec, encoding="utf-8"))))
     schema = json.load(open(a.schema, encoding="utf-8")) if a.schema else None
     data = build(spec, schema)
     outputs = [(a.out, render(data, a.spec)), (a.index, search_rows(spec, data))]

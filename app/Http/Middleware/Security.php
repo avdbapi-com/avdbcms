@@ -8,6 +8,14 @@ use Illuminate\Http\Request;
 
 class Security
 {
+    /**
+     * Set with the https redirect, as a Secure cookie: a browser keeps it only from an answer it got over https. A
+     * request that brings it back and still looks like plain http came over https through a proxy that hides the scheme
+     * (one that ended TLS, then passed the request on with no header at all): a second redirect would only loop, so it
+     * gets the page. Laravel encrypts it like its other cookies, so nobody else can set it.
+     */
+    private const HTTPS_HOP_COOKIE = 'avdbcms_https_hop';
+
     protected array $exceptIframe = [
         'embed/*',
         'video/*/embed',
@@ -31,11 +39,12 @@ class Security
         // do not 301-loop when TLS terminates upstream.
         if (
             config('site.force_https', false)
-            && ! Environment::isSecureRequest()
             && app()->environment('production')
             && ! $request->is('healthz', 'up', '_internal/*')
+            && $this->visitorUsedHttp($request)
         ) {
-            return redirect()->secure($request->getRequestUri(), 301);
+            return redirect()->secure($request->getRequestUri(), 301)
+                ->withCookie(cookie(self::HTTPS_HOP_COOKIE, '1', 60 * 24, '/', null, true, true, false, 'lax'));
         }
 
         // Check global IP blacklist
@@ -80,6 +89,26 @@ class Security
         }
 
         return $response;
+    }
+
+    /**
+     * "Always use the secure address (https)" sends an http visit to https only where that cannot loop: the visitor's
+     * own scheme decides (Environment::visitorScheme(): straight from the visitor, Cloudflare's CF-Visitor, the
+     * X-Forwarded-Proto of a proxy the owner listed by its address). Where nothing says it (a proxy in front that sends
+     * no header, such as TLS ended upstream without X-Forwarded-Proto), a site whose own address is https does nothing,
+     * and one whose address is http redirects as before 1.2.2. A browser that brings back the cookie of an earlier
+     * redirect (HTTPS_HOP_COOKIE) is never sent again.
+     */
+    private function visitorUsedHttp(Request $request): bool
+    {
+        // This browser followed the redirect over https before and still looks like http here: never a second one.
+        if ($request->cookies->get(self::HTTPS_HOP_COOKIE) === '1') {
+            return false;
+        }
+
+        $scheme = Environment::visitorScheme($request);
+
+        return $scheme !== null ? $scheme === 'http' : ! Environment::isSecureRequest();
     }
 
     private function isIframeException(Request $request): bool

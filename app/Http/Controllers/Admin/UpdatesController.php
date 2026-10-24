@@ -65,6 +65,8 @@ class UpdatesController
             'undoneLast' => false,
             // Work files of an earlier update wait in the trash: the page deletes them in short slices (status?tidy=1).
             'tidy' => false,
+            // A Finish / Undo click of a maintenance page that had stood down (see choice()).
+            'choice' => null,
         ];
 
         try {
@@ -90,6 +92,7 @@ class UpdatesController
                 'backups' => $this->backupList($updater),
                 'lockedFor' => $this->lockedFor($admin),
                 'log' => $plan !== null ? $updater->logLines($plan) : [],
+                'choice' => $ops ? self::choice($request, $view) : null,
             ]);
         } catch (Throwable $e) {
             self::reportSafely($e);
@@ -337,7 +340,40 @@ class UpdatesController
             // An undo that left files alone kept their copies from before the update in this backup folder.
             'kept_backup' => is_string($plan['kept_backup'] ?? null) ? $plan['kept_backup'] : null,
             'migrations' => isset($plan['migrations']) ? (int) $plan['migrations'] : null,
+            // Its maintenance page stood down before the swap began (the token ran out): nothing was replaced.
+            'lapsed' => isset($plan['lapsed_at']),
         ];
+    }
+
+    /**
+     * A Finish / Undo click on the maintenance page of a swap that never began (its token ran out and the site came
+     * back meanwhile): the hook that stood down sends it here (?update_choice=finish|undo, MaintenanceHook::
+     * standingBy()). The address changes nothing by itself (anybody can send it): it only picks the message and
+     * whether the page goes on by itself. Finish: the update (or undo) goes on. Undo: nothing was replaced, so the
+     * page waits for Cancel or Continue.
+     *
+     * @return array{message: string, hold: bool}|null
+     */
+    private static function choice(Request $request, ?array $view): ?array
+    {
+        $choice = $request->query('update_choice');
+
+        if (! in_array($choice, ['finish', 'undo'], true) || $view === null || ! $view['active'] || ! $view['mine'] || ! $view['lapsed'] || $view['status'] !== 'preparing') {
+            return null;
+        }
+
+        $undo = $view['kind'] === 'undo';
+
+        // A plan that stalled meanwhile (no step for 30 minutes) does not go on by itself: it waits for Continue too.
+        if ($choice === 'finish' && ! $view['stalled']) {
+            return ['hold' => false, 'message' => $undo
+                ? __('Your site came back online before the undo put any file back, so nothing was changed. The undo goes on now.')
+                : __('Your site came back online before the update replaced any file, so nothing was changed. The update goes on now.')];
+        }
+
+        return ['hold' => true, 'message' => $undo
+            ? __('Your site came back online before the undo put any file back, so it still runs the new version. Cancel the undo, or click Continue to go back.')
+            : __('Your site came back online before the update replaced any file, so nothing was changed. Cancel the update, or click Continue to install it.')];
     }
 
     /**

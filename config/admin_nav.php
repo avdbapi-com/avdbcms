@@ -1169,6 +1169,7 @@ return [
         'admin.users.unban' => 'members.all',
         'admin.users.unverify' => 'members.all',
         'admin.users.update' => 'members.all',
+        'admin.users.view-only' => 'members.all',
         'admin.verification.index' => 'members.all',
         'admin.verification.unverify' => 'members.all',
         'admin.verification.verify' => 'members.all',

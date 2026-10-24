@@ -28,8 +28,20 @@ final class Contrast
 
     public const INK = '#0b0b0f';
 
-    /** OKLCH hue range that reads as 'danger' next to Bootstrap / admin red. */
-    public const RED_ZONE = [330.0, 25.0];
+    /**
+     * OKLCH hue range that reads as 'danger' next to Bootstrap / admin red. 1.2.2: up to 35 (was 25), so the film
+     * reds of the looks (Cinema Night #e50914 at 28, Tube red, coral, vermilion) fall back to the neutral blue too;
+     * the oranges from 37 up (Sunset #ff5a1f) keep their own colour.
+     */
+    public const RED_ZONE = [330.0, 35.0];
+
+    /**
+     * The part of the zone 1.2.2 added (hue above 25, up to 35) counts only strong reds: OKLCH chroma 0.10 or more.
+     * Pastel rose there (Velvet Lounge #e8a598, chroma 0.08) keeps its own admin accent, as in 1.2.1.
+     */
+    public const RED_ZONE_EDGE = 25.0;
+
+    public const RED_ZONE_EDGE_MIN_CHROMA = 0.10;
 
     public const NEUTRAL_ACCENT = '#1f5bc7';
 
@@ -209,7 +221,11 @@ final class Contrast
 
         [$lo, $hi] = self::RED_ZONE;
 
-        return $h >= $lo || $h <= $hi;
+        if ($h >= $lo || $h <= self::RED_ZONE_EDGE) {
+            return true;
+        }
+
+        return $h <= $hi && $c >= self::RED_ZONE_EDGE_MIN_CHROMA;
     }
 
     /**

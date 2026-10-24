@@ -10,7 +10,7 @@ namespace App\Support;
  */
 final class AppVersion
 {
-    public const CURRENT = '1.2.1';
+    public const CURRENT = '1.2.2';
 
     public const PRODUCT = 'AVDBCMS';
 

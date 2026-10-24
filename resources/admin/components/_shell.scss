@@ -820,6 +820,11 @@
         .ad-side {
             display: flex;
             position: fixed;
+            // top/bottom/left first: browsers before Safari 14.1 / Chrome 87 skip the logical sides (RTL then opens
+            // the drawer on the left, still usable).
+            top: 0;
+            bottom: 0;
+            left: 0;
             inset-block: 0;
             inset-inline: 0 auto;
             width: min(320px, 86vw);
@@ -904,6 +909,10 @@
 
     .ad-scrim-nav {
         position: fixed;
+        // Browsers before Safari 14.1 / Chrome 87 skip inset: the size still covers the screen (the minifier drops
+        // a top/left written next to inset).
+        width: 100%;
+        height: 100%;
         inset: 0;
         background: var(--overlay);
         z-index: 79;

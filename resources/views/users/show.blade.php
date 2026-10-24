@@ -7,14 +7,13 @@
     $featuredColumns = max(1, min(6, (int) ($channel['featured_columns'] ?? 3)));
     $featuredRows = max(1, min(4, (int) ($channel['featured_rows'] ?? 1)));
     $featuredLimit = $featuredColumns * $featuredRows;
-    $adPos = (int) config('site.ad_grid_position', 6);
+    $adPos = \App\Support\FeedAdSlots::adEvery(config('site.ad_grid_position', 6));
     $adsActive = config('site.ads_enabled') && (!config('site.ads_hide_for_premium', true) || !auth()->user()?->is_premium);
 
     $adFeaturedCode = trim((string) config('site.ad_code_grid_channel_home_featured', ''));
     $adFeaturedLayout = (string) config('site.ad_grid_layout_channel_home_featured', 'inherit');
     $adFeaturedLayout = $adFeaturedLayout === 'inherit' ? (string) config('site.ad_grid_layout', 'grid_card') : $adFeaturedLayout;
-    $hasFeaturedAd = $adsActive && $adFeaturedCode !== '' && $adFeaturedLayout === 'grid_card' && $featuredLimit >= $adPos;
-    $effectiveFeaturedLimit = $hasFeaturedAd ? max(1, $featuredLimit - 1) : $featuredLimit;
+    $hasFeaturedAd = $adsActive && $adFeaturedCode !== '' && $adFeaturedLayout === 'grid_card';
 
     $pinnedVideo = $user->pinned_video;
     $featuredVideos = match ($channel['featured_mode']) {
@@ -24,7 +23,10 @@
             ? collect([$pinnedVideo])->merge($user->videos->reject(fn ($video) => (int) $video->id === (int) $pinnedVideo->id))
             : $user->videos,
     };
-    $featuredVideos = $featuredVideos->take($effectiveFeaturedLimit)->values();
+    // "Ad after every N": the card ad takes the place after N videos when the grid has room for it and a video is
+    // left to follow it (App\Support\FeedAdSlots::gridAdAfter); the grid then shows one video less.
+    $featuredAdAfter = $hasFeaturedAd ? \App\Support\FeedAdSlots::gridAdAfter($featuredLimit, $featuredVideos->count(), $adPos) : 0;
+    $featuredVideos = $featuredVideos->take($featuredAdAfter > 0 ? $featuredLimit - 1 : $featuredLimit)->values();
     $featuredVideo = $featuredVideos->first();
     $featuredVideoIds = $featuredVideos->pluck('id')->map(fn ($id) => (int) $id)->all();
 
@@ -35,13 +37,13 @@
     $adLatestCode = trim((string) config('site.ad_code_grid_channel_home_latest', ''));
     $adLatestLayout = (string) config('site.ad_grid_layout_channel_home_latest', 'inherit');
     $adLatestLayout = $adLatestLayout === 'inherit' ? (string) config('site.ad_grid_layout', 'grid_card') : $adLatestLayout;
-    $hasLatestAd = $adsActive && $adLatestCode !== '' && $adLatestLayout === 'grid_card' && $latestLimit >= $adPos;
-    $effectiveLatestLimit = $hasLatestAd ? max(1, $latestLimit - 1) : $latestLimit;
+    $hasLatestAd = $adsActive && $adLatestCode !== '' && $adLatestLayout === 'grid_card';
 
     $latestVideoSource = $channel['dedupe_home_sections'] === '1'
         ? $user->videos->reject(fn ($video) => in_array((int) $video->id, $featuredVideoIds, true))
         : $user->videos;
-    $latestVideos = $latestVideoSource->take($effectiveLatestLimit)->values();
+    $latestAdAfter = $hasLatestAd ? \App\Support\FeedAdSlots::gridAdAfter($latestLimit, $latestVideoSource->count(), $adPos) : 0;
+    $latestVideos = $latestVideoSource->take($latestAdAfter > 0 ? $latestLimit - 1 : $latestLimit)->values();
     $playlistColumns = max(1, min(4, (int) ($channel['playlists_columns'] ?? 1)));
     $playlistRows = max(1, min(6, (int) ($channel['playlists_rows'] ?? 3)));
     $playlistLimit = $playlistColumns * $playlistRows;
@@ -288,7 +290,7 @@
                                 <div class="row gx-3 gy-3 gy-sm-4 avd-channel-featured-grid">
                                     @foreach($featuredVideos as $video)
                                         @include('videos.card', ['video' => $video])
-                                        @if($loop->iteration === (int) config('site.ad_grid_position', 6))
+                                        @if($loop->iteration === $featuredAdAfter)
                                             <x-feed-ad-slot context="channel_home_featured" class="col avd-grid-ad-col" />
                                         @endif
                                     @endforeach
@@ -319,7 +321,7 @@
                                 <div class="row gx-3 gy-3 gy-sm-4 avd-channel-video-grid avd-channel-latest-grid">
                                     @foreach($latestVideos as $video)
                                         @include('videos.card', ['video' => $video])
-                                        @if($loop->iteration === (int) config('site.ad_grid_position', 6))
+                                        @if($loop->iteration === $latestAdAfter)
                                             <x-feed-ad-slot context="channel_home_latest" class="col avd-grid-ad-col" />
                                         @endif
                                     @endforeach

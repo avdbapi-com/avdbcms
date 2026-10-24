@@ -65,8 +65,9 @@ class AdminAccentTest extends TestCase
             'violet #7c3aed dark' => ['#7c3aed', false, 'dark', ['#7d3bee', '#ffffff', '#9467fd', '#2a2243', '#472a7e', '#9467fd']],
             'violet #7c3aed site light' => ['#7c3aed', true, 'light', ['#7c3aed', '#ffffff', '#7c3aed', '#f2ebfd', '#c4a6f7', '#7c3aed']],
             'violet #7c3aed site dark' => ['#7c3aed', true, 'dark', ['#7d3bee', '#ffffff', '#9467fd', '#2a2243', '#472a7e', '#9467fd']],
-            'netflix red #e50914 light' => ['#e50914', false, 'light', ['#e50914', '#ffffff', '#dc201f', '#fce6e8', '#f39095', '#dc201f']],
-            'netflix red #e50914 dark' => ['#e50914', false, 'dark', ['#e50914', '#ffffff', '#fc332d', '#3a1a21', '#75141c', '#fc332d']],
+            // 1.2.2: hue 28 is inside the wider red zone [330, 35], so without the opt-in it takes the neutral blue.
+            'netflix red #e50914 light' => ['#e50914', false, 'light', ['#1f5bc7', '#ffffff', '#1f5bc7', '#e9eff9', '#9ab5e6', '#1f5bc7']],
+            'netflix red #e50914 dark' => ['#e50914', false, 'dark', ['#2763cf', '#ffffff', '#4381f0', '#1c283f', '#203c70', '#4381f0']],
             'netflix red #e50914 site light' => ['#e50914', true, 'light', ['#e50914', '#ffffff', '#dc201f', '#fce6e8', '#f39095', '#dc201f']],
             'netflix red #e50914 site dark' => ['#e50914', true, 'dark', ['#e50914', '#ffffff', '#fc332d', '#3a1a21', '#75141c', '#fc332d']],
             'ocean blue #0c74e5 light' => ['#0c74e5', false, 'light', ['#0c74e5', '#ffffff', '#146ed6', '#e7f1fc', '#92c0f3', '#146ed6']],

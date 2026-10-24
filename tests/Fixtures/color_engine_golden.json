@@ -4,7 +4,7 @@
  "admin_budget_L": 0.16,
  "red_zone_oklch_hue": [
   330.0,
-  25.0
+  35.0
  ],
  "neutral_accent": "#1f5bc7",
  "counts": {
@@ -846,33 +846,33 @@
    "input": "#e50914",
    "use_site_colour": false,
    "light": {
-    "accent": "#e50914",
+    "accent": "#1f5bc7",
     "on_accent": "#ffffff",
-    "accent_ink": "#dc201f",
-    "accent_soft": "#fce6e8",
-    "accent_line": "#f39095",
-    "focus": "#dc201f",
-    "rule": "C site colour",
+    "accent_ink": "#1f5bc7",
+    "accent_soft": "#e9eff9",
+    "accent_line": "#9ab5e6",
+    "focus": "#1f5bc7",
+    "rule": "B red-zone site colour -> neutral blue (per-admin opt-in to use the site colour)",
     "checks": {
-     "on_accent_vs_accent": 4.79,
-     "accent_vs_surface_non_text": 4.79,
-     "accent_ink_vs_surface": 4.92,
-     "accent_ink_vs_canvas": 4.51
+     "on_accent_vs_accent": 6.21,
+     "accent_vs_surface_non_text": 6.21,
+     "accent_ink_vs_surface": 6.21,
+     "accent_ink_vs_canvas": 5.7
     }
    },
    "dark": {
-    "accent": "#e50914",
+    "accent": "#2763cf",
     "on_accent": "#ffffff",
-    "accent_ink": "#fc332d",
-    "accent_soft": "#3a1a21",
-    "accent_line": "#75141c",
-    "focus": "#fc332d",
-    "rule": "C site colour",
+    "accent_ink": "#4381f0",
+    "accent_soft": "#1c283f",
+    "accent_line": "#203c70",
+    "focus": "#4381f0",
+    "rule": "B red-zone site colour -> neutral blue (per-admin opt-in to use the site colour) + surface 3:1 nudge",
     "checks": {
-     "on_accent_vs_accent": 4.79,
-     "accent_vs_surface_non_text": 3.52,
-     "accent_ink_vs_surface": 4.54,
-     "accent_ink_vs_canvas": 4.96
+     "on_accent_vs_accent": 5.57,
+     "accent_vs_surface_non_text": 3.03,
+     "accent_ink_vs_surface": 4.53,
+     "accent_ink_vs_canvas": 4.95
     }
    }
   },

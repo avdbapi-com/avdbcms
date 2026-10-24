@@ -70,34 +70,12 @@ class BackupController
     }
 
     /**
-     * A file or database size as people read it: bytes under 1 KB, KB under 1 MB (never "0.0 MB"), then MB, GB and
-     * TB, with two decimals under 10, one under 100 and none above ("35.3 KB", "3.38 MB", "512 KB", "1.5 GB"), like
-     * the other admin lists. Whole numbers keep their zeros ("100 KB", "300 B"); a value that rounds up to 1024 moves
-     * to the next unit ("1 MB", not "1,024 KB").
+     * A file or database size as people read it ("35.3 KB", "3.38 MB"): DatabaseBackup::sizeText(), the same text
+     * the "Back up now" message uses.
      */
     public static function sizeText(int $bytes): string
     {
-        $units = ['B', 'KB', 'MB', 'GB', 'TB'];
-        $size = (float) max(0, $bytes);
-        $unit = 0;
-        while ($size >= 1024 && $unit < count($units) - 1) {
-            $size /= 1024;
-            $unit++;
-        }
-
-        $precision = static fn (float $value, int $unit): int => $unit === 0 ? 0 : ($value >= 100 ? 0 : ($value >= 10 ? 1 : 2));
-        if (round($size, $precision($size, $unit)) >= 1024 && $unit < count($units) - 1) {
-            $size /= 1024;
-            $unit++;
-        }
-
-        $digits = $precision($size, $unit);
-        $text = number_format($size, $digits, '.', ',');
-        if ($digits > 0) {
-            $text = rtrim(rtrim($text, '0'), '.');
-        }
-
-        return $text.' '.$units[$unit];
+        return DatabaseBackup::sizeText($bytes);
     }
 
     /**

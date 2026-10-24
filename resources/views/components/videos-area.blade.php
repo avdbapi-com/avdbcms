@@ -208,13 +208,14 @@
         $avdSkeletonClasses[] = implode(' ', $avdParts);
     }
 
-    // Wide grid ad box (perf P4). VideosList puts a wide_row ad, a full-width row, after the row that holds every
-    // gridPosition-th video (wideAdVideoIndexes, at most ad_grid_max_per_feed ads), so a feed grew by that row when
-    // its data arrived. The skeleton holds the box at the same place per breakpoint (sized in feed-skeleton.scss),
-    // only when VideosList will render the ad there: window.AD_CONFIG shows ads on this page (the layout's
-    // $showAds: ads on, not hidden for a premium member, not an auth page; <x-videos-area> only renders in the
-    // public layout), the feed's ad context has a grid ad code and resolves to wide_row, and the skeleton reaches
-    // the ad position. A grid-card ad takes one card cell, which a skeleton card already holds.
+    // Wide grid ad box (perf P4). VideosList puts a wide_row ad, a full-width row, after the row that holds video
+    // N, 2N, ... ("Ad after every N": wideAdVideoIndexes in feedSlots.ts, at most ad_grid_max_per_feed ads),
+    // so a feed grew by that row when its data arrived. The skeleton holds the box at the same place per breakpoint
+    // (App\Support\FeedAdSlots::wideAdAfter, the same rule; sized in feed-skeleton.scss), only when VideosList will
+    // render the ad there: window.AD_CONFIG shows ads on this page (the layout's $showAds: ads on, not hidden for a
+    // premium member, not an auth page; <x-videos-area> only renders in the public layout), the feed's ad context
+    // has a grid ad code and resolves to wide_row, and the skeleton reaches the ad position. A grid-card ad takes
+    // one card cell, which a skeleton card already holds.
     // KEEP IN SYNC with window.AD_CONFIG in components/layout.blade.php and skeletonAdAfter in VideosList.tsx.
     $avdAdReserveClasses = [];
     $avdAdContextKey = is_string($adContext) && $adContext !== '' ? $adContext : 'default';
@@ -227,7 +228,7 @@
     $avdGridAdCode = $avdAdsShown && in_array($avdAdContextKey, $avdGridAdContexts, true)
         ? trim((string) config('site.ad_code_grid_' . $avdAdContextKey, ''))
         : '';
-    $avdGridAdPosition = (int) config('site.ad_grid_position', 6);
+    $avdGridAdPosition = \App\Support\FeedAdSlots::adEvery(config('site.ad_grid_position', 6));
     $avdGridAdLayout = config('site.ad_grid_layout_' . $avdAdContextKey, 'inherit');
 
     if ($avdGridAdLayout !== 'grid_card' && $avdGridAdLayout !== 'wide_row') {
@@ -235,24 +236,14 @@
     }
 
     if ($avdGridAdCode !== '' && $avdGridAdPosition > 0 && $avdGridAdLayout === 'wide_row') {
-        $avdMaxAdsValue = config('site.ad_grid_max_per_feed', 1);
-        $avdMaxAds = is_numeric($avdMaxAdsValue) && (int) $avdMaxAdsValue >= 0 ? (int) $avdMaxAdsValue : 1;
-        $avdAdStep = max(2, $avdGridAdPosition);
+        $avdMaxAds = \App\Support\FeedAdSlots::maxAds(config('site.ad_grid_max_per_feed', 1));
         $avdAdAfterByTier = [];
 
         foreach ($avdTierColumns as $avdTier => $avdColumnsAtTier) {
-            $avdAdAfterByTier[$avdTier] = [];
-
-            for ($avdCandidate = $avdAdStep; $avdCandidate <= $avdVisibleCounts[$avdTier]; $avdCandidate += $avdAdStep) {
-                if ($avdMaxAds > 0 && count($avdAdAfterByTier[$avdTier]) >= $avdMaxAds) {
-                    break;
-                }
-
-                $avdAdAfter = $avdColumnsAtTier <= 1
-                    ? $avdCandidate
-                    : min($avdVisibleCounts[$avdTier], max($avdColumnsAtTier, intdiv($avdCandidate, $avdColumnsAtTier) * $avdColumnsAtTier));
-                $avdAdAfterByTier[$avdTier][$avdAdAfter] = true;
-            }
+            $avdAdAfterByTier[$avdTier] = array_fill_keys(
+                \App\Support\FeedAdSlots::wideAdAfter($avdVisibleCounts[$avdTier], $avdColumnsAtTier, $avdGridAdPosition, $avdMaxAds),
+                true
+            );
         }
 
         // One box per skeleton position, shown at the breakpoints whose ad goes there (mobile first, like the cards).

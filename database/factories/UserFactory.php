@@ -30,7 +30,8 @@ class UserFactory extends Factory
             'slug' => $slug ?: 'user-' . Str::random(12),
             'email' => fake()->unique()->safeEmail(),
             'email_verified_at' => now(),
-            'password' => 'password',
+            // "password" in the test suite only: a factory run on a site (tinker, a seeder) never gives an account a known password.
+            'password' => app()->runningUnitTests() ? 'password' : Str::password(32),
             'last_login_at' => now(),
             'last_login_ip' => fake()->ipv4(),
             'remember_token' => Str::random(10),

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Enums\VideoStatus;
 use App\Events\UserBanned;
 use App\Exports\UsersExport;
+use App\Http\Middleware\ViewOnlyDemo;
 use App\Models\User;
 use App\Notifications\Account\DeleteAccount;
 use App\Services\ExportService;
@@ -14,8 +15,8 @@ use App\Support\AdminPreferences;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Password;
 
 class UserController
 {
@@ -27,22 +28,22 @@ class UserController
         $perPage = AdminPagination::perPage($request, 15);
         $page = max(1, (int) $request->query('page', 1));
         $requestFingerprint = AdminCache::fingerprintQuery($request->query());
+        $list = fn () => User::filter($request->query())
+            ->with('premium_subscription')
+            ->withCount([
+                'subscribers',
+                'videos',
+                'comments',
+                'interactions'
+            ])
+            ->orderBy('created_at', 'desc')
+            ->paginate($perPage)
+            ->withQueryString();
 
-        $users = AdminCache::remember(
-            "admin.users.index.v1.{$perPage}.p{$page}.{$requestFingerprint}",
-            now()->addMinutes(1),
-            fn () => User::filter($request->query())
-                ->with('premium_subscription')
-                ->withCount([
-                    'subscribers',
-                    'videos',
-                    'comments',
-                    'interactions'
-                ])
-                ->orderBy('created_at', 'desc')
-                ->paginate($perPage)
-                ->withQueryString()
-        );
+        // A view-only demo account searches without the e-mail column: its list is never shared through the cache.
+        $users = ViewOnlyDemo::hidesEmails()
+            ? $list()
+            : AdminCache::remember("admin.users.index.v1.{$perPage}.p{$page}.{$requestFingerprint}", now()->addMinutes(1), $list);
 
         return view('admin.users.index', [
             'users' => $users
@@ -107,12 +108,20 @@ class UserController
 
     public function update (User $user, Request $request) : RedirectResponse {
 
+        // The same rule as a member's own new password (Profile > Password).
+        $password = Password::min(config('validation.user.password.min', 6));
+
+        if (config('site.require_strong_password', false)) {
+            $password = $password->mixedCase()->numbers()->symbols();
+        }
+
         $validated = $request->validate([
             'username'    => ['required', 'string', 'max:'.config('validation.user.username.max', 50), Rule::unique('users')->ignore($user->id)],
             'email'       => ['required', 'email', Rule::unique('users')->ignore($user->id)],
             'description' => ['nullable', 'string', 'max:'.config('validation.user.description.max', 5000)],
             'country'     => ['nullable', 'string', 'max:2'],
             'is_admin'    => ['nullable', 'boolean'],
+            'password'    => ['nullable', 'string', $password],
         ]);
 
         $user->update([
@@ -124,8 +133,10 @@ class UserController
         ]);
 
         if ($request->filled('password')) {
+            // The User model hashes the password it is given (User::password()). Hashing it here as well stored a hash
+            // of the hash, so nobody could sign in with the password the admin typed.
             $user->update([
-                'password' => Hash::make($request->input('password'))
+                'password' => (string) $validated['password'],
             ]);
         }
 
@@ -182,6 +193,39 @@ class UserController
         $status = $user->is_admin ? 'promoted to admin' : 'removed from admin';
 
         return redirect()->to(url()->previous())->withSuccess("User {$status} successfully.");
+    }
+
+    /**
+     * Members > one member > "View-only demo account" (users.is_view_only, never mass-assignable): view_only=1 turns it
+     * on, 0 off, so a second click or a reloaded form changes nothing. Only an administrator who is not view-only
+     * may switch it (the ViewOnlyDemo guard refuses a view-only account before this; this is the second lock), and
+     * never on their own account (they could not switch it back).
+     */
+    public function viewOnly (User $user, Request $request) : RedirectResponse {
+
+        $actor = $request->user();
+
+        abort_unless($actor instanceof User && $actor->is_admin && ! ViewOnlyDemo::isViewOnlyUser($actor), 403);
+
+        $request->validate(['view_only' => ['required', 'boolean']]);
+
+        if ((int) $user->getKey() === (int) $actor->getKey()) {
+            return redirect()->to(url()->previous())->withErrors(['user' => __('You cannot make your own account view-only.')]);
+        }
+
+        // Before "Finish update" has added the column there is nothing to switch.
+        if (! ViewOnlyDemo::available($user)) {
+            return redirect()->to(url()->previous())->withErrors(['user' => __('These choices can be saved after the update is finished. Open Home and click Finish update.')]);
+        }
+
+        $on = $request->boolean('view_only');
+
+        // A plain update: no model events (a member with a Stripe id would be sent to Stripe for an admin flag).
+        User::query()->whereKey($user->getKey())->toBase()->update([ViewOnlyDemo::COLUMN => $on]);
+
+        return redirect()->to(url()->previous())->withSuccess($on
+            ? __('This account is now view-only: it can look at everything, but nothing it does is saved.')
+            : __('This account can make changes again.'));
     }
 
     public function confirm (User $user) : RedirectResponse {

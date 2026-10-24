@@ -1,8 +1,10 @@
 {{--
     Members > All members in the redesigned admin (the old admin keeps users/index.blade.php): tabs with counts
     (Blocked, Premium, and the "Email not confirmed" page), search, bulk actions, a row menu per member filled from one
-    template (modules/list-rows.ts), the pager. Initials instead of avatar images keep the page light.
+    template (modules/list-rows.ts), the pager. Initials instead of avatar images keep the page light. A view-only demo
+    account (users.is_view_only) carries a "View-only" badge beside its status.
 --}}
+@use('App\Http\Middleware\ViewOnlyDemo')
 @use('App\Support\AdminTheme')
 @use('App\Support\AdminNav')
 @extends('layouts.admin')
@@ -141,6 +143,9 @@
                 </td>
                 <td class="c-meta">
                     <x-admin.status :type="$tone">{{ $label }}</x-admin.status>
+                    @if (ViewOnlyDemo::isViewOnlyUser($user))
+                        <x-admin.status type="info" data-view-only-badge="1">{{ __('View-only') }}</x-admin.status>
+                    @endif
                     <span class="ad-phone-only ad-faint">{{ trans_choice('1 video|:count videos', (int) $user->videos_count, ['count' => number_format((int) $user->videos_count)]) }}</span>
                 </td>
                 <td class="is-num">{{ number_format((int) $user->videos_count) }}</td>

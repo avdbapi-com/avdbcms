@@ -161,10 +161,15 @@ class MaintenanceHookRequestTest extends TestCase
 
         $this->assertNull($this->hookRequest(['REQUEST_METHOD' => 'GET']), 'the visitor gets the site again');
 
-        $this->assertFileDoesNotExist($this->box->paths()->hook());
+        // The site is up (Laravel's down file is gone); the hook file stays only for a Finish / Undo click of the page it
+        // may have shown before (1.2.2, C2): every other request goes through it to the site.
         $this->assertFileDoesNotExist($this->box->paths()->down());
+        $this->assertFileExists($this->box->paths()->hook());
+        $this->assertNull($this->hookRequest(['REQUEST_METHOD' => 'GET', 'HTTP_ACCEPT' => 'text/html']));
+        $this->assertNull($this->hookRequest(['REQUEST_METHOD' => 'POST', 'HTTP_ACCEPT' => 'application/json'], ['avdbcms_update' => 'swap', 'token' => $this->ready['token']]));
         $plan = $this->storedPlan();
         $this->assertSame('preparing', $plan['status']);
+        $this->assertIsInt($plan['lapsed_at']);
         $this->assertArrayNotHasKey('swap', $plan);
         $this->assertSame($cookie, $plan['cookie'], 'the administrator keeps the cookie the start handed out');
         $this->assertFileDoesNotExist($this->jobFolder().'/live.json', 'the live files are compared again');
@@ -175,6 +180,7 @@ class MaintenanceHookRequestTest extends TestCase
         $again = $this->stepUntil($this->updater(), fn (array $a): bool => $a['next'] !== 'step');
         $this->assertSame('swap', $again['next']);
         $this->assertNotSame($this->ready['token'], $again['token']);
+        $this->assertArrayNotHasKey('lapsed_at', $this->storedPlan(), 'the new hook is not a standing-by one');
         $old = $this->hookRequest(['REQUEST_METHOD' => 'POST', 'HTTP_ORIGIN' => 'http://localhost', 'HTTP_ACCEPT' => 'application/json'],
             ['avdbcms_update' => 'swap', 'token' => $this->ready['token']]);
         $this->assertSame(503, $old['status']);

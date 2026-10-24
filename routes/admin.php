@@ -124,6 +124,8 @@ Route::prefix('admin')->name('admin.')->middleware(['admin', 'admin.cache'])->gr
             ->can('ban', 'user');
         Route::post('/{user}/unban', 'unban')->name('unban');
         Route::post('/{user}/toggle-admin', 'toggleAdmin')->name('toggle-admin');
+        // The view-only demo account switch (users.is_view_only): view_only=1 turns it on, 0 off.
+        Route::post('/{user}/view-only', 'viewOnly')->name('view-only');
         Route::post('/{user}/confirm', 'confirm')->name('confirm');
         Route::post('/{user}/unverify', 'unverify')->name('unverify');
         Route::delete('/{user}/delete', 'delete')->name('delete');

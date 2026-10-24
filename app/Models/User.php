@@ -44,7 +44,8 @@ class User extends Authenticatable implements MustVerifyEmail, Reportable
 {
     use HasFactory, Notifiable, HasRelationships, HasReport, Impersonate, Billable, Filterable, HasApiTokens, MustVerifyUpdatedEmail, MustVerifyPhone, CanResetPassword, SoftDeletes;
 
-    protected $guarded = ['id', 'is_admin'];
+    // is_view_only (the view-only demo account, App\Http\Middleware\ViewOnlyDemo) is set by an administrator only.
+    protected $guarded = ['id', 'is_admin', 'is_view_only'];
 
     protected $hidden = [
         'password',
@@ -59,6 +60,7 @@ class User extends Authenticatable implements MustVerifyEmail, Reportable
         'phone' => E164PhoneNumberCast::class,
         'phone_verified_at' => 'datetime',
         'channel_customization' => 'array',
+        'is_view_only' => 'boolean',
     ];
 
     public const string AVATAR_FOLDER = 'avatars';
@@ -395,10 +397,14 @@ class User extends Authenticatable implements MustVerifyEmail, Reportable
         );
     }
 
+    /**
+     * The upload limits that apply to this account. Administrators (the site's owners) upload with the premium
+     * limits: the member plans are for members (1.2.2: the bundled free limits apply, 10 videos / 500 MB / 5 GB).
+     */
     protected function plan(): Attribute
     {
         return Attribute::make(
-            get: fn () => $this->is_premium ? 'premium' : 'free'
+            get: fn () => $this->is_premium || $this->is_admin ? 'premium' : 'free'
         );
     }
 

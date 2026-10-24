@@ -69,7 +69,7 @@
                                         </div>
                                     @endif
                                     </li>
-                                @if($loop->iteration === (int) config('site.ad_grid_position', 6))
+                                @if(\App\Support\FeedAdSlots::listAdAfter($loop->iteration, $loop->count, \App\Support\FeedAdSlots::adEvery(config('site.ad_grid_position', 6))))
                                     <x-feed-ad-slot as="li" context="playlist_videos" class="list-group-item px-2 px-sm-3 py-3" />
                                 @endif
                             @endforeach

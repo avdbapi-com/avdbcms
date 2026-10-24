@@ -63,8 +63,9 @@
     .xvid-provider-tab:hover {
         color: #fff;
     }
+    /* Darker red-orange than the brand pair (#ef4444 -> #f97316 gave white text 2.8-3.8:1): 6.5:1 to 5.2:1. */
     .xvid-provider-tab.active {
-        background: linear-gradient(135deg, #ef4444, #f97316);
+        background: linear-gradient(135deg, #b91c1c, #c2410c);
         color: #fff;
         box-shadow: 0 4px 12px rgba(239, 68, 68, 0.35);
     }
@@ -714,7 +715,8 @@
                                         <tr>
                                             <td class="fw-bold">{{ $schedule->name }}</td>
                                             <td class="small">{{ $schedule->scheduleLabel() }}</td>
-                                            <td class="small font-monospace">{{ $schedule->next_run_at?->diffForHumans() ?: 'N/A' }}</td>
+                                            {{-- A paused schedule has no next run (sites before 1.2.2 kept an old time: "12 minutes ago"). --}}
+                                            <td class="small font-monospace">@if (! $schedule->is_active){{ __('Paused') }}@elseif ($schedule->next_run_at){{ $schedule->next_run_at->diffForHumans() }}@else{{ __('Due now') }}@endif</td>
                                             <td>
                                                 <span class="badge bg-{{ $schedule->is_active ? 'success' : 'secondary' }}">
                                                     {{ $schedule->is_active ? __('Active') : __('Paused') }}

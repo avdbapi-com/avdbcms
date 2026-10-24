@@ -4,6 +4,8 @@
 // modules/legacy.ts, which the shell adds only where a view needs them.
 // No effects tier, no animation loops, no scroll listeners.
 
+// First: the fallbacks for old browsers, before any other module runs (old-browsers.ts).
+import './old-browsers';
 import {initConfirm} from './modules/confirm';
 import {initControls} from './modules/controls';
 import {initMonitors} from './modules/monitor';
@@ -13,14 +15,15 @@ import {initTables} from './modules/table';
 import {initToasts} from './modules/toast';
 import {initTooltips} from './modules/tooltip';
 
-initToasts();
-initConfirm();
-initShell();
-initSavebar();
-initTooltips();
-initControls();
-initTables();
-initMonitors();
+// Each part starts on its own: a browser that lacks something one part needs keeps the others (the page itself is
+// complete without this script: every page is rendered by the server).
+for (const init of [initToasts, initConfirm, initShell, initSavebar, initTooltips, initControls, initTables, initMonitors]) {
+    try {
+        init();
+    } catch (error) {
+        console.error(error);
+    }
+}
 
 // The shell prints modules/legacy.ts as its own module script on pages that need it (it must run before
 // DOMContentLoaded). This import is the fallback for a page that asked for it without that tag.

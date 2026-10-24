@@ -5,6 +5,120 @@ only raises the last number, a release with new features the middle one.
 How to update your site: [UPGRADE.md](UPGRADE.md). Every release with its files:
 https://github.com/avdbapi-com/avdbcms/releases
 
+## 1.2.2 (2026-10-25)
+
+A fix release for 1.2.1. Sites on 1.2.1 or 1.2.0 update with one click in **Tools › Updates**; every other way is in
+[UPGRADE.md](UPGRADE.md). It has 4 database changes, which the update makes for you (**Finish update** on Home when you
+update by hand).
+
+### New: view-only demo accounts
+
+- In **Members › All members**, open an account and switch on **View-only demo account**, then make it an
+  administrator if it should see the admin. It can open the whole site and the admin, but nothing it does is saved:
+  every change it tries is refused with "This is a view-only demo account: you can look at everything, but changes are
+  switched off."
+- Backups, logs, exports and other downloads, logging in as a member, the .env, database and server tools, the
+  maintenance secret and the upload settings are closed to it. Keys, passwords, e-mail addresses, IP addresses and
+  server paths are masked in what it sees, and the admin's searches never match e-mail addresses for it.
+- Its pages show a small "View-only demo" note, and the members list marks the account **View-only**. Only an
+  administrator who can make changes can switch it on or off, never on their own account. Other administrators,
+  members and visitors are not affected.
+- **Undo this update** waits while the site has view-only demo accounts, because older versions do not know them. The
+  message says what to do first.
+
+### Upload limits
+
+- New sites start with the intended upload limits: free members may upload 10 videos of up to 500 MB each, 5 GB in
+  all; premium members files of up to 2 GB, with no limit on the number of videos or on space. The bundled database
+  held a test site's limits (1,000,000 videos, 9.77 GB per file and 10 TB for free members, 97.7 GB per file for
+  premium members), and the Premium page showed them.
+- Updating sets these limits only where your site still has the bundled values; a limit you changed stays.
+  **Tools › Logs › Admin actions** shows which limits changed.
+- Administrators upload with the premium limits: the member plans apply to members. Before, an administrator without
+  premium counted as a free member.
+- **Money › Premium plans** now shows the cards **What each plan may upload** and **Free trial**, with the same save bar
+  as the settings pages. You type sizes in MB or GB (for example 750 MB or 1.2 GB); they are stored in bytes as before,
+  and values you saved before are kept exactly. The help texts say what each limit does: 0 videos for free members
+  means free members cannot upload; the premium number of videos and premium total space only appear on the Premium
+  page.
+
+### Ads
+
+- **Money › Ads › Ad after every** now means how many videos come before each ad, for both ad shapes. A card ad comes
+  after that many videos (with 8: eight videos, then the ad; before, it took the eighth place), then again after every
+  8 videos. A full-width ad row comes after the row that holds video 8 (then 16, 24, ...). **Most ads per list** still
+  sets the most ads in one list.
+- A card ad always stands between two videos, so a list needs more videos than **Ad after every** to show one. Rows
+  with a set number of places (for example 2 rows of 4 on the home page) need more places than that number: choose a
+  smaller number, or more videos per row or more rows.
+- Video lists with card ads show all their videos once the last ones have loaded; channel sections, search results,
+  playlists and Up next show their ad only between two videos.
+- The video ad setting "Skip button after" is now **Ad break length** (1 to 60 seconds; viewers can skip after 3
+  seconds).
+
+### Admin
+
+- **Tools › Backups**: the "Back up now" message gives the backup's size the way the list does (for example 26.4 KB,
+  not 0.03 MB).
+- **Content › Import videos**: a paused schedule shows Paused under Next Run instead of a time in the past (also the
+  ready-made "Hourly XVIDAPI Video Sync"); switching a schedule on works out its next run from its timing.
+- Help texts match what the settings do: **Let members upload videos** (off stops every upload, administrators' too),
+  **Upload button**, **Uploads per minute** and the AVDB language note (titles come with the import; nothing is filled
+  in later in the background).
+- Members: a new password that an administrator types for a member now works. It was saved hashed twice, so nobody
+  could sign in with it. It follows the same rules as a member's own password.
+- Admin colour "Automatic": strong red site colours (for example the looks Cinema Night and Magazine) now give the
+  neutral blue admin accent, so admin buttons never look like Delete. Pastel rose and orange site colours keep their
+  own colour.
+- Old admin Reports: Block and Resolve follow each report's real status, and bulk Resolve marks reports as resolved
+  (before, it set them back to waiting).
+- The active XVIDAPI tab and the old admin's red outline buttons in dark mode read at 4.5:1 or more.
+- The admin works on older phones, tablets and browsers (for example an iPhone or iPad on iOS 12 to 15, an older Android
+  browser, or Firefox before 121): **Save changes**, the confirm questions, the search, the dialogs and the phone menu
+  work there, and pages stay readable even when the admin's styles or scripts do not load. Before, an older device
+  could show only a dark, empty page.
+- In Safari (Mac, iPhone, iPad) the actions in a list row's menu (such as **Make administrator**, **Mark as read** or
+  **Delete**) work: the menu closed before the click arrived. In older Chrome and Firefox they work too: the browser did
+  not say which row was clicked.
+
+### One-click updates
+
+- A server or proxy that ignores download ranges no longer makes the update hold the whole update zip in PHP's memory:
+  every part of the download goes straight to disk, so a 128 MB memory limit is enough.
+- If the maintenance page closed by itself before any file was replaced, a click on **Finish the update** or **Undo the
+  update** on that page, still open in a tab, opens **Tools › Updates** with a short note instead of an error page.
+- On hosts whose file system tells upper and lower case apart, a file that a release renames by letter case only no
+  longer stays behind under its old name; it goes into the update backup, and Undo puts it back.
+- Finish no longer says an update is installed while PHP may still run old program files from its memory (OPcache):
+  it clears them again, or asks you to have PHP restarted and then click Continue.
+- The update to 1.2.2 still runs your current version's code until the files are switched, so the download,
+  maintenance page and letter-case fixes apply in full from the next update.
+
+### Security
+
+- **Always use the secure address (https)** now also sends http visits to https when your site's address is https,
+  wherever that is safe: a visit straight to your server, a visit through Cloudflare from a visitor who used http, or a
+  visit through a proxy listed in SITE_TRUSTED_PROXIES in .env that says the visitor used http. Behind Cloudflare
+  "Flexible" SSL, or a proxy that does not say how the visitor came, it does nothing, so it cannot cause a loop.
+- The release no longer contains the development seeders FleetDataEnricherSeeder, UserSeeder and ModelSeeder: someone
+  running them by hand got fake accounts, some with well-known passwords. Updating deletes the copies a site still has,
+  unless they were changed.
+- Member accounts with a password that others know get a random password when you update: the sample members
+  pbergstrom and blackbox_creator of the community test packages before 1.2.0, and the test members that the
+  installer's "Run migrations and seeders" created before 20 September 2026. The accounts and their content stay;
+  **Tools › Logs › Admin actions** names them, and you can give them a new password in **Members**.
+
+### Translations
+
+- "Director" means a film director in 11 languages, French uses "étiquette" for video tags, and the Korean, Indonesian
+  and Malay tag words are corrected. Tag names no longer show a machine translator's notes to visitors.
+
+### For developers
+
+- The user factory gives the password "password" only inside the test suite; elsewhere (for example in tinker) a
+  random one.
+- The release build refuses a package with any seeder other than the three the installer uses.
+
 ## 1.2.1 (2026-10-24)
 
 A fix release for 1.2.0. Sites on 1.2.0 update with one click in **Tools › Updates**; every other way is in

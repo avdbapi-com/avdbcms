@@ -918,8 +918,10 @@
 
                 {{-- Info panel when Full mode is ON --}}
                 <div id="fullLangsInfo" class="mb-4 p-3 rounded border border-warning" style="background:rgba(255,193,7,0.06)">
-                    <small class="text-warning d-block mb-2"><i class="fa-solid fa-triangle-exclamation me-1"></i><strong>{{__('Fast + background exact translations')}}</strong> - {{__('Videos import immediately, then exact locale titles are fetched from AVDB in a background backfill.')}}</small>
-                    <small class="text-muted d-block mb-2">{{__('Until that backfill finishes, non-English pages may temporarily show the base English title while the videos stay visible in every locale.')}}</small>
+                    {{-- What the import really does (ImportAvdbVideos: the titles are fetched in batches before the videos are
+                         saved; nothing fills them in later - 1.2.1 promised a "background backfill"). --}}
+                    <small class="text-warning d-block mb-2"><i class="fa-solid fa-triangle-exclamation me-1"></i><strong>{{__('Fast mode')}}</strong> - {{__('Each video is imported with its title in all of these languages, fetched from AVDB during the import.')}}</small>
+                    <small class="text-muted d-block mb-2">{{__('Where AVDB sends the English title for a language, pages in that language show it in English. A video without a title in one of these languages is skipped. Nothing is fetched later in the background.')}}</small>
                     <small class="text-muted d-block mt-1"><strong>{{__('Languages:')}}</strong> JA, ZH, KO, VI, TH, MS, ID, FR, DE, ES, PT, RU, AR, HI, TL, TR</small>
                     <div class="form-check form-switch mt-3">
                         <input class="form-check-input" type="checkbox" id="verifyFullLangs" onchange="toggleFullLangsMode()">
@@ -1292,7 +1294,8 @@
                                     @endif
                                 </td>
                                 <td>
-                                    <div>{{ $schedule->next_run_at ? $schedule->next_run_at->diffForHumans() : __('Disabled') }}</div>
+                                    {{-- A paused schedule has no next run (the ready-made one kept its creation time: "2 weeks ago"). --}}
+                                    <div>@if (! $schedule->enabled){{ __('Paused') }}@elseif ($schedule->next_run_at){{ $schedule->next_run_at->diffForHumans() }}@else{{ __('Due now') }}@endif</div>
                                     @if($schedule->last_run_id)
                                         <div class="text-muted">{{__('Last')}}: #{{ $schedule->last_run_id }}</div>
                                     @endif

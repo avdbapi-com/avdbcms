@@ -427,7 +427,7 @@ class XvidImportController
         }
 
         $schedule = new XvidImportSchedule();
-        $schedule->fill([
+        $schedule->fill(self::withCronExpression([
             'name' => $data['name'],
             'is_active' => true,
             'categories' => $categories,
@@ -447,7 +447,7 @@ class XvidImportController
                 'updated_hours' => (int) ($data['updated_hours'] ?? 0),
             ],
             'next_run_at' => now()->addMinutes(5),
-        ]);
+        ]));
         $schedule->save();
 
         return response()->json([
@@ -456,11 +456,19 @@ class XvidImportController
         ]);
     }
 
+    /**
+     * Pause or switch on. Switched on, the next run is worked out from the schedule's timing (a paused schedule may
+     * still hold a run time from long ago, which would have started it at once); paused, it has none.
+     */
     public function toggleSchedule(XvidImportSchedule $schedule)
     {
-        $schedule->update(['is_active' => ! $schedule->is_active]);
+        $active = ! $schedule->is_active;
+        $schedule->update([
+            'is_active' => $active,
+            'next_run_at' => $active ? $schedule->calculateNextRunAt() : null,
+        ]);
 
-        return back()->with('success', __('Schedule status updated.'));
+        return back()->with('success', $active ? __('Schedule enabled.') : __('Schedule paused.'));
     }
 
     public function runScheduleNow(XvidImportSchedule $schedule)
@@ -512,6 +520,11 @@ class XvidImportController
         });
     }
 
+    /**
+     * The ready-made schedule of a new site: paused, hourly at :30. It has no next run until it is switched on
+     * (toggleSchedule() then works it out from its timing), so the list says "Paused" instead of a time in the past,
+     * and its cron line agrees with its name (the table's default is the daily "0 3 * * *").
+     */
     public static function ensureDefaultScheduleExists(): ?XvidImportSchedule
     {
         if (! Schema::hasTable('xvid_import_schedules') || XvidImportSchedule::query()->exists()) {
@@ -519,7 +532,7 @@ class XvidImportController
         }
 
         try {
-            return XvidImportSchedule::create([
+            return XvidImportSchedule::create(self::withCronExpression([
                 'name' => 'Hourly XVIDAPI Video Sync',
                 'is_active' => false,
                 'categories' => [65],
@@ -546,12 +559,68 @@ class XvidImportController
                     'sort_direction' => 'desc',
                     'starter_views_mode' => 'disabled',
                 ],
-                'next_run_at' => now()->subMinute(),
-            ]);
+                'next_run_at' => null,
+            ]));
         } catch (\Throwable $e) {
             Log::warning('Failed to create default XVIDAPI import schedule: ' . $e->getMessage());
             return null;
         }
+    }
+
+    /**
+     * The attributes with the cron line of their timing in the `expression` column, when the table has that column
+     * (example.sql and the 2026_09_12 migration create it; nothing runs by it, the scheduler reads the timing in
+     * settings, but the stored line must not say "daily at 03:00" for an hourly schedule).
+     *
+     * @param  array<string, mixed>  $attributes
+     * @return array<string, mixed>
+     */
+    private static function withCronExpression(array $attributes): array
+    {
+        try {
+            $hasColumn = Schema::hasColumn('xvid_import_schedules', 'expression');
+        } catch (\Throwable) {
+            $hasColumn = false;
+        }
+
+        if ($hasColumn) {
+            $attributes['expression'] = self::cronExpression((array) ($attributes['settings'] ?? []));
+        }
+
+        return $attributes;
+    }
+
+    /**
+     * The cron line of a schedule timing (settings: frequency, run_time, weekday, month_day, interval_minutes), as
+     * XvidImportSchedule::calculateNextRunAt() reads it: hourly at :30 -> "30 * * * *", daily at 03:00 ->
+     * "0 3 * * *", weekly on Monday -> "0 3 * * 1", monthly on day 1 -> "0 3 1 * *", every 15 minutes -> "*\/15 * * * *".
+     *
+     * @param  array<string, mixed>  $settings
+     */
+    public static function cronExpression(array $settings): string
+    {
+        $hour = 3;
+        $minute = 0;
+        if (preg_match('/^(\d{1,2}):(\d{2})$/', trim((string) ($settings['run_time'] ?? '03:00')), $time)) {
+            $hour = max(0, min(23, (int) $time[1]));
+            $minute = max(0, min(59, (int) $time[2]));
+        }
+
+        return match ((string) ($settings['frequency'] ?? XvidImportSchedule::FREQUENCY_DAILY)) {
+            XvidImportSchedule::FREQUENCY_INTERVAL => (static function (int $every): string {
+                if ($every < 60) {
+                    return '*/'.$every.' * * * *';
+                }
+
+                $hours = intdiv($every, 60);
+
+                return $hours >= 24 ? '0 0 * * *' : '0 */'.$hours.' * * *';
+            })(max(5, min(1440, (int) ($settings['interval_minutes'] ?? 60)))),
+            XvidImportSchedule::FREQUENCY_HOURLY => $minute.' * * * *',
+            XvidImportSchedule::FREQUENCY_WEEKLY => $minute.' '.$hour.' * * '.max(0, min(6, (int) ($settings['weekday'] ?? 0))),
+            XvidImportSchedule::FREQUENCY_MONTHLY => $minute.' '.$hour.' '.max(1, min(31, (int) ($settings['month_day'] ?? 1))).' * *',
+            default => $minute.' '.$hour.' * * *',
+        };
     }
 
     public function startBackgroundImport(XvidImportRun $run): bool

@@ -1,0 +1,52 @@
+{
+    "_about": "List ad places, one rule for VideosList (resources/js/components/Videos/feedSlots.ts, run by tests/js/feed_ad_slots.test.ts) and the server (App\\Support\\FeedAdSlots, run by tests/Unit/FeedAdSlotsTest.php). 'Ad after every N' = N videos before each ad (a full-width row W: after the row that holds video N, 2N, ...). card 'expect': runs such as '8v A 15v' (8 videos, a card ad, 15 videos; W = a full-width ad row); reserve = a growing grid-card feed (complete rows only); maxAds 0 = no limit.",
+    "card": [
+        {"name": "desktop, 4 columns, N 8 (new site): 8 videos, then the ad, complete rows", "videos": 24, "columns": 4, "every": 8, "maxAds": 1, "reserve": true, "maxRows": 0, "expect": "8v A 15v"},
+        {"name": "phone, 2 columns, N 8: 8 videos, then the ad, complete rows", "videos": 24, "columns": 2, "every": 8, "maxAds": 1, "reserve": true, "maxRows": 0, "expect": "8v A 15v"},
+        {"name": "phone, 1 column: every video shows, the ad after video 8", "videos": 24, "columns": 1, "every": 8, "maxAds": 1, "reserve": true, "maxRows": 0, "expect": "8v A 16v"},
+        {"name": "a list of N videos shows no card ad", "videos": 8, "columns": 4, "every": 8, "maxAds": 1, "reserve": true, "maxRows": 0, "expect": "8v"},
+        {"name": "a list of fewer than N videos shows no card ad", "videos": 5, "columns": 4, "every": 8, "maxAds": 1, "reserve": false, "maxRows": 0, "expect": "5v"},
+        {"name": "N + 1 videos, pagination: the ad between video 8 and 9", "videos": 9, "columns": 4, "every": 8, "maxAds": 1, "reserve": false, "maxRows": 0, "expect": "8v A 1v"},
+        {"name": "N + 1 videos, growing feed: only complete rows, the ad waits", "videos": 9, "columns": 4, "every": 8, "maxAds": 1, "reserve": true, "maxRows": 0, "expect": "8v"},
+        {"name": "pagination, 4 columns: all videos, the ad after video 8", "videos": 24, "columns": 4, "every": 8, "maxAds": 1, "reserve": false, "maxRows": 0, "expect": "8v A 16v"},
+        {"name": "Most ads per list 2 caps the count", "videos": 48, "columns": 4, "every": 8, "maxAds": 2, "reserve": true, "maxRows": 0, "expect": "8v A 8v A 30v"},
+        {"name": "Most ads per list 0 = no limit, one column", "videos": 30, "columns": 1, "every": 8, "maxAds": 0, "reserve": true, "maxRows": 0, "expect": "8v A 8v A 8v A 6v"},
+        {"name": "no limit, N 3, 4 columns: complete rows end with an ad that has videos after it", "videos": 12, "columns": 4, "every": 3, "maxAds": 0, "reserve": true, "maxRows": 0, "expect": "3v A 3v A 3v A"},
+        {"name": "N 1: an ad after every video", "videos": 4, "columns": 1, "every": 1, "maxAds": 0, "reserve": false, "maxRows": 0, "expect": "1v A 1v A 1v A 1v"},
+        {"name": "rail of 2 rows x 4, N 8: no room after 8 videos", "videos": 8, "columns": 4, "every": 8, "maxAds": 1, "reserve": true, "maxRows": 2, "expect": "8v"},
+        {"name": "rail of 2 rows x 4, N 7: the ad takes the last place", "videos": 8, "columns": 4, "every": 7, "maxAds": 1, "reserve": true, "maxRows": 2, "expect": "7v A"},
+        {"name": "rail of 2 rows x 4, N 7, only 7 videos: no ad at the end", "videos": 7, "columns": 4, "every": 7, "maxAds": 1, "reserve": true, "maxRows": 2, "expect": "7v"},
+        {"name": "rail of 2 rows x 4, N 6", "videos": 8, "columns": 4, "every": 6, "maxAds": 1, "reserve": true, "maxRows": 2, "expect": "6v A 1v"},
+        {"name": "short list, one row: every video with the ad between them", "videos": 3, "columns": 4, "every": 2, "maxAds": 1, "reserve": true, "maxRows": 0, "expect": "2v A 1v"},
+        {"name": "ads off", "videos": 10, "columns": 4, "every": 8, "maxAds": 1, "reserve": false, "maxRows": 0, "adsEnabled": false, "expect": "10v"},
+        {"name": "wide rows: a full-width row after video 8", "videos": 24, "columns": 4, "every": 8, "maxAds": 1, "reserve": false, "maxRows": 0, "layout": "wide_row", "expect": "8v W 16v"},
+        {"name": "wide rows in a rail of 2 rows x 4, N 8: the row after the rail", "videos": 10, "columns": 4, "every": 8, "maxAds": 1, "reserve": false, "maxRows": 2, "layout": "wide_row", "expect": "8v W"},
+        {"name": "wide rows, 3 columns (1200-1399 px), N 8: after the row that holds video 8", "videos": 24, "columns": 3, "every": 8, "maxAds": 1, "reserve": false, "maxRows": 0, "layout": "wide_row", "expect": "9v W 15v"},
+        {"name": "wide rows, one column, N 8, no limit", "videos": 20, "columns": 1, "every": 8, "maxAds": 0, "reserve": false, "maxRows": 0, "layout": "wide_row", "expect": "8v W 8v W 4v"}
+    ],
+    "wide": [
+        {"name": "4 columns, N 8, 1 ad", "videos": 24, "columns": 4, "every": 8, "maxAds": 1, "after": [8]},
+        {"name": "4 columns, N 8, no limit", "videos": 24, "columns": 4, "every": 8, "maxAds": 0, "after": [8, 16, 24]},
+        {"name": "4 columns, N 6: after the row that holds video 6, 12, 18, 24", "videos": 24, "columns": 4, "every": 6, "maxAds": 0, "after": [8, 12, 20, 24]},
+        {"name": "3 columns, N 8: after the row that holds video 8 (1.2.1: after video 6)", "videos": 24, "columns": 3, "every": 8, "maxAds": 1, "after": [9]},
+        {"name": "3 columns, N 8, no limit", "videos": 24, "columns": 3, "every": 8, "maxAds": 0, "after": [9, 18, 24]},
+        {"name": "5 columns, N 8 (1.2.1: after video 5)", "videos": 24, "columns": 5, "every": 8, "maxAds": 1, "after": [10]},
+        {"name": "6 columns, N 8 (1.2.1: after video 6)", "videos": 24, "columns": 6, "every": 8, "maxAds": 1, "after": [12]},
+        {"name": "3 columns, 8 videos, N 8: the row of video 8 is the last and not full, the ad row after video 8", "videos": 8, "columns": 3, "every": 8, "maxAds": 1, "after": [8]},
+        {"name": "5 columns, N 3, 2 ads: two rows, one ad row each", "videos": 20, "columns": 5, "every": 3, "maxAds": 2, "after": [5, 10]},
+        {"name": "a rail of 8, N 8", "videos": 8, "columns": 4, "every": 8, "maxAds": 1, "after": [8]},
+        {"name": "fewer videos than N", "videos": 7, "columns": 4, "every": 8, "maxAds": 1, "after": []},
+        {"name": "one column, N 8, 2 ads", "videos": 24, "columns": 1, "every": 8, "maxAds": 2, "after": [8, 16]},
+        {"name": "2 columns, N 5, 3 ads", "videos": 24, "columns": 2, "every": 5, "maxAds": 3, "after": [6, 10, 16]},
+        {"name": "a short row", "videos": 3, "columns": 4, "every": 2, "maxAds": 1, "after": [3]},
+        {"name": "N 1, one column", "videos": 3, "columns": 1, "every": 1, "maxAds": 0, "after": [1, 2, 3]},
+        {"name": "N 1, 4 columns: after every row", "videos": 8, "columns": 4, "every": 1, "maxAds": 0, "after": [4, 8]}
+    ],
+    "budget": [
+        {"name": "complete rows, 24 videos, 4 columns, N 8", "videos": 24, "columns": 4, "every": 8, "maxAds": 1, "slots": 24},
+        {"name": "complete rows, 25 videos, 4 columns, N 8", "videos": 25, "columns": 4, "every": 8, "maxAds": 1, "slots": 24},
+        {"name": "complete rows, 27 videos, 4 columns, N 8: 27 videos and the ad fill 7 rows", "videos": 27, "columns": 4, "every": 8, "maxAds": 1, "slots": 28},
+        {"name": "one column: every video and its ads", "videos": 24, "columns": 1, "every": 8, "maxAds": 1, "slots": 25},
+        {"name": "one row or less: every video and its ads", "videos": 3, "columns": 4, "every": 2, "maxAds": 1, "slots": 4}
+    ]
+}

@@ -55,7 +55,12 @@
     <meta charset="utf-8">
     @if ($scheme === 'system')
         {{-- The old views style themselves with [data-bs-theme]: follow the device before the first paint. --}}
-        <script>if (window.matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.setAttribute('data-bs-theme', 'dark');</script>
+        <script>if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.setAttribute('data-bs-theme', 'dark');</script>
+    @endif
+    @if ($oldView)
+        {{-- Browsers without :is() (before Safari 14, Chrome 88, Firefox 78) drop the old views' light-mode text rules
+             entirely (components/_legacy.scss): marked before the first paint, they get the same result without it. --}}
+        <script>try{document.querySelector(':is(html)')}catch(e){document.documentElement.className+=' ad-no-is'}</script>
     @endif
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
@@ -63,6 +68,10 @@
     <meta name="color-scheme" content="light dark">
     <title>{{ $pageTitle }} · {{ __('Admin') }} · {{ $siteName }}</title>
     <link rel="icon" href="{{ $faviconUrl !== '' ? site_asset_url($faviconUrl) : asset('/icons/favicon.ico') }}" sizes="any">
+    {{-- Readable before (and without) the admin stylesheet: on a browser that does not load or apply it, the icons
+         drew at 300x150 and pushed the page several screens down, a blank dark first screen. The stylesheet repeats
+         these rules (components/_shell.scss) and overrides them. --}}
+    <style>.ad-i{width:18px;height:18px;vertical-align:-4px;fill:none;stroke:currentColor;stroke-width:1.75}.ad-sprite{position:absolute;width:0;height:0;overflow:hidden}.ad-vh,.ad-skip:not(:focus){position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}.ad-nav-sub.is-collapsed,.ad-flyout-title{display:none}</style>
     {{ AdminTheme::styleTag($user) }}
     {{-- Category pages show icons the owner picked from all of Font Awesome: that stylesheet comes after the subset,
          so its font face wins and the subset font is never downloaded there. --}}

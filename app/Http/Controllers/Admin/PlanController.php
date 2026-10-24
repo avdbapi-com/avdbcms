@@ -17,6 +17,9 @@ class PlanController
 
         return view($newAdmin ? 'admin.plans.list' : 'admin.plans.index', [
             'plans' => $newAdmin ? $plans->withQueryString() : $plans,
+            // The cards "What each plan may upload" and "Free trial" (config/admin_settings.php money.plans), saved
+            // like every settings page; the old admin keeps them in Settings > Plan limits.
+            'settingsForm' => $newAdmin ? app(SettingsPageController::class)->form($request, 'money.plans') : null,
             'billingStatus' => [
                 'premium_enabled' => config('site.premium_enabled', true),
                 'stripe_ready' => config('site.stripe_enabled', true)

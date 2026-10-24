@@ -5,7 +5,7 @@
 //   <look>.webp + <look>-phone.webp                    the 12 Complete looks, through the admin's own draft preview
 //   fonts/<pairing>.webp                    320 x 80   heading + text of each font pairing (the admin never loads fonts)
 //   manifest.json                                      file => size + hash (AppearanceController reads it)
-// into public/images/admin/looks/ (<= 3 MB in total: the quality steps down until it fits).
+// into public/images/admin/looks/ (<= 3.5 MB in total: the quality steps down until it fits).
 //
 // Release step: run it against a seeded install of the FINAL build, then commit the pictures.
 //   PWPATH=<path to playwright> PLAYWRIGHT_BROWSERS_PATH=<browsers> ADMIN_EMAIL=<admin> ADMIN_PW_FILE=<file with the password> \
@@ -37,7 +37,9 @@ const BASE = (arg('base') || process.env.BASE || 'http://127.0.0.1:8000').replac
 const OUT = path.resolve(arg('out', path.join(ROOT, 'public/images/admin/looks')));
 const ONLY = (arg('only', 'themes,looks,fonts')).split(',').filter(Boolean);
 const PICK = (arg('themes', '')).split(',').filter(Boolean);
-const BUDGET = Number(arg('budget', String(3 * 1024 * 1024)));
+// 3.5 MB: the 152 pictures re-rendered from the clean demo plus the font samples reached 3.2 MB (24 Oct), so a partial
+// re-render (--themes / --only) that keeps the other pictures as they are failed the old 3 MB budget.
+const BUDGET = Number(arg('budget', String(3.5 * 1024 * 1024)));
 const DISCARD_DRAFT = args.includes('--discard-draft');
 let quality = Number(arg('quality', '0.62'));
 

@@ -8,6 +8,7 @@ import {useCursorQuery} from "@/hooks";
 import {ApiError} from "@/components/Commons";
 import {useTranslation} from "react-i18next";
 import {HtmlAdSlot} from "./AdSlot";
+import {buildFeedSlots, wideAdVideoIndexes} from "./feedSlots";
 import {useInView} from "react-intersection-observer";
 import {CursorPaginator, VideoType} from "@/types";
 
@@ -50,16 +51,6 @@ type Props = {
 
 type FeedLoadMode = 'infinite' | 'load_more' | 'pagination';
 type GridAdLayout = 'grid_card' | 'wide_row';
-type FeedSlot = {
-    type: 'ad',
-    key: string,
-    layout: GridAdLayout,
-} | {
-    type: 'video',
-    key: string,
-    video: any,
-    videoNumber: number,
-};
 
 const videosQueryClient = new QueryClient({
     defaultOptions: {
@@ -316,147 +307,6 @@ function contextGridAdLayout(contextValue: string | undefined, fallbackValue: st
         : normalizedGridAdLayout(fallbackValue);
 }
 
-function adSlotCount(slotBudget: number, gridPosition: number, maxAds: number): number {
-    const count = Math.floor(slotBudget / Math.max(2, gridPosition));
-
-    return maxAds > 0 ? Math.min(count, maxAds) : count;
-}
-
-function completeRowSlotBudget(videoCount: number, columnCount: number, gridPosition: number, maxAds: number): number {
-    if (videoCount <= columnCount || columnCount <= 1) {
-        return videoCount;
-    }
-
-    let bestBudget = Math.floor(videoCount / columnCount) * columnCount;
-    const upperBound = videoCount * 2 + columnCount;
-
-    for (let candidate = columnCount; candidate <= upperBound; candidate += columnCount) {
-        const videosNeeded = candidate - adSlotCount(candidate, gridPosition, maxAds);
-
-        if (videosNeeded <= videoCount) {
-            bestBudget = candidate;
-        }
-    }
-
-    return bestBudget || videoCount;
-}
-
-function wideAdVideoIndexes(videoCount: number, columnCount: number, gridPosition: number, maxAds: number): Set<number> {
-    const indexes = new Set<number>();
-    const effectiveGridPosition = Math.max(2, gridPosition);
-
-    for (let candidate = effectiveGridPosition; candidate <= videoCount; candidate += effectiveGridPosition) {
-        if (maxAds > 0 && indexes.size >= maxAds) {
-            break;
-        }
-
-        if (columnCount <= 1) {
-            indexes.add(candidate);
-
-            continue;
-        }
-
-        const completedRowIndex = Math.floor(candidate / columnCount) * columnCount;
-        indexes.add(Math.min(videoCount, Math.max(columnCount, completedRowIndex || columnCount)));
-    }
-
-    return indexes;
-}
-
-function buildFeedSlots(
-    videos: any[],
-    columnCount: number,
-    gridPosition: number,
-    maxAds: number,
-    adsEnabled: boolean,
-    reserveAdSlots: boolean,
-    gridLayout: GridAdLayout,
-    maxRows = 0
-): FeedSlot[] {
-    const slots: FeedSlot[] = [];
-    const effectiveGridPosition = Math.max(2, gridPosition);
-    let adCount = 0;
-
-    if (adsEnabled && gridLayout === 'wide_row') {
-        const maxVideoCount = maxRows > 0 && columnCount > 0 ? maxRows * columnCount : videos.length;
-        const boundedVideos = videos.slice(0, maxVideoCount);
-        const wideIndexes = wideAdVideoIndexes(boundedVideos.length, columnCount, effectiveGridPosition, maxAds);
-
-        boundedVideos.forEach((video, index) => {
-            const videoNumber = index + 1;
-            slots.push({
-                type: 'video',
-                key: `video-${video.id || index}`,
-                video,
-                videoNumber,
-            });
-
-            if (wideIndexes.has(videoNumber)) {
-                slots.push({
-                    type: 'ad',
-                    key: `ad-wide-${videoNumber}`,
-                    layout: 'wide_row',
-                });
-                adCount += 1;
-            }
-        });
-
-        return slots;
-    }
-
-    // When maxRows is specified (e.g. 2 rows), the slot budget is strictly capped to maxRows * columnCount.
-    // If ads are active, native ad cards replace video slots within the row budget to prevent spilling into an extra row.
-    let slotBudget: number;
-    if (maxRows > 0 && columnCount > 0) {
-        slotBudget = maxRows * columnCount;
-    } else if (reserveAdSlots && columnCount > 1) {
-        slotBudget = completeRowSlotBudget(videos.length, columnCount, effectiveGridPosition, maxAds);
-    } else {
-        slotBudget = videos.length;
-    }
-
-    let videoIndex = 0;
-
-    for (let slotNumber = 1; slotNumber <= slotBudget && videoIndex < videos.length; slotNumber += 1) {
-        if (adsEnabled && slotNumber > 1 && slotNumber % effectiveGridPosition === 0 && (maxAds === 0 || adCount < maxAds)) {
-            slots.push({
-                type: 'ad',
-                key: `ad-${slotNumber}`,
-                layout: 'grid_card',
-            });
-            adCount += 1;
-
-            continue;
-        }
-
-        const video = videos[videoIndex];
-        slots.push({
-            type: 'video',
-            key: `video-${video.id || videoIndex}`,
-            video,
-            videoNumber: videoIndex + 1,
-        });
-        videoIndex += 1;
-    }
-
-    // Only append leftover videos if the feed is unconstrained by maxRows and reserveAdSlots is off.
-    // Appending leftovers when maxRows is set or reserveAdSlots is true forces an incomplete orphan row.
-    if (maxRows === 0 && !reserveAdSlots) {
-        while (videoIndex < videos.length) {
-            const video = videos[videoIndex];
-            slots.push({
-                type: 'video',
-                key: `video-${video.id || videoIndex}`,
-                video,
-                videoNumber: videoIndex + 1,
-            });
-            videoIndex += 1;
-        }
-    }
-
-    return slots;
-}
-
 function Main ({url, columns, loadMode, maxItems, maxRows, widgetTemplateIds, widgetIntervalRows, adContext, early, priorityRow, earlyMedia, skeletonItems, phoneStripScreen, 'load-mode': dashedLoadMode, 'max-items': dashedMaxItems, 'max-rows': dashedMaxRows, 'widget-template-ids': dashedWidgetIds, 'widget-interval-rows': dashedIntervalRows, 'ad-context': dashedAdContext, 'priority-row': dashedPriorityRow, 'early-media': dashedEarlyMedia, 'skeleton-items': dashedSkeletonItems, 'phone-strip-screen': dashedPhoneStripScreen} : Props) {
     const { t } = useTranslation();
     const feedColumns = Math.min(6, positiveInteger(columns, 0));
@@ -701,19 +551,22 @@ function Main ({url, columns, loadMode, maxItems, maxRows, widgetTemplateIds, wi
     const gridMaxPerFeed = nonNegativeInteger(adConfig?.gridMaxPerFeed, 1);
     const gridLayout = contextGridAdLayout(adConfig?.gridLayoutByContext?.[feedAdContext], adConfig?.gridLayout);
     const gridAdsEnabled = Boolean(adConfig?.enabled && gridAdCode && gridPosition > 0);
-    const reserveAdSlots = gridAdsEnabled && gridLayout === 'grid_card' && feedLoadMode !== 'pagination';
+    // Card ads in a growing feed: complete rows only (feedSlots.completeRowSlotBudget) while more videos can still
+    // arrive to fill the held-back places; the last page shows every video.
+    const reserveAdSlots = gridAdsEnabled && gridLayout === 'grid_card' && feedLoadMode !== 'pagination' && canLoadNext;
     const feedSlots = useMemo(
         () => buildFeedSlots(renderedVideos, columnCount, gridPosition, gridMaxPerFeed, gridAdsEnabled, reserveAdSlots, gridLayout, effectiveMaxRows),
         [renderedVideos, columnCount, gridPosition, gridMaxPerFeed, gridAdsEnabled, reserveAdSlots, gridLayout, effectiveMaxRows]
     );
     // A wide grid ad (wide_row) is a full-width row between card rows. The first-page skeleton holds its box where
     // buildFeedSlots puts it for a page that fills the skeleton (data-avd-ad-reserve, sized in feed-skeleton.scss),
-    // so the ad row does not push the rows below it when the data arrives. <x-videos-area> renders the same box in the server skeleton. Only where the ad will render: ads on,
-    // a grid ad code for this context, the wide layout and a skeleton that reaches the ad position. A grid-card ad
-    // takes one card cell, which a skeleton card already holds.
+    // so the ad row does not push the rows below it when the data arrives. <x-videos-area> renders the same box in the
+    // server skeleton (App\Support\FeedAdSlots::wideAdAfter, the same rule as feedSlots.ts). Only where the ad will
+    // render: ads on, a grid ad code for this context, the wide layout and a skeleton that reaches the ad position. A
+    // grid-card ad takes one card cell, which a skeleton card already holds.
     const skeletonAdAfter = useMemo(
         () => gridAdsEnabled && gridLayout === 'wide_row'
-            ? wideAdVideoIndexes(initialSkeletonCount, columnCount, Math.max(2, gridPosition), gridMaxPerFeed)
+            ? wideAdVideoIndexes(initialSkeletonCount, columnCount, gridPosition, gridMaxPerFeed)
             : new Set<number>(),
         [gridAdsEnabled, gridLayout, initialSkeletonCount, columnCount, gridPosition, gridMaxPerFeed]
     );

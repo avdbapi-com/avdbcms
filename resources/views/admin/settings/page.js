@@ -29,10 +29,20 @@
         return row.querySelector('textarea[name], select[name], input[name]:not([type=hidden]):not([type=radio]):not([type=checkbox])');
     }
 
+    // A size (stored in bytes) is a number and its unit: the row's value is "500 MB", or '' when the number is empty.
+    function sizeParts(row) {
+        return { number: row.querySelector('input[type=number]'), unit: row.querySelector('[data-size-unit]') };
+    }
+
     function valueOf(row) {
         if (row.dataset.type === 'bool') {
             var box = row.querySelector('input[type=checkbox]');
             return box && box.checked ? '1' : '0';
+        }
+        if (row.hasAttribute('data-size')) {
+            var size = sizeParts(row);
+            var number = size.number ? size.number.value.trim() : '';
+            return number === '' ? '' : number + ' ' + (size.unit ? size.unit.value : 'MB');
         }
         var radio = row.querySelector('input[type=radio]:checked');
         if (radio) return radio.value;
@@ -43,6 +53,13 @@
     function setValue(row, value) {
         if (row.dataset.type === 'bool') {
             row.querySelector('input[type=checkbox]').checked = value === '1';
+            return;
+        }
+        if (row.hasAttribute('data-size')) {
+            var size = sizeParts(row);
+            var parts = /^(.*?)\s*(MB|GB)?$/i.exec(String(value).trim()) || ['', '', ''];
+            if (size.number) size.number.value = parts[1];
+            if (size.unit && parts[2]) size.unit.value = parts[2].toUpperCase();
             return;
         }
         var radios = row.querySelectorAll('input[type=radio]');

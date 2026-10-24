@@ -15,7 +15,9 @@ namespace App\Support\Updater;
  *    derived from the cookie;
  *  - everyone else: 503 "This site is being updated. Please come back in a minute." with Retry-After.
  *
- * A hook whose swap is over (or whose plan is gone) deletes itself and lets the request through.
+ * A hook whose swap is over (or whose plan is gone) deletes itself and lets the request through. A hook whose token ran
+ * out before its swap began brings the site back, but stays for the Finish / Undo page it may have shown already: a
+ * click there goes to Tools > Updates (standingBy()), never to the site as a POST it cannot take.
  *
  * EMBEDDED (like SwapEngine): PHP built-ins only, no imports, global classes with their leading backslash. The texts
  * come translated in the config: HookWriter renders them with Laravel before the site goes down.
@@ -62,6 +64,12 @@ final class MaintenanceHook
         }
 
         $status = (string) ($plan['status'] ?? '');
+
+        if (($plan['id'] ?? null) === $this->config['plan_id'] && $status === 'preparing' && isset($plan['lapsed_at'])) {
+            // This hook stood down before its swap began (abandon()): the site answers; the hook only stays for the
+            // Finish / Undo page it showed the administrator before.
+            return $this->standingBy($server, $post);
+        }
 
         if (($plan['id'] ?? null) !== $this->config['plan_id'] || ! in_array($status, ['swapping', 'rolling-back'], true)) {
             // A leftover of a swap that is over (or never began): the site answers again.
@@ -254,10 +262,46 @@ final class MaintenanceHook
     }
 
     /**
+     * After abandon(): the site answers again (Laravel's down file is gone) and this file stays only for the page it
+     * showed the administrator before (the update cookie's page with Finish / Undo, maybe still open in a tab). A click
+     * there would reach the site as a POST to whatever address that page had, which the site answers with an error
+     * (405 or 419): it goes to Tools > Updates instead (303, ?update_choice=finish|undo), which says what happened and
+     * goes on from there. The redirect changes nothing by itself, so it needs no token: every other request goes to the
+     * site. Once the plan's update cookie has run out no such page can be answered any more, and the file goes.
+     *
+     * @param  array<string, mixed>  $server
+     * @param  array<string, mixed>  $post
+     * @return array{status: int, headers: array<string, string>, body: string}|null
+     */
+    private function standingBy(array $server, array $post): ?array
+    {
+        if (time() >= (int) ($this->config['cookie_expires'] ?? 0)) {
+            $this->standDown();
+
+            return null;
+        }
+
+        $action = $post['avdbcms_update'] ?? null;
+
+        if (strtoupper((string) ($server['REQUEST_METHOD'] ?? 'GET')) !== 'POST' || ! in_array($action, ['finish', 'undo'], true) || ! is_string($post['form_token'] ?? null)) {
+            return null;
+        }
+
+        $url = (string) ($this->config['admin_url'] ?? '/admin/updates');
+
+        return ['status' => 303, 'headers' => [
+            'Location' => $url.(str_contains($url, '?') ? '&' : '?').'update_choice='.$action,
+            'Cache-Control' => 'no-store, no-cache, must-revalidate',
+            'X-Robots-Tag' => 'noindex',
+        ], 'body' => ''];
+    }
+
+    /**
      * A swap whose token ran out before it began (no op of the main or last phase has a journal mark): the answer that
-     * carried the token was lost (a closed tab, a timeout). Under the update lock the plan goes back to "preparing",
-     * the hashes of the live files are dropped (they are old by now) and the hook takes itself away, so a lost answer
-     * keeps the site down for the token's 30 minutes at most. True when it stood down.
+     * carried the token was lost (a closed tab, a timeout). Under the update lock the plan goes back to "preparing"
+     * (marked lapsed_at), the hashes of the live files are dropped (they are old by now) and Laravel's down file goes,
+     * so a lost answer keeps the site down for the token's 30 minutes at most. The hook file itself stays for a Finish /
+     * Undo click of its page (standingBy()). True when it stood down.
      */
     private function abandon(): bool
     {
@@ -290,11 +334,16 @@ final class MaintenanceHook
 
             $plan['status'] = 'preparing';
             $plan['step_at'] = time();
+            $plan['lapsed_at'] = time();
             unset($plan['swap']);
             $this->savePlan($plan);
             @unlink(dirname((string) $this->config['job']).'/live.json');
             $this->log('the swap token ran out before the swap began: the site answers again, the update waits for its next step');
-            $this->standDown();
+            $down = (string) ($this->config['down'] ?? '');
+
+            if ($down !== '' && is_file($down)) {
+                @unlink($down);
+            }
 
             return true;
         } catch (\Throwable $e) {

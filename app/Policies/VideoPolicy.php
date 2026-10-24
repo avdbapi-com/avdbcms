@@ -199,7 +199,8 @@ class VideoPolicy
             return Response::denyWithStatus(403, 'Uploads are currently disabled by the administrator.');
         }
 
-        if ($user->is_premium) {
+        // Premium members and administrators (the site's owners) have no count or space limit.
+        if ($user->is_premium || $user->is_admin) {
             return Response::allow();
         }
 

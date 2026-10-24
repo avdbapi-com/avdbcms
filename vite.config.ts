@@ -48,6 +48,75 @@ const adminInputs: Record<string, string> = Object.fromEntries(
 // Shipped exactly as written (whitespace and comments removed): see verbatimCss below.
 const verbatimCssInputs = [...Object.values(themeCssInputs), ...Object.values(themeTokenInputs)];
 
+// The admin on old devices (1.2.2): the browsers whose syntax the admin's scripts are lowered to (adminOldBrowsers).
+// Modules (type="module", dynamic import(), import.meta) are the floor: Chrome/Android 64, Safari/iOS 12, Firefox 67.
+const adminScriptTarget = ['chrome64', 'edge79', 'firefox67', 'safari12', 'ios12'];
+
+/**
+ * Lowers the admin's own scripts to syntax that old browsers parse (adminScriptTarget). With the default target
+ * (baseline-widely-available: Chrome 107, Safari 16) an old iPad or Android phone failed on the first ?. or ??= and
+ * ran none of the admin's script (menus, save bar, dialogs). The public site keeps the default target: only the chunks
+ * that the admin entry reaches and the public entry does not are rewritten, plus Vite's small preload helper, which
+ * the admin entry imports (rewriting it changes its syntax, not what it does). A chunk shared with the public site
+ * (tom-select) stays as it is: where it cannot load, the old views keep their plain selects. It runs after Vite's own
+ * minify (order: 'post'), which would turn the lowered code back into ?. and ??, and before Rollup hashes the file
+ * names, so the names follow the rewritten code.
+ */
+function adminOldBrowsers(target: string[]): Plugin {
+    const reachable = (chunks: Record<string, { imports: string[]; dynamicImports: string[] }>, roots: string[]): Set<string> => {
+        const seen = new Set<string>();
+        const queue = [...roots];
+
+        while (queue.length > 0) {
+            const file = queue.shift() as string;
+
+            if (seen.has(file) || chunks[file] === undefined) {
+                continue;
+            }
+
+            seen.add(file);
+            queue.push(...chunks[file].imports, ...chunks[file].dynamicImports);
+        }
+
+        return seen;
+    };
+    const entryFiles = (chunks: Record<string, { facadeModuleId: string | null; isEntry: boolean }>, entry: string): string[] =>
+        Object.entries(chunks)
+            .filter(([, chunk]) => chunk.isEntry && (chunk.facadeModuleId ?? '').split(path.sep).join('/').endsWith(entry))
+            .map(([file]) => file);
+
+    return {
+        name: 'avd-admin-old-browsers',
+        apply: 'build',
+        renderChunk: {
+            order: 'post',
+            async handler(code, chunk, _options, meta) {
+                const admin = reachable(meta.chunks, entryFiles(meta.chunks, 'resources/admin/admin.ts'));
+                const site = reachable(meta.chunks, entryFiles(meta.chunks, 'resources/js/app.ts'));
+                const preloadHelper = chunk.moduleIds.some((id) => id.includes('vite/preload-helper'));
+
+                if (!admin.has(chunk.fileName) || (site.has(chunk.fileName) && !preloadHelper)) {
+                    return null;
+                }
+
+                const result = await transformWithEsbuild(code, chunk.fileName, {
+                    loader: 'js',
+                    format: 'esm',
+                    target,
+                    // Every browser with modules destructures (ES2015); esbuild counts destructuring as missing before
+                    // Safari 14.1 for an engine bug in an edge case, and cannot lower it in for-of heads anyway.
+                    supported: { destructuring: true },
+                    minify: true,
+                    sourcemap: false,
+                    legalComments: 'none',
+                });
+
+                return { code: result.code, map: null };
+            },
+        },
+    };
+}
+
 /**
  * Ships the theme CSS exactly as written, only without whitespace and comments. The default CSS minify
  * (esbuild with the build target) would add -webkit- prefixes (e.g. -webkit-backdrop-filter, which Safari
@@ -176,6 +245,7 @@ export default defineConfig({
         }),
         preact(),
         verbatimCss(verbatimCssInputs),
+        adminOldBrowsers(adminScriptTarget),
     ],
     css: {
         preprocessorOptions: {

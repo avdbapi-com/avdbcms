@@ -657,6 +657,15 @@ if (root && bootEl) {
         }
     });
 
+    // Finish / Undo of a maintenance page that had stood down lands here with ?update_choice= (the callout says what it
+    // means once): a reload of the page is not that click again.
+    const here = new URL(window.location.href);
+
+    if (here.searchParams.has('update_choice')) {
+        here.searchParams.delete('update_choice');
+        window.history.replaceState(window.history.state, '', here.pathname + here.search + here.hash);
+    }
+
     if (boot.run && boot.plan?.next) {
         void run(boot.plan.next);
     } else if (boot.tidy) {

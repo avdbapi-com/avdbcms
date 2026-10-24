@@ -1059,7 +1059,15 @@ CONF,
             'email_verified_at' => now(),
             'is_admin' => true,
             'show_subscribers' => true,
-        ])->save();
+        ]);
+
+        // The installer's administrator can always make changes: an existing view-only demo account (1.2.2,
+        // users.is_view_only) picked above becomes a normal administrator again.
+        if (Schema::hasColumn('users', 'is_view_only')) {
+            $user->forceFill(['is_view_only' => false]);
+        }
+
+        $user->save();
     }
 
     /**

@@ -35,7 +35,7 @@
                         <section class="upload-limit-panel avd-upload-meta-card">
                             <span class="avd-upload-meta-label">{{ __('Your upload limits') }}</span>
                             <div class="avd-upload-limit-items">
-                                @if(!Auth::user()->is_premium)
+                                @if(Auth::user()->plan !== 'premium')
                                     <span @class(['is-danger' => $available_uploads <= 0])>
                                         <small>{{ __('Available uploads') }}</small>
                                         <strong>{{ ($available_uploads > 0) ? $available_uploads : 0  }}</strong>
@@ -50,7 +50,7 @@
                                         <small>{{ __('Max file size') }}</small>
                                         <strong>@size($uploadMaxSize)</strong>
                                     </span>
-                                @if(!Auth::user()->is_premium)
+                                @if(Auth::user()->plan !== 'premium')
                                     <span>
                                         <small>{{ __('Available space')}}</small>
                                         <strong>@size(($available_space > 0) ? $available_space : 0)</strong>
@@ -62,7 +62,7 @@
                                     </span>
                                 @endif
                             </div>
-                            @if(!Auth::user()->is_premium)
+                            @if(Auth::user()->plan !== 'premium')
                                 <a href="{{route('pages.premium')}}" class="alert-link avd-upload-upgrade">
                                     <i class="fa-solid fa-crown"></i>
                                     <span>{{ __('Upgrade to premium') }}</span>

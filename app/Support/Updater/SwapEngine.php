@@ -247,6 +247,22 @@ final class SwapEngine
             }
         }
 
+        $opcache = $this->refreshOpcache();
+        $this->log('caches cleared: '.$cleared.', compiled views: '.$views.'; opcache: '.$opcache['opcache'].' (invalidated '.$opcache['invalidated'].', failed '.$opcache['failed'].')');
+
+        return ['caches' => $cleared, 'views' => $views] + $opcache;
+    }
+
+    /**
+     * Drop the moved PHP files (and Laravel's bootstrap caches) from OPcache and reset it where the host allows that.
+     * 'opcache' says how that went: off, reset, invalidated, wait (it rereads changed files after 'wait' seconds) or
+     * stale (old files may stay in memory until PHP restarts). settle() runs it after the moves; Finish again when the
+     * swap's was stale.
+     *
+     * @return array{invalidated: int, failed: int, reset: bool, wait: int, opcache: string}
+     */
+    public function refreshOpcache(): array
+    {
         $state = self::opcache();
         $invalidated = 0;
         $failed = 0;
@@ -279,9 +295,8 @@ final class SwapEngine
         $refreshed = ! $state['enabled'] || $reset || ($state['invalidate'] && $failed === 0);
         $wait = ! $refreshed && $state['validate_timestamps'] ? $state['revalidate_freq'] + 1 : 0;
         $summary = ! $state['enabled'] ? 'off' : ($reset ? 'reset' : ($refreshed ? 'invalidated' : ($wait > 0 ? 'wait' : 'stale')));
-        $this->log('caches cleared: '.$cleared.', compiled views: '.$views.'; opcache: '.$summary.' (invalidated '.$invalidated.', failed '.$failed.')');
 
-        return ['caches' => $cleared, 'views' => $views, 'invalidated' => $invalidated, 'failed' => $failed, 'reset' => $reset, 'wait' => $wait, 'opcache' => $summary];
+        return ['invalidated' => $invalidated, 'failed' => $failed, 'reset' => $reset, 'wait' => $wait, 'opcache' => $summary];
     }
 
     /**

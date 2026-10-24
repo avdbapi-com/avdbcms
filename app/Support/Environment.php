@@ -2,7 +2,9 @@
 
 namespace App\Support;
 
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Symfony\Component\HttpFoundation\IpUtils;
 use Throwable;
 
 /**
@@ -408,6 +410,118 @@ final class Environment
         }
 
         return str_starts_with((string) config('app.url', ''), 'https://');
+    }
+
+    /**
+     * Request headers that only a proxy in front of the site sends: a request without any of them, from an address on
+     * the internet, came straight from the visitor (see visitorScheme()).
+     */
+    private const PROXY_HEADERS = [
+        'Forwarded', 'Via', 'X-Forwarded-For', 'X-Forwarded-Proto', 'X-Forwarded-Host', 'X-Forwarded-Port',
+        'X-Forwarded-Scheme', 'X-Forwarded-Ssl', 'X-Forwarded-Server', 'X-Original-Forwarded-For', 'X-Url-Scheme',
+        'Front-End-Https', 'X-Real-IP', 'X-Client-IP', 'Client-IP', 'True-Client-IP', 'X-Cluster-Client-IP',
+        'Fastly-Client-IP', 'Incap-Client-IP', 'X-Sucuri-ClientIP', 'X-ProxyUser-Ip', 'CDN-Loop', 'Akamai-Origin-Hop',
+        'X-Amz-Cf-Id', 'CloudFront-Forwarded-Proto', 'CF-Ray', 'CF-Connecting-IP', 'CF-Visitor',
+    ];
+
+    /**
+     * The scheme the visitor's browser used for this request: 'https', 'http', or null when that cannot be known (a
+     * proxy in front that does not say). Unlike isSecureRequest(), an https APP_URL proves nothing here; "Always use the
+     * secure address (https)" redirects on 'http' only, so no answer here may ever say 'http' to a visitor on https:
+     *
+     *  - https: the request is secure (TLS here, or a trusted proxy's X-Forwarded-Proto), or any proxy header says https
+     *    (CF-Visitor, X-Forwarded-Proto / -Scheme / -Ssl / -Port 443, X-Url-Scheme, Front-End-Https,
+     *    CloudFront-Forwarded-Proto, Forwarded): a claim of https only ever stops a redirect, so even one nobody vouches
+     *    for counts;
+     *  - http: Cloudflare (its own address, or a local proxy passing Cloudflare's traffic on) says CF-Visitor scheme
+     *    http; a proxy the owner listed by its address (isListedProxy()) says X-Forwarded-Proto http; or the request
+     *    came straight from the visitor (plain http from an address on the internet, not a listed proxy, and no proxy
+     *    header at all);
+     *  - null: anything else, e.g. Cloudflare without CF-Visitor, a listed proxy that names no scheme, a loopback or
+     *    private address (a proxy on the server), proxy headers from an address nobody listed.
+     *
+     * Not Request::isFromTrustedProxy(): a site's trusted proxies are '*' (whoever connects) unless the owner set a
+     * list, so with it every visitor would count as a proxy, a direct http visit would never be redirected, and a local
+     * proxy that passes on "X-Forwarded-Proto: http" behind a CDN that ended TLS would be believed (a loop).
+     */
+    public static function visitorScheme(?Request $request = null): ?string
+    {
+        if ($request === null) {
+            if (app()->runningInConsole()) {
+                return null;
+            }
+
+            try {
+                $request = request();
+            } catch (Throwable) {
+                return null;
+            }
+        }
+
+        if ($request->secure()) {
+            return 'https';
+        }
+
+        $header = fn (string $name): string => strtolower(trim((string) $request->headers->get($name, '')));
+        $first = fn (string $name): string => trim(explode(',', $header($name))[0]);
+        $cloudflare = json_decode((string) $request->headers->get('CF-Visitor', ''), true);
+        $visitor = is_array($cloudflare) && is_string($cloudflare['scheme'] ?? null) ? strtolower($cloudflare['scheme']) : null;
+
+        if ($visitor === 'https'
+            || in_array('https', [$first('X-Forwarded-Proto'), $first('X-Forwarded-Scheme'), $first('X-Url-Scheme'), $first('CloudFront-Forwarded-Proto')], true)
+            || in_array('on', [$header('X-Forwarded-Ssl'), $header('Front-End-Https')], true)
+            || $first('X-Forwarded-Port') === '443'
+            || preg_match('/(?:^|[;,\s])proto\s*=\s*"?https"?(?:$|[;,\s])/', $header('Forwarded')) === 1) {
+            return 'https';
+        }
+
+        // '' when REMOTE_ADDR is not an address (a socket, nothing): then nobody can tell who connected.
+        $remote = AdminIpLock::normalize((string) $request->server->get('REMOTE_ADDR', ''));
+
+        if (AdminIpLock::isCloudflare($remote) || (($request->headers->has('CF-Ray') || $request->headers->has('CF-Connecting-IP')) && AdminIpLock::isLocalProxy($remote))) {
+            return $visitor === 'http' ? 'http' : null;
+        }
+
+        if (self::isListedProxy($remote)) {
+            return $first('X-Forwarded-Proto') === 'http' ? 'http' : null;
+        }
+
+        if ($remote === '' || AdminIpLock::isLocalProxy($remote)) {
+            return null;
+        }
+
+        foreach (self::PROXY_HEADERS as $name) {
+            if ($request->headers->has($name)) {
+                return null;
+            }
+        }
+
+        return 'http';
+    }
+
+    /**
+     * Whether the address is a proxy the owner listed by its address or range: the trusted proxies setting, or
+     * SITE_TRUSTED_PROXIES / TRUSTED_PROXIES in .env, read as AdminIpLock reads them (commas or spaces between entries,
+     * only valid addresses and ranges). A '*' (trust whoever connects, the value of a site that never set a list)
+     * names nobody, so it vouches for no scheme.
+     */
+    private static function isListedProxy(string $ip): bool
+    {
+        if ($ip === '') {
+            return false;
+        }
+
+        $text = static fn (mixed $value): string => is_array($value)
+            ? implode(',', array_filter($value, 'is_string'))
+            : (is_scalar($value) ? (string) $value : '');
+        $raw = implode(',', array_map($text, [
+            config('site.trusted_proxies', ''),
+            RuntimeEnv::get('SITE_TRUSTED_PROXIES', ''),
+            RuntimeEnv::get('TRUSTED_PROXIES', ''),
+        ]));
+        $listed = array_values(array_filter(AdminIpLock::entries($raw), AdminIpLock::isValidEntry(...)));
+
+        return $listed !== [] && IpUtils::checkIp($ip, $listed);
     }
 
     /**

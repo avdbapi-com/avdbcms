@@ -167,6 +167,12 @@ function Test-SkippedReleasePath {
         return $true
     }
 
+    # Only the seeders the installer runs ("Run migrations and seeders": categories and plans) ship. A development
+    # seeder can create accounts with known passwords, so it never does, even if one comes back into the tree (1.2.2).
+    if (-not $IsDirectory -and $path.StartsWith('database/seeders/') -and $path -notin @('database/seeders/DatabaseSeeder.php', 'database/seeders/CategorySeeder.php', 'database/seeders/PlanSeeder.php')) {
+        return $true
+    }
+
     if (-not $IsDirectory -and $path.StartsWith('storage/framework/')) {
         return $true
     }
@@ -344,6 +350,7 @@ function Assert-CleanReleaseZip {
                 $name -eq '.user.ini' -or
                 $name -eq 'storage/app/installed.json' -or
                 ($name.StartsWith('database/install/') -and $leaf -like '*.sql' -and $name -ne 'database/install/example.sql') -or
+                ($name.StartsWith('database/seeders/') -and $name -notin @('database/seeders/DatabaseSeeder.php', 'database/seeders/CategorySeeder.php', 'database/seeders/PlanSeeder.php')) -or
                 $name -eq 'CURRENT_STATE.md' -or
                 $name -eq 'scratch_themes.json' -or
                 $name -eq 'theme_test_report.json' -or
@@ -420,6 +427,7 @@ function Assert-CleanReleaseZip {
             'vendor/autoload.php',
             'artisan',
             'database/install/example.sql',
+            'database/seeders/DatabaseSeeder.php',
             'app/Support/ResilientPackageManifest.php',
             'bootstrap/app.php',
             'app/Support/AppVersion.php',

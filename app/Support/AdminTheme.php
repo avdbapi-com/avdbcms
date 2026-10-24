@@ -31,7 +31,11 @@ final class AdminTheme
     private const WHITE = '#ffffff';
     private const INK = '#16191e';
     private const ADMIN_BUDGET = 0.16;
-    private const RED_ZONE = [330.0, 25.0];
+    // The same zone as App\Support\Color\Contrast::RED_ZONE (OKLCH hue; 25 -> 35 in 1.2.2), whose added part (above
+    // 25) counts only strong reds (chroma 0.10 or more), as Contrast::RED_ZONE_EDGE / RED_ZONE_EDGE_MIN_CHROMA.
+    private const RED_ZONE = [330.0, 35.0];
+    private const RED_ZONE_EDGE = 25.0;
+    private const RED_ZONE_EDGE_MIN_CHROMA = 0.10;
 
     /** CSS variable suffix per token: --ac-l / --ac-d hold the light / dark value (see admin.scss). */
     private const STYLE_VARS = [
@@ -335,7 +339,15 @@ final class AdminTheme
     {
         [, $chroma, $hue] = self::oklch($hex);
 
-        return $chroma >= 0.04 && ($hue >= self::RED_ZONE[0] || $hue <= self::RED_ZONE[1]);
+        if ($chroma < 0.04) {
+            return false;
+        }
+
+        if ($hue >= self::RED_ZONE[0] || $hue <= self::RED_ZONE_EDGE) {
+            return true;
+        }
+
+        return $hue <= self::RED_ZONE[1] && $chroma >= self::RED_ZONE_EDGE_MIN_CHROMA;
     }
 
     /** label_fill(fill, prefer='light', ink): [fill, label] - white label kept when the fill moves <= budget. */

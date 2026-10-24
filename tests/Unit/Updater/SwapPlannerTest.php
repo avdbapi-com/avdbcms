@@ -174,35 +174,102 @@ class SwapPlannerTest extends TestCase
         $this->assertContains('.htaccess', $paths, 'a hand-edited file that is still as shipped is replaced as before');
     }
 
-    public function test_a_file_renamed_by_case_only_is_replaced_in_place_and_never_deleted(): void
+    public function test_a_file_renamed_by_case_only_is_replaced_in_place_where_case_does_not_count(): void
+    {
+        [$plan, $moves, $shipped] = $this->caseRename();
+
+        // A file system that ignores case (Windows, macOS): the new name finds the old file, it is replaced in place. The
+        // old name must never be deleted there (it is the new file), also when the inode check says "one file".
+        $byCase = array_change_key_case($shipped + [Manifest::FILE => 'old manifest'], CASE_LOWER);
+
+        foreach ([null, fn (): bool => true] as $sameFile) {
+            $insensitive = $plan(fn (string $path): ?string => $byCase[strtolower($path)] ?? null, $sameFile);
+
+            $this->assertContains(['put', 'app/Http/Controllers/SeoController.php'], $moves($insensitive));
+            $this->assertNotContains(['delete', 'app/Http/Controllers/SEOController.php'], $moves($insensitive), 'deleting the old name would delete the new file');
+            $this->assertNotContains('app/Http/Controllers/SeoController.php', $insensitive['report']['overwritten'], 'shipped under its old name: not an owner\'s change');
+            $entry = array_values(array_filter($insensitive['entries'], fn (array $e): bool => $e['path'] === 'app/Http/Controllers/SeoController.php'))[0];
+            $this->assertSame(['replaced', hash('sha256', 'seo 1')], [$entry['action'], $entry['old']]);
+            $this->assertSame(3, $insensitive['report']['removed'], 'Old.php, Skipped.php, Gone.php: not the renamed file');
+        }
+    }
+
+    public function test_where_case_counts_the_old_name_of_a_file_renamed_by_case_goes_too(): void
+    {
+        // H10 (1.2.2): on Linux the new name is a new file and the old one would stay behind next to it.
+        [$plan, $moves, $shipped] = $this->caseRename();
+        $site = $shipped + [Manifest::FILE => 'old manifest'];
+
+        $sensitive = $plan(fn (string $path): ?string => $site[$path] ?? null, fn (): bool => true);
+
+        $this->assertContains(['put', 'app/Http/Controllers/SeoController.php'], $moves($sensitive));
+        $this->assertContains(['delete', 'app/Http/Controllers/SEOController.php'], $moves($sensitive));
+        $added = array_values(array_filter($sensitive['entries'], fn (array $e): bool => $e['path'] === 'app/Http/Controllers/SeoController.php'))[0];
+        $removed = array_values(array_filter($sensitive['entries'], fn (array $e): bool => $e['path'] === 'app/Http/Controllers/SEOController.php'))[0];
+        $this->assertSame(['added', null], [$added['action'], $added['old']]);
+        $this->assertSame(['removed', hash('sha256', 'seo 1'), null], [$removed['action'], $removed['old'], $removed['new']]);
+        $this->assertSame(4, $sensitive['report']['removed'], 'the three removed files and the old name');
+        $order = array_column($sensitive['ops'], 'path');
+        $this->assertLessThan(array_search('app/Http/Controllers/SEOController.php', $order, true), array_search('app/Http/Controllers/SeoController.php', $order, true), 'the new file comes first');
+
+        // Both names there as two files (an earlier try, or the release before): the old one goes when the system says
+        // they are two files, never when it says one or cannot tell.
+        $both = $site + ['app/Http/Controllers/SeoController.php' => 'seo 2'];
+        $this->assertContains(['delete', 'app/Http/Controllers/SEOController.php'], $moves($plan(fn (string $path): ?string => $both[$path] ?? null, fn (): bool => false)));
+        $this->assertNotContains(['delete', 'app/Http/Controllers/SEOController.php'], $moves($plan(fn (string $path): ?string => $both[$path] ?? null, fn (): bool => true)));
+        $this->assertNotContains(['delete', 'app/Http/Controllers/SEOController.php'], $moves($plan(fn (string $path): ?string => $both[$path] ?? null, null)));
+
+        // The owner changed the old file: it is never deleted, and the page lists it next to the new name.
+        $changed = ['app/Http/Controllers/SEOController.php' => 'seo 1 + owner'] + $site;
+        $kept = $plan(fn (string $path): ?string => $changed[$path] ?? null, fn (): bool => false);
+        $this->assertNotContains(['delete', 'app/Http/Controllers/SEOController.php'], $moves($kept));
+        $this->assertContains(['path' => 'app/Http/Controllers/SEOController.php', 'copy' => 'app/Http/Controllers/SeoController.php'], $kept['report']['kept']);
+    }
+
+    public function test_same_file_tells_one_file_from_two(): void
+    {
+        $folder = storage_path('framework/testing/planner-same-'.bin2hex(random_bytes(4)));
+        mkdir($folder, 0755, true);
+
+        try {
+            file_put_contents($folder.'/One.txt', 'one');
+            file_put_contents($folder.'/two.txt', 'two');
+
+            $this->assertFalse(SwapPlanner::sameFile($folder.'/One.txt', $folder.'/two.txt'), 'two files');
+            $this->assertTrue(SwapPlanner::sameFile($folder.'/One.txt', $folder.'/One.txt'));
+            $this->assertTrue(SwapPlanner::sameFile($folder.'/One.txt', $folder.'/missing.txt'), 'unsure: one');
+
+            if (is_file($folder.'/one.txt')) {
+                $this->assertTrue(SwapPlanner::sameFile($folder.'/One.txt', $folder.'/one.txt'), 'a file system that ignores case: one file under both names');
+            }
+        } finally {
+            array_map('unlink', glob($folder.'/*') ?: []);
+            rmdir($folder);
+        }
+    }
+
+    /**
+     * The planner for a release that renames app/Http/Controllers/SEOController.php to SeoController.php.
+     *
+     * @return array{0: callable(callable, ?callable): array, 1: callable(array): array, 2: array<string, string>}
+     */
+    private function caseRename(): array
     {
         $shipped = self::SHIPPED + ['app/Http/Controllers/SEOController.php' => 'seo 1'];
         $release = self::RELEASE + ['app/Http/Controllers/SeoController.php' => 'seo 2'];
-        $plan = fn (callable $live): array => SwapPlanner::plan(
+        $plan = fn (callable $live, ?callable $sameFile): array => SwapPlanner::plan(
             new Manifest('1.0.1', '8.3.0', '1.0.0', $this->hashes($release), ['app/Http/Controllers/SEOController.php']),
             new Manifest('1.0.0', '8.3.0', '1.0.0', $this->hashes($shipped), []),
             hash('sha256', 'new manifest'),
             fn (string $path): ?string => ($content = $live($path)) === null ? null : hash('sha256', $content),
             $live,
             fn (string $path): ?string => $release[$path] ?? null,
+            [],
+            $sameFile,
         );
         $moves = fn (array $result): array => array_map(fn (array $op): array => [$op['do'], $op['path']], $result['ops']);
 
-        // A file system that ignores case (Windows, macOS): the new name finds the old file.
-        $byCase = array_change_key_case($shipped + [Manifest::FILE => 'old manifest'], CASE_LOWER);
-        $insensitive = $plan(fn (string $path): ?string => $byCase[strtolower($path)] ?? null);
-
-        $this->assertContains(['put', 'app/Http/Controllers/SeoController.php'], $moves($insensitive));
-        $this->assertNotContains(['delete', 'app/Http/Controllers/SEOController.php'], $moves($insensitive), 'deleting the old name would delete the new file');
-        $this->assertNotContains('app/Http/Controllers/SeoController.php', $insensitive['report']['overwritten'], 'shipped under its old name: not an owner\'s change');
-        $entry = array_values(array_filter($insensitive['entries'], fn (array $e): bool => $e['path'] === 'app/Http/Controllers/SeoController.php'))[0];
-        $this->assertSame(['replaced', hash('sha256', 'seo 1')], [$entry['action'], $entry['old']]);
-
-        // Where case counts, the new name is a new file; the old one stays, unused (never a delete that could hit the new one).
-        $sensitive = $plan(fn (string $path): ?string => ($shipped + [Manifest::FILE => 'old manifest'])[$path] ?? null);
-
-        $this->assertContains(['put', 'app/Http/Controllers/SeoController.php'], $moves($sensitive));
-        $this->assertNotContains(['delete', 'app/Http/Controllers/SEOController.php'], $moves($sensitive));
+        return [$plan, $moves, $shipped];
     }
 
     public function test_a_copy_that_is_already_there_is_not_moved_again(): void

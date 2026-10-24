@@ -343,6 +343,18 @@ class SettingsController
                     }
                 }
 
+                // A size typed in MB or GB is stored in bytes. Sent back exactly as the page showed it (a form posted
+                // without JavaScript sends every field), the stored bytes stay as they are: the page rounds sizes
+                // that are no whole number of hundredths of a MB.
+                if (SettingsPageController::isSize($key) && (string) $value !== '') {
+                    $bytes = SettingsPageController::sizeBytes($value, $request->input("units.{$group}.{$key}"));
+                    $current = Setting::getGroup($group)[$key] ?? null;
+                    $value = $current !== null && $bytes !== null
+                        && SettingsPageController::sizeFieldValue($current) === SettingsPageController::sizeFieldValue($bytes)
+                        ? (string) $current
+                        : (string) $bytes;
+                }
+
                 $writes[$group][$key] = $this->normalizeSettingValue($group, $key, $field, $value);
             }
         }
@@ -399,7 +411,10 @@ class SettingsController
             foreach ($writes as $group => $groupValues) {
                 foreach ($groupValues as $key => $value) {
                     if (! SettingsPageController::isWriteOnly($key)) {
-                        $values[$group][$key] = (string) $value;
+                        // Sizes as the field shows them ("500 MB"), not the stored bytes.
+                        $values[$group][$key] = SettingsPageController::isSize($key)
+                            ? SettingsPageController::sizeFieldValue($value)
+                            : (string) $value;
                     }
                 }
             }
@@ -428,7 +443,53 @@ class SettingsController
         $schema = $this->settingsSchema();
         $schema['appearance'] = array_diff_key($schema['appearance'], array_flip(self::NOT_SAVED_BY_PAGES));
 
+        // Sizes the pages show in MB or GB (the plan limits) keep their byte limits, checked on the bytes the typed
+        // size makes. The legacy group save still takes bytes with the rules of settingsSchema().
+        foreach (config('admin_settings.settings', []) as $key => $setting) {
+            $group = $setting['group'] ?? null;
+
+            if (($setting['control'] ?? null) === 'size' && is_string($group) && isset($schema[$group][$key])) {
+                $schema[$group][$key]['rules'] = self::sizeRules($group, $key, $schema[$group][$key]['rules']);
+            }
+        }
+
         return $schema;
+    }
+
+    /**
+     * The rules of a size typed in MB or GB from the byte rules of the group save: required / nullable stay, the byte
+     * min and max apply to the bytes ("Use 1 MB or more.", "Use 1 TB or less.").
+     *
+     * @param  array<int, mixed>  $byteRules
+     * @return array<int, mixed>
+     */
+    private static function sizeRules(string $group, string $key, array $byteRules): array
+    {
+        $limits = ['min' => null, 'max' => null];
+        $rules = [];
+
+        foreach ($byteRules as $rule) {
+            if (in_array($rule, ['required', 'nullable', 'sometimes'], true)) {
+                $rules[] = $rule;
+            } elseif (is_string($rule) && preg_match('/^(min|max):(\d+)$/', $rule, $match)) {
+                $limits[$match[1]] = (int) $match[2];
+            }
+        }
+
+        $rules[] = static function (string $attribute, mixed $value, \Closure $fail) use ($group, $key, $limits): void {
+            // A form posted without JavaScript sends the number and its unit (MB / GB) in two fields.
+            $bytes = SettingsPageController::sizeBytes($value, request()->input("units.{$group}.{$key}"));
+
+            if ($bytes === null) {
+                $fail(__('Use a size like 500 MB or 2 GB.'));
+            } elseif ($limits['min'] !== null && $bytes < $limits['min']) {
+                $fail(__('Use :min or more.', ['min' => \App\Support\DatabaseBackup::sizeText($limits['min'])]));
+            } elseif ($limits['max'] !== null && $bytes > $limits['max']) {
+                $fail(__('Use :max or less.', ['max' => \App\Support\DatabaseBackup::sizeText($limits['max'])]));
+            }
+        };
+
+        return $rules;
     }
 
     public function applyThemePreset(Request $request): JsonResponse|RedirectResponse

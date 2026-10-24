@@ -38,6 +38,8 @@
             ? trans_choice('Too many wrong passwords. Try again in 1 minute.|Too many wrong passwords. Try again in :count minutes.', (int) ceil($lockedFor / 60), ['count' => (int) ceil($lockedFor / 60)])
             : null;
         $running = $plan !== null && $plan['mine'] && ! $plan['stalled'];
+        // Undo clicked on a maintenance page that had stood down (nothing was replaced): the page waits for Cancel or Continue.
+        $hold = (bool) ($choice['hold'] ?? false);
         $progress = $plan['progress'] ?? null;
         $percent = is_array($progress) && ($progress['total'] ?? 0) > 0 ? min(100, (int) floor($progress['done'] * 100 / $progress['total'])) : 0;
         $planTitle = fn (?array $p): string => $p === null ? '' : ($p['kind'] === 'undo'
@@ -66,7 +68,7 @@
                 'version' => $plan['version'], 'waiting' => $plan['last_error'] !== null,
             ],
             // A running update of this administrator goes on by itself when the page opens again.
-            'run' => $ops && $running && $plan['last_error'] === null && $plan['next'] !== null,
+            'run' => $ops && $running && $plan['last_error'] === null && $plan['next'] !== null && ! $hold,
             // Work files of an earlier update wait in the trash: the page asks for slices of clean-up (status?tidy=1).
             'tidy' => $tidy && $plan === null,
             'texts' => [
@@ -93,6 +95,11 @@
 
         @if ($problem)
             <x-admin.callout type="danger" class="ad-console-block" role="alert">{{ $problem }}</x-admin.callout>
+        @endif
+
+        {{-- Finish / Undo clicked on a maintenance page that had stood down before any file was replaced (UpdatesController::choice()). --}}
+        @if ($choice)
+            <x-admin.callout :type="$hold ? 'warn' : 'info'" class="ad-console-block" role="status" data-ad-updates-choice>{{ $choice['message'] }}</x-admin.callout>
         @endif
 
         {{-- Why a one-click update cannot run here: operational tools off, no file list of the installed version, no zip engine. --}}
@@ -162,7 +169,7 @@
             </div>
             @if ($ops)
                 <div class="ad-panel-f">
-                    <form method="POST" action="{{ route('admin.updates.'.($plan['next'] ?? 'step')) }}" data-ad-updates-continue="{{ $plan['next'] ?? 'step' }}" @if (empty($plan['last_error'])) hidden @endif>
+                    <form method="POST" action="{{ route('admin.updates.'.($plan['next'] ?? 'step')) }}" data-ad-updates-continue="{{ $plan['next'] ?? 'step' }}" @if (empty($plan['last_error']) && ! $hold) hidden @endif>
                         @csrf
                         <button type="submit" class="ad-btn is-primary sm">{{ __('Continue') }}</button>
                     </form>

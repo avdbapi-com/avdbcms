@@ -22,6 +22,7 @@
                     <div class="d-flex justify-content-center gap-1 flex-wrap">
                         @if($user->is_admin) <span class="badge bg-danger">{{__('Admin')}}</span> @endif
                         @if($user->is_premium) <span class="badge bg-warning">{{__('Premium')}}</span> @endif
+                        @if(\App\Http\Middleware\ViewOnlyDemo::isViewOnlyUser($user)) <span class="badge bg-info" data-view-only-badge>{{__('View-only')}}</span> @endif
                         @if($user->banned_at) <span class="badge bg-dark">{{__('Banned')}}</span> @else <span class="badge bg-success">{{__('Active')}}</span> @endif
                         @if($user->email_verified_at) <span class="badge bg-info">{{__('Verified')}}</span> @endif
                     </div>

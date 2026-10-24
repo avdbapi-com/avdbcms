@@ -55,6 +55,9 @@ class Kernel extends HttpKernel
             // (AddLinkHeadersForPreloadedAssets::using(4)), about 300 bytes, far below the 4-8 KB
             // fastcgi/proxy header buffers of the HestiaCP and Virtualmin nginx defaults.
             \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class.':4',
+            // View-only demo accounts (users.is_view_only): refuses their changes, closes the private pages, rolls
+            // back what a page writes and masks secrets in what they see. Everybody else passes untouched.
+            \App\Http\Middleware\ViewOnlyDemo::class,
         ],
 
         'api' => [
@@ -63,6 +66,8 @@ class Kernel extends HttpKernel
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
             \App\Http\Middleware\Language::class,
             \App\Http\Middleware\OptionalAuthSanctum::class,
+            // After the optional sign-in, so a view-only account that calls with its token is guarded too.
+            \App\Http\Middleware\ViewOnlyDemo::class,
         ],
     ];
 

@@ -1,4 +1,5 @@
 @use('App\Filters\Forms\Admin\ReportFiltersForm')
+@use('App\Enums\ReportStatus')
 
 @extends('layouts.admin')
 
@@ -27,7 +28,8 @@
                         </form>
                     </div>
                 </template>
-                <span class="badge bg-danger fs-6">{{ $reports->total() }} pending</span>
+                {{-- The waiting reports (status pending), not every report of the list. --}}
+                <span class="badge bg-danger fs-6">{{ trans_choice('1 report waiting|:count reports waiting', $pendingCount ?? 0, ['count' => $pendingCount ?? 0]) }}</span>
             </div>
         </div>
         <hr>
@@ -98,13 +100,13 @@
                                 @if($report->reportable)
                                     {{-- Block is for a reported comment only (a member: Block member on their page; a video: Ban video). The
                                          reportable binding finds the model by its id, not by its route key (a member's is the profile slug). --}}
-                                    @if($report->status->value !== 'blocked' && $report->type === 'Comment')
+                                    @if($report->status !== ReportStatus::BLOCKED && $report->type === 'Comment')
                                     <form method="POST" action="{{ route('admin.reports.block', [$report->type, $report->reportable_id]) }}" onsubmit='return confirm(@json(__('Block this content?')))'>
                                         @csrf
                                         <button class="btn btn-sm btn-danger"><i class="fa-solid fa-ban me-1"></i>{{__('Block')}}</button>
                                     </form>
                                     @endif
-                                    @if($report->status->value !== 'cancelled')
+                                    @if($report->status !== ReportStatus::CANCELLED)
                                     <form method="POST" action="{{ route('admin.reports.cancel', [$report->type, $report->reportable_id]) }}" onsubmit='return confirm(@json(__('Mark as resolved?')))'>
                                         @csrf
                                         <button class="btn btn-sm btn-success"><i class="fa-solid fa-check me-1"></i>{{__('Resolve')}}</button>

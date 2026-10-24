@@ -32,6 +32,8 @@
 .ad-settings-form .ad-upload{display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap}
 .ad-settings-form .ad-upload img{width:120px;height:63px;object-fit:cover;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface-2)}
 .ad-settings-form .ad-upload-body{display:grid;gap:8px;flex:1;min-width:200px}
+.ad-settings-form .ad-size .ad-input{max-width:220px}
+.ad-settings-form .ad-size .ad-select{width:auto;flex:0 0 auto;margin-inline-start:-1px;border-start-start-radius:0;border-end-start-radius:0;background-color:var(--surface-2)}
 .ad-intro-steps{margin-top:8px}
 .ad-intro-steps summary{display:inline;cursor:pointer}
 .ad-intro-steps ol{margin:8px 0 0;padding-inline-start:20px;font-size:var(--fs-sm);color:var(--text-2)}

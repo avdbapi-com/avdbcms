@@ -4,6 +4,7 @@ namespace App\Support\Updater;
 
 use App\Http\Controllers\Admin\AuditLogController;
 use App\Http\Controllers\Admin\StatusProbeController;
+use App\Http\Middleware\ViewOnlyDemo;
 use App\Models\Setting;
 use App\Models\User;
 use App\Support\AdminCache;
@@ -420,7 +421,7 @@ final class Updater
             self::raiseTimeLimit();
 
             if (($plan['kind'] ?? 'update') === 'undo') {
-                return $this->finishUndo($plan, $admin);
+                return $this->staleOpcache($plan, false) ?? $this->finishUndo($plan, $admin);
             }
 
             // This request should already run the new version; an old OPcache entry may need a few seconds more.
@@ -429,6 +430,10 @@ final class Updater
                 $this->store->put($plan);
 
                 return $this->answer($plan, ['next' => 'finish', 'retry_after' => 3, 'label' => __('Waiting for PHP to load the new files...')]);
+            }
+
+            if (($wait = $this->staleOpcache($plan, $this->version !== $plan['version'])) !== null) {
+                return $wait;
             }
 
             $plan['status'] = 'migrating';
@@ -461,6 +466,67 @@ final class Updater
         });
     }
 
+    /**
+     * The swap could not drop every moved PHP file from OPcache, and this PHP does not reread changed files by their
+     * time stamps (settle() said "stale"): PHP may go on running old files from memory, so Finish must not say the
+     * update is installed yet. The files are dropped again from here (opcache_invalidate() of every moved PHP file,
+     * opcache_reset() where allowed). Where that worked, Finish goes on (in the next request when this one still runs
+     * the code from before the swap); where PHP rereads changed files after a while, Finish waits that long; anywhere
+     * else the page says plainly to have PHP restarted, and Continue tries again.
+     *
+     * @return array<string, mixed>|null the answer when Finish has to wait; null: it goes on
+     */
+    private function staleOpcache(array &$plan, bool $oldCode): ?array
+    {
+        if (($plan['settle']['opcache'] ?? null) !== 'stale') {
+            return null;
+        }
+
+        $refresh = $this->refreshOpcache($plan);
+        $plan['settle'] = array_merge((array) ($plan['settle'] ?? []), ['opcache' => $refresh['opcache'], 'wait' => $refresh['wait']]);
+        $plan['step_at'] = time();
+
+        if ($refresh['opcache'] === 'stale') {
+            $plan['last_error'] = __('PHP still keeps old files of AVDBCMS in its memory (OPcache), and they could not be cleared. Ask your host to restart PHP, then click Continue.');
+            $this->store->put($plan);
+            $this->log($plan, 'finish', 'OPcache still holds old files (invalidated '.$refresh['invalidated'].', failed '.$refresh['failed'].'): waiting for PHP to be restarted');
+
+            return $this->answer($plan, ['ok' => false, 'next' => null, 'message' => $plan['last_error']]);
+        }
+
+        unset($plan['last_error']);
+        $this->log($plan, 'finish', 'OPcache was stale after the swap; cleared again: '.$refresh['opcache']);
+
+        if ($refresh['opcache'] === 'wait' || $oldCode) {
+            // PHP rereads the changed files after a moment, or the next request loads the new code.
+            $plan['swapped_at'] = time();
+            $this->store->put($plan);
+
+            return $this->answer($plan, ['next' => 'finish', 'retry_after' => max(1, $refresh['wait']), 'label' => __('Waiting for PHP to load the new files...')]);
+        }
+
+        $this->store->put($plan);
+
+        return null;
+    }
+
+    /** OPcache refreshed for the files the plan's swap moved (its job.json); only the bootstrap caches and a reset without one. */
+    private function refreshOpcache(array $plan): array
+    {
+        $root = $this->paths->root;
+
+        try {
+            $job = PlanStore::read($this->paths->job((string) ($plan['job'] ?? '')).'/job.json');
+            $engine = new SwapEngine(is_array($job) ? $job : ['root' => $root, 'source' => $root, 'backup' => $root, 'journal' => $root.'/.none.jsonl', 'ops' => []]);
+
+            return $engine->refreshOpcache();
+        } catch (Throwable $e) {
+            self::reportSafely($e);
+
+            return (new SwapEngine(['root' => $root, 'source' => $root, 'backup' => $root, 'journal' => $root.'/.none.jsonl', 'ops' => []]))->refreshOpcache();
+        }
+    }
+
     /** Cancel an update before its swap: the work files go (a database backup that finished stays in Tools > Backups). */
     public function cancel(User $admin): array
     {
@@ -480,6 +546,7 @@ final class Updater
             $plan['status'] = 'cancelled';
             $plan['step_at'] = time();
             $this->store->put($plan);
+            $this->dropStandingHook($plan);
             $this->log($plan, 'cancel', 'cancelled by '.self::adminName($admin));
             // How the run ended, next to its update.started row ("1.2.0 -> 1.2.1 (at unpacking)").
             AuditLogController::log('update.cancelled', ($plan['from'] ?? '?').' -> '.($plan['version'] ?? '?')
@@ -504,6 +571,12 @@ final class Updater
 
             if ($backup === null) {
                 return $this->refuse(__('There is no update to undo: its backup is gone or a newer version is installed.'));
+            }
+
+            // A version older than 1.2.2 does not know view-only demo accounts: they could change things again there,
+            // and a view-only administrator would be a full administrator (the database stays as it is now).
+            if (($why = ViewOnlyDemo::undoRefusal((string) $backup['from'])) !== null) {
+                return $this->refuse($why);
             }
 
             if (($why = $this->preCheck()) !== null) {
@@ -1043,6 +1116,7 @@ final class Updater
             fn (string $path): ?string => is_file($this->paths->root($path)) ? (string) file_get_contents($this->paths->root($path)) : null,
             fn (string $path): ?string => is_file($job.'/staging/'.$path) ? (string) file_get_contents($job.'/staging/'.$path) : null,
             $keptAssets,
+            fn (string $one, string $two): bool => SwapPlanner::sameFile($this->paths->root($one), $this->paths->root($two)),
         );
         $plan['kept_assets'] = $result['kept_assets'];
 
@@ -1347,6 +1421,8 @@ final class Updater
             $plan['status'] = 'swapping';
         }
 
+        // A hook of this plan that stood down before (MaintenanceHook::standingBy()) is replaced by this one.
+        unset($plan['lapsed_at']);
         $plan['step_at'] = time();
         // The plan says "swapping" before the hook exists: a hook that finds no swapping plan takes itself away.
         $this->store->put($plan);
@@ -1745,9 +1821,21 @@ final class Updater
         $plan['failure'] = ['step' => $e->step, 'reason' => $e->getMessage(), 'detail' => $e->detail, 'at' => date('c'), 'audited' => true];
         $plan['step_at'] = time();
         $this->store->put($plan);
+        $this->dropStandingHook($plan);
         AuditLogController::log('update.failed', $e->step.': '.Str::limit($e->getMessage(), 200), (int) $admin->getKey());
 
         return $this->answer($plan, ['ok' => false, 'next' => null, 'retry' => false, 'message' => $e->getMessage()]);
+    }
+
+    /**
+     * A hook that stood down before its swap began stays for the Finish / Undo page it showed (MaintenanceHook::
+     * standingBy()); a plan that ended (cancelled, failed) takes it away at once rather than at the next request.
+     */
+    private function dropStandingHook(array $plan): void
+    {
+        if (isset($plan['lapsed_at']) && ! in_array($plan['status'] ?? null, ['swapping', 'rolling-back'], true)) {
+            $this->hook->remove();
+        }
     }
 
     /** A swap failure the hook reported (status failed, its audit row not written yet). */

@@ -1,7 +1,8 @@
 {{--
     Money > Plans in the redesigned admin (the old admin keeps plans/index.blade.php): whether premium and the two
     checkouts are ready, the webhook addresses to give Stripe and PayPal, the plans with their price and payment IDs, a
-    row menu filled from one template (modules/list-rows.ts: delete with Undo), the pager and "New plan".
+    row menu filled from one template (modules/list-rows.ts: delete with Undo), the pager and "New plan". Below them
+    the settings cards of the page (upload limits per plan, free trial) with the save bar of the settings pages.
 --}}
 @use('App\Support\AdminTheme')
 @extends('layouts.admin')
@@ -84,4 +85,12 @@
         @endforeach
     </x-admin.table>
     {!! preg_replace('/\n\s+/', "\n", (string) ob_get_clean()) !!}
+
+    {{-- What free and premium members may upload, and the free trial: the settings form of the other settings pages
+         (sizes typed in MB or GB, one save bar). --}}
+    @if (! empty($settingsForm) && $settingsForm['cards'] !== [])
+        <div class="ad-plans-settings" id="plan-limits" style="margin-top:40px">
+            @include('admin.settings.partials.form', $settingsForm)
+        </div>
+    @endif
 @endsection

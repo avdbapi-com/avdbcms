@@ -104,6 +104,84 @@ class SettingsPageController
         return ($setting['secret'] ?? false) === true || ($setting['reveal'] ?? false) === true;
     }
 
+    private const MB = 1048576;
+
+    private const GB = 1073741824;
+
+    /** Sizes stored in bytes that the pages show and take in MB or GB (the plan upload limits: control "size"). */
+    public static function isSize(string $key): bool
+    {
+        return config("admin_settings.settings.{$key}.control") === 'size';
+    }
+
+    /**
+     * A stored size (bytes) as its field shows it: GB from 1 GB up when that is a whole number or has at most two
+     * decimals ("5 GB", "1.5 GB", "1.2 GB" as typed), else MB ("500 MB", "10000 MB"), rounded to two decimals only
+     * when the bytes are no exact number of hundredths of a MB. Empty stays empty (no limit); anything that is not a
+     * byte count is left as it is.
+     */
+    public static function sizeFieldValue(mixed $bytes): string
+    {
+        $text = trim((string) $bytes);
+
+        if (! preg_match('/^\d{1,19}$/', $text)) {
+            return $text;
+        }
+
+        $bytes = (int) $text;
+
+        // Hundredths of a GB are no whole number of bytes (only quarters are), so a size typed as "1.2 GB" is stored
+        // rounded to the byte (1288490189): within one byte of a whole hundredth of a GB it shows as that GB value
+        // again, so the field keeps what the owner typed after a save.
+        $gb = round($bytes / self::GB, 2);
+
+        if ($bytes >= self::GB && abs($gb * self::GB - $bytes) < 1) {
+            return self::sizeNumber($gb).' GB';
+        }
+
+        return self::sizeNumber(round($bytes / self::MB, 2)).' MB';
+    }
+
+    /**
+     * Bytes from a typed size: "500 MB", "1.5 GB", "2gb", or a number with the unit chosen next to the field ($unit:
+     * a form posted without JavaScript sends it separately; MB when there is none). Null when it is no size.
+     */
+    public static function sizeBytes(mixed $value, mixed $unit = null): ?int
+    {
+        if (! is_scalar($value) || ! preg_match('/^(\d{1,13}(?:\.\d{1,6})?)\s*(MB|GB|MIB|GIB|M|G)?$/', strtoupper(trim((string) $value)), $match)) {
+            return null;
+        }
+
+        $name = ($match[2] ?? '') !== '' ? $match[2] : strtoupper(trim(is_scalar($unit) ? (string) $unit : ''));
+        $bytes = (float) $match[1] * (str_starts_with($name, 'G') ? self::GB : self::MB);
+
+        return $bytes < PHP_INT_MAX ? (int) round($bytes) : null;
+    }
+
+    /**
+     * The number and unit of a field value ("500 MB" -> ['500', 'MB']); a bare number takes $unit (the unit choice
+     * a form posted without JavaScript sent back), else MB.
+     *
+     * @return array{0: string, 1: string}
+     */
+    public static function sizeParts(mixed $value, mixed $unit = null): array
+    {
+        $text = trim((string) $value);
+        $unit = strtoupper(is_scalar($unit) ? trim((string) $unit) : '');
+        $fallback = in_array($unit, ['MB', 'GB'], true) ? $unit : 'MB';
+
+        if (preg_match('/^(\S*?)\s*(MB|GB)$/i', $text, $match)) {
+            return [$match[1], strtoupper($match[2])];
+        }
+
+        return [$text, $fallback];
+    }
+
+    private static function sizeNumber(float $value): string
+    {
+        return rtrim(rtrim(number_format($value, 2, '.', ''), '0'), '.');
+    }
+
     public function hub(Request $request): View|JsonResponse
     {
         $query = is_string($request->query('q')) ? trim($request->query('q')) : '';
@@ -419,6 +497,12 @@ class SettingsPageController
         if ($setting['type'] === 'bool') {
             $value = filter_var($value, FILTER_VALIDATE_BOOLEAN) ? '1' : '0';
             $default = $default === '' ? null : (filter_var($default, FILTER_VALIDATE_BOOLEAN) ? '1' : '0');
+        }
+
+        // Sizes are stored in bytes and shown in MB or GB ("500 MB"), the default too (Default: ... Reset).
+        if ($setting['control'] === 'size') {
+            $value = self::sizeFieldValue($value);
+            $default = $default === null ? null : self::sizeFieldValue($default);
         }
 
         $confirm = isset($setting['confirm']) ? __($setting['confirm']) : null;
