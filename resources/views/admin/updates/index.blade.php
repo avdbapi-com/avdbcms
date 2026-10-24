@@ -67,9 +67,13 @@
             ],
             // A running update of this administrator goes on by itself when the page opens again.
             'run' => $ops && $running && $plan['last_error'] === null && $plan['next'] !== null,
+            // Work files of an earlier update wait in the trash: the page asks for slices of clean-up (status?tidy=1).
+            'tidy' => $tidy && $plan === null,
             'texts' => [
                 'installing' => __('Installing AVDBCMS :version'),
                 'undoing' => __('Going back to AVDBCMS :version'),
+                'keep_update' => __('Keep this page open until it says the update is installed.'),
+                'keep_undo' => __('Keep this page open until it says your files are back.'),
                 'starting' => __('Starting the update...'),
                 'retrying' => __('The connection to your site dropped. Trying again in :seconds seconds...'),
                 'lost' => __('Your site did not answer. Check your connection, then click Continue.'),
@@ -148,7 +152,8 @@
             <div class="ad-panel-b">
                 <p class="ad-upd-label" data-ad-updates-label role="status" aria-live="polite">{{ $plan['label'] ?? '' }}</p>
                 <progress class="ad-upd-bar" data-ad-updates-bar max="100" value="{{ $percent }}" aria-labelledby="ad-upd-progress-t"></progress>
-                <p class="ad-small ad-muted">{{ __('Keep this page open until it says the update is installed.') }}</p>
+                {{-- An undo ends with "Your files are back to ...", not with "installed" (the script sets it for a run it starts). --}}
+                <p class="ad-small ad-muted" data-ad-updates-keep>{{ ($plan['kind'] ?? 'update') === 'undo' ? __('Keep this page open until it says your files are back.') : __('Keep this page open until it says the update is installed.') }}</p>
                 <p class="ad-error" data-ad-updates-error role="alert" @if (empty($plan['last_error'])) hidden @endif>{{ $plan['last_error'] ?? '' }}</p>
                 <details class="ad-upd-log" data-ad-updates-log>
                     <summary>{{ __('Show details') }}</summary>
@@ -181,7 +186,8 @@
                 };
                 $isUpdate = $result['kind'] === 'update';
             @endphp
-            <section class="ad-panel ad-console-block ad-upd-result" aria-labelledby="ad-upd-result-t">
+            {{-- data-ad-updates-result: the script hides it when a new run starts on this page. --}}
+            <section class="ad-panel ad-console-block ad-upd-result" aria-labelledby="ad-upd-result-t" data-ad-updates-result>
                 <div class="ad-panel-h">
                     <span class="ad-sym is-{{ $tone === 'info' ? 'accent' : $tone }}" aria-hidden="true">{{ AdminTheme::icon(['ok' => 'check-circle', 'danger' => 'alert-circle'][$tone] ?? 'info') }}</span>
                     <div class="ad-home-grow">
@@ -275,8 +281,14 @@
                             <dd>AVDBCMS {{ $current }}</dd>
                         </div>
                         <div>
-                            <dt>{{ __('Last updated') }}</dt>
-                            <dd>{{ $state !== null ? __(':date, from AVDBCMS :version', ['date' => $when((int) ($state['updated_at'] ?? 0)), 'version' => $state['previous_version'] ?? '?']) : '—' }}</dd>
+                            @if ($undoneLast)
+                                {{-- After Undo this update: what happened, not "updated from" the newer version. --}}
+                                <dt>{{ __('Last change') }}</dt>
+                                <dd>{{ __(':date, the update to AVDBCMS :version was undone', ['date' => $when((int) ($state['updated_at'] ?? 0)), 'version' => $state['previous_version'] ?? '?']) }}</dd>
+                            @else
+                                <dt>{{ __('Last updated') }}</dt>
+                                <dd>{{ $state !== null ? __(':date, from AVDBCMS :version', ['date' => $when((int) ($state['updated_at'] ?? 0)), 'version' => $state['previous_version'] ?? '?']) : '—' }}</dd>
+                            @endif
                         </div>
                         <div>
                             <dt>{{ __('Last check') }}</dt>
@@ -375,7 +387,8 @@
                 </div>
             </div>
             @if ($backups === [])
-                <div class="ad-panel-b"><p class="ad-muted">{{ __('No update backups yet.') }}</p></div>
+                {{-- After an undo the list is empty because the undo used the backup, not because there never was one. --}}
+                <div class="ad-panel-b"><p class="ad-muted">{{ $undoneLast ? __('No update backups. The undo used the last one to put your files back.') : __('No update backups yet.') }}</p></div>
             @else
                 <ul class="ad-list">
                     @foreach ($backups as $backup)

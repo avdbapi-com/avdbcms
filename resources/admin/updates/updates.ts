@@ -6,8 +6,10 @@
 // Busy (409) waits retry_after (or 3 s) and asks again; a dropped connection is tried again after 2, 4, 8, 15 and 30 s,
 // then the page says so and offers Continue; an ended session (419) reloads the page; a swap the hook refuses (its
 // token is gone) reloads too, so the hook's own Finish / Undo page takes over. A page opened again goes on with its
-// administrator's running update (boot.run). Loaded by admin.ts only on pages with [data-ad-updates]; listeners are
-// delegated, so the section the page swaps in after its first GitHub check (data-ad-defer) works the same.
+// administrator's running update (boot.run). A run hides the result card of the run before. While work files of an
+// earlier update wait in the trash (boot.tidy), the page asks for slices of clean-up of a few seconds each. Loaded by
+// admin.ts only on pages with [data-ad-updates]; listeners are delegated, so the section the page swaps in after its
+// first GitHub check (data-ad-defer) works the same.
 
 import {$, $$, csrfToken} from '../lib/dom';
 import './updates.scss';
@@ -46,8 +48,13 @@ type Boot = {
     urls: {status: string; step: string; swap: string; finish: string; cancel: string};
     plan: {next: Next; mine: boolean; stalled: boolean; kind: 'update' | 'undo'; version: string; waiting: boolean} | null;
     run: boolean;
+    /** Work files of an earlier update wait in the trash: ask for slices of clean-up (status?tidy=1). */
+    tidy?: boolean;
     texts: Record<string, string>;
 };
+
+/** What status?tidy=1 says after its slice of clean-up (running: an update or undo runs, so nothing was deleted). */
+type Tidy = {pending: boolean; deleted: number; busy: boolean; running?: boolean} | null;
 
 type Reply = {status: number; data: Answer | null};
 
@@ -87,8 +94,19 @@ if (root && bootEl) {
 
     const setTitle = (kind: 'update' | 'undo', version: string): void => {
         const title = part('title');
+        const keep = part('keep');
 
         if (title && version) title.textContent = text(kind === 'undo' ? 'undoing' : 'installing').replace(':version', version);
+        // An undo ends with "Your files are back to ...": the hint under the bar says so.
+        if (keep) keep.textContent = text(kind === 'undo' ? 'keep_undo' : 'keep_update', keep.textContent ?? '');
+    };
+
+    /** The result of the run before (a card under the progress panel) is not this run's: it goes when a run starts. */
+    const hideResult = (): void => {
+        $$<HTMLElement>('[data-ad-updates-result]', root).forEach((card) => {
+            card.hidden = true;
+            $$<HTMLDetailsElement>('details[data-ad-updates-log]', card).forEach((details) => (details.open = false));
+        });
     };
 
     const setLabel = (value: string | null | undefined): void => {
@@ -248,6 +266,7 @@ if (root && bootEl) {
 
         running = true;
         stopping = false;
+        hideResult();
         showPanel();
         setError(null);
         setButtons(null, false);
@@ -437,6 +456,7 @@ if (root && bootEl) {
         if (typeof data.token === 'string' && /^[0-9a-f]{64}$/.test(data.token)) token = data.token;
 
         setTitle(kind, form.dataset.adUpdatesVersion ?? '');
+        hideResult();
         showPanel();
         show(data);
         setLabel(data.label ?? text('starting'));
@@ -476,6 +496,37 @@ if (root && bootEl) {
 
             void refreshLog();
             await new Promise((resolve) => window.setTimeout(resolve, 4000));
+        }
+    };
+
+    // ---------- clean-up: work files of an earlier update, deleted a few seconds per request while the page is open
+
+    /**
+     * Each status?tidy=1 deletes for at most a few seconds on the server. Stops when nothing is left, when a slice
+     * deleted nothing (a file that cannot be deleted; the scheduler tries again later), after 60 slices, or as soon as
+     * an update or undo starts (here, or in another tab: the server then deletes nothing and says so, because that
+     * run's own steps empty the trash) or the page is watched or left. Silent: nothing on the page depends on it.
+     */
+    const tidy = async (): Promise<void> => {
+        for (let slices = 0; slices < 60; slices++) {
+            if (running || watching || reloading) return;
+
+            let answer: Tidy = null;
+
+            try {
+                const url = new URL(boot.urls.status, window.location.href);
+                url.searchParams.set('tidy', '1');
+                const response = await fetch(url.href, {credentials: 'same-origin', headers: {'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest'}});
+
+                answer = response.ok ? (((await response.json()) as {tidy?: Tidy}).tidy ?? null) : null;
+            } catch {
+                return;
+            }
+
+            if (!answer || answer.running || !answer.pending || (answer.deleted === 0 && !answer.busy)) return;
+
+            // Another clean-up holds the trash (the scheduler): ask again a little later.
+            await new Promise((resolve) => window.setTimeout(resolve, answer!.busy ? 3000 : 250));
         }
     };
 
@@ -608,5 +659,7 @@ if (root && bootEl) {
 
     if (boot.run && boot.plan?.next) {
         void run(boot.plan.next);
+    } else if (boot.tidy) {
+        void tidy();
     }
 }

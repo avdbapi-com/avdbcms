@@ -35,7 +35,8 @@ final class SwapEngine
 
     /**
      * @param  array<string, mixed>  $job  root, source, backup, journal, ops (the list, or a JSON file holding
-     *                                      {"ops": [...]}), log (optional step log file)
+     *                                      {"ops": [...]}), log (optional step log file), timezone (optional: the
+     *                                      time zone of the log's lines)
      */
     public function __construct(array $job)
     {
@@ -578,7 +579,24 @@ final class SwapEngine
         $file = $this->job['log'] ?? null;
 
         if (is_string($file) && $file !== '') {
-            @file_put_contents($file, date('Y-m-d H:i:s')."\tswap\t".$message."\n", FILE_APPEND | LOCK_EX);
+            @file_put_contents($file, self::stamp(is_string($this->job['timezone'] ?? null) ? $this->job['timezone'] : null)."\tswap\t".$message."\n", FILE_APPEND | LOCK_EX);
         }
+    }
+
+    /**
+     * The time now in $zone (the site's time zone, which the maintenance hook gets in its config: without Laravel,
+     * PHP would use php.ini's date.timezone), or in PHP's own zone when none or an unknown one is given.
+     */
+    public static function stamp(?string $zone, string $format = 'Y-m-d H:i:s'): string
+    {
+        if (is_string($zone) && $zone !== '') {
+            try {
+                return (new \DateTimeImmutable('now', new \DateTimeZone($zone)))->format($format);
+            } catch (\Throwable) {
+                // An unknown zone: PHP's own below.
+            }
+        }
+
+        return date($format);
     }
 }

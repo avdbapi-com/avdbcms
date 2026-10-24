@@ -1618,6 +1618,19 @@ textarea.form-control:focus {
     padding: 0.4rem 0.65rem;
 }
 
+// TomSelect's Bootstrap 5 stylesheet (loaded after this file) draws its own chevron as a background picture on a
+// single select that is neither .form-control nor .form-select (.ts-wrapper:not(.form-control, .form-select).single
+// .ts-control, 0-4-0). The footer language select is the only such select: it showed that faded chevron next to the
+// site's own (::after above), two arrows. Only the site's chevron stays, and it takes the place of the removed one
+// at the end of the field (TomSelect keeps --ts-pr-caret, 2.25rem, free at the end for its own chevron).
+html[data-bs-theme] .ts-wrapper.avd-footer-select.single {
+    --ts-pr-caret: 0px;
+}
+
+html[data-bs-theme] .ts-wrapper.avd-footer-select.single .ts-control {
+    background-image: none;
+}
+
 .ts-wrapper.single .ts-control:hover,
 .ts-wrapper.multi .ts-control:hover {
     border-color: var(--avd-border-strong);
@@ -1812,6 +1825,7 @@ textarea.form-control:focus {
     padding-block: 0.1rem;
 }
 
+.ad-slot-grid.ad-slot-grid--wide .avd-demo-ad,
 .ad-slot-grid.ad-slot-grid--wide .avd-test-ad {
     max-width: 1040px;
     min-height: 78px;
@@ -1822,6 +1836,7 @@ textarea.form-control:focus {
     padding: 0.78rem 0.9rem;
 }
 
+.ad-slot-grid.ad-slot-grid--wide .avd-demo-ad__cta,
 .ad-slot-grid.ad-slot-grid--wide .avd-test-ad__cta {
     margin-top: 0;
 }
@@ -1895,6 +1910,10 @@ body.has-mobile-ad {
     padding-bottom: 86px;
 }
 
+// The demo ad cards of a new site (the sample ad codes of database/migrations/2026_05_05_*ads*.php). Since 1.2.1
+// they carry the class avd-demo-ad; sites installed before keep their stored codes with the old name avd-test-ad,
+// so every demo ad rule names both.
+.avd-demo-ad,
 .avd-test-ad {
     width: 100%;
     max-width: 1040px;
@@ -1915,14 +1934,18 @@ body.has-mobile-ad {
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
+.avd-demo-ad:hover,
 .avd-test-ad:hover,
+.avd-demo-ad:focus-visible,
 .avd-test-ad:focus-visible {
     color: var(--avd-text);
     border-color: rgba(var(--avd-brand-rgb), 0.42);
     transform: translateY(-1px);
 }
 
+.avd-demo-ad__label,
 .avd-test-ad__label,
+.avd-demo-ad__cta,
 .avd-test-ad__cta {
     flex: 0 0 auto;
     display: inline-flex;
@@ -1937,29 +1960,35 @@ body.has-mobile-ad {
     white-space: nowrap;
 }
 
+.avd-demo-ad__label,
 .avd-test-ad__label {
     background: rgba(255, 255, 255, 0.10);
     color: var(--avd-text);
 }
 
+.avd-demo-ad__cta,
 .avd-test-ad__cta {
     background: var(--avd-btn-bg, linear-gradient(135deg, var(--avd-brand), var(--avd-brand-2)));
     color: var(--avd-btn-text, #fff);
 }
 
+.avd-demo-ad__copy,
 .avd-test-ad__copy {
     min-width: 0;
     display: grid;
     gap: 0.18rem;
 }
 
+.avd-demo-ad__copy strong,
 .avd-test-ad__copy strong,
+.avd-demo-ad__copy small,
 .avd-test-ad__copy small {
     display: block;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
+.avd-demo-ad__copy strong,
 .avd-test-ad__copy strong {
     color: var(--avd-text);
     font-size: 0.94rem;
@@ -1967,90 +1996,105 @@ body.has-mobile-ad {
     line-height: 1.15;
 }
 
+.avd-demo-ad__copy small,
 .avd-test-ad__copy small {
     color: var(--avd-muted);
     font-size: 0.78rem;
     line-height: 1.35;
 }
 
+.avd-demo-ad--smart,
 .avd-test-ad--smart {
     background:
         linear-gradient(135deg, rgba(79, 92, 255, 0.20), rgba(24, 200, 216, 0.12)),
         var(--avd-surface);
 }
 
+.avd-demo-ad--creator,
 .avd-test-ad--creator {
     background:
         linear-gradient(135deg, rgba(255, 139, 92, 0.20), rgba(255, 61, 97, 0.12)),
         var(--avd-surface);
 }
 
+.avd-demo-ad--trending,
 .avd-test-ad--trending {
     background:
         linear-gradient(135deg, rgba(255, 61, 97, 0.20), rgba(148, 92, 255, 0.12)),
         var(--avd-surface);
 }
 
+.avd-demo-ad--new,
 .avd-test-ad--new {
     background:
         linear-gradient(135deg, rgba(24, 200, 216, 0.18), rgba(255, 139, 92, 0.12)),
         var(--avd-surface);
 }
 
+.avd-demo-ad--trend,
 .avd-test-ad--trend {
     background:
         linear-gradient(135deg, rgba(255, 61, 97, 0.18), rgba(24, 200, 216, 0.11)),
         var(--avd-surface);
 }
 
+.avd-demo-ad--category,
 .avd-test-ad--category {
     background:
         linear-gradient(135deg, rgba(79, 92, 255, 0.18), rgba(255, 139, 92, 0.11)),
         var(--avd-surface);
 }
 
+.avd-demo-ad--subs,
 .avd-test-ad--subs {
     background:
         linear-gradient(135deg, rgba(24, 200, 216, 0.18), rgba(79, 92, 255, 0.11)),
         var(--avd-surface);
 }
 
+.avd-demo-ad--channel,
 .avd-test-ad--channel {
     background:
         linear-gradient(135deg, rgba(148, 92, 255, 0.18), rgba(255, 61, 97, 0.11)),
         var(--avd-surface);
 }
 
+.avd-demo-ad--search,
 .avd-test-ad--search {
     background:
         linear-gradient(135deg, rgba(24, 200, 216, 0.16), rgba(255, 61, 97, 0.11)),
         var(--avd-surface);
 }
 
+.avd-demo-ad--playlist,
 .avd-test-ad--playlist {
     background:
         linear-gradient(135deg, rgba(255, 139, 92, 0.17), rgba(24, 200, 216, 0.11)),
         var(--avd-surface);
 }
 
+.avd-demo-ad--related,
 .avd-test-ad--related {
     background:
         linear-gradient(135deg, rgba(79, 92, 255, 0.17), rgba(24, 200, 216, 0.10)),
         var(--avd-surface);
 }
 
+.avd-demo-ad--featured,
 .avd-test-ad--featured {
     background:
         linear-gradient(135deg, rgba(255, 61, 97, 0.17), rgba(255, 139, 92, 0.11)),
         var(--avd-surface);
 }
 
+.avd-demo-ad--latest,
 .avd-test-ad--latest {
     background:
         linear-gradient(135deg, rgba(24, 200, 216, 0.16), rgba(148, 92, 255, 0.10)),
         var(--avd-surface);
 }
 
+.ad-slot-grid .avd-demo-ad,
 .ad-slot-grid .avd-test-ad {
     min-height: 100%;
     align-items: flex-start;
@@ -2059,10 +2103,12 @@ body.has-mobile-ad {
     padding: 1rem;
 }
 
+.ad-slot-grid .avd-demo-ad__cta,
 .ad-slot-grid .avd-test-ad__cta {
     margin-top: auto;
 }
 
+.ad-slot-sidebar .avd-demo-ad,
 .ad-slot-sidebar .avd-test-ad {
     align-items: flex-start;
     flex-direction: column;
@@ -2070,10 +2116,12 @@ body.has-mobile-ad {
     padding: 1rem;
 }
 
+.ad-slot-sidebar .avd-demo-ad__cta,
 .ad-slot-sidebar .avd-test-ad__cta {
     margin-top: auto;
 }
 
+.ad-slot-mobile .avd-demo-ad,
 .ad-slot-mobile .avd-test-ad {
     min-height: 52px;
     padding: 0.48rem 0.55rem;
@@ -2082,17 +2130,21 @@ body.has-mobile-ad {
     background-color: var(--avd-surface-solid, var(--avd-surface));
 }
 
+.ad-slot-mobile .avd-demo-ad__label,
 .ad-slot-mobile .avd-test-ad__label {
     min-height: 1.45rem;
     padding: 0.2rem 0.4rem;
     font-size: 0.64rem;
 }
 
+.ad-slot-mobile .avd-demo-ad__copy strong,
 .ad-slot-mobile .avd-test-ad__copy strong {
     font-size: 0.84rem;
 }
 
+.ad-slot-mobile .avd-demo-ad__copy small,
 .ad-slot-mobile .avd-test-ad__copy small,
+.ad-slot-mobile .avd-demo-ad__cta,
 .ad-slot-mobile .avd-test-ad__cta {
     font-size: 0.68rem;
 }
@@ -2145,6 +2197,7 @@ body.has-mobile-ad {
     background: #000;
 }
 
+.ad-slot-preroll .avd-demo-ad,
 .ad-slot-preroll .avd-test-ad {
     width: min(100%, 620px);
     min-height: min(38vh, 260px);
@@ -2159,11 +2212,13 @@ body.has-mobile-ad {
         rgba(18, 22, 34, 0.92);
 }
 
+.ad-slot-preroll .avd-demo-ad__copy strong,
 .ad-slot-preroll .avd-test-ad__copy strong {
     color: #fff;
     font-size: clamp(1rem, 2.4vw, 1.35rem);
 }
 
+.ad-slot-preroll .avd-demo-ad__copy small,
 .ad-slot-preroll .avd-test-ad__copy small {
     white-space: normal;
 }
@@ -2291,20 +2346,24 @@ body.has-mobile-ad {
         contain-intrinsic-size: 70px;
     }
 
+    .avd-demo-ad,
     .avd-test-ad {
         gap: 0.5rem;
         min-height: 62px;
         padding: 0.58rem;
     }
 
+    .avd-demo-ad__copy strong,
     .avd-test-ad__copy strong {
         font-size: 0.84rem;
     }
 
+    .avd-demo-ad__copy small,
     .avd-test-ad__copy small {
         font-size: 0.72rem;
     }
 
+    .avd-demo-ad__cta,
     .avd-test-ad__cta {
         display: none;
     }

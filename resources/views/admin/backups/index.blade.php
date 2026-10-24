@@ -13,7 +13,7 @@
 <div class="row mb-4">
     <div class="col-md-4"><div class="card shadow-sm border-info"><div class="card-body text-center py-3">
         <i class="fa-solid fa-database text-info fa-2x mb-2"></i>
-        <div class="fw-bold fs-5">{{ $dbSize }}</div>
+        <div class="fw-bold fs-5">{{ $dbSize ?? '—' }}</div>
         <small class="text-muted">{{__('Database Size')}}</small>
     </div></div></div>
     <div class="col-md-4"><div class="card shadow-sm border-primary"><div class="card-body text-center py-3">
@@ -23,7 +23,7 @@
     </div></div></div>
     <div class="col-md-4"><div class="card shadow-sm border-success"><div class="card-body text-center py-3">
         <i class="fa-solid fa-hard-drive text-success fa-2x mb-2"></i>
-        <div class="fw-bold fs-5">{{ round($backupTotalSize / 1048576, 2) }} MB</div>
+        <div class="fw-bold fs-5">{{ $backupTotalText }}</div>
         <small class="text-muted">{{__('Total Backup Size')}}</small>
     </div></div></div>
 </div>
@@ -35,7 +35,7 @@
         @forelse($backups as $backup)
         <tr>
             <td class="align-middle"><i class="fa-solid fa-file-zipper text-info me-1"></i><code>{{ $backup['name'] }}</code></td>
-            <td class="align-middle">{{ round($backup['size'] / 1048576, 2) }} MB</td>
+            <td class="align-middle text-nowrap">{{ $backup['size_text'] }}</td>
             <td class="align-middle"><small>{{ date('M d, Y H:i:s', $backup['date']) }}</small></td>
             <td class="align-middle">
                 <div class="d-flex gap-1">

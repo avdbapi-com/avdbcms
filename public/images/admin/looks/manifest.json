@@ -1,67 +1,67 @@
 {
- "generated": "2026-10-17T13:56:01.571Z",
- "quality": 0.62,
- "total_bytes": 2206210,
+ "generated": "2026-10-24T07:10:17.564Z",
+ "quality": 0.78,
+ "total_bytes": 2965036,
  "files": {
   "apple_bento_studio-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 5644,
-   "hash": "15df71b27f6e3d7e"
+   "bytes": 11504,
+   "hash": "32deff544664987a"
   },
   "apple_bento_studio.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 15290,
-   "hash": "39573f230ea4513a"
+   "bytes": 27212,
+   "hash": "abd2adfaf2e5df23"
   },
   "cosmic_astronomy_theater-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 7484,
-   "hash": "c2c1d58f82b694da"
+   "bytes": 9718,
+   "hash": "96f29e3dd08abb29"
   },
   "cosmic_astronomy_theater.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 13618,
-   "hash": "b941ea8471518335"
+   "bytes": 26276,
+   "hash": "643b0f1d5f89ce81"
   },
   "cyberpunk_hud-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 8140,
-   "hash": "6a61af6f4e19ff01"
+   "bytes": 10894,
+   "hash": "227de43d10e7e2fc"
   },
   "cyberpunk_hud.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 23352,
-   "hash": "a4944ef2e2b06d86"
+   "bytes": 29494,
+   "hash": "82451d51a04d3b5c"
   },
   "daylight_creator-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 8992,
-   "hash": "4814c8faa9323030"
+   "bytes": 11182,
+   "hash": "bbdc54e1bb26d81b"
   },
   "daylight_creator.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 23176,
-   "hash": "f82ff10372697893"
+   "bytes": 26252,
+   "hash": "4b26030a2ab3d69f"
   },
   "editorial_magazine-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 6954,
-   "hash": "b0dd536e58484354"
+   "bytes": 11108,
+   "hash": "622b89158fca28d5"
   },
   "editorial_magazine.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 19272,
-   "hash": "51d89981665f92f3"
+   "bytes": 26244,
+   "hash": "b4738bd223125199"
   },
   "fonts/aurora_manrope.webp": {
    "w": 320,
@@ -270,854 +270,854 @@
   "glass_lounge-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 7160,
-   "hash": "8dc001507ef864fe"
+   "bytes": 10730,
+   "hash": "172ac0f55ecd3df0"
   },
   "glass_lounge.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 17652,
-   "hash": "ffb58d529171e107"
+   "bytes": 25004,
+   "hash": "ac517e406bad299c"
   },
   "luxury_imperial_salon-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 9508,
-   "hash": "1cc20edca5fabfd6"
+   "bytes": 12024,
+   "hash": "5dac633d1286b074"
   },
   "luxury_imperial_salon.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 24400,
-   "hash": "558897284cbcaed2"
+   "bytes": 29700,
+   "hash": "fb52fd5c10e4dcaa"
   },
   "netflix_cinema-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 7806,
-   "hash": "c94dbea094d36703"
+   "bytes": 10328,
+   "hash": "960e29214b363bd9"
   },
   "netflix_cinema.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 20048,
-   "hash": "eab2676bd8e204ed"
+   "bytes": 29670,
+   "hash": "b41ab9ee83b42525"
   },
   "themes/amazon_rainforest-dark-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 7830,
-   "hash": "b33b4b28a7e12e8b"
+   "bytes": 10026,
+   "hash": "5226825702e3babb"
   },
   "themes/amazon_rainforest-dark.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 18596,
-   "hash": "d0743ffe89266722"
+   "bytes": 28844,
+   "hash": "60a3082c383d64e4"
   },
   "themes/amazon_rainforest-light-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 7612,
-   "hash": "1bd5ce8232f3b08b"
+   "bytes": 10092,
+   "hash": "271b2a2dbed6d148"
   },
   "themes/amazon_rainforest-light.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 18444,
-   "hash": "38b5106ababcfa83"
+   "bytes": 29094,
+   "hash": "58c0199d01a58a27"
   },
   "themes/aurora_borealis-dark-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 8336,
-   "hash": "343019038971d3b9"
+   "bytes": 10768,
+   "hash": "d2a2c9151fb87b74"
   },
   "themes/aurora_borealis-dark.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 23092,
-   "hash": "b99bac535c9b5573"
+   "bytes": 27312,
+   "hash": "0800cb8400a09d4d"
   },
   "themes/aurora_borealis-light-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 7594,
-   "hash": "82a2f574337abf58"
+   "bytes": 10720,
+   "hash": "5eb6b70e6db1549e"
   },
   "themes/aurora_borealis-light.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 22878,
-   "hash": "eb327ae76699557f"
+   "bytes": 27298,
+   "hash": "2aed8c700b20a866"
   },
   "themes/broadsheet-dark-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 6530,
-   "hash": "e99c4c08f926e3b5"
+   "bytes": 10744,
+   "hash": "e510f5f4bab749ae"
   },
   "themes/broadsheet-dark.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 19280,
-   "hash": "63912f0ae657c0aa"
+   "bytes": 26086,
+   "hash": "36039fb7e5a3bfc8"
   },
   "themes/broadsheet-light-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 6836,
-   "hash": "9695a62984236f3b"
+   "bytes": 11108,
+   "hash": "622b89158fca28d5"
   },
   "themes/broadsheet-light.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 19086,
-   "hash": "bc74a7fa57a3a78f"
+   "bytes": 26244,
+   "hash": "b4738bd223125199"
   },
   "themes/bubblegum_pop-dark-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 7774,
-   "hash": "119b6dc69d660bee"
+   "bytes": 10952,
+   "hash": "8db3e0b8c3346047"
   },
   "themes/bubblegum_pop-dark.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 17660,
-   "hash": "2a006887de33c929"
+   "bytes": 23822,
+   "hash": "1da4da308a7151f3"
   },
   "themes/bubblegum_pop-light-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 8234,
-   "hash": "b4f55ef5f76cba85"
+   "bytes": 11588,
+   "hash": "635568b0206b4ef6"
   },
   "themes/bubblegum_pop-light.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 18478,
-   "hash": "f18b9ad84139fe6b"
+   "bytes": 24852,
+   "hash": "01af45eeea68c6be"
   },
   "themes/clean_concrete-dark-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 7958,
-   "hash": "2ea0875521c64045"
+   "bytes": 12874,
+   "hash": "9a3a97d146f79fed"
   },
   "themes/clean_concrete-dark.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 21452,
-   "hash": "91892a20c519278f"
+   "bytes": 31268,
+   "hash": "9c29270fc8768c55"
   },
   "themes/clean_concrete-light-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 7960,
-   "hash": "0b996bb824830793"
+   "bytes": 12600,
+   "hash": "7d93fa47d16eb561"
   },
   "themes/clean_concrete-light.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 21124,
-   "hash": "b1570915172e809d"
+   "bytes": 30768,
+   "hash": "1a7497a2e5b54039"
   },
   "themes/clean_graphite-dark-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 7060,
-   "hash": "6b5c53b2c58e9eea"
+   "bytes": 10420,
+   "hash": "27bb509fd6e328fd"
   },
   "themes/clean_graphite-dark.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 20252,
-   "hash": "cc770579989a4886"
+   "bytes": 26766,
+   "hash": "d20c05300d2a507b"
   },
   "themes/clean_graphite-light-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 7052,
-   "hash": "ac20a9b61fc9b9da"
+   "bytes": 10442,
+   "hash": "a94c0f8019ad968d"
   },
   "themes/clean_graphite-light.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 20596,
-   "hash": "6cfbd792f1806ab9"
+   "bytes": 27488,
+   "hash": "5c26d35422f1e888"
   },
   "themes/cyber_gladiator-dark-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 7602,
-   "hash": "bb19abcd2c490e0c"
+   "bytes": 10016,
+   "hash": "1fe33b233308b5ee"
   },
   "themes/cyber_gladiator-dark.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 19706,
-   "hash": "e35adf0ba0b5ec94"
+   "bytes": 24700,
+   "hash": "bab0c1f50c1585d1"
   },
   "themes/cyber_gladiator-light-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 7988,
-   "hash": "5f1ac5a419c84d91"
+   "bytes": 10448,
+   "hash": "576067180fdea8f8"
   },
   "themes/cyber_gladiator-light.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 20570,
-   "hash": "11f0cf21cd98f8bd"
+   "bytes": 26324,
+   "hash": "65d131846be848e2"
   },
   "themes/cyber_matrix-dark-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 8568,
-   "hash": "8cd2416c380fe091"
+   "bytes": 12534,
+   "hash": "d73772a70b66fa20"
   },
   "themes/cyber_matrix-dark.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 22000,
-   "hash": "2415578892f2a533"
+   "bytes": 25704,
+   "hash": "39fcdf93bf0d90e8"
   },
   "themes/cyber_matrix-light-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 8548,
-   "hash": "a0c94192b31483ff"
+   "bytes": 12438,
+   "hash": "d236b7ac5d0737f0"
   },
   "themes/cyber_matrix-light.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 22232,
-   "hash": "1fe0bd6aa0f3c158"
+   "bytes": 26030,
+   "hash": "9627cfbef3405150"
   },
   "themes/daylight_paper-dark-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 8400,
-   "hash": "3e89f156ec3fc933"
+   "bytes": 10602,
+   "hash": "ddcf4c4728d584b0"
   },
   "themes/daylight_paper-dark.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 22824,
-   "hash": "003ffbd734d8e682"
+   "bytes": 26300,
+   "hash": "0c88dfaba6a1ec18"
   },
   "themes/daylight_paper-light-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 8868,
-   "hash": "33a12a0fe3d1d23e"
+   "bytes": 11180,
+   "hash": "76a2ee105bb3b906"
   },
   "themes/daylight_paper-light.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 23110,
-   "hash": "ddae7101f7147fa8"
+   "bytes": 26252,
+   "hash": "4b26030a2ab3d69f"
   },
   "themes/deep_trench-dark-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 7666,
-   "hash": "5b8d9180e34520d8"
+   "bytes": 10168,
+   "hash": "c0d385e1d9b283c6"
   },
   "themes/deep_trench-dark.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 19712,
-   "hash": "f0c3f792ac2d8f3c"
+   "bytes": 25048,
+   "hash": "5090ce63545968bb"
   },
   "themes/deep_trench-light-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 7098,
-   "hash": "634b8e688c27a567"
+   "bytes": 10136,
+   "hash": "eaccb860da434238"
   },
   "themes/deep_trench-light.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 20132,
-   "hash": "1e4790f493e9bd1a"
+   "bytes": 24150,
+   "hash": "8334a37997d205c6"
   },
   "themes/dracula_official-dark-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 7546,
-   "hash": "e10223394dae3326"
+   "bytes": 10094,
+   "hash": "c37ae63f6fc7c558"
   },
   "themes/dracula_official-dark.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 20960,
-   "hash": "a01ba3e41f3d3894"
+   "bytes": 26374,
+   "hash": "2c828df9814abe03"
   },
   "themes/dracula_official-light-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 7934,
-   "hash": "549d713a498b0327"
+   "bytes": 10280,
+   "hash": "ef11f95ec2f0d2ff"
   },
   "themes/dracula_official-light.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 21944,
-   "hash": "1ed07305dda1fad5"
+   "bytes": 26532,
+   "hash": "2c642f21129c33c1"
   },
   "themes/electric_violet-dark-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 9100,
-   "hash": "965fdda6ae0d88de"
+   "bytes": 11942,
+   "hash": "b406b22f25a2213a"
   },
   "themes/electric_violet-dark.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 22692,
-   "hash": "1c1338deed7aa5ac"
+   "bytes": 29420,
+   "hash": "7526214054701e3e"
   },
   "themes/electric_violet-light-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 9550,
-   "hash": "ef8b592583a46b6b"
+   "bytes": 12326,
+   "hash": "dad41316a2fbcc1c"
   },
   "themes/electric_violet-light.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 23440,
-   "hash": "db77742faf0650af"
+   "bytes": 30158,
+   "hash": "6d0bddd72911cf53"
   },
   "themes/fairy_floss-dark-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 8124,
-   "hash": "20515648b9f995e9"
+   "bytes": 10378,
+   "hash": "12d6a08996c3edbf"
   },
   "themes/fairy_floss-dark.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 23278,
-   "hash": "91cb980dcfe6c7fd"
+   "bytes": 25752,
+   "hash": "51837efce45d3fba"
   },
   "themes/fairy_floss-light-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 8104,
-   "hash": "44babef7ecb9fa09"
+   "bytes": 10496,
+   "hash": "f2b009387073ad24"
   },
   "themes/fairy_floss-light.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 23208,
-   "hash": "254fe57af7b50f32"
+   "bytes": 25410,
+   "hash": "c797ce508cab9a44"
   },
   "themes/holo_pearl-dark-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 8724,
-   "hash": "9ae3709620fbbcda"
+   "bytes": 12076,
+   "hash": "41b00b450a4cbf8a"
   },
   "themes/holo_pearl-dark.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 22888,
-   "hash": "0088a03d589fad4b"
+   "bytes": 29232,
+   "hash": "d4704a379ff8d220"
   },
   "themes/holo_pearl-light-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 8244,
-   "hash": "ea7708c4d41320f9"
+   "bytes": 10934,
+   "hash": "036e5ca1600f80ab"
   },
   "themes/holo_pearl-light.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 21980,
-   "hash": "f1f024de552e5f47"
+   "bytes": 26736,
+   "hash": "365047802b76c314"
   },
   "themes/interstellar-dark-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 7304,
-   "hash": "cee28a16c3f1c817"
+   "bytes": 10984,
+   "hash": "31625c64a61b95eb"
   },
   "themes/interstellar-dark.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 13694,
-   "hash": "908325f132e45994"
+   "bytes": 28602,
+   "hash": "87f11ddfc5fe3ef1"
   },
   "themes/interstellar-light-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 6752,
-   "hash": "aac388b7e0236970"
+   "bytes": 11020,
+   "hash": "6208c43bbae7b853"
   },
   "themes/interstellar-light.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 13050,
-   "hash": "c1114d178aa964a0"
+   "bytes": 28640,
+   "hash": "db4734b00940b672"
   },
   "themes/ivory_salon-dark-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 7414,
-   "hash": "064542dd7cef5d2c"
+   "bytes": 8920,
+   "hash": "c671064d375c5063"
   },
   "themes/ivory_salon-dark.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 13384,
-   "hash": "3bec422a6afc5cf1"
+   "bytes": 26516,
+   "hash": "03b783dc5d9a6f06"
   },
   "themes/ivory_salon-light-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 7444,
-   "hash": "c5fe0261950f9d70"
+   "bytes": 8944,
+   "hash": "806578b668d9b69c"
   },
   "themes/ivory_salon-light.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 13396,
-   "hash": "b7bd84d84baded81"
+   "bytes": 26470,
+   "hash": "12eca05e469b5575"
   },
   "themes/lavender_cloud-dark-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 6936,
-   "hash": "a502c82bc9509b51"
+   "bytes": 10568,
+   "hash": "e2e95bb069fec2ac"
   },
   "themes/lavender_cloud-dark.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 17350,
-   "hash": "67ffc614e277139b"
+   "bytes": 24742,
+   "hash": "d853fbb292dde132"
   },
   "themes/lavender_cloud-light-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 7012,
-   "hash": "f3e2ad3aa2e974fe"
+   "bytes": 10730,
+   "hash": "172ac0f55ecd3df0"
   },
   "themes/lavender_cloud-light.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 17428,
-   "hash": "376258b3627d766e"
+   "bytes": 25036,
+   "hash": "c232c7e332c2148e"
   },
   "themes/matcha_zen-dark-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 7492,
-   "hash": "bb1c84ceb1471717"
+   "bytes": 9356,
+   "hash": "ea94c884ad89016d"
   },
   "themes/matcha_zen-dark.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 14388,
-   "hash": "145ff3de4156862c"
+   "bytes": 18546,
+   "hash": "5c2a1f84d5b41217"
   },
   "themes/matcha_zen-light-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 7776,
-   "hash": "eaf205be0243bf01"
+   "bytes": 9440,
+   "hash": "a9fc14270a7bc8ea"
   },
   "themes/matcha_zen-light.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 14358,
-   "hash": "67fa6630666ef3b5"
+   "bytes": 18206,
+   "hash": "242be9c12f21b866"
   },
   "themes/neo_pop-dark-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 8228,
-   "hash": "945a9fcc7dfd2212"
+   "bytes": 12276,
+   "hash": "e65d8c4cb9399443"
   },
   "themes/neo_pop-dark.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 22940,
-   "hash": "a52df7bd950e9516"
+   "bytes": 35674,
+   "hash": "1d327e41bf29039d"
   },
   "themes/neo_pop-light-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 9190,
-   "hash": "cc95d36afb33c880"
+   "bytes": 12538,
+   "hash": "5c8294cd97b8da2d"
   },
   "themes/neo_pop-light.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 25156,
-   "hash": "38808f4642e4fd7d"
+   "bytes": 34706,
+   "hash": "4d8636e8b8806cbb"
   },
   "themes/nordic_minimal-dark-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 7760,
-   "hash": "f65f5832c78e985e"
+   "bytes": 8558,
+   "hash": "d40deec882c04ae5"
   },
   "themes/nordic_minimal-dark.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 21644,
-   "hash": "884b5cd8e2dec4ad"
+   "bytes": 24390,
+   "hash": "b91e134b1514db87"
   },
   "themes/nordic_minimal-light-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 8060,
-   "hash": "3e3bb0b80aeab5d9"
+   "bytes": 8916,
+   "hash": "d1ff340d239dec60"
   },
   "themes/nordic_minimal-light.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 22202,
-   "hash": "0a69477e0856f65e"
+   "bytes": 24708,
+   "hash": "68f71cc775d0ca15"
   },
   "themes/obsidian_gold-dark-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 9248,
-   "hash": "b80362f03490253e"
+   "bytes": 12030,
+   "hash": "2bb597aa681cd72f"
   },
   "themes/obsidian_gold-dark.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 24546,
-   "hash": "4c9a5ca770db9705"
+   "bytes": 29722,
+   "hash": "e2395b6401b47ef4"
   },
   "themes/obsidian_gold-light-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 8632,
-   "hash": "403dfd0e0aadce31"
+   "bytes": 11988,
+   "hash": "ec3a695cd1238d0c"
   },
   "themes/obsidian_gold-light.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 24696,
-   "hash": "db10b5de04571d43"
+   "bytes": 29828,
+   "hash": "ecfa87e7a5eee5bf"
   },
   "themes/overwatch_pulse-dark-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 8584,
-   "hash": "13e1f43af35e4d54"
+   "bytes": 11148,
+   "hash": "637728dd82af298e"
   },
   "themes/overwatch_pulse-dark.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 25672,
-   "hash": "3d4191f331c10f89"
+   "bytes": 29800,
+   "hash": "33ea4e3beae64fe1"
   },
   "themes/overwatch_pulse-light-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 8658,
-   "hash": "e82ff1657e6bee55"
+   "bytes": 11124,
+   "hash": "b642c6c09996420b"
   },
   "themes/overwatch_pulse-light.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 25926,
-   "hash": "babdfdb94868d70d"
+   "bytes": 29994,
+   "hash": "b289a52cba3f33f6"
   },
   "themes/pure_oled_black-dark-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 7710,
-   "hash": "fd43038dec67ba2c"
+   "bytes": 10328,
+   "hash": "960e29214b363bd9"
   },
   "themes/pure_oled_black-dark.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 19942,
-   "hash": "4c9b76b1ba2e002d"
+   "bytes": 29670,
+   "hash": "b41ab9ee83b42525"
   },
   "themes/pure_oled_black-light-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 7442,
-   "hash": "5a6e5b0442cc5113"
+   "bytes": 9814,
+   "hash": "d147b75cc1a050f0"
   },
   "themes/pure_oled_black-light.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 19394,
-   "hash": "24f1008cb1afcebf"
+   "bytes": 28828,
+   "hash": "ec0238f683c9b15a"
   },
   "themes/razer_poison-dark-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 7490,
-   "hash": "c1faf8f2fb6f3e5c"
+   "bytes": 11322,
+   "hash": "2096d781969efba6"
   },
   "themes/razer_poison-dark.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 20902,
-   "hash": "bf3ee91b42ae8234"
+   "bytes": 31566,
+   "hash": "cdc7f6f36d105c99"
   },
   "themes/razer_poison-light-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 7466,
-   "hash": "c59f00a3e6768be5"
+   "bytes": 11008,
+   "hash": "cd2debd2c69c7d6a"
   },
   "themes/razer_poison-light.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 20330,
-   "hash": "487e0018e18d26b7"
+   "bytes": 30750,
+   "hash": "b05e8e269c677dae"
   },
   "themes/rose_gold_velvet-dark-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 7940,
-   "hash": "1826af6de676706f"
+   "bytes": 9758,
+   "hash": "0067b01225c597bb"
   },
   "themes/rose_gold_velvet-dark.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 19372,
-   "hash": "e44e7a9f8b2ca4fa"
+   "bytes": 25390,
+   "hash": "be7fb4cab3ad43ed"
   },
   "themes/rose_gold_velvet-light-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 7886,
-   "hash": "4fbf592d8b65c4fc"
+   "bytes": 9860,
+   "hash": "f36cabbe825288b2"
   },
   "themes/rose_gold_velvet-light.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 19302,
-   "hash": "fa648d2fd70c2688"
+   "bytes": 25262,
+   "hash": "c0f4dccf5483f58d"
   },
   "themes/sahara_dune-dark-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 7402,
-   "hash": "1821f66cfa05dda5"
+   "bytes": 11302,
+   "hash": "b504e3d33a8e8151"
   },
   "themes/sahara_dune-dark.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 15892,
-   "hash": "a8e31192cc8879b1"
+   "bytes": 28356,
+   "hash": "633c0b6a9bb9d1cf"
   },
   "themes/sahara_dune-light-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 7394,
-   "hash": "727300ff8dc3c0b0"
+   "bytes": 11692,
+   "hash": "7ba7f1f44d94f62d"
   },
   "themes/sahara_dune-light.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 16186,
-   "hash": "be50aa676f4339bd"
+   "bytes": 28788,
+   "hash": "6d03d8e76d25d700"
   },
   "themes/shibuya_rain-dark-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 8048,
-   "hash": "e5ce94c12b9c0f76"
+   "bytes": 10894,
+   "hash": "227de43d10e7e2fc"
   },
   "themes/shibuya_rain-dark.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 22816,
-   "hash": "bf88000aa4ec4e99"
+   "bytes": 29494,
+   "hash": "82451d51a04d3b5c"
   },
   "themes/shibuya_rain-light-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 8180,
-   "hash": "8862d3faa69be4ae"
+   "bytes": 10792,
+   "hash": "f9db74a96b78a1b7"
   },
   "themes/shibuya_rain-light.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 22800,
-   "hash": "766e488d11448af0"
+   "bytes": 29268,
+   "hash": "f8d997477fd4d55c"
   },
   "themes/silver_screen-dark-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 4994,
-   "hash": "62b08db294e7f89d"
+   "bytes": 11354,
+   "hash": "63de4cbca457b8c9"
   },
   "themes/silver_screen-dark.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 14296,
-   "hash": "751637f54eb52f05"
+   "bytes": 19912,
+   "hash": "5489e4b8558daddf"
   },
   "themes/silver_screen-light-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 5012,
-   "hash": "7cfe111aa8d2e958"
+   "bytes": 11106,
+   "hash": "4409f5e44e40b0da"
   },
   "themes/silver_screen-light.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 15150,
-   "hash": "f230094873ca3413"
+   "bytes": 19718,
+   "hash": "17e1b7faed28aa60"
   },
   "themes/swiss_monolith-dark-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 5448,
-   "hash": "b995030a66d13c97"
+   "bytes": 11398,
+   "hash": "ffaea890c8c43c80"
   },
   "themes/swiss_monolith-dark.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 15976,
-   "hash": "d4fbad7075e6be4f"
+   "bytes": 27610,
+   "hash": "2b64577b3572ee13"
   },
   "themes/swiss_monolith-light-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 5616,
-   "hash": "c7aa3b0ba03cebd9"
+   "bytes": 11504,
+   "hash": "32deff544664987a"
   },
   "themes/swiss_monolith-light.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 15134,
-   "hash": "7703d9de3a3b10a4"
+   "bytes": 27212,
+   "hash": "abd2adfaf2e5df23"
   },
   "themes/synthwave_sunset-dark-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 8570,
-   "hash": "17105a48f47b4315"
+   "bytes": 11328,
+   "hash": "713096d88f13542e"
   },
   "themes/synthwave_sunset-dark.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 23048,
-   "hash": "73712f9101c4178d"
+   "bytes": 32062,
+   "hash": "1713f06b8dc50692"
   },
   "themes/synthwave_sunset-light-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 8336,
-   "hash": "6f6852483fdd8edb"
+   "bytes": 11170,
+   "hash": "69aa72102f6c5af8"
   },
   "themes/synthwave_sunset-light.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 22630,
-   "hash": "85a935f9bf9d89f2"
+   "bytes": 31872,
+   "hash": "9b2043793f59fe56"
   },
   "themes/tokyo_neon-dark-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 7978,
-   "hash": "5912f6f6462ad6fe"
+   "bytes": 10162,
+   "hash": "d7690d36cf83c660"
   },
   "themes/tokyo_neon-dark.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 22454,
-   "hash": "69857e43ccebf740"
+   "bytes": 23484,
+   "hash": "716628257a1a3bdd"
   },
   "themes/tokyo_neon-light-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 8140,
-   "hash": "4c1e5b385b8744bc"
+   "bytes": 10394,
+   "hash": "a5b408525814a6dc"
   },
   "themes/tokyo_neon-light.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 22348,
-   "hash": "723052c33c1de2cd"
+   "bytes": 23750,
+   "hash": "64d52c866ecd9db5"
   },
   "themes/vaporwave_mall-dark-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 7932,
-   "hash": "924b5eda5179eacf"
+   "bytes": 10326,
+   "hash": "0a293ce0b2c6c200"
   },
   "themes/vaporwave_mall-dark.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 19668,
-   "hash": "f42e8984a2210bdb"
+   "bytes": 28950,
+   "hash": "a8413801c965b78a"
   },
   "themes/vaporwave_mall-light-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 8336,
-   "hash": "744534947bc136a9"
+   "bytes": 10630,
+   "hash": "c48ca01d5ff60a03"
   },
   "themes/vaporwave_mall-light.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 20122,
-   "hash": "94f62f81de3f5bb7"
+   "bytes": 29634,
+   "hash": "e513e4dbb821701a"
   },
   "tiktok_shorts_hub-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 8282,
-   "hash": "2b1ab30d0548f6c7"
+   "bytes": 10378,
+   "hash": "781ac2e7cbc63eb1"
   },
   "tiktok_shorts_hub.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 23276,
-   "hash": "a384a4b47b943d91"
+   "bytes": 25754,
+   "hash": "45fd60eb9787c883"
   },
   "twitch_esports_live-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 7670,
-   "hash": "97da20f39fdfdc6a"
+   "bytes": 10016,
+   "hash": "1fe33b233308b5ee"
   },
   "twitch_esports_live.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 20440,
-   "hash": "6e5175f8f3adb228"
+   "bytes": 24700,
+   "hash": "bab0c1f50c1585d1"
   },
   "velvet_lounge-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 8080,
-   "hash": "63c2a2d22dd00848"
+   "bytes": 9758,
+   "hash": "0067b01225c597bb"
   },
   "velvet_lounge.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 19648,
-   "hash": "941ced67e3ee7134"
+   "bytes": 25390,
+   "hash": "be7fb4cab3ad43ed"
   },
   "youtube_spotlight_pro-phone.webp": {
    "w": 180,
    "h": 390,
-   "bytes": 8088,
-   "hash": "d0c442306fbd6403"
+   "bytes": 10162,
+   "hash": "d7690d36cf83c660"
   },
   "youtube_spotlight_pro.webp": {
    "w": 640,
    "h": 400,
-   "bytes": 22504,
-   "hash": "327a6895e49bfe33"
+   "bytes": 23484,
+   "hash": "716628257a1a3bdd"
   }
  }
 }

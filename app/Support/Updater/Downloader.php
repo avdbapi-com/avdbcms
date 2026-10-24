@@ -253,7 +253,17 @@ final class Downloader
         }
 
         return new UpdateException(__('The download from GitHub was interrupted. Try again: it continues where it stopped.'), 'download', true,
-            str_contains($message, 'outside github') ? 'redirect outside GitHub' : 'connection: '.mb_substr(preg_replace('#https?://\S+#', '<address>', $e->getMessage()) ?? '', 0, 160));
+            str_contains($message, 'outside github') ? 'redirect outside GitHub' : 'connection: '.mb_substr(self::mask($e->getMessage()), 0, 160));
+    }
+
+    /**
+     * Every address in a client error becomes "<address>" (a signed download address must never reach the step log).
+     * The address ends where the text goes on: punctuation right after it that closes a bracket or the sentence (the
+     * ")" of "(see https://...)") stays in the text.
+     */
+    public static function mask(string $text): string
+    {
+        return (string) preg_replace('~https?://\S+?(?=[)\]}>.,;:!?\'"]*(?:\s|\z))~i', '<address>', $text);
     }
 
     private function httpFailed(Response $response): UpdateException

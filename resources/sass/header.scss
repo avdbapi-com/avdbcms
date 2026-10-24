@@ -446,6 +446,42 @@ search-bar {
     align-items: center;
 }
 
+// The side menu pinned on wide screens (full, floating and start-menu styles: 232 px) is too narrow for the
+// language name next to the light/dark switch: the name was cut to "En...". There the language picker takes the
+// whole line and the switch sits under it, at the end. Drawers (phones, the hidden style) and the account menu
+// are wide enough for one line; the rail style hides these controls.
+@media (min-width: 992px) {
+    html:not([data-avd-sidebar-style="hidden"]) #responsive-sidebar.show_sidebar .avd-sidebar-controls {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 0.55rem;
+    }
+
+    html:not([data-avd-sidebar-style="hidden"]) #responsive-sidebar.show_sidebar .avd-sidebar-controls theme-switch {
+        justify-self: end;
+    }
+
+    // The open list of languages is as wide as the picker there: at its own 236 px it ran 29 px past the menu's
+    // edge, which cut it off.
+    html:not([data-avd-sidebar-style="hidden"]) #responsive-sidebar.show_sidebar .avd-locale-menu {
+        width: 100%;
+        min-width: 0;
+    }
+}
+
+// In right-to-left languages the open list starts at the picker's right edge, as the picker does: anchored on the
+// left it ran 24-30 px past the side menu (or the screen) and cut off the language codes (the account menu's list
+// ran 1 px past its panel).
+html[dir="rtl"] .avd-locale-menu {
+    inset: auto 0 calc(100% + 0.55rem) auto !important;
+}
+
+// The light/dark switch beside the language pickers (side menu, account menu, footer): in right-to-left languages
+// its knob moves to the left in dark mode, but its moon moved 31 px to the right, out of the switch and over the
+// picker next to it. The moon now moves with the knob.
+html[dir="rtl"] .input-switch input:checked + label .icon {
+    transform: translateX(-31px);
+}
+
 .avd-locale-picker {
     min-width: 0;
     position: relative;

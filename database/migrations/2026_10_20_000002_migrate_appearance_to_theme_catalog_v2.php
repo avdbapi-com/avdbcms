@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Schema;
  *
  * Snapshot first (revision #0, restorable for 30 days), then classify the site against frozen copies of every value
  * the OLD code used when nothing was stored (never against the new defaults):
- * - FACTORY (untouched factory site)        -> the YouTube Spotlight Pro look (demo1 parity)
+ * - FACTORY (untouched factory site)        -> the YouTube Spotlight Pro look (the factory look)
  * - UNTOUCHED_PRESET (a preset, unchanged)  -> its v2 theme's recommended look
  * - UNTOUCHED_MASTER (a look, unchanged)    -> the look's upgrade policy (re-apply, or colours only + suggestion)
  * - CUSTOMISED                              -> colours only; every layout key stays

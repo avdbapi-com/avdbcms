@@ -5,6 +5,74 @@ only raises the last number, a release with new features the middle one.
 How to update your site: [UPGRADE.md](UPGRADE.md). Every release with its files:
 https://github.com/avdbapi-com/avdbcms/releases
 
+## 1.2.1 (2026-10-24)
+
+A fix release for 1.2.0. Sites on 1.2.0 update with one click in **Tools › Updates**; every other way is in
+[UPGRADE.md](UPGRADE.md). It has no database changes.
+
+### One-click updates
+
+- Finishing an update is quick on every host. The update's work files (about 18,500 files and the downloaded zip) are
+  moved aside in one step and then deleted a few seconds at a time by **Tools › Updates** and by the scheduler. In
+  1.2.0 the last step deleted them all at once, which took about 20 seconds on a slow disk and could run into the
+  host's time limit.
+- A Finish that was cut off and clicked again writes its admin log lines only once.
+- If the site could not record the last file move of an update, the update now goes on to Finish. Before, it stopped
+  with the new files in place but without the database step.
+- **Show details** uses your site's time zone on every line. The lines written while the files were switched used the
+  server's time zone.
+- After an undo, **Show details** still lists the undo's steps, and the page says that the update was undone (it read
+  as if the site had been updated). While an undo runs, the page says "Keep this page open until it says your files
+  are back."
+- The database backup step says "Backing up the database..." until it knows the tables, instead of "table 0 of 0".
+- A new run hides the result of the run before it.
+- A cancelled update is written to the admin log.
+- A connection error keeps its closing bracket after a hidden address.
+- The update from 1.2.0 to 1.2.1 still runs the 1.2.0 code until the files are switched, so its step log and labels
+  look like 1.2.0's; the quick Finish already applies to it. Everything above applies in full from the next update.
+
+### Admin
+
+- **Tools › Backups** says "1 backup takes 35.3 KB" with the right singular or plural in every language, shows small
+  sizes in KB, and keeps each size on one line. On a phone the age of a backup no longer runs into its file name.
+  Hidden files of the backup folder are no longer listed as backups.
+- File sizes keep the zeros of whole numbers everywhere: the free plan's 500 MB file limit read "5 MB" on the Premium
+  page, and upload messages and the Exports list had the same fault.
+- **Import videos › XVIDAPI:** the "Add New Scheduled Cron" form and the import progress window are readable in the
+  light admin, and the example schedule name is neutral.
+- **Import videos › AVDBAPI:** the example texts of the filters are neutral, and category names are no longer cut in
+  the middle of a word.
+- **Settings › Languages:** the Arabic name lines up with the other language names.
+- The top bar of the admin fits at tablet widths in long languages (Arabic, Russian, German, French): the status
+  shortens instead of pushing the account menu off the screen.
+- The help text of **Bottom bar on phones** names the buttons the bar really shows.
+- The old admin in light mode: the dark fields of both import pages are readable.
+
+### Themes and pages
+
+- The language picker in the side menu shows the whole language name, and its list stays inside the menu, also in
+  right-to-left languages. The language picker in the footer shows one arrow. In Arabic dark mode the moon of the
+  light/dark switch stays inside the switch.
+- **Appearance › Themes** and the gallery show new preview pictures of the 12 looks and the 32 themes, made on a clean
+  demo site.
+- The descriptions of the default look and the default theme no longer name the developers' test site.
+
+### Translations
+
+- 17 new or changed texts are translated into every language. The phone bar labels "Profile" and "Random" are
+  corrected in Korean, Chinese, Arabic and Thai, and "Random" starts with a capital letter where it should.
+
+### For developers
+
+- New scheduled command `updates:tidy` (every 5 minutes, only while update files wait to be deleted) and the new folders
+  `storage/app/updates/.trash` and `storage/app/updates/logs`.
+- A site built by running every migration gets example ad codes with the class `avd-demo-ad`; existing codes with
+  `avd-test-ad` keep their styles.
+
+### Not changed
+
+- The Upload18 upload, the video player and the embed code work exactly as before.
+
 ## 1.2.0 (2026-10-23)
 
 The first public release of AVDBCMS, and the first release on GitHub. It brings together everything that was built

@@ -110,7 +110,7 @@ class AppearanceSettings
     ];
 
     /**
-     * v2 defaults: the youtube_spotlight_pro look (Midnight Spotlight, signature colour style, demo1 parity).
+     * v2 defaults: the youtube_spotlight_pro look (Midnight Spotlight, signature colour style, the look of a new site).
      */
     public static function defaults(): array
     {

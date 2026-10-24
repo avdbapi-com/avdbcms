@@ -33,7 +33,7 @@ final class ThemeCatalogData
             'studio' => [
                 'id' => 'studio',
                 'name' => 'Studio',
-                'promise' => 'Content-first platform chrome: calm surfaces, one confident accent, everything readable. The demo1 quality bar lives here.',
+                'promise' => 'Content-first platform chrome: calm surfaces, one confident accent, everything readable. The default theme lives here.',
                 'themes' => ['tokyo_neon', 'daylight_paper', 'clean_graphite'],
             ],
             'cinema' => [
@@ -124,9 +124,9 @@ final class ThemeCatalogData
                 'family_name' => 'Studio',
                 'new_id' => false,
                 'factory_default' => true,
-                'tagline' => 'The demo1 look, refined: a navy-black studio, one hot-pink spark and live ranked lists up top.',
+                'tagline' => 'The default theme of new sites: a navy-black studio, one hot-pink spark and live ranked lists up top.',
                 'signature' => ['twin live ranked lists as the first thing on the page', 'framed cards with full 16:9 thumbnails', 'white labels on a hot-pink to violet gradient (Register, active chip)', 'static pink/cyan dawn glow behind the header', 'sentence-case Outfit headings'],
-                'best_for' => 'Any general video site; the safest default and the owner\'s demo1 favourite.',
+                'best_for' => 'Any general video site; the safest default.',
                 'default_mode' => 'dark',
                 'typography' => ['pairing' => 'modern_tech', 'label' => 'Modern Tech', 'display' => 'Outfit', 'body' => 'Plus Jakarta Sans', 'vi_display' => 'Plus Jakarta Sans', 'existing' => true, 'display_weight' => 700, 'display_case' => 'none', 'display_tracking' => '-0.015em', 'display_style' => 'normal', 'title_weight' => 650, 'title_size' => 15, 'kicker_case' => 'uppercase', 'kicker_tracking' => '.09em', 'kicker_weight' => 750, 'section_size' => 21],
                 'shape' => ['card' => 14, 'thumb' => 10, 'chip' => 999, 'control' => 999, 'button' => 999, 'badge' => 6, 'avatar' => '50%', 'bw' => 1],

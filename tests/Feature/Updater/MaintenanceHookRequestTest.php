@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Updater;
 
+use App\Support\Updater\HookWriter;
 use App\Support\Updater\MaintenanceHook;
 use App\Support\Updater\PlanStore;
 use App\Support\Updater\SwapEngine;
@@ -24,7 +25,9 @@ use Tests\TestCase;
  *    "null" Origin, no Origin at all, Sec-Fetch-Site cross-site or same-site) gets the same 503 and moves nothing;
  *  - the page's own swap POST runs the swap (also when the hook file runs in a PHP process without Laravel);
  *  - a swap POST while another step holds the update lock answers 409 busy and moves nothing;
- *  - a hook whose swap is over steps aside and deletes itself.
+ *  - a hook whose swap is over steps aside and deletes itself;
+ *  - a swap whose every move ended goes on to Finish although the hook could not save that (a full disk or quota),
+ *    without the site going down again; a swap that has to go back is put back even when every move ended.
  */
 class MaintenanceHookRequestTest extends TestCase
 {
@@ -333,6 +336,86 @@ class MaintenanceHookRequestTest extends TestCase
         $this->assertSame('failed', $this->swapThroughHook($again['token'])['step']);
         $this->assertSame('failed', $this->updater()->plan()['status']);
         $this->assertSiteUnchanged('after the second try');
+    }
+
+    public function test_a_swap_whose_every_move_ended_goes_on_to_finish_although_the_hook_could_not_save_it(): void
+    {
+        // A full disk or quota right after the last move: the hook cannot save "swapped" and stands down, as it should
+        // (every new file is in place, so the site answers again). The plan still says swapping. (The plan is read
+        // before the writes are taken away, as in the test above: on Windows a deny entry also keeps PHP from looking
+        // up a file of that folder it has not looked up before.)
+        $work = $this->box->paths()->work();
+        $plan = (string) file_get_contents($this->box->paths()->plan());
+        $this->denyWrites($work);
+
+        try {
+            $answer = $this->swapThroughHook($this->ready['token']);
+        } finally {
+            $this->allowWrites($work);
+        }
+
+        $this->assertSame(['step' => 'swapped', 'next' => 'finish'], array_intersect_key($answer, array_flip(['step', 'next'])));
+        $this->assertSame($plan, (string) file_get_contents($this->box->paths()->plan()), 'the plan could not say so');
+        $this->assertSame('swapping', $this->storedPlan()['status']);
+        $this->assertFileDoesNotExist($this->box->paths()->hook());
+        $this->assertSame(self::releaseFiles()['config/app.php'], $this->box->read('config/app.php'));
+
+        // The page's next swap request reaches Laravel, now the new code. The swap is over: no new hook (here it could
+        // not even be written: storage/framework takes no new file), the site never goes down again, Finish follows.
+        // Before 1.2.1's fix the step wrote the hook again, failed, and the update stopped with the new files in place
+        // but without its database step and without an Undo.
+        $framework = dirname($this->box->paths()->hook());
+        $this->denyWrites($framework);
+
+        try {
+            $step = $this->updater($this->next)->swap($this->admin);
+        } finally {
+            $this->allowWrites($framework);
+        }
+
+        $this->assertSame(['ok' => true, 'status' => 'swapped', 'next' => 'finish'], array_intersect_key($step, array_flip(['ok', 'status', 'next'])), (string) $step['message']);
+        $this->assertArrayNotHasKey('token', $step, 'no new swap');
+        $this->assertFileDoesNotExist($this->box->paths()->hook());
+        $this->assertFileDoesNotExist($this->box->paths()->down());
+        $plan = $this->storedPlan();
+        $this->assertSame('swapped', $plan['status']);
+        $this->assertGreaterThanOrEqual($plan['started_at'], $plan['swapped_at']);
+        $this->assertArrayHasKey('opcache', $plan['settle']);
+        $this->assertSame($plan['swap']['total'], $plan['swap']['done']);
+        $this->assertStringContainsString('the swap is over', implode("\n", $this->updater($this->next)->logLines()));
+
+        $done = $this->finishOn($this->updater($this->next));
+
+        $this->assertSame('done', $done['status'], (string) $done['message']);
+        $this->assertSame(['update.started', 'update.database_backup', 'update.files', 'update.finished'], array_column($this->auditRows(), 'action'));
+        $this->assertSame(self::releaseFiles()['public/index.php'], $this->box->read('public/index.php'));
+        $this->assertTrue($this->updater($this->next)->backups()[0]['undo'], 'Undo this update is offered');
+    }
+
+    public function test_a_swap_that_has_to_go_back_is_put_back_even_when_every_move_ended(): void
+    {
+        // Every move ended, then the administrator chose "Undo the update" on the hook's page: the plan says the files go
+        // back. The hook is gone before it moved one back (deleted by hand, a host's clean-up), and the step that writes
+        // it again cannot (storage/framework takes no new file). The update stops, and its files go back as in 1.2.0:
+        // never a site left with the new files, no database step and no backup to undo them.
+        $job = (array) PlanStore::read($this->jobFolder().'/job.json');
+        (new SwapEngine($job))->forward(INF);
+        $this->assertSame(self::releaseFiles()['config/app.php'], $this->box->read('config/app.php'));
+        $this->changePlan(['status' => 'rolling-back', 'failure' => ['step' => 'swap', 'reason' => MaintenanceHook::STOPPED, 'at' => date('c'), 'audited' => false]]);
+        (new HookWriter($this->box->paths()))->remove();
+        $framework = dirname($this->box->paths()->hook());
+        $this->denyWrites($framework);
+
+        try {
+            $answer = $this->updater($this->next)->swap($this->admin);
+        } finally {
+            $this->allowWrites($framework);
+        }
+
+        $this->assertFalse($answer['ok']);
+        $this->assertSame('failed', $this->storedPlan()['status']);
+        $this->assertSiteUnchanged('after a swap that had to go back');
+        $this->assertContains('update.failed', array_column($this->auditRows(), 'action'));
     }
 
     public function test_every_folder_the_swap_moves_a_file_into_is_there_before_the_site_goes_down(): void

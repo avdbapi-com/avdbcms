@@ -4,7 +4,8 @@ The redesigned admin places every one of the 635 settings on a page and a card w
 text, a control type and (for 22 risky switches) the consequence shown before saving. All of that comes from
 admin_design_spec.json (ia.sections[].pages[].cards + mapping.settings + mapping.tab_redirects); this script turns it
 into a PHP config file so the settings pages, the Appearance pages and the Ctrl+K search all read one source. Places
-decided after the spec was written are applied on top (MOVED_CARDS). The same data is written as
+decided after the spec was written are applied on top (MOVED_CARDS), and so are texts and defaults corrected later
+(SETTING_FIXES). The same data is written as
 resources/admin/lib/settings-index.json, the settings rows of the Ctrl+K search (App\\Support\\AdminSearchIndex).
 
 usage:
@@ -152,12 +153,47 @@ MOVED_CARDS = [
     {"from": ("community.announcements", "bar"), "to": ("appearance.menus", "announcement"), "after": "header"},
 ]
 
+# Setting texts and defaults corrected after the spec was written: key -> {field: (spec value it replaces, new
+# value)}. The spec stays as it was reviewed; apply_setting_fixes() puts the new value in before the config and the
+# Ctrl+K rows are built, and stops when the spec holds neither value (the spec was edited: check the fix again).
+SETTING_FIXES = {
+    # 1.2.1: the phone bottom bar (resources/views/components/layout.blade.php, avd-mobile-bottom-nav) shows Home,
+    # Categories and Random (Explore when the Random video button is off), then Login and Register for visitors or
+    # Library and Profile for members. It never had Trending, Upload or Account buttons.
+    "mobile_bottom_nav_enabled": {
+        "help": (
+            "Home, Trending, Upload and Account buttons at the bottom of the phone screen.",
+            "Home, Categories and Random at the bottom of the phone screen, then Login and Register for visitors or "
+            "Library and Profile for members. Explore replaces Random when the Random video button is off.",
+        ),
+    },
+    # 1.2.0 rename (AVDBClip -> AVDBCMS): the shipped config has the new footer line; old sites keep their stored
+    # line and AppearanceSettings::RENAMED_FOOTER_TEXT shows the new one for the old factory line.
+    "footer_text": {
+        "default": ("(c) 2026 AVDBClip. All rights reserved.", "(c) 2026 AVDBCMS. All rights reserved."),
+    },
+}
+
 # Spec defaults that are PHP expressions of the old settings view, written out.
 DEFAULT_LITERALS = {
     "$uploadAllowedFormatsDefault": "mp4,webm,avi,mov,mkv",
     "\\App\\Enums\\VideoStatus::PUBLIC->value": "0",
     "$viewHistoryDefaults['retention_days'] ?? 90": "90",
 }
+
+
+def apply_setting_fixes(spec):
+    """Put SETTING_FIXES into the spec's settings (in memory only; the spec file is never written)."""
+    by_key = {s["key"]: s for s in spec["mapping"]["settings"]}
+    for key, fields in SETTING_FIXES.items():
+        if key not in by_key:
+            raise ValueError("SETTING_FIXES: %s is not a setting of the spec" % key)
+        for field, (old, new) in fields.items():
+            current = by_key[key].get(field)
+            if current not in (old, new):
+                raise ValueError("SETTING_FIXES: the spec's %s %s is now %r (expected %r): check the fix" % (key, field, current, old))
+            by_key[key][field] = new
+    return spec
 
 
 def parse_literal(text):
@@ -508,7 +544,7 @@ def main():
     ap.add_argument("--schema")
     ap.add_argument("--check", action="store_true")
     a = ap.parse_args()
-    spec = json.load(open(a.spec, encoding="utf-8"))
+    spec = apply_setting_fixes(json.load(open(a.spec, encoding="utf-8")))
     schema = json.load(open(a.schema, encoding="utf-8")) if a.schema else None
     data = build(spec, schema)
     outputs = [(a.out, render(data, a.spec)), (a.index, search_rows(spec, data))]

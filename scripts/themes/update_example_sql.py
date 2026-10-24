@@ -1,5 +1,5 @@
 """Set the appearance rows of database/install/example.sql to the v2 factory default (fresh installs land on the
-YouTube Spotlight Pro look: Midnight Spotlight / signature colour style, demo1 parity).
+YouTube Spotlight Pro look: Midnight Spotlight / signature colour style, the factory look).
 
 Only `settings` rows of group 'appearance' are rewritten, added or removed; every other byte of the file stays as it
 is (checked before writing). Nothing from the file is printed except appearance keys. Re-runnable: a second run

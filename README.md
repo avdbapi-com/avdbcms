@@ -41,7 +41,7 @@ In your hosting control panel (cPanel, aaPanel, CloudPanel, HestiaCP, CyberPanel
 3. Assign the user to the database with **ALL PRIVILEGES**.
 
 ### Step 2: Upload and Unzip
-1. Download the full package `avdbcms-1.2.0.zip` from [Download AVDBCMS](https://help.avdbapi.com/documentation/download-avdbcms/) (the `avdbcms-update-1.2.0.zip` is only for updates).
+1. Download the full package `avdbcms-1.2.1.zip` from [Download AVDBCMS](https://help.avdbapi.com/documentation/download-avdbcms/) (the `avdbcms-update-1.2.1.zip` is only for updates).
 2. Upload it into your website root directory (`public_html` or web folder).
 3. Extract (unzip) the zip file directly into the folder.
 

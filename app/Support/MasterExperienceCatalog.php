@@ -8,9 +8,9 @@ namespace App\Support;
  *
  * The 8 v1 look ids are the same looks redesigned, so saved ids keep working; default_factory and
  * youtube_2026_pro open YouTube Spotlight Pro, cyberpunk_hud_2077 opens Night City HUD. YouTube Spotlight Pro
- * is the factory default with the values demo1 renders today (its glass surface, 3D tilt, cinema light,
- * gradient-mesh categories, neon avatar ring, intense watch glow, brand scrollbar and 4 columns). A look
- * never touches site texts, the logo, custom code, menus or ads.
+ * is the factory default and keeps the effect values of its v1 version (its glass surface, 3D tilt, cinema light,
+ * gradient-mesh categories, neon avatar ring, intense watch glow, brand scrollbar and 4 columns). A look never
+ * touches site texts, the logo, custom code, menus or ads.
  */
 class MasterExperienceCatalog
 {
@@ -105,7 +105,7 @@ class MasterExperienceCatalog
     }
 
     /**
-     * The factory default look (demo1 parity).
+     * The factory default look (the look of a new site).
      */
     public static function defaultPreset(): array
     {
@@ -188,8 +188,8 @@ class MasterExperienceCatalog
         return [
             'youtube_spotlight_pro' => [
                 'label' => 'YouTube Spotlight Pro',
-                'subtitle' => 'Live ranked lists up top, framed cards, classic watch page with Up next. The demo1 look.',
-                'best_for' => 'Any site. The safest, most readable choice - and the look demo1 runs today.',
+                'subtitle' => 'Live ranked lists up top, framed cards, classic watch page with Up next. The default look of new sites.',
+                'best_for' => 'Any site. The safest, most readable choice.',
                 'icon' => 'play',
                 'badge' => 'Default',
                 'badge_color' => 'primary',

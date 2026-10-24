@@ -5,7 +5,8 @@ namespace App\Support\Updater;
 /**
  * Where the updater reads and writes. In the site: the site root (base_path()) and its storage/ folder; tests give a
  * site root of their own. The updater's work folder is storage/app/updates (plan, state, lock, one folder per version,
- * the file backups of each update); the database backup goes to storage/app/backups like every other backup.
+ * the file backups of each update, the step logs of finished runs, the trash); the database backup goes to
+ * storage/app/backups like every other backup.
  */
 final class UpdatePaths
 {
@@ -62,6 +63,27 @@ final class UpdatePaths
     public function backups(string $id = ''): string
     {
         return $this->work('backups'.($id === '' ? '' : '/'.$id));
+    }
+
+    /**
+     * Work folders and backups that are not needed any more go here with one rename (Trash::put()); they are deleted
+     * later in short slices (Trash::purge()), never all at once in a request of the update.
+     */
+    public function trash(string $name = ''): string
+    {
+        return $this->work('.trash'.($name === '' ? '' : '/'.$name));
+    }
+
+    /** One purge of the trash at a time. */
+    public function trashLock(): string
+    {
+        return $this->work('trash.lock');
+    }
+
+    /** The step logs of finished updates and undos (logs/<plan id>.log), kept after their work folder went. */
+    public function logs(string $name = ''): string
+    {
+        return $this->work('logs'.($name === '' ? '' : '/'.$name));
     }
 
     /** Tools > Backups: where the database backup of an update goes. */

@@ -47,4 +47,18 @@ class UpdaterLabelTest extends TestCase
         $this->assertSame('The update stopped.', Updater::failureTitle($early));
         $this->assertSame('The update was cancelled. Nothing on your site was changed.', Updater::label(['status' => 'cancelled']));
     }
+
+    public function test_the_database_backup_counts_its_tables_only_once_it_has_listed_them(): void
+    {
+        // The answer of the last unpack step: backing up, the backup not begun (1.2.0 said "table 0 of 0").
+        $begun = ['kind' => 'update', 'version' => '1.0.1', 'status' => 'backing-up'];
+
+        $this->assertSame('Backing up the database...', Updater::label($begun));
+        $this->assertNull(Updater::progress($begun), 'no bar value either');
+        $this->assertSame('Backing up the database...', Updater::label($begun + ['db' => ['tables' => [], 'table' => 0]]));
+
+        $listed = $begun + ['db' => ['tables' => [['users', 'id'], ['videos', 'id'], ['settings', null]], 'table' => 1]];
+        $this->assertSame('Backing up the database: table 2 of 3', Updater::label($listed));
+        $this->assertSame(['done' => 1, 'total' => 3], Updater::progress($listed));
+    }
 }

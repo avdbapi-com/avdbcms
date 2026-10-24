@@ -113,6 +113,65 @@
         outline: 3px solid rgba(56, 189, 248, 0.85);
         outline-offset: 2px;
     }
+    /* "Add New Scheduled Cron": an inner panel in the admin's own soft surface, light or dark with the admin. It was
+       bg-dark, so in the light admin its heading and labels took the dark text colour of the light admin (#16191e on
+       #16191e). Its fields keep the dark look of the other fields on this page. */
+    .xvid-schedule-new {
+        border: 1px solid var(--xvid-line);
+        border-radius: 12px;
+        background: var(--avd-surface-soft, rgba(255, 255, 255, 0.04));
+        color: var(--avd-text, inherit);
+    }
+    /* The old admin (the public layout, #main-container) in light mode: layout-theme-a.css gives every .text-white
+       there the dark text colour, meant for white text left on light panels. On this page that also hit the dark
+       fields (dark text on #212529, 1.21:1) and the dark "Live Ecosystem" card (black numbers on black boxes).
+       The fields keep their white text; the card takes the light panel colours, as it does in the new admin
+       (_legacy.scss). The new admin has no #main-container, so none of this reaches it. */
+    html[data-bs-theme="light"] body #main-container .xvid-page :is(.bg-dark.text-white, .input-group-text.bg-dark),
+    html[data-bs-theme="light"] body #main-container .xvid-page .ts-wrapper.bg-dark :is(.ts-control, .ts-control input) {
+        color: #fff !important;
+    }
+    html[data-bs-theme="light"] body #main-container .xvid-page .ts-wrapper.bg-dark .ts-control::after {
+        color: rgba(255, 255, 255, 0.75);
+    }
+    /* The "Search & Content Filters" fold's arrow is drawn dark in a light admin: light on its dark bar. */
+    html[data-bs-theme="light"] body #main-container .xvid-page .accordion-button.bg-dark::after {
+        filter: invert(1) grayscale(1);
+    }
+    html[data-bs-theme="light"] body #main-container .xvid-live {
+        background: var(--avd-surface-soft, #eceef4) !important;
+        color: var(--avd-text, #0f121a);
+    }
+    html[data-bs-theme="light"] body #main-container .xvid-live .bg-black {
+        background-color: var(--avd-surface, #fff) !important;
+    }
+    html[data-bs-theme="light"] body #main-container .xvid-live .text-white-50 {
+        color: var(--xvid-muted) !important;
+    }
+    html[data-bs-theme="light"] body #main-container .xvid-live .btn-outline-light {
+        --bs-btn-color: var(--avd-text, #0f121a);
+        --bs-btn-border-color: var(--xvid-line);
+        --bs-btn-hover-color: var(--avd-text, #0f121a);
+        --bs-btn-hover-bg: var(--avd-surface-hover, #e0e3ec);
+        --bs-btn-hover-border-color: var(--xvid-line);
+    }
+    html[data-bs-theme="light"] body #main-container .xvid-live .badge.bg-dark.text-muted {
+        color: rgba(255, 255, 255, 0.75) !important;
+    }
+    /* A ticked category's orange name: a darker orange on a light old admin (the new admin's _legacy.scss does the same). */
+    html[data-bs-theme="light"] body #main-container .xvid-cat-item input[type="checkbox"]:checked + span {
+        color: #9a3412;
+    }
+    /* Light-blue and amber outline buttons on the light page ("API Documentation", "Popular") read at 1.6 to 1.8:1: they
+       take Bootstrap's darker text shades there (the ones in the dark run and schedule tables keep theirs). */
+    html[data-bs-theme="light"] body #main-container .xvid-page .btn-outline-info:not(.table-dark *) {
+        --bs-btn-color: #055160;
+        --bs-btn-border-color: #087990;
+    }
+    html[data-bs-theme="light"] body #main-container .xvid-page .btn-outline-warning:not(.table-dark *) {
+        --bs-btn-color: #664d03;
+        --bs-btn-border-color: #997404;
+    }
     .xvid-terminal {
         background: #090d16;
         color: #38bdf8;
@@ -223,7 +282,7 @@
     </div>
 
     {{-- ═══════ XVIDAPI Live Ecosystem & Specifications Card ═══════ --}}
-    <div class="card border-danger border-opacity-25 bg-dark-subtle shadow-sm mb-4" style="border-radius: 12px; background: linear-gradient(135deg, rgba(15, 23, 42, 0.75) 0%, rgba(30, 41, 59, 0.6) 100%);">
+    <div class="card xvid-live border-danger border-opacity-25 bg-dark-subtle shadow-sm mb-4" style="border-radius: 12px; background: linear-gradient(135deg, rgba(15, 23, 42, 0.75) 0%, rgba(30, 41, 59, 0.6) 100%);">
         <div class="card-body p-3 p-md-4">
             <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 pb-3 mb-3 border-bottom border-secondary border-opacity-25">
                 <div class="d-flex align-items-center gap-2">
@@ -597,14 +656,14 @@
             <div class="tab-pane fade" id="schedules-pane">
                 <div class="row">
                     <div class="col-lg-5 mb-4">
-                        <div class="p-3 bg-dark border border-secondary rounded">
+                        <div class="xvid-schedule-new p-3">
                             <h6 class="fw-bold mb-3"><i class="fa-solid fa-plus text-success me-2"></i>{{ __('Add New Scheduled Cron') }}</h6>
                             <form id="newScheduleForm" onsubmit="event.preventDefault(); createSchedule();">
                                 <input type="hidden" name="start_page" value="1">
                                 <input type="hidden" name="delay" value="0">
                                 <div class="mb-2">
                                     <label for="ad-xvid-import-name" class="form-label small">{{ __('Schedule Name') }}</label>
-                                    <input id="ad-xvid-import-name" type="text" name="name" class="form-control form-control-sm bg-dark text-white border-secondary" placeholder="e.g. Daily Top Teen & MILF" required>
+                                    <input id="ad-xvid-import-name" type="text" name="name" class="form-control form-control-sm bg-dark text-white border-secondary" placeholder="{{ __('e.g. Daily new videos') }}" required>
                                 </div>
                                 <div class="row g-2 mb-2">
                                     <div class="col-6">
@@ -701,13 +760,15 @@
 {{-- Live Progress & Console Modal --}}
 <div class="modal fade" id="progressModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1">
     <div class="modal-dialog modal-lg modal-dialog-centered">
-        <div class="modal-content bg-dark border-secondary">
-            <div class="modal-header border-secondary">
-                <h5 class="modal-title text-white">
+        {{-- The window takes the admin's colours, light or dark (it was bg-dark: in the light admin its labels and
+             counters took the light admin's text colours, about 2:1 on the dark box). The console log stays dark. --}}
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
                     <i class="fa-solid fa-bolt text-danger me-2"></i> {{ __('XVIDAPI Import Progress') }}
                     <span id="modalRunBadge" class="badge bg-primary ms-2">#0</span>
                 </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ __('Close') }}"></button>
             </div>
             <div class="modal-body">
                 {{-- Progress Bar --}}
@@ -756,7 +817,7 @@
                 </div>
                 <div id="modalTerminal" class="xvid-terminal"></div>
             </div>
-            <div class="modal-footer border-secondary justify-content-between">
+            <div class="modal-footer justify-content-between">
                 <button type="button" id="btnModalStop" class="btn btn-outline-danger btn-sm" onclick="stopCurrentRun()">
                     <i class="fa-solid fa-stop me-1"></i> {{ __('Stop Import') }}
                 </button>

@@ -1,7 +1,7 @@
 // Admin design tokens (admin_design_spec.json tokens.color): graphite light and dark, one accent.
 // Light is the base; dark applies with html[data-theme="dark"] or, without data-theme, the device setting.
 // The accent comes from App\Support\AdminTheme::styleTag(): --ac-l/--ac-d etc. when the site colour gives
-// another accent than the neutral blue below (the default for red/pink sites such as demo1).
+// another accent than the neutral blue below (the default for red/pink sites, such as the factory look's hot pink).
 @use "sass:color";
 @use "sass:map";
 

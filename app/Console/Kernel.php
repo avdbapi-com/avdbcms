@@ -13,7 +13,9 @@ use App\Console\Commands\QueueAvdbDurationSync;
 use App\Console\Commands\RunScheduledAvdbImports;
 use App\Console\Commands\RunScheduledXvidImports;
 use App\Console\Commands\SendVideoPublishedEvent;
+use App\Console\Commands\TidyUpdateFiles;
 use App\Support\CronControl;
+use App\Support\Updater\Updater;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 use Laravel\Scout\Console\ImportCommand;
@@ -107,6 +109,16 @@ class Kernel extends ConsoleKernel
         $schedule->command(PurgeOrphanedVideos::class)
             ->weeklyOn(0, '4:00')
             ->skip(fn () => CronControl::isPaused('videos:purge-orphaned'))
+            ->appendOutputTo($LOG_PATH);
+
+        // One-click updates (Tools > Updates): the work files of a finished update leave their place with one rename
+        // and are deleted here in slices (and by the Updates page while it is open). Started only while some wait and
+        // no update or undo runs (its own steps empty the trash; a slice here would hold the trash from them).
+        $schedule->command(TidyUpdateFiles::class, ['--seconds' => 15])
+            ->everyFiveMinutes()
+            ->withoutOverlapping(10)
+            ->when(fn (): bool => (bool) rescue(fn (): bool => (app()->bound(Updater::class) ? app(Updater::class) : new Updater())->tidyDue(), false, false))
+            ->skip(fn () => CronControl::isPaused('updates:tidy --seconds=15'))
             ->appendOutputTo($LOG_PATH);
 
         // Cron-driven queue worker.

@@ -61,6 +61,10 @@ class UpdatesController
             'lockedFor' => 0,
             'log' => [],
             'problem' => null,
+            // The last change was an undo (state.json): "Last change ... was undone", not "Last updated ... from".
+            'undoneLast' => false,
+            // Work files of an earlier update wait in the trash: the page deletes them in short slices (status?tidy=1).
+            'tidy' => false,
         ];
 
         try {
@@ -69,10 +73,13 @@ class UpdatesController
             $check = $this->releaseCheck()->cached();
             $view = $plan !== null ? $this->planView($plan, $admin) : null;
             $state = $updater->state();
+            $state = is_array($state) && ($state['installed_version'] ?? null) === AppVersion::CURRENT ? $state : null;
 
             $data = array_merge($data, [
                 // "Last updated" only while it speaks of the running version (an upload by hand may have come since).
-                'state' => is_array($state) && ($state['installed_version'] ?? null) === AppVersion::CURRENT ? $state : null,
+                'state' => $state,
+                'undoneLast' => $state !== null && self::wasUndo($state),
+                'tidy' => $ops && $updater->tidyPending(),
                 'check' => $check,
                 'checkMessage' => ReleaseCheck::message($check),
                 'release' => self::offered($check),
@@ -94,12 +101,17 @@ class UpdatesController
 
     /**
      * The page's JSON: the plan (what it may show of it), the check (check=1: ask GitHub when nothing is kept, 10 s),
-     * the newest lines of the step log (log=1).
+     * the newest lines of the step log (log=1). tidy=1 (the page asks while work files of an earlier update wait in
+     * the trash, operational tools on): one slice of clean-up first, at most Updater::TIDY_SECONDS, so those files are
+     * never deleted in a request of the update itself; 'tidy' says what is left. Between updates only: while an update
+     * or undo runs (another tab of this page may run one), the slice deletes nothing and says so ('running'), and the
+     * page stops asking.
      */
     public function status(Request $request): JsonResponse
     {
         try {
             $updater = $this->updater();
+            $tidy = $request->boolean('tidy') && config('admin.operational_tools_enabled', false) ? $updater->tidy(Updater::TIDY_SECONDS) : null;
             $plan = $updater->plan();
             $check = $request->boolean('check') ? $this->releaseCheck()->get(10) : $this->releaseCheck()->cached();
 
@@ -113,10 +125,11 @@ class UpdatesController
                     'message' => ReleaseCheck::message($check),
                 ],
                 'log' => $request->boolean('log') ? $updater->logLines($plan) : null,
+                'tidy' => $tidy,
             ];
         } catch (Throwable $e) {
             self::reportSafely($e);
-            $answer = ['ok' => false, 'plan' => null, 'check' => null, 'log' => null, 'message' => self::stopped($e)];
+            $answer = ['ok' => false, 'plan' => null, 'check' => null, 'log' => null, 'tidy' => null, 'message' => self::stopped($e)];
         }
 
         return response()->json($answer)->header('Cache-Control', 'no-store, private');
@@ -325,6 +338,17 @@ class UpdatesController
             'kept_backup' => is_string($plan['kept_backup'] ?? null) ? $plan['kept_backup'] : null,
             'migrations' => isset($plan['migrations']) ? (int) $plan['migrations'] : null,
         ];
+    }
+
+    /**
+     * Did the last change of state.json put an update back (Undo this update)? Its kind says so from 1.2.1 on; a state
+     * an older version wrote tells by its versions (the one before is newer than the one installed now).
+     */
+    private static function wasUndo(array $state): bool
+    {
+        $kind = $state['kind'] ?? null;
+
+        return $kind === 'undo' || ($kind === null && AppVersion::isNewer($state['previous_version'] ?? null, (string) ($state['installed_version'] ?? '')));
     }
 
     /** What the page does next for a status (the same order as Updater's answers). */

@@ -426,6 +426,17 @@
     .ad-top-menu {
         display: none;
     }
+
+    // A long status text (Arabic, German, French or Russian at 768-1000 px) pushed "View site" and the account menu
+    // off screen: the search box gives way first (its text ends in "...") and the status pill takes at most 40% of
+    // the bar (a longer text ends in "..." too; the menu behind it lists every check).
+    > .ad-search {
+        min-width: 0;
+    }
+
+    > .ad-popwrap:has(> .ad-status) {
+        max-width: 40%;
+    }
 }
 
 .ad-search {
@@ -469,6 +480,13 @@
     font-weight: 500;
     white-space: nowrap;
     cursor: pointer;
+    max-width: 100%;
+
+    .ad-status-t {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
 
     b {
         width: 8px;

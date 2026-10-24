@@ -247,7 +247,7 @@ final class MaintenanceHook
     {
         $plan['status'] = 'rolling-back';
         $plan['step_at'] = time();
-        $plan['failure'] = ['step' => 'swap', 'reason' => mb_substr($reason, 0, 300), 'at' => date('c'), 'audited' => false];
+        $plan['failure'] = ['step' => 'swap', 'reason' => mb_substr($reason, 0, 300), 'at' => SwapEngine::stamp($this->timezone(), 'c'), 'audited' => false];
         $this->trySave($plan);
 
         return $plan;
@@ -339,7 +339,13 @@ final class MaintenanceHook
             throw new \RuntimeException('The update job cannot be read.');
         }
 
-        return $job + ['log' => $this->config['log'] ?? null];
+        return $job + ['log' => $this->config['log'] ?? null, 'timezone' => $this->timezone()];
+    }
+
+    /** The site's time zone for the step log (the config of a hook written by 1.2.0 has none: PHP's own then). */
+    private function timezone(): ?string
+    {
+        return is_string($this->config['timezone'] ?? null) && $this->config['timezone'] !== '' ? $this->config['timezone'] : null;
     }
 
     /** Seconds one request may spend moving files: 20, less where PHP stops scripts sooner. */
@@ -569,7 +575,7 @@ final class MaintenanceHook
         $file = (string) ($this->config['log'] ?? '');
 
         if ($file !== '') {
-            @file_put_contents($file, date('Y-m-d H:i:s')."\tswap\t".$message."\n", FILE_APPEND | LOCK_EX);
+            @file_put_contents($file, SwapEngine::stamp($this->timezone())."\tswap\t".$message."\n", FILE_APPEND | LOCK_EX);
         }
     }
 

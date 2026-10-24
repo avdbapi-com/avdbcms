@@ -49,6 +49,8 @@ final class NumberFormat
     {
         $formatted = number_format($value, $precision, '.', ',');
 
-        return rtrim(rtrim($formatted, '0'), '.');
+        // Only decimals lose their trailing zeros ("2.50" -> "2.5", "10.0" -> "10"); a whole number keeps its own
+        // ("300 B", "100 KB", "500 MB" read "3 B", "1 KB" and "5 MB" before 1.2.1).
+        return $precision > 0 ? rtrim(rtrim($formatted, '0'), '.') : $formatted;
     }
 }

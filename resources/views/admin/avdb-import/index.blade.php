@@ -102,9 +102,10 @@
     .avdb-field-span {
         grid-column: 1 / -1;
     }
+    /* Cards wide enough for the longest category word ("Uncensored", bold when ticked) beside the count. */
     .avdb-cat-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+        grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
         gap: 0.65rem;
     }
     .avdb-cat-card {
@@ -119,6 +120,7 @@
         background: var(--avd-surface-soft);
         cursor: pointer;
         transition: border-color 0.2s, background 0.2s;
+        container-type: inline-size;
     }
     .avdb-cat-card .form-check-input {
         margin: 0;
@@ -139,9 +141,11 @@
         width: 1rem;
         text-align: center;
     }
+    /* Category names keep their words whole: they wrap between words, and a word is cut only when no line can hold
+       it ("anywhere" cut Censor|ed and Chines|e AV in the narrow cards). */
     .avdb-cat-name {
         min-width: 0;
-        overflow-wrap: anywhere;
+        overflow-wrap: break-word;
     }
     .avdb-cat-card input:checked + .avdb-cat-label {
         color: var(--avd-brand);
@@ -155,6 +159,41 @@
     .avdb-cat-card .avdb-cat-count {
         justify-self: end;
         margin-left: 0;
+    }
+    /* The old admin (#main-container): a ticked category's name takes the brand's text colour and its count the text
+       colour (the bright brand colour read at 2.9 to 3.7:1 on the light card and on the count's own tint); the tinted
+       box and border still show the choice. The new admin has its own rule (_legacy.scss). */
+    body #main-container .avdb-cat-card input:checked + .avdb-cat-label {
+        color: var(--avd-brand-ink, var(--avd-brand));
+    }
+    body #main-container .avdb-cat-card input:checked ~ .avdb-cat-count {
+        color: var(--avd-text);
+    }
+    /* The old admin in light mode: layout-theme-a.css gives every .text-white in #main-container the dark text colour,
+       which turned the dark "Live Ecosystem" card's numbers black on black. The card takes the light panel colours,
+       as it does in the new admin (_legacy.scss). The new admin has no #main-container, so none of this reaches it. */
+    html[data-bs-theme="light"] body #main-container .avdb-live {
+        background: var(--avd-surface-soft, #eceef4) !important;
+        color: var(--avd-text, #0f121a);
+    }
+    html[data-bs-theme="light"] body #main-container .avdb-live .bg-black {
+        background-color: var(--avd-surface, #fff) !important;
+    }
+    html[data-bs-theme="light"] body #main-container .avdb-live .text-white-50 {
+        color: var(--avdb-muted) !important;
+    }
+    html[data-bs-theme="light"] body #main-container .avdb-live .btn-outline-light {
+        --bs-btn-color: var(--avd-text, #0f121a);
+        --bs-btn-border-color: var(--avdb-line);
+        --bs-btn-hover-color: var(--avd-text, #0f121a);
+        --bs-btn-hover-bg: var(--avd-surface-hover, #e0e3ec);
+        --bs-btn-hover-border-color: var(--avdb-line);
+    }
+    /* Light-blue outline buttons ("API Documentation", "Export No Full Lang") read at 1.8 to 2:1 on a light page: they
+       take Bootstrap's darker info shade there. */
+    html[data-bs-theme="light"] body #main-container .avdb-page .btn-outline-info {
+        --bs-btn-color: #055160;
+        --bs-btn-border-color: #087990;
     }
     .avdb-cat-count {
         margin-left: auto;
@@ -170,6 +209,15 @@
         text-align: center;
         white-space: nowrap;
         font-variant-numeric: tabular-nums;
+    }
+    /* A narrow card (two columns on a small tablet, or a very small phone) puts the count under the name, so the
+       name gets the whole row. */
+    @container (max-width: 14rem) {
+        .avdb-cat-card .avdb-cat-count {
+            grid-column: 2;
+            grid-row: 2;
+            justify-self: start;
+        }
     }
     .avdb-page a:focus-visible,
     .avdb-page button:focus-visible,
@@ -473,7 +521,7 @@
     </div>
 
     {{-- ═══════ AVDBAPI Live Ecosystem & Specifications Card ═══════ --}}
-    <div class="card border-primary border-opacity-25 bg-dark-subtle shadow-sm mb-4" style="border-radius: 12px; background: linear-gradient(135deg, rgba(15, 23, 42, 0.75) 0%, rgba(30, 41, 59, 0.6) 100%);">
+    <div class="card avdb-live border-primary border-opacity-25 bg-dark-subtle shadow-sm mb-4" style="border-radius: 12px; background: linear-gradient(135deg, rgba(15, 23, 42, 0.75) 0%, rgba(30, 41, 59, 0.6) 100%);">
         <div class="card-body p-3 p-md-4">
             <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 pb-3 mb-3 border-bottom border-secondary border-opacity-25">
                 <div class="d-flex align-items-center gap-2">
@@ -716,29 +764,29 @@
                 <div class="avdb-field-grid mb-0">
                     <div>
                         <label for="searchWd" class="form-label fw-bold">{{__('Keyword / Code')}}</label>
-                        <input type="text" class="form-control" id="searchWd" maxlength="150" placeholder="miaa-818">
+                        <input type="text" class="form-control" id="searchWd" maxlength="150" placeholder="{{ __('Keyword or ABC-123') }}">
                         <small class="text-muted">{{__('Maps to wd. Best for general title and code search.')}}</small>
                     </div>
                     <div>
                         <label for="searchCode" class="form-label fw-bold">{{__('Exact JAV Code')}}</label>
-                        <input type="text" class="form-control" id="searchCode" maxlength="100" placeholder="FNS-053">
+                        <input type="text" class="form-control" id="searchCode" maxlength="100" placeholder="ABC-123">
                         <small class="text-muted">{{__('Maps to code. Use when the exact code is known.')}}</small>
                     </div>
                     <div>
                         <label for="searchActor" class="form-label fw-bold">{{__('Actor')}}</label>
-                        <input type="text" class="form-control" id="searchActor" maxlength="150" placeholder="Yua Mikami">
+                        <input type="text" class="form-control" id="searchActor" maxlength="150" placeholder="{{ __('Actor name') }}">
                     </div>
                     <div>
                         <label for="searchDirector" class="form-label fw-bold">{{__('Director')}}</label>
-                        <input type="text" class="form-control" id="searchDirector" maxlength="150" placeholder="Nagao">
+                        <input type="text" class="form-control" id="searchDirector" maxlength="150" placeholder="{{ __('Director name') }}">
                     </div>
                     <div>
                         <label for="searchWriter" class="form-label fw-bold">{{__('Writer / Studio')}}</label>
-                        <input type="text" class="form-control" id="searchWriter" maxlength="150" placeholder="S1">
+                        <input type="text" class="form-control" id="searchWriter" maxlength="150" placeholder="{{ __('Studio name') }}">
                     </div>
                     <div>
                         <label for="searchCategory" class="form-label fw-bold">{{__('Category Tag')}}</label>
-                        <input type="text" class="form-control" id="searchCategory" maxlength="150" placeholder="Creampie">
+                        <input type="text" class="form-control" id="searchCategory" maxlength="150" placeholder="{{ __('Tag name') }}">
                     </div>
                     <div>
                         <label for="updatedHours" class="form-label fw-bold">{{__('Updated Hours')}}</label>
@@ -747,7 +795,7 @@
                     </div>
                     <div>
                         <label for="filterYear" class="form-label fw-bold">{{__('Year / Range')}}</label>
-                        <input type="text" class="form-control" id="filterYear" maxlength="9" placeholder="2024 or 2020-2024">
+                        <input type="text" class="form-control" id="filterYear" maxlength="9" placeholder="{{ __('2024 or 2020-2024') }}">
                     </div>
                 </div>
                     </section>

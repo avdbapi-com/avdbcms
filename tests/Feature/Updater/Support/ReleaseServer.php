@@ -68,6 +68,9 @@ final class ReleaseServer
     /** Zip requests on the asset store (counted from 1) that get no answer: the connection drops. */
     public array $dropRequests = [];
 
+    /** The client's error for a dropped zip request (:url is the signed address it was sent to). */
+    public string $dropMessage = 'cURL error 56: Recv failure: Connection was reset for :url';
+
     /** The asset store answers the zip with this status (e.g. 500) instead of its bytes. */
     public ?int $assetStatus = null;
 
@@ -223,7 +226,7 @@ final class ReleaseServer
 
         if (in_array($this->zipRequests, $this->dropRequests, true)) {
             // Laravel's own wording of a dropped connection quotes the full (signed) address.
-            return Http::failedConnection('cURL error 56: Recv failure: Connection was reset for '.$request->url())($request);
+            return Http::failedConnection(str_replace(':url', $request->url(), $this->dropMessage))($request);
         }
 
         if ($this->assetStatus !== null) {

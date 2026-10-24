@@ -18,9 +18,10 @@ use Throwable;
 
 /**
  * What an update writes down (F8 16, 18 "Audit"): one row in Tools > Logs > Admin actions per event (update.started,
- * update.database_backup, update.files, update.finished, update.failed with its step and reason, update.undone), with
- * the administrator who did it; the step log one line per entry; and no swap token, update cookie or signed GitHub
- * download address in any log line, stored file or admin-log row, also when a dropped connection quotes the address.
+ * update.database_backup, update.files, update.finished, update.failed with its step and reason, update.undone,
+ * update.cancelled with where it stopped), with the administrator who did it; the step log one line per entry; and no
+ * swap token, update cookie or signed GitHub download address in any log line, stored file or admin-log row, also
+ * when a dropped connection quotes the address (the text around it stays, its closing bracket too).
  */
 class UpdateAuditTest extends TestCase
 {
@@ -161,6 +162,47 @@ class UpdateAuditTest extends TestCase
         $this->assertSame('swapped', $this->swapThroughHook($undo['token'])['step']);
         $this->assertSame('undone', $this->finishOn($this->updater())['status']);
         $this->assertNoSecretIn([...$secrets, $undo['token'], $undo['cookie']], 'after the undo');
+    }
+
+    public function test_a_cancelled_update_or_undo_is_written_down_with_where_it_stopped(): void
+    {
+        $id = (int) $this->admin->getKey();
+        $this->updater()->start($this->admin);
+        $this->assertSame('verifying', $this->updater()->step($this->admin)['status']);
+
+        $this->assertSame('cancelled', $this->updater()->cancel($this->admin)['status']);
+
+        $this->assertSame(['update.started', 'update.cancelled'], array_column($this->auditRows(), 'action'));
+        $this->assertSame([AppVersion::CURRENT.' -> '.$this->next.' (at verifying)', $id], [$this->auditRows()[1]['details'], $this->auditRows()[1]['user_id']]);
+
+        // An undo called off while it compares the files, by another administrator once it stalled.
+        $this->updateToNext();
+        $new = $this->updater($this->next);
+        $this->assertTrue($new->undo($this->admin)['ok']);
+        $this->changePlan(['step_at' => time() - Updater::STALL_SECONDS - 1]);
+        $second = $this->otherAdmin();
+
+        $this->assertSame('cancelled', $new->cancel($second)['status']);
+
+        $last = array_slice($this->auditRows(), -1)[0];
+        $this->assertSame(['update.cancelled', $this->next.' -> '.AppVersion::CURRENT.' (undo, at preparing)', (int) $second->getKey()], [$last['action'], $last['details'], $last['user_id']]);
+        $this->assertSame(2, array_count_values(array_column($this->auditRows(), 'action'))['update.cancelled'], 'one row per cancel');
+    }
+
+    public function test_an_address_in_a_connection_error_is_hidden_and_the_text_around_it_stays(): void
+    {
+        // curl's own wording: the address of its error page in brackets, then the signed address of the asset store.
+        $this->github->dropRequests = [1];
+        $this->github->dropMessage = 'cURL error 18: end of response with 8388608 bytes missing (see https://curl.haxx.se/libcurl/c/libcurl-errors.html) for :url';
+        $this->assertTrue($this->updater()->start($this->admin)['ok']);
+
+        $dropped = $this->updater()->step($this->admin);
+
+        $this->assertTrue($dropped['retry']);
+        $log = implode("\n", $this->updater()->logLines());
+        $this->assertStringContainsString('[connection: cURL error 18: end of response with 8388608 bytes missing (see <address>) for <address>]', $log);
+        $this->assertStringNotContainsString(ReleaseServer::SIGNATURE, $log);
+        $this->assertStringNotContainsString('curl.haxx.se', $log);
     }
 
     public function test_each_step_log_entry_is_one_line_of_time_step_and_message(): void

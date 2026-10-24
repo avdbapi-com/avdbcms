@@ -11,12 +11,16 @@
 @section('content')
     @php ob_start(); @endphp
     @php
-        $mb = fn (int $bytes) => number_format($bytes / 1048576, 1).' MB';
         $latest = $backups->first();
+        // "Your database is 3.38 MB. 1 backup takes 35.3 KB on the server.": sizes as people read them (KB under 1 MB,
+        // like the Size column); a part the page cannot say is left out (no backups yet: the callout below says so).
+        $summary = array_filter([
+            filled($dbSize ?? null) ? __('Your database is :size.', ['size' => $dbSize]) : null,
+            $backupCount > 0 ? trans_choice('1 backup takes :total on the server.|:count backups take :total on the server.', $backupCount, ['count' => number_format($backupCount), 'total' => $backupTotalText]) : null,
+        ]);
     @endphp
 
-    <x-admin.page-header page="tools.backups"
-        :description="__('Your database is :size. :count backups take :total on the server.', ['size' => $dbSize, 'count' => number_format($backupCount), 'total' => $mb((int) $backupTotalSize)])">
+    <x-admin.page-header page="tools.backups" :description="$summary === [] ? null : implode(' ', $summary)">
         <x-slot:actions>
             <form method="POST" action="{{ route('admin.backups.create') }}" data-ad-busy="{{ __('Backing up...') }}">
                 @csrf
@@ -54,9 +58,11 @@
 
         @foreach ($backups as $backup)
             @php($made = \Illuminate\Support\Carbon::createFromTimestamp($backup['date']))
+            {{-- On phones the row is "name" over "size  age": the age sits in the size cell (a row with a gap there), not
+                 straight after the file name, where it ran into it ("....sql18 seconds ago"). --}}
             <tr>
-                <td class="c-main"><p><b id="ad-bk-{{ $loop->index }}"><code>{{ $backup['name'] }}</code></b><small class="ad-phone-only">{{ $made->diffForHumans() }}</small></p></td>
-                <td class="c-meta is-num">{{ $mb((int) $backup['size']) }}</td>
+                <td class="c-main"><p><b id="ad-bk-{{ $loop->index }}"><code>{{ $backup['name'] }}</code></b></p></td>
+                <td class="c-meta is-num text-nowrap">{{ $backup['size_text'] }}<small class="ad-phone-only">{{ $made->diffForHumans() }}</small></td>
                 <td class="hide-tab is-date" title="{{ $made->translatedFormat('j M Y, H:i') }}">{{ $made->diffForHumans() }}</td>
                 <td class="is-actions"><button type="button" class="ad-iconbtn is-more" aria-haspopup="true" aria-labelledby="ad-l-act ad-bk-{{ $loop->index }}" data-id="{{ $backup['name'] }}" data-name="{{ rawurlencode($backup['name']) }}"></button></td>
             </tr>

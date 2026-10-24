@@ -20,7 +20,7 @@ If you just want to get your video platform running in 3 minutes without reading
 1. **Create Site & Database**:
    - In your panel (aaPanel, CloudPanel, HestiaCP, CyberPanel, 1Panel, Virtualmin, or cPanel), create a website for your domain with **PHP 8.3 or newer** and a new **MySQL/MariaDB database**.
 2. **Upload & Extract**:
-   - Upload the release ZIP you downloaded (for example, `avdbcms-1.2.0.zip`) to your website root folder and click **Extract** (or unzip).
+   - Upload the release ZIP you downloaded (for example, `avdbcms-1.2.1.zip`) to your website root folder and click **Extract** (or unzip).
 3. **Run Web Installer**:
    - Open your browser and navigate to: `https://yourdomain.com/install` (or `https://yourdomain.com/index.php/install`).
    - Enter your database name, user, password, and choose your admin username/password.
@@ -124,7 +124,7 @@ That rule only gives you clean URLs. When the web root is the **project folder**
    - PHP Version: Select **PHP-8.3** or newer.
 2. **Upload & Extract**:
    - Open **Files**, navigate to `/www/wwwroot/yourdomain.com`.
-   - Upload `avdbcms-1.2.0.zip` and click **Unzip**.
+   - Upload `avdbcms-1.2.1.zip` and click **Unzip**.
 3. **Site Directory**:
    - In **Websites**, click your domain > **Site directory**.
    - Set **Running directory** to `/public` (or keep `/` if using our zero-config root runner).
@@ -263,7 +263,7 @@ That rule only gives you clean URLs. When the web root is the **project folder**
 1. **Upload via File Manager**:
    - Log into cPanel > **File Manager**.
    - Navigate to `public_html`.
-   - Upload `avdbcms-1.2.0.zip` and click **Extract**.
+   - Upload `avdbcms-1.2.1.zip` and click **Extract**.
 2. **Select PHP Version**:
    - In cPanel, find **MultiPHP Manager** or **Select PHP Version**.
    - Set domain to **PHP 8.3** or newer.
