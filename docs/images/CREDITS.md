@@ -23,7 +23,7 @@ A.1), except for the third-party parts named below, which keep their own licence
 
 ## Screenshots (screenshots/) and the looks wall
 
-- AVDBCMS 1.2.0 on a local demo install with demo content only: generated flat illustration posters, made-up titles,
+- AVDBCMS 1.2.1 on a local demo install with demo content only: generated flat illustration posters, made-up titles,
   channels and members, and example addresses such as example.com. They were taken for the help center at
   help.avdbapi.com, where the same pictures illustrate the guides. The numbered markers on them belong to the
   help-center captions; the README captions list the same numbers.
