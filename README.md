@@ -187,6 +187,9 @@ The license text in `LICENSE` is the one that counts; this summary is not legal 
 - **Download**: [Download AVDBCMS](https://help.avdbapi.com/documentation/download-avdbcms/)
 - **Changelog**: [AVDBCMS changelog](https://help.avdbapi.com/documentation/avdbcms-changelog/) and [CHANGELOG.md](CHANGELOG.md); updating: [UPGRADE.md](UPGRADE.md)
 - **Documentation**: [COMMUNITY_SETUP_GUIDE.md](COMMUNITY_SETUP_GUIDE.md) and the help center https://help.avdbapi.com/
-- **Support**: Telegram group https://t.me/avdb_api; bug reports at https://github.com/avdbapi-com/avdbcms/issues
+- **Support**:
+  - Telegram group: https://t.me/+jj6McO-iYfA0MTM1
+  - Telegram support (personal): https://t.me/avdbapi_support
+  - Bug reports: https://github.com/avdbapi-com/avdbcms/issues
 
 *Built with ❤️ for creators, publishers, and the open video web.*

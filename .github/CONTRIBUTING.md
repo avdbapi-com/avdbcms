@@ -4,9 +4,10 @@ Thanks for helping to make AVDBCMS better. Bug reports, ideas, docs fixes, trans
 
 ## Before you start
 
-- Questions and setup help: the [help center](https://help.avdbapi.com/), the Telegram group
-  [t.me/avdb_api](https://t.me/avdb_api) and [@avdbapi_support](https://t.me/avdbapi_support) on Telegram.
-  Issues are for bugs and feature requests.
+- Questions and setup help: the [help center](https://help.avdbapi.com/) and Telegram:
+  - Telegram group: https://t.me/+jj6McO-iYfA0MTM1
+  - Telegram support (personal): https://t.me/avdbapi_support
+- Issues are for bugs and feature requests.
 - Search the [issues](https://github.com/avdbapi-com/avdbcms/issues) first: your topic may already be there.
 - Security problems: never in public. Follow [SECURITY.md](SECURITY.md).
 - Everyone who takes part follows our [Code of Conduct](CODE_OF_CONDUCT.md).

@@ -395,6 +395,6 @@ The homepage hero now comes from `resources/views/pages/partials/hero.blade.php`
   [Update with one click from the admin](https://help.avdbapi.com/documentation/avdbcms-one-click-update/),
   [Upgrade by hand (FTP or File Manager)](https://help.avdbapi.com/documentation/avdbcms-upgrade/) and
   [Backups and restore](https://help.avdbapi.com/documentation/avdbcms-backups/).
-- Telegram group: https://t.me/avdb_api. Tell us what you see and at which step you are.
-- Telegram support: [@avdbapi_support](https://t.me/avdbapi_support)
+- Telegram group: https://t.me/+jj6McO-iYfA0MTM1 (tell us what you see and at which step you are)
+- Telegram support (personal): https://t.me/avdbapi_support
 - Bugs: https://github.com/avdbapi-com/avdbcms/issues
