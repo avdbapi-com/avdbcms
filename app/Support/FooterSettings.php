@@ -20,7 +20,7 @@ class FooterSettings
             'footer_categories_limit' => '6',
             'footer_support_enabled' => '1',
             'footer_support_title' => 'Support',
-            'footer_support_links' => "Contact|/contact\nTelegram Support|https://t.me/avdb_api\nTerms of Service|/terms",
+            'footer_support_links' => "Contact|/contact\nTelegram Group|https://t.me/+jj6McO-iYfA0MTM1\nTelegram Support|https://t.me/avdbapi_support\nTerms of Service|/terms",
             'footer_settings_enabled' => '1',
             'footer_settings_title' => 'Settings',
             'footer_language_switcher_enabled' => '1',

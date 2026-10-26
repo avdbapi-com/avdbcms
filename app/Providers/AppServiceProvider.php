@@ -549,7 +549,7 @@ class AppServiceProvider extends ServiceProvider
             Config::set('site.social_youtube',   $sociallinks['social_youtube']   ?? '');
             Config::set('site.social_tiktok',    $sociallinks['social_tiktok']    ?? '');
             Config::set('site.social_discord',   $sociallinks['social_discord']   ?? '');
-            Config::set('site.social_telegram',  array_key_exists('social_telegram', $sociallinks) ? $sociallinks['social_telegram'] : 'https://t.me/avdb_api');
+            Config::set('site.social_telegram',  array_key_exists('social_telegram', $sociallinks) ? $sociallinks['social_telegram'] : 'https://t.me/+jj6McO-iYfA0MTM1');
             Config::set('site.social_reddit',    $sociallinks['social_reddit']    ?? '');
             Config::set('site.social_github',    $sociallinks['social_github']    ?? '');
             Config::set('site.social_linkedin',  $sociallinks['social_linkedin']  ?? '');

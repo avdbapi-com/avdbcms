@@ -576,13 +576,13 @@
                 <div class="support-card">
                     <strong>Need help during install?</strong>
                     <div class="support-links">
-                        <a href="https://t.me/avdb_api" target="_blank" rel="noopener">
+                        <a href="https://t.me/+jj6McO-iYfA0MTM1" target="_blank" rel="noopener">
                             <span>Telegram group</span>
-                            t.me/avdb_api
+                            t.me/+jj6McO-iYfA0MTM1
                         </a>
-                        <a href="https://t.me/Avdbapi_support" target="_blank" rel="noopener">
+                        <a href="https://t.me/avdbapi_support" target="_blank" rel="noopener">
                             <span>Support</span>
-                            @Avdbapi_support
+                            @avdbapi_support
                         </a>
                     </div>
                 </div>

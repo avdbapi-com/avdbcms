@@ -49,7 +49,7 @@ return new class extends Migration
             ['key' => 'smtp_encryption', 'value' => 'tls', 'group' => 'email'],
             ['key' => 'mail_from_address', 'value' => 'noreply@example.com', 'group' => 'email'],
             ['key' => 'mail_from_name', 'value' => 'AVDBCMS', 'group' => 'email'],
-            ['key' => 'social_telegram', 'value' => 'https://t.me/avdb_api', 'group' => 'sociallinks'],
+            ['key' => 'social_telegram', 'value' => 'https://t.me/+jj6McO-iYfA0MTM1', 'group' => 'sociallinks'],
         ];
 
         foreach ($defaults as $setting) {

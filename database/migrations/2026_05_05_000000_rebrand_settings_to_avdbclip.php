@@ -19,7 +19,7 @@ return new class extends Migration
             ['key' => 'footer_text', 'value' => '(c) 2026 AVDBCMS. All rights reserved.', 'group' => 'appearance'],
             ['key' => 'mail_from_address', 'value' => 'noreply@example.com', 'group' => 'email'],
             ['key' => 'mail_from_name', 'value' => 'AVDBCMS', 'group' => 'email'],
-            ['key' => 'social_telegram', 'value' => 'https://t.me/avdb_api', 'group' => 'sociallinks'],
+            ['key' => 'social_telegram', 'value' => 'https://t.me/+jj6McO-iYfA0MTM1', 'group' => 'sociallinks'],
         ];
 
         foreach ($settings as $setting) {
@@ -55,7 +55,7 @@ return new class extends Migration
 
         DB::table('settings')
             ->where('key', 'social_telegram')
-            ->where('value', 'https://t.me/avdb_api')
+            ->whereIn('value', ['https://t.me/avdb_api', 'https://t.me/+jj6McO-iYfA0MTM1'])
             ->delete();
 
         $this->clearSettingsCache();

@@ -489,7 +489,10 @@
             <a href="https://avdbapi.com/index.php/label/help.html" target="_blank" rel="noopener" class="btn btn-sm btn-outline-info">
                 <i class="fa-solid fa-book-open me-1"></i> {{ __('API Documentation') }}
             </a>
-            <a href="https://t.me/avdb_api" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary" style="color: #38bdf8; border-color: #0284c7;">
+            <a href="https://t.me/+jj6McO-iYfA0MTM1" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary" style="color: #38bdf8; border-color: #0284c7;">
+                <i class="fa-brands fa-telegram me-1"></i> {{ __('Telegram Group') }}
+            </a>
+            <a href="https://t.me/avdbapi_support" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary" style="color: #38bdf8; border-color: #0284c7;">
                 <i class="fa-brands fa-telegram me-1"></i> {{ __('Telegram Support') }}
             </a>
         </div>
@@ -532,8 +535,11 @@
                     <a href="https://avdbapi.com/index.php/label/help.html" target="_blank" rel="noopener" class="btn btn-sm btn-outline-light">
                         <i class="fa-solid fa-file-lines me-1 text-info"></i>{{ __('Help Docs') }}
                     </a>
-                    <a href="https://t.me/avdb_api" target="_blank" rel="noopener" class="btn btn-sm btn-outline-light">
+                    <a href="https://t.me/+jj6McO-iYfA0MTM1" target="_blank" rel="noopener" class="btn btn-sm btn-outline-light">
                         <i class="fa-brands fa-telegram me-1 text-primary"></i>{{ __('Telegram Group') }}
+                    </a>
+                    <a href="https://t.me/avdbapi_support" target="_blank" rel="noopener" class="btn btn-sm btn-outline-light">
+                        <i class="fa-brands fa-telegram me-1 text-primary"></i>{{ __('Telegram Support') }}
                     </a>
                     <a href="https://avdbapi.com/api.php/provide/vod/?ac=list" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary">
                         <i class="fa-solid fa-code me-1"></i>{{ __('Raw JSON Feed') }}
@@ -1461,7 +1467,10 @@
                     <a href="https://avdbapi.com/index.php/label/help.html" target="_blank" rel="noopener" class="btn btn-sm btn-outline-info flex-grow-1">
                         <i class="fa-solid fa-arrow-up-right-from-square me-1"></i>{{__('API Documentation')}}
                     </a>
-                    <a href="https://t.me/avdb_api" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary flex-grow-1" style="color: #38bdf8; border-color: #0284c7;">
+                    <a href="https://t.me/+jj6McO-iYfA0MTM1" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary flex-grow-1" style="color: #38bdf8; border-color: #0284c7;">
+                        <i class="fa-brands fa-telegram me-1"></i>{{__('Telegram Group')}}
+                    </a>
+                    <a href="https://t.me/avdbapi_support" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary flex-grow-1" style="color: #38bdf8; border-color: #0284c7;">
                         <i class="fa-brands fa-telegram me-1"></i>{{__('Telegram Support')}}
                     </a>
                 </div>

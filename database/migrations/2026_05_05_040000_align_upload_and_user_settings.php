@@ -14,7 +14,7 @@ return new class extends Migration
         $this->setDefault('uploads', 'default_video_language', 'en');
         $this->setDefault('uploads', 'allow_custom_thumbnails', '1');
         $this->setDefault('users', 'show_subscriber_count', '1');
-        $this->setDefault('sociallinks', 'social_telegram', 'https://t.me/avdb_api');
+        $this->setDefault('sociallinks', 'social_telegram', 'https://t.me/+jj6McO-iYfA0MTM1');
         $this->setDefault('seo', 'adult_rating_enabled', '1');
 
         $statusAliases = [

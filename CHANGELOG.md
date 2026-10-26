@@ -5,6 +5,20 @@ only raises the last number, a release with new features the middle one.
 How to update your site: [UPGRADE.md](UPGRADE.md). Every release with its files:
 https://github.com/avdbapi-com/avdbcms/releases
 
+## Unreleased
+
+### Telegram: new group link, personal support next to it
+
+- The AVDB API Telegram group moved to a private invite link: https://t.me/+jj6McO-iYfA0MTM1.
+  Personal Telegram support is https://t.me/avdbapi_support (@avdbapi_support).
+- New sites: the Telegram icon of the footer (**Settings › Site basics › Telegram channel**) links the new group, and
+  the "Support" column of the footer lists **Telegram Group** and **Telegram Support**. The buttons of
+  **AVDBAPI Import** and the help box of the installer offer both links.
+- Updated sites: a database change replaces the old group link where a site still stores it: the
+  Telegram channel becomes the new group link, and in the "Support" links of the footer the old line becomes
+  **Telegram Group** with a **Telegram Support** line after it. A link or line you entered yourself stays exactly as
+  it is, and an empty Telegram channel stays empty.
+
 ## 1.2.2 (2026-10-25)
 
 A fix release for 1.2.1. Sites on 1.2.1 or 1.2.0 update with one click in **Tools › Updates**; every other way is in

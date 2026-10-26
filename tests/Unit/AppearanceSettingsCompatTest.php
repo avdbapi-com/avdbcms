@@ -4,6 +4,7 @@ namespace Tests\Unit;
 
 use App\Support\AppearanceSettings;
 use App\Support\DailyDesignCatalog;
+use App\Support\FooterSettings;
 use App\Support\NavigationSettings;
 use App\Support\ThemeCatalog;
 use Illuminate\Http\Request;
@@ -173,7 +174,13 @@ class AppearanceSettingsCompatTest extends TestCase
         $legacy = AppearanceSettings::legacyDefaults();
 
         foreach ($old as $key => $value) {
-            $expected = $key === 'footer_text' ? '(c) ' . date('Y') . ' AVDBCMS. All rights reserved.' : (string) $value;
+            // Deliberate changes of a v1 factory value: the AVDBCMS footer line, and the footer "Support" links, whose
+            // old group link became the new Telegram group + the support account (2026_10_26_000000).
+            $expected = match ($key) {
+                'footer_text' => '(c) ' . date('Y') . ' AVDBCMS. All rights reserved.',
+                'footer_support_links' => FooterSettings::defaults()['footer_support_links'],
+                default => (string) $value,
+            };
             $this->assertSame($expected, $legacy[$key] ?? null, "v1 default {$key}");
         }
 
