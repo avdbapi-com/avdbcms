@@ -70,7 +70,7 @@ final class SiteDate
 
         $local = self::local($date);
 
-        if (class_exists(\IntlDatePatternGenerator::class) && class_exists(\IntlDateFormatter::class)) {
+        if (Intl::available() && class_exists(\IntlDatePatternGenerator::class)) {
             try {
                 $locale = (string) app()->getLocale();
                 $pattern = \IntlDatePatternGenerator::create($locale)?->getBestPattern('yMMMM');

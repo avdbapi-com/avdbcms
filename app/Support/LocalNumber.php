@@ -103,16 +103,20 @@ final class LocalNumber
     {
         $language ??= self::language();
 
-        if (class_exists(\NumberFormatter::class)) {
-            // Western digits in every language, as the cards, the short counts and the studio print them (Arabic and
-            // Persian would otherwise get their own digits next to Western ones on the same page)
-            $formatter = new \NumberFormatter($language.'@numbers=latn', \NumberFormatter::DECIMAL);
-            $formatter->setAttribute(\NumberFormatter::MIN_FRACTION_DIGITS, $decimals);
-            $formatter->setAttribute(\NumberFormatter::MAX_FRACTION_DIGITS, $decimals);
-            $formatted = $formatter->format($number);
+        if (Intl::available()) {
+            try {
+                // Western digits in every language, as the cards, the short counts and the studio print them (Arabic and
+                // Persian would otherwise get their own digits next to Western ones on the same page)
+                $formatter = new \NumberFormatter($language.'@numbers=latn', \NumberFormatter::DECIMAL);
+                $formatter->setAttribute(\NumberFormatter::MIN_FRACTION_DIGITS, $decimals);
+                $formatter->setAttribute(\NumberFormatter::MAX_FRACTION_DIGITS, $decimals);
+                $formatted = $formatter->format($number);
 
-            if (is_string($formatted) && $formatted !== '') {
-                return $formatted;
+                if (is_string($formatted) && $formatted !== '') {
+                    return $formatted;
+                }
+            } catch (\Throwable) {
+                // an ICU without that language's data: the plain form below, never an error on a page
             }
         }
 

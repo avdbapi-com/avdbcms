@@ -52,7 +52,7 @@ final class BillingFormat
         if (! array_key_exists($key, self::$monthFormatters)) {
             self::$monthFormatters[$key] = false;
 
-            if (class_exists(\IntlDatePatternGenerator::class) && class_exists(\IntlDateFormatter::class)) {
+            if (Intl::available() && class_exists(\IntlDatePatternGenerator::class)) {
                 try {
                     $generator = \IntlDatePatternGenerator::create($locale);
                     $pattern = $generator instanceof \IntlDatePatternGenerator ? $generator->getBestPattern('yMMMM') : false;
@@ -96,7 +96,7 @@ final class BillingFormat
     {
         $language = LocalNumber::language($locale);
 
-        if (class_exists(NumberFormatter::class)) {
+        if (Intl::available()) {
             try {
                 $formatter = new NumberFormatter($language.'@numbers=latn', NumberFormatter::PERCENT);
                 $formatter->setAttribute(NumberFormatter::MIN_FRACTION_DIGITS, 0);

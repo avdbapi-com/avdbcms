@@ -71,7 +71,7 @@ final class NumberFormat
         $language = strtolower((string) preg_split('/[-_@]/', (string) ($locale ?? app()->getLocale()))[0]);
         $language = preg_match('/^[a-z]{2,3}$/', $language) === 1 ? $language : 'en';
 
-        if (class_exists(\NumberFormatter::class)) {
+        if (Intl::available()) {
             try {
                 $formatter = new \NumberFormatter($language.'@numbers=latn', \NumberFormatter::DECIMAL);
                 $formatter->setAttribute(\NumberFormatter::MIN_FRACTION_DIGITS, 0);
@@ -143,7 +143,7 @@ final class NumberFormat
         $language = strtolower((string) preg_split('/[-_@]/', (string) ($locale ?? app()->getLocale()))[0]);
         $language = preg_match('/^[a-z]{2,3}$/', $language) === 1 ? $language : 'en';
 
-        if (class_exists(\NumberFormatter::class)) {
+        if (Intl::available()) {
             try {
                 $formatter = new \NumberFormatter($language.'@numbers=latn', \NumberFormatter::CURRENCY);
                 $formatter->setAttribute(\NumberFormatter::MIN_FRACTION_DIGITS, $precision);

@@ -6,6 +6,7 @@ use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use DateTimeZone;
 use Throwable;
+use App\Support\Intl;
 
 /**
  * The site's time zone as members read it next to a scheduled time (member design 6.4, OD-M12; 9.3:
@@ -53,7 +54,7 @@ final class ZoneLabel
     /** ICU's name of the zone's city in that language, or null (no intl, no city for that zone). */
     private static function exemplarCity(string $zone, string $locale): ?string
     {
-        if (! class_exists(\IntlDateFormatter::class)) {
+        if (! Intl::available()) {
             return null;
         }
 

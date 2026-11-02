@@ -15,7 +15,7 @@ define('LARAVEL_START', microtime(true));
 |
 */
 
-if (PHP_SAPI === 'cli' && function_exists('posix_geteuid') && posix_geteuid() === 0 && getenv('AVDBCMS_KEEP_ROOT') === false && getenv('AVDBCLIP_KEEP_ROOT') === false) {
+if (function_exists('posix_geteuid') && posix_geteuid() === 0 && getenv('AVDBCMS_KEEP_ROOT') === false && getenv('AVDBCLIP_KEEP_ROOT') === false) {
     $avdbUid = @fileowner(__DIR__.'/storage');
     $avdbGid = @filegroup(__DIR__.'/storage');
 
@@ -37,6 +37,28 @@ if (PHP_SAPI === 'cli' && function_exists('posix_geteuid') && posix_geteuid() ==
     }
 
     unset($avdbUid, $avdbGid, $avdbUser, $avdbHome);
+}
+
+/*
+|--------------------------------------------------------------------------
+| Artisan Is A Console Process
+|--------------------------------------------------------------------------
+|
+| Hosting panels run their cron lines with the web server's PHP build
+| (LiteSpeed's lsphp on cPanel: PHP_SAPI "litespeed", cgi-fcgi builds), and
+| Laravel tells a console process by PHP_SAPI unless APP_RUNNING_IN_CONSOLE
+| says so. Without it the scheduler's cron runs were never stamped (the
+| admin kept warning that no cron runs and started its own runs next to
+| the cron's) and the admin's settings were not applied to the command.
+| Set here, before the application reads it; an explicit value in the
+| environment is kept (Tools > Commands sets it for its own processes).
+|
+*/
+
+if (PHP_SAPI !== 'cli' && PHP_SAPI !== 'phpdbg' && getenv('APP_RUNNING_IN_CONSOLE') === false
+    && ! isset($_SERVER['APP_RUNNING_IN_CONSOLE']) && ! isset($_ENV['APP_RUNNING_IN_CONSOLE'])) {
+    putenv('APP_RUNNING_IN_CONSOLE=true');
+    $_SERVER['APP_RUNNING_IN_CONSOLE'] = $_ENV['APP_RUNNING_IN_CONSOLE'] = 'true';
 }
 
 

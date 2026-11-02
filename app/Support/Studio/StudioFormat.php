@@ -6,6 +6,7 @@ use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use NumberFormatter;
 use Throwable;
+use App\Support\Intl;
 
 /**
  * Numbers and dates on studio pages (member design section 7, perf-19).
@@ -139,7 +140,7 @@ final class StudioFormat
      */
     private static function pattern(CarbonInterface $date, string $skeleton): ?string
     {
-        if (! class_exists(\IntlDatePatternGenerator::class) || ! class_exists(\IntlDateFormatter::class)) {
+        if (! Intl::available() || ! class_exists(\IntlDatePatternGenerator::class)) {
             return null;
         }
 
@@ -224,7 +225,7 @@ final class StudioFormat
         $amount = ((float) ($cents ?? 0)) / 100;
         $currency = strtoupper(trim($currency)) ?: 'EUR';
 
-        if (class_exists(NumberFormatter::class)) {
+        if (Intl::available()) {
             try {
                 $formatter = NumberFormatter::create(app()->getLocale().'@numbers=latn', NumberFormatter::CURRENCY);
                 $out = $formatter instanceof NumberFormatter ? $formatter->formatCurrency($amount, $currency) : false;
@@ -303,7 +304,7 @@ final class StudioFormat
 
     private static function formatter(int $decimals): ?NumberFormatter
     {
-        if (! class_exists(NumberFormatter::class)) {
+        if (! Intl::available()) {
             return null;
         }
 
