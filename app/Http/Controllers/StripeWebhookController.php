@@ -62,9 +62,12 @@ class StripeWebhookController extends Controller
             return response()->noContent();
         }
 
-        $customerId = $data['customer'] ?? null;
+        $customerId = $this->stringId($data['customer'] ?? null);
         $subscriptionStripeId = $this->subscriptionIdFromInvoice($data);
-        $stripeTransactionId = $data['payment_intent'] ?? $data['charge'] ?? $data['id'] ?? null;
+        $stripeTransactionId = $this->stringId($data['payment_intent'] ?? null)
+            ?? $this->stringId(data_get($data, 'payment_intent.id'))
+            ?? $this->stringId($data['charge'] ?? null)
+            ?? $this->stringId($data['id'] ?? null);
 
         if (blank($customerId) || blank($subscriptionStripeId) || blank($stripeTransactionId)) {
             return $this->ignoreWebhook('invoice.payment_succeeded missing customer, subscription, or transaction id.', $data);
@@ -135,8 +138,9 @@ class StripeWebhookController extends Controller
 
     public function onInvoiceUnPaid (array $data) : Response  {
 
-        $user = filled($data['customer'] ?? null)
-            ? User::where('stripe_id', $data['customer'])->first()
+        $customerId = $this->stringId($data['customer'] ?? null);
+        $user = $customerId !== null
+            ? User::where('stripe_id', $customerId)->first()
             : null;
 
         if ($user?->is_premium) {
@@ -148,10 +152,11 @@ class StripeWebhookController extends Controller
 
     public function onSubscriptionCreated (array $data) : Response  {
 
-        $customerId = $data['customer'] ?? null;
+        $customerId = $this->stringId($data['customer'] ?? null);
         $planStripeId = $this->planStripeId($data);
+        $subscriptionStripeId = $this->stringId($data['id'] ?? null);
 
-        if (blank($customerId) || blank($planStripeId) || blank($data['id'] ?? null)) {
+        if (blank($customerId) || blank($planStripeId) || blank($subscriptionStripeId)) {
             return $this->ignoreWebhook('customer.subscription.created missing customer, plan, or subscription id.', $data);
         }
 
@@ -173,7 +178,7 @@ class StripeWebhookController extends Controller
             'next_payment' => $this->timestampOrNull($periodEnd),
             'stripe_status' => $data['status'] ?? 'active',
             'plan_id' => $plan->id,
-            'stripe_id' => $data['id'],
+            'stripe_id' => $subscriptionStripeId,
             'ends_at' => null,
         ], $this->cardAttributes($card, !$user->premium_subscription));
 
@@ -196,13 +201,14 @@ class StripeWebhookController extends Controller
 
     public function onSubscriptionUpdated (array $data) : Response  {
 
-        $subscription = Subscription::where('payment_provider', 'stripe')
-            ->where('stripe_id', $data['id'] ?? null)
+        $subscriptionStripeId = $this->stringId($data['id'] ?? null);
+        $subscription = $subscriptionStripeId === null ? null : Subscription::where('payment_provider', 'stripe')
+            ->where('stripe_id', $subscriptionStripeId)
             ->first();
 
         if (!$subscription) {
             return $this->ignoreWebhook('customer.subscription.updated could not be mapped to a subscription.', [
-                'subscription' => $data['id'] ?? null,
+                'subscription' => $subscriptionStripeId,
             ]);
         }
 
@@ -245,18 +251,19 @@ class StripeWebhookController extends Controller
 
     public function onCustomerUpdated (array $data) : Response  {
 
-        $user = User::where('stripe_id', $data['id'] ?? null)->first();
+        $customerId = $this->stringId($data['id'] ?? null);
+        $user = $customerId === null ? null : User::where('stripe_id', $customerId)->first();
 
         if (!$user) {
             return $this->ignoreWebhook('customer.updated could not be mapped to a user.', [
-                'customer' => $data['id'] ?? null,
+                'customer' => $customerId,
             ]);
         }
 
         $subscription = Subscription::where('user_id', $user->id)->first();
 
         if ($subscription && data_get($data, 'invoice_settings.default_payment_method')) {
-            $card = $this->stripeService->getUserCard($data['id']);
+            $card = $this->stripeService->getUserCard($customerId);
 
             if ($card) {
                 $subscription->update($this->cardAttributes($card));
@@ -268,13 +275,14 @@ class StripeWebhookController extends Controller
 
     public function onSubscriptionDeleted (array $data) : Response  {
 
-        $subscription = Subscription::where('payment_provider', 'stripe')
-            ->where('stripe_id', $data['id'] ?? null)
+        $subscriptionStripeId = $this->stringId($data['id'] ?? null);
+        $subscription = $subscriptionStripeId === null ? null : Subscription::where('payment_provider', 'stripe')
+            ->where('stripe_id', $subscriptionStripeId)
             ->first();
 
         if (!$subscription) {
             return $this->ignoreWebhook('customer.subscription.deleted could not be mapped to a subscription.', [
-                'subscription' => $data['id'] ?? null,
+                'subscription' => $subscriptionStripeId,
             ]);
         }
 
@@ -290,14 +298,23 @@ class StripeWebhookController extends Controller
 
     private function subscriptionIdFromInvoice(array $data): ?string
     {
-        return $data['subscription'] ?? data_get($data, 'parent.subscription_details.subscription');
+        return $this->stringId($data['subscription'] ?? data_get($data, 'parent.subscription_details.subscription'));
     }
 
     private function planStripeId(array $data): ?string
     {
-        return data_get($data, 'plan.id')
+        return $this->stringId(data_get($data, 'plan.id')
             ?? data_get($data, 'items.data.0.price.id')
-            ?? data_get($data, 'items.data.0.plan.id');
+            ?? data_get($data, 'items.data.0.plan.id'));
+    }
+
+    /**
+     * An id taken from the event: a non-empty string, else null (the event is then ignored). A number would match any
+     * row in MySQL/MariaDB ('sub_...' = 0 is true there), and a missing id must never become "stripe_id IS NULL".
+     */
+    private function stringId(mixed $value): ?string
+    {
+        return is_string($value) && trim($value) !== '' ? $value : null;
     }
 
     private function periodEnd(array $data): ?int

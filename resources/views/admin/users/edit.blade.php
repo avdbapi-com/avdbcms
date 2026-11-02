@@ -1,11 +1,11 @@
 @extends('layouts.admin')
 
-@section('title', __('Edit User:') . ' ' . $user->username)
+@section('title', __('Edit User:') . \App\Support\LabelGap::admin() . $user->username)
 
 @section('content')
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h3 class="mb-0"><i class="fa-solid fa-user-edit me-2"></i>{{__('Edit User:')}} {{ $user->username }}</h3>
+        <h3 class="mb-0"><i class="fa-solid fa-user-edit me-2"></i>{{__('Edit User:')}}{{ \App\Support\LabelGap::admin() }}{{ $user->username }}</h3>
         <div class="d-flex gap-2">
             <a href="{{ route('admin.users.show', $user) }}" class="btn btn-info btn-sm"><i class="fa-solid fa-eye me-1"></i>{{__('View Profile')}}</a>
             <a href="{{ route('admin.users.index') }}" class="btn btn-secondary btn-sm"><i class="fa-solid fa-arrow-left me-1"></i>{{__('Back to Users')}}</a>
@@ -64,7 +64,7 @@
                     <h5>{{ $user->username }}</h5>
                     <p class="text-muted text-sm">{{ $user->email }}</p>
                     @if($user->is_admin)
-                        <span class="badge bg-danger">{{__('Admin')}}</span>
+                        <span class="badge bg-danger">{{__('Administrator')}}</span>
                     @endif
                     @if($user->is_premium)
                         <span class="badge bg-warning">{{__('Premium')}}</span>

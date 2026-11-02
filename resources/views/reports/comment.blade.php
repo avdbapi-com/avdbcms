@@ -17,9 +17,9 @@
     @endif
 </div>
 @if($report->reportable->user)
-    <a class="text-sm text-decoration-none badge rounded-pill text-bg-secondary" href="{{$report->reportable->user->route}}">{{$report->reportable->user->username}} : </a>
+    <a class="text-sm text-decoration-none badge rounded-pill text-bg-secondary" href="{{$report->reportable->user->route}}">{{ rtrim(\App\Support\AdminText::labelled((string) $report->reportable->user->username, '')) }}</a>{{ \App\Support\LabelGap::admin() }}
 @else
-    <span class="badge rounded-pill text-bg-secondary"><i class="fa-solid fa-user-slash me-1"></i>{{__('Deleted user')}} : </span>
+    <span class="badge rounded-pill text-bg-secondary"><i class="fa-solid fa-user-slash me-1"></i>{{ rtrim(\App\Support\AdminText::labelled(__('Deleted user'), '')) }}</span>{{ \App\Support\LabelGap::admin() }}
 @endif
 <x-expand-item>
     {{$report->reportable->content}}

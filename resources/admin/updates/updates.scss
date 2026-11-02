@@ -154,4 +154,24 @@
 
 @media (max-width: 767.98px) {
     .ad-upd .ad-upd-facts { grid-template-columns: minmax(0, 1fr); }
+
+    // Phones: a panel header with buttons (the result, the new release) and an update backup put their buttons under
+    // their text, which keeps the whole width (beside the buttons it was a column one word wide). Browsers without
+    // :has() keep the row as it was.
+    .ad-upd .ad-panel-h:has(> .ad-btn),
+    .ad-upd .ad-upd-backups > li {
+        flex-wrap: wrap;
+        row-gap: var(--s2);
+    }
+
+    .ad-upd .ad-panel-h:has(> .ad-btn) > .ad-home-grow,
+    .ad-upd .ad-upd-backups > li > .ad-li-text {
+        flex: 1 1 calc(100% - 32px - var(--s3));
+    }
+
+    // The first button lines up with the text above it (after the 32 px icon).
+    .ad-upd .ad-panel-h:has(> .ad-sym):has(> .ad-btn) > .ad-home-grow + .ad-btn,
+    .ad-upd .ad-upd-backups > li > .ad-li-text + * {
+        margin-inline-start: calc(32px + var(--s3));
+    }
 }

@@ -8,6 +8,10 @@ namespace App\Support\Updater;
  * its new keys, and keys only the owner's file has stay (an unchanged file is replaced as a whole instead, which is
  * how keys the release removed go away: from an edited file nobody can tell them from the owner's own keys).
  * Settings > Languages saves the same layout (keys sorted, 4-space indent, unescaped UTF-8 and slashes).
+ *
+ * The merge runs in the version before (the steps up to the swap are its code), so it cannot know which texts the new
+ * release corrected: Finish (the new version's code) gives the merged file those texts afterwards, wherever it still has
+ * exactly a text an older release shipped (ShippedTexts).
  */
 final class TranslationMerge
 {

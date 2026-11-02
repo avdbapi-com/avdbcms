@@ -16,6 +16,7 @@ use App\Support\AvdbCreatorAvatarFactory;
 use App\Support\ChannelCustomizationSettings;
 use Illuminate\Auth\Passwords\CanResetPassword;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Illuminate\Contracts\Translation\HasLocalePreference;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -31,7 +32,7 @@ use Illuminate\Support\Str;
 use Lab404\Impersonate\Models\Impersonate;
 use Laravel\Cashier\Billable;
 use Laravel\Sanctum\HasApiTokens;
-use Propaganistas\LaravelPhone\Casts\E164PhoneNumberCast;
+use App\Casts\StoredPhoneNumberCast;
 use Staudenmeir\EloquentHasManyDeep\HasManyDeep;
 use Staudenmeir\EloquentHasManyDeep\HasRelationships;
 use Symfony\Component\Intl\Countries;
@@ -40,7 +41,7 @@ use Symfony\Component\Intl\Countries;
  * @mixin IdeHelperUser
  */
 
-class User extends Authenticatable implements MustVerifyEmail, Reportable
+class User extends Authenticatable implements MustVerifyEmail, Reportable, HasLocalePreference
 {
     use HasFactory, Notifiable, HasRelationships, HasReport, Impersonate, Billable, Filterable, HasApiTokens, MustVerifyUpdatedEmail, MustVerifyPhone, CanResetPassword, SoftDeletes;
 
@@ -50,6 +51,8 @@ class User extends Authenticatable implements MustVerifyEmail, Reportable
     protected $hidden = [
         'password',
         'remember_token',
+        // "Pause history" (users.history_paused_at): the member's own setting
+        'history_paused_at',
     ];
 
     protected $casts = [
@@ -57,7 +60,8 @@ class User extends Authenticatable implements MustVerifyEmail, Reportable
         'show_subscribers' => 'boolean',
         'banned_at' => 'datetime',
         'last_login_at' => 'datetime',
-        'phone' => E164PhoneNumberCast::class,
+        // a stored number the phone library cannot read counts as no number (R1R-08: never a 500)
+        'phone' => StoredPhoneNumberCast::class,
         'phone_verified_at' => 'datetime',
         'channel_customization' => 'array',
         'is_view_only' => 'boolean',
@@ -67,6 +71,16 @@ class User extends Authenticatable implements MustVerifyEmail, Reportable
     public const string DEFAULT_AVATAR = '/images/default_men.png';
     public const string BANNER_FOLDER = 'banners';
     public const string DEFAULT_BANNER = '/images/default_banner.jpg';
+
+    /**
+     * The characters of a username (member design 6.9, auth-23): letters of any language, numbers, dots, dashes and
+     * underscores, the same rule on sign-up and in Account settings. A member who has an older name with other
+     * characters keeps it until they change it.
+     */
+    public const string USERNAME_PATTERN = '/^[\pL\pM\pN._-]+$/u';
+
+    /** The characters of a channel address (@handle): Latin letters, numbers, dots, dashes and underscores. */
+    public const string SLUG_PATTERN = '/^[a-zA-Z0-9._-]+$/';
 
     public function getRouteKey(): mixed
     {
@@ -94,10 +108,16 @@ class User extends Authenticatable implements MustVerifyEmail, Reportable
         }
 
         if (preg_match('/^(.+)-([a-z0-9]{8})$/i', $value, $matches)) {
-            return $this->where('profile_uid', strtolower($matches[2]))->first();
+            $uidMatch = $this->where('profile_uid', strtolower($matches[2]))->first();
+
+            if ($uidMatch) {
+                return $uidMatch;
+            }
         }
 
-        return $this->where('slug', $value)->first();
+        // QA watch-23: the handle members see and share (/@lofi_room, the username) opens the channel too, and so does
+        // a slug that only looks like "name-uid"; UserController@show then sends it to the canonical address (301).
+        return $this->where('slug', $value)->first() ?? $this->where('username', $value)->first();
     }
 
     public function hasVerifiedEmail()
@@ -311,11 +331,43 @@ class User extends Authenticatable implements MustVerifyEmail, Reportable
         );
     }
 
+    /**
+     * The password is stored hashed: every value given to `password` is hashed, also one that looks like a hash (a
+     * shipped 1.2.1 seeder passed Hash::make('password123'), and that account must stay without a usable password).
+     *
+     * Laravel's own rehash writes a FRESH HASH instead (EloquentUserProvider::rehashPasswordIfRequired(): the rehash
+     * on sign-in after the hashing cost or driver changed, with hashing.rehash_on_login on by default, and
+     * Auth::logoutOtherDevices()). It writes under getAuthPasswordName(), so that name is the separate
+     * `rehashed_password`, whose mutator stores the hash as it is: hashed a second time, the member could no longer
+     * sign in. Every read goes through getAuthPassword(), which returns the stored `password` column.
+     */
     protected function password(): Attribute
     {
         return Attribute::make(
             set: fn ($value) => Hash::make($value),
         );
+    }
+
+    /** The hash Laravel's rehash hands over (see password()), stored as it is in the `password` column. */
+    protected function rehashedPassword(): Attribute
+    {
+        return Attribute::make(
+            set: fn ($value) => ['password' => $value],
+        );
+    }
+
+    /** The attribute Laravel's rehash writes a fresh hash to (see password()). */
+    public function getAuthPasswordName(): string
+    {
+        return 'rehashed_password';
+    }
+
+    /** The stored password hash (read by sign-in, password checks and the session's password hash). */
+    public function getAuthPassword(): ?string
+    {
+        $hash = $this->attributes['password'] ?? null;
+
+        return is_string($hash) ? $hash : null;
     }
 
     protected function countryName(): Attribute
@@ -519,6 +571,28 @@ class User extends Authenticatable implements MustVerifyEmail, Reportable
     public function stripePhone(): ?string
     {
         return $this->hasVerifiedPhone() ? $this->phone : null;
+    }
+
+    /**
+     * The language of the member's e-mails and notifications (member design 6.21): the
+     * language they use on the site (users.language, set at sign-in and by the language switch) when the site offers
+     * it, else the site's default language. Laravel sends every notification and mailable to this member in it.
+     */
+    public function preferredLocale(): string
+    {
+        $languages = (array) config('languages', []);
+        $language = trim((string) ($this->getAttribute('language') ?? ''));
+
+        if ($language !== '' && array_key_exists($language, $languages)) {
+            return $language;
+        }
+
+        // the site's language: on the web the setting applyDbSettings() put in site.default_locale, in a console process
+        // (the scheduler's and the queue's mails) the one site_default_locale() reads there, never the configured
+        // app.locale (judge R1-051)
+        $default = site_default_locale();
+
+        return array_key_exists($default, $languages) || $languages === [] ? $default : (string) array_key_first($languages);
     }
 
     public static function generateSlug(string $username) : string {

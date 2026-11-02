@@ -69,9 +69,8 @@
         </aside>
     </div>
 
-    @if ($form['hiddenExpert'] > 0)
-        <p class="ad-small ad-faint ad-appearance-note">{{ __('Settings for developers on this page: :count. They appear in Developer mode (account menu).', ['count' => $form['hiddenExpert']]) }}</p>
-    @endif
+    {{-- The developer settings of this page while Developer mode is off: named, with the switch (never a value). --}}
+    @include('admin.settings.partials.developer-only', ['developerOnly' => $form['developerOnly'] ?? [], 'pageId' => $pageId])
 
     @include('admin.appearance.partials.history')
     @include('admin.appearance.partials.state')

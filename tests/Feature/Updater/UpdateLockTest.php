@@ -8,10 +8,11 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Symfony\Component\Process\Process;
 use Tests\Feature\Updater\Support\UpdaterScenario;
+use Tests\Support\WaitsForChildProcess;
 use Tests\TestCase;
 
 /**
- * One update at a time (F8 14, 18 "Locks"): while a plan runs, another administrator's start, step, cancel and undo
+ * One update at a time: while a plan runs, another administrator's start, step, cancel and undo
  * are refused with "An update to X.Y.Z is being installed by :name since :time."; a plan with no step for 30 minutes
  * is stalled, and then any administrator may continue it (it becomes theirs) or cancel it while no file has moved; two
  * steps at the same moment (another PHP process holding storage/app/updates/update.lock) never run together: the
@@ -21,6 +22,7 @@ class UpdateLockTest extends TestCase
 {
     use RefreshDatabase;
     use UpdaterScenario;
+    use WaitsForChildProcess;
 
     private const BUSY = 'Another step of the update is running. Wait a moment.';
 
@@ -205,12 +207,15 @@ class UpdateLockTest extends TestCase
     {
         $this->updater()->start($this->admin);
         $holder = $this->box->path('hold-lock.php');
-        file_put_contents($holder, "<?php\n\$h = fopen(\$argv[1], 'c');\nif (! flock(\$h, LOCK_EX)) { exit(1); }\necho \"locked\\n\";\nsleep(30);\n");
-        $process = new Process([PHP_BINARY, '-n', $holder, $this->box->paths()->lock()], $this->box->base, null, null, 60);
+        $marker = $this->box->path('hold-lock.locked');
+        // It holds the lock, then says so in a marker file (R1R-16: its "locked" line could miss Process::waitUntil()'s
+        // callback, which then waited until the holder ended and the lock was free again).
+        file_put_contents($holder, "<?php\n\$h = fopen(\$argv[1], 'c');\nif (! flock(\$h, LOCK_EX)) { exit(1); }\necho \"locked\\n\";\nfile_put_contents(\$argv[2], 'locked');\nsleep(30);\n");
+        $process = new Process([PHP_BINARY, '-n', $holder, $this->box->paths()->lock(), $marker], $this->box->base, null, null, 60);
         $process->start();
 
         try {
-            $process->waitUntil(fn (string $type, string $output): bool => str_contains($output, 'locked'));
+            $this->waitForMarker($process, $marker, 20, 'the PHP process that holds the update lock');
 
             $busy = $this->updater()->step($this->admin);
 

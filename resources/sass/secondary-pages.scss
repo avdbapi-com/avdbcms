@@ -112,10 +112,6 @@ html[data-avd-secondary-pages="on"] {
             border-radius: 18px;
         }
 
-        &.avd-profile-settings .card,
-        .avd-profile-settings .card {
-            overflow: visible;
-        }
 
         .card-header,
         .card-footer {
@@ -239,54 +235,6 @@ html[data-avd-secondary-pages="on"] {
         font-weight: 820;
     }
 
-    .avd-profile-settings > .row,
-    .avd-profile-settings > [x-data] > .row {
-        padding: 1rem 0;
-        border-top: 1px solid var(--avd-border);
-    }
-
-    .avd-profile-settings > .row:first-of-type,
-    .avd-profile-settings > [x-data] > .row:first-of-type {
-        border-top: 0;
-    }
-
-    .avd-profile-settings h2 {
-        font-size: 1.15rem;
-        font-weight: 950;
-        letter-spacing: 0;
-    }
-
-    .avd-profile-settings .card.shadow-soft {
-        margin-top: 0 !important;
-    }
-
-    .avd-premium-page .avd-premium-price-line {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.45rem 0.75rem;
-        align-items: center;
-        color: var(--avd-text);
-        font-size: clamp(1.05rem, 1.8vw, 1.35rem);
-        font-weight: 850;
-    }
-
-    .avd-premium-page .avd-premium-price-line span {
-        display: inline-flex;
-    }
-
-    .avd-premium-plan-card .card-title {
-        font-weight: 950;
-        letter-spacing: 0;
-    }
-
-    .avd-premium-plan-card .list-group-item {
-        gap: 1rem !important;
-    }
-
-    .avd-premium-page .step {
-        padding: 0.45rem 0;
-    }
-
     .avd-contact-panel {
         overflow: hidden;
     }
@@ -380,11 +328,6 @@ html[data-avd-secondary-pages="on"] {
             justify-content: center;
         }
 
-        .avd-profile-settings > .row,
-        .avd-profile-settings > [x-data] > .row {
-            padding: 0.8rem 0;
-        }
-
         .avd-subscription-card .position-relative {
             padding: 1rem !important;
         }
@@ -405,78 +348,6 @@ html[data-avd-secondary-pages="on"] {
 
         .avd-secondary-page .table {
             min-width: max-content;
-        }
-
-        .avd-profile-settings .table {
-            min-width: 680px;
-        }
-
-        .avd-profile-settings .card-body {
-            padding: 0.85rem;
-        }
-
-        .avd-profile-settings .btn {
-            max-width: 100%;
-            white-space: normal;
-        }
-
-        .avd-profile-settings .avd-mobile-card-table-wrap {
-            overflow: visible;
-        }
-
-        .avd-profile-settings .avd-devices-table {
-            min-width: 0 !important;
-            border-collapse: separate;
-            border-spacing: 0 0.72rem;
-        }
-
-        .avd-profile-settings .avd-devices-table thead {
-            display: none;
-        }
-
-        .avd-profile-settings .avd-devices-table,
-        .avd-profile-settings .avd-devices-table tbody,
-        .avd-profile-settings .avd-devices-table tr,
-        .avd-profile-settings .avd-devices-table td {
-            display: block;
-            width: 100%;
-        }
-
-        .avd-profile-settings .avd-devices-table tr {
-            overflow: hidden;
-            padding: 0.68rem 0.78rem;
-            border: 1px solid var(--avd-border);
-            border-radius: 14px;
-            background: var(--avd-surface-soft);
-        }
-
-        .avd-profile-settings .avd-devices-table td {
-            display: grid;
-            grid-template-columns: minmax(6.25rem, 42%) minmax(0, 1fr);
-            gap: 0.65rem;
-            align-items: center;
-            padding: 0.48rem 0;
-            border: 0;
-            border-bottom: 1px solid var(--avd-border);
-            color: var(--avd-text);
-            overflow-wrap: anywhere;
-        }
-
-        .avd-profile-settings .avd-devices-table td:last-child {
-            border-bottom: 0;
-        }
-
-        .avd-profile-settings .avd-devices-table td::before {
-            content: attr(data-label);
-            color: var(--avd-muted);
-            font-size: 0.72rem;
-            font-weight: 950;
-            line-height: 1.2;
-            text-transform: uppercase;
-        }
-
-        .avd-profile-settings .avd-devices-table dynamic-input {
-            min-width: 0;
         }
     }
 }

@@ -26,7 +26,8 @@ def excluded(name):
     top, leaf = parts[0], parts[-1]
     return (
         top.startswith('chat-export')
-        or top in {'.git', '.agents', '.tools', 'scratch', 'tests', 'scripts', 'build', 'node_modules', 'ops', 'deploy'}
+        or top in {'.git', '.agents', '.tools', 'scratch', 'tests', 'scripts', 'build', 'node_modules', 'ops', 'deploy', 'docker'}
+        or name == 'docker-compose.yml'
         or (leaf.startswith('.env') and leaf != '.env.example')
         or leaf == '.user.ini' or name == 'storage/app/installed.json'
         or (name.startswith('database/install/') and leaf.endswith('.sql'))

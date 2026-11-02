@@ -46,7 +46,22 @@ return [
     |
     */
 
-    'expiration' => env('SANCTUM_TOKEN_EXPIRATION', 43200), // 30 days
+    // SANCTUM_TOKEN_EXPIRATION from .env is text ("43200"): a number of minutes (30 days by default). Empty, null,
+    // false or 0 = tokens never expire; a negative number or other text falls back to the 30 days, so a typo never
+    // makes tokens last forever. Every reader (the API sign-in and sign-up, Sanctum's guard, sanctum:prune-expired)
+    // gets an int or null, also from a cached config.
+    'expiration' => (static function (): ?int {
+        $minutes = env('SANCTUM_TOKEN_EXPIRATION', 43200);
+        if ($minutes === null || $minutes === '' || $minutes === false) {
+            return null;
+        }
+        if (! is_numeric($minutes)) {
+            return 43200;
+        }
+        $minutes = (int) $minutes;
+
+        return $minutes > 0 ? $minutes : ($minutes === 0 ? null : 43200);
+    })(),
 
     /*
     |--------------------------------------------------------------------------

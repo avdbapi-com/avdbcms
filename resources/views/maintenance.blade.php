@@ -1,28 +1,5 @@
-@php
-    $locale = str_replace('_', '-', (string) app()->getLocale());
-    $languageConfig = (array) config('languages.' . app()->getLocale(), []);
-    $baseLocale = strtolower((string) explode('-', $locale)[0]);
-    $isRtl = array_key_exists('rtl', $languageConfig)
-        ? (bool) $languageConfig['rtl']
-        : in_array($baseLocale, ['ar', 'fa', 'he', 'ur'], true);
-@endphp
-<!DOCTYPE html>
-<html lang="{{ $locale }}" dir="{{ $isRtl ? 'rtl' : 'ltr' }}" data-bs-theme="{{ \App\Models\Setting::getGroup('appearance')['theme'] ?? 'light' }}">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ $title }} | {{ config('app.name') }}</title>
-    @vite(['resources/js/app.ts'])
-</head>
-<body class="d-flex align-items-center justify-content-center min-vh-100">
-    <div class="text-center px-4" style="max-width: 600px;">
-        <div class="mb-4">
-            <i class="fa-solid fa-screwdriver-wrench fa-4x text-warning"></i>
-        </div>
-        <h1 class="display-5 fw-bold">{{ $title }}</h1>
-        <p class="lead text-muted mt-3">{{ $message }}</p>
-        <hr>
-        <p class="text-muted small">&mdash; {{ config('app.name') }} {{__('Team')}}</p>
-    </div>
-</body>
-</html>
+{{-- The site's own maintenance mode (Settings > Maintenance, App\Http\Middleware\CheckMaintenanceMode): the same status
+     card as a 503 (member design 6.15) with the admin's maintenance message, in the site's header and slim footer;
+     it reloads by itself after the admin's "retry after". The middleware passes $message (the admin's text) and $title
+     (not shown: the card's own words are translated). --}}
+@include('errors.503', ['maintenanceMessage' => isset($message) && is_string($message) ? $message : (string) config('site.maintenance_message', '')])

@@ -156,6 +156,13 @@ html[data-avd-radius] .suggested_video.avd-related-card .avd-thumb {
     }
 }
 
+/* One hover rule for every button of the site (member design 4.2, owner decision OD-M16; the owner's
+   "+ Create Video" flash, perf-1, account-3, auth-4, watch-4): hover, focus and press change colour, background,
+   border colour, box-shadow or opacity only, in 150 ms or less. Nothing moves, sweeps or loops: no ::before sweep
+   (it was a 620 ms translateX across every button), no translateY(-2px) lift, no scale(.97) press, no scale(1.12)
+   icon and no blurred, looping glow. The hit box never moves, so no button leaves and re-enters its own hover
+   area (edge jitter) and none can toggle a scrollbar of its container. The layout's last rule block
+   (layout-theme-b.css, "One hover rule") holds the same rule against the looks' and settings' own rules. */
 .btn,
 .avd-icon-button,
 .avd-sidebar-toggle,
@@ -174,30 +181,11 @@ html[data-avd-radius] .suggested_video.avd-related-card .avd-thumb {
        layering, without a permanent compositor layer (was translateZ(0)). */
     isolation: isolate;
     transition:
-        transform var(--avd-motion-med) var(--avd-ease-out),
-        box-shadow var(--avd-motion-med) var(--avd-ease-out),
-        border-color var(--avd-motion-fast) ease,
-        background-color var(--avd-motion-fast) ease,
-        color var(--avd-motion-fast) ease,
-        opacity var(--avd-motion-fast) ease;
-}
-
-.btn::before,
-.avd-icon-button::before,
-.avd-tag::before,
-.avd-sidebar-link::before,
-.avd-social-btn::before,
-.avd-player-control::before,
-.back-to-top::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    z-index: 0;
-    background: linear-gradient(120deg, transparent 0%, rgba(255, 255, 255, 0.26) 45%, transparent 72%);
-    opacity: 0;
-    pointer-events: none;
-    transform: translateX(-135%);
-    transition: opacity var(--avd-motion-fast) ease, transform 620ms var(--avd-ease-out);
+        color 120ms ease,
+        background-color 120ms ease,
+        border-color 120ms ease,
+        box-shadow 120ms ease,
+        opacity 120ms ease;
 }
 
 .btn > *,
@@ -211,59 +199,17 @@ html[data-avd-radius] .suggested_video.avd-related-card .avd-thumb {
     z-index: 1;
 }
 
-.btn:hover::before,
-.avd-icon-button:hover::before,
-.avd-tag:hover::before,
-.avd-sidebar-link:hover::before,
-.avd-social-btn:hover::before,
-.avd-player-control:hover::before,
-.back-to-top:hover::before {
-    opacity: 1;
-    transform: translateX(135%);
-}
-
-.btn:hover,
-.avd-icon-button:hover,
-.avd-sidebar-toggle:hover,
-.avd-avatar-button:hover,
-.avd-social-btn:hover,
-.avd-player-control:hover,
-.back-to-top:hover {
-    transform: translateY(-2px);
-}
-
-.btn:active,
-.avd-icon-button:active,
-.avd-sidebar-toggle:active,
-.avd-social-btn:active,
-.avd-player-control:active,
-.back-to-top:active {
-    transform: translateY(0) scale(0.97);
-}
-
-.back-to-top:not(.visible) {
-    /* 2D form of the old translate3d(): same pixels, no permanent compositor layer
-       while the button waits hidden at the top of every page. */
-    transform: translate(0, 14px) scale(0.92);
-}
-
 .back-to-top {
     position: fixed;
     inset-inline-end: 1.25rem;
     inset-inline-end: calc(1rem + env(safe-area-inset-right, 0px));
-    left: auto !important;
     bottom: 1.25rem;
     bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
 }
 
-.back-to-top.visible {
-    transform: none;
-}
-
-.back-to-top.visible:hover {
-    transform: translateY(-2px);
-}
-
+/* Icons inside buttons take the button's colour as it changes (the 1.12 scale and its 260 ms transform transition are
+   gone). No colour transition of their own: one on top of the button's chained the two, and the icon was still changing
+   at 240 ms (the footer's social buttons repainted after 150 ms). */
 .btn i,
 .avd-icon-button i,
 .avd-sidebar-toggle i,
@@ -275,89 +221,47 @@ html[data-avd-radius] .suggested_video.avd-related-card .avd-thumb {
 .avd-meta-chip i,
 .avd-status-chip i,
 .back-to-top i {
-    transform-origin: center;
-    transition: transform var(--avd-motion-med) var(--avd-ease-snap), color var(--avd-motion-fast) ease, opacity var(--avd-motion-fast) ease;
-}
-
-.btn:hover i,
-.avd-icon-button:hover i,
-.avd-sidebar-toggle:hover i,
-.avd-tag:hover i,
-.avd-sidebar-link:hover i,
-.avd-player-control:hover i,
-.avd-social-btn:hover i,
-.avd-action-pill:hover i,
-.avd-meta-chip:hover i,
-.avd-status-chip:hover i,
-.back-to-top:hover i {
-    transform: translateY(-1px) scale(1.12);
+    transition: opacity 120ms ease;
 }
 
 .btn-primary,
-.avd-tag.active,
-.back-to-top {
+.avd-tag.active {
     isolation: isolate;
 }
 
+/* The primary button's glow: a STATIC brand gradient behind the label (no blur filter, no background-position
+   loop) whose opacity fades in on hover. "Back to top" has no glow layer: its ::after is the floating pill's label
+   (layout-theme-a.css, back_to_top_style). */
 .btn-primary::after,
-.avd-tag.active::after,
-.back-to-top::after {
+.avd-tag.active::after {
     content: "";
     position: absolute;
     inset: -1px;
     z-index: -1;
     border-radius: inherit;
-    background: linear-gradient(90deg, var(--avd-brand), var(--avd-brand-2), var(--avd-cyan), var(--avd-brand));
-    background-size: 260% 100%;
+    background: linear-gradient(90deg, rgba(var(--avd-brand-rgb), 0.55), rgba(var(--avd-brand-2-rgb, var(--avd-brand-rgb)), 0.4), rgba(var(--avd-cyan-rgb, var(--avd-brand-rgb)), 0.35));
     opacity: 0;
-    filter: blur(14px);
-    transition: opacity var(--avd-motion-med) ease;
-    /* The glow sits at opacity 0 at rest, so an always-running background-position
-       loop never painted a visible pixel; it now runs only while hovered. */
+    pointer-events: none;
+    transition: opacity 120ms ease;
     animation: none;
 }
 
-.btn-primary:hover::after,
-.avd-tag.active:hover::after,
-.back-to-top:hover::after {
-    opacity: 0.45;
-}
-
 @media (hover: hover) and (pointer: fine) {
-    /* With liquid shimmer on, the layout resets .btn-primary::after's background-size,
-       so the shift could never change a pixel there. */
-    html:not([data-avd-liquid-shimmer="on"]) .btn-primary:hover::after,
-    .avd-tag.active:hover::after,
-    .back-to-top:hover::after {
-        animation: avd-gradient-shift 7s ease infinite;
+    .btn-primary:hover::after,
+    .avd-tag.active:hover::after {
+        opacity: 0.32;
     }
 }
 
+/* The brand mark answers a hover with its glow only (it used to tilt, grow and sweep a 720 ms conic sheen). */
 .avd-brand-mark {
     position: relative;
     overflow: hidden;
-    transition: transform var(--avd-motion-med) var(--avd-ease-out), box-shadow var(--avd-motion-med) var(--avd-ease-out), filter var(--avd-motion-med) ease;
-}
-
-.avd-brand-mark::after {
-    content: "";
-    position: absolute;
-    inset: -40%;
-    background: conic-gradient(from 180deg, transparent, rgba(255, 255, 255, 0.48), transparent 38%);
-    opacity: 0;
-    transform: rotate(-35deg);
-    transition: opacity var(--avd-motion-med) ease, transform 720ms var(--avd-ease-out);
+    transition: box-shadow 120ms ease;
 }
 
 .navbar-brand.avd-brand:hover .avd-brand-mark {
-    transform: translateY(-1px) rotate(-3deg) scale(1.04);
-    filter: saturate(1.08);
     box-shadow: var(--avd-glow-brand);
-}
-
-.navbar-brand.avd-brand:hover .avd-brand-mark::after {
-    opacity: 1;
-    transform: rotate(55deg);
 }
 
 .avd-header {
@@ -377,20 +281,12 @@ html[data-avd-radius] .suggested_video.avd-related-card .avd-thumb {
     box-shadow: 0 18px 48px rgba(0, 0, 0, 0.34);
 }
 
+/* The search field never moves on focus (it lifted by 1px) and its button icon never grows or turns. */
 .avd-search-wrap .input-group {
     transition:
-        transform var(--avd-motion-med) var(--avd-ease-out),
-        border-color var(--avd-motion-fast) ease,
-        box-shadow var(--avd-motion-med) ease,
-        background-color var(--avd-motion-fast) ease;
-}
-
-.avd-search-wrap:focus-within .input-group {
-    transform: translateY(-1px);
-}
-
-.avd-search-wrap .btn:hover i {
-    transform: scale(1.16) rotate(-8deg);
+        border-color 120ms ease,
+        box-shadow 120ms ease,
+        background-color 120ms ease;
 }
 
 .avd-search-results {
@@ -403,30 +299,22 @@ html[data-avd-radius] .suggested_video.avd-related-card .avd-thumb {
     overflow: hidden;
 }
 
+/* A suggestion is marked by its bar and its background; the row and its thumbnail stay where they are under the
+   pointer (they slid 2px and zoomed 6%). */
 .avd-search-result::before {
     content: "";
     position: absolute;
-    inset: 0 auto 0 0;
+    inset-block: 0;
+    inset-inline-start: 0;
     width: 3px;
     background: linear-gradient(180deg, var(--avd-brand), var(--avd-cyan));
     opacity: 0;
-    transform: scaleY(0.35);
-    transform-origin: center;
-    transition: opacity var(--avd-motion-fast) ease, transform var(--avd-motion-med) var(--avd-ease-out);
+    transition: opacity 120ms ease;
 }
 
 .avd-search-result:hover::before,
 .avd-search-result.selected::before {
     opacity: 1;
-    transform: scaleY(1);
-}
-
-.avd-search-result:hover .avd-search-thumb img {
-    transform: scale(1.06);
-}
-
-.avd-search-result:hover {
-    transform: translateX(2px);
 }
 
 .avd-home-title,
@@ -437,10 +325,10 @@ html[data-avd-radius] .suggested_video.avd-related-card .avd-thumb {
     background-clip: text;
     color: transparent;
     /* Bounded on every device: background-position over clipped text repaints on the
-       main thread each frame, so an infinite loop kept the page from ever idling.
-       Two sweeps, then it rests on the loop's own first/last frame (fill: both keeps
-       it in effect for the motion scheduler's catch-up pass). */
-    animation: avd-title-sheen 9s ease-in-out 2 both;
+       main thread each frame, so a loop kept the page from ever idling (channel-33: 295 paints
+       in 2 s on /discover for 18 s). One short sweep, then it rests on the loop's own first/last
+       frame (fill: both keeps it in effect for the motion scheduler's catch-up pass). */
+    animation: avd-title-sheen 4.5s ease-in-out 1 both;
 }
 
 /* One-shot replay on hover (fine pointer). The motion scheduler sets
@@ -452,7 +340,7 @@ html[data-avd-radius] .suggested_video.avd-related-card .avd-thumb {
 .avd-home-title[data-avd-replay],
 .avd-watch-title[data-avd-replay] {
     animation:
-        avd-title-sheen 9s ease-in-out 2 both,
+        avd-title-sheen 4.5s ease-in-out 1 both,
         avd-title-sheen-replay 3.2s ease-in-out 1;
 }
 
@@ -482,26 +370,28 @@ html[data-avd-home-widget-motion="off"] [data-avd-home-widget] {
     will-change: auto;
 }
 
+/* A chip answers a hover with its glow; it no longer lifts (the hit box stays under the pointer). */
 .avd-tag:hover {
-    transform: translateY(-2px);
     box-shadow: var(--avd-glow-cyan);
 }
 
 .avd-tag.active {
-    /* Bounded on every device (box-shadow is main-thread paint): three pulses, then
-       fill: both holds the loop's resting frame, which is exactly what an
-       always-running pulse showed between beats. */
-    animation: avd-soft-pulse 3.6s ease-in-out 3 both;
+    /* Bounded on every device (box-shadow is main-thread paint): one pulse after load, then
+       fill: both holds its resting frame (the chip's own active shadow). */
+    animation: avd-soft-pulse 3.6s ease-in-out 1 both;
 }
 
-/* One pulse per hover (fine pointer) or keyboard focus (:focus-visible), set as
-   [data-avd-replay] by the motion scheduler and cleared when that pulse ends (see the
-   title rule above). The base pulse stays first in the list (same name, same timing),
-   so it is never restarted; a resting pointer does not keep a loop alive. */
+/* The one hover rule (member design 4.2): a hover or a keyboard focus no longer replays the
+   pulse (the motion scheduler's [data-avd-replay] ran a 3.6 s box-shadow loop under the pointer,
+   5 distinct frames in a hover sweep). The rule keeps the base animation unchanged, so setting
+   the attribute restarts nothing; a chip under the pointer holds its current frame. */
 .avd-tag.active[data-avd-replay] {
-    animation:
-        avd-soft-pulse 3.6s ease-in-out 3 both,
-        avd-soft-pulse-replay 3.6s ease-in-out 1;
+    animation: avd-soft-pulse 3.6s ease-in-out 1 both;
+}
+
+.avd-tag.active:hover,
+.avd-tag.active:focus-visible {
+    animation-play-state: paused;
 }
 
 /* Replay when the chip comes back into view (see the title rule above). Kept after
@@ -522,7 +412,7 @@ html[data-avd-tier="balanced"] .avd-watch-title {
 }
 
 html[data-avd-tier="balanced"] .avd-tag.active {
-    animation-iteration-count: 2, 1;
+    animation-iteration-count: 1;
 }
 
 html[data-avd-tier="balanced"]:not([data-avd-boot="idle"]) .avd-home-title,
@@ -531,16 +421,20 @@ html[data-avd-tier="balanced"]:not([data-avd-boot="idle"]) .avd-tag.active {
     animation-play-state: paused;
 }
 
+/* Side menu links answer a hover with their colours (motion.scss used to slide them 4px, scale their icon and sweep
+   a sheen across them). The selected item's icon breathes once after load, then rests (it breathed forever on the
+   rich tier: 11 of 12 frames at rest), and holds still under the pointer (a hover sweep: 1 frame per link). */
 .avd-sidebar-link {
     isolation: isolate;
 }
 
-.avd-sidebar-link:hover {
-    transform: translateX(4px);
+.avd-sidebar-link.menu-selected i {
+    animation: avd-icon-breathe 2.8s ease-in-out 1 both;
 }
 
-.avd-sidebar-link.menu-selected i {
-    animation: avd-icon-breathe 2.8s ease-in-out infinite;
+.avd-sidebar-link:hover i,
+.avd-sidebar-link:focus-visible i {
+    animation-play-state: paused;
 }
 
 .avd-video-card,
@@ -593,14 +487,11 @@ html[data-avd-tier="balanced"]:not([data-avd-boot="idle"]) .avd-tag.active {
     transition: opacity var(--avd-motion-med) ease;
 }
 
-.avd-video-card > *,
-.video-card-modern > *,
-.suggested_video.avd-related-card > *,
-.avd-channel-card > *,
-.avd-section-card > *,
-.avd-channel-panel > *,
-.avd-description-panel > *,
-.avd-watch-sidebar-panel > * {
+/* The card's content over its hover layers, at zero specificity (:where): a child that places itself keeps its own
+   position. As (0,1,0), later than video.scss, this pulled the card menu (.avd-card-menu, absolute over the top
+   corner of the thumbnail) into the flow under the thumbnail: an empty band under every card and, on touch screens,
+   a 44px button sticking out past the card's start edge (channel-7). */
+:where(.avd-video-card, .video-card-modern, .suggested_video.avd-related-card, .avd-channel-card, .avd-section-card, .avd-channel-panel, .avd-description-panel, .avd-watch-sidebar-panel) > * {
     position: relative;
     z-index: 1;
 }
@@ -663,12 +554,11 @@ body:not(.avd-admin) .avd-spotlight-active > .avd-card-hotspot {
     opacity: 1;
 }
 
+// Cards lift on hover (the owner's "card hover effects"); the panels that hold controls (channel, description and side
+// panels) stay where they are, so their buttons never move under the pointer (member design 4.2).
 .avd-video-card:hover,
 .video-card-modern:hover,
-.avd-channel-card:hover,
-.avd-channel-panel:hover,
-.avd-description-panel:hover,
-.avd-watch-sidebar-panel:hover {
+.avd-channel-card:hover {
     transform: translateY(-3px);
 }
 
@@ -695,25 +585,36 @@ body:not(.avd-admin) .avd-spotlight-active > .avd-card-hotspot {
         linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent 38%);
     opacity: 0;
     pointer-events: none;
-    transform: translateX(-120%);
-    transition: opacity var(--avd-motion-fast) ease, transform 720ms var(--avd-ease-out);
+    // A still highlight that fades in (it swept across the picture in 720 ms, repainting under the card's quick
+    // actions; member design 4.2: nothing sweeps).
+    transition: opacity 120ms ease;
 }
 
 .avd-video-card:hover .avd-thumb::before,
 .video-card-modern:hover .thumbnail-hover-container::before,
 .suggested_video.avd-related-card:hover .avd-thumb::before {
-    opacity: 1;
-    transform: translateX(120%);
+    opacity: 0.6;
 }
 
 .avd-duration {
     transition: transform var(--avd-motion-med) var(--avd-ease-out), background-color var(--avd-motion-fast) ease, box-shadow var(--avd-motion-med) ease;
 }
 
-.avd-video-card:hover .avd-duration,
-.suggested_video.avd-related-card:hover .avd-duration {
+.avd-video-card:hover .avd-duration {
     transform: translateY(-2px);
     box-shadow: 0 8px 18px rgba(var(--avd-shade-rgb, 0, 0, 0), 0.28);
+}
+
+// The watch page's related cards stay still on hover (their Watch Later and Share buttons sit on the picture): the
+// length badge only takes its shadow, and the picture's shadow and the badge's settle within 120 ms (member design
+// 4.2: nothing repaints under a button 150 ms after the pointer rests on it).
+.suggested_video.avd-related-card:hover .avd-duration {
+    box-shadow: 0 8px 18px rgba(var(--avd-shade-rgb, 0, 0, 0), 0.28);
+}
+
+.suggested_video.avd-related-card .avd-thumb,
+.suggested_video.avd-related-card .avd-duration {
+    transition-duration: 120ms;
 }
 
 .avd-channel-avatar,
@@ -809,14 +710,6 @@ body:not(.avd-admin) .avd-spotlight-active > .avd-card-hotspot {
     box-shadow: var(--avd-glow-cyan);
 }
 
-.modal .fa-stack i {
-    transition: transform var(--avd-motion-med) var(--avd-ease-snap);
-}
-
-.modal .fa-stack:hover i {
-    transform: scale(1.1) rotate(-4deg);
-}
-
 .form-control:hover,
 .form-select:hover,
 textarea:hover,
@@ -824,18 +717,15 @@ textarea.form-control:hover {
     border-color: var(--avd-border-strong);
 }
 
-.form-control:focus,
-.form-select:focus,
-textarea:focus,
-textarea.form-control:focus {
-    transform: translateY(-1px);
-}
-
 .avd-footer {
     position: relative;
     overflow: hidden;
 }
 
+/* The footer's light scan (account-41): it rests on its resting frame on every tier (it looped every 14 s forever:
+   13-17 repaints a second with nothing touched; its one pass on the rich tier still swept under the
+   footer's links and social buttons for five seconds once the footer came into view, member design 4.2: nothing
+   sweeps). Footer links change colour on hover (they slid 3px). */
 .avd-footer::before {
     content: "";
     position: absolute;
@@ -847,19 +737,14 @@ textarea.form-control:focus {
     background:
         linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.12) 48%, transparent 72%),
         linear-gradient(135deg, rgba(var(--avd-brand-rgb), 0.06), transparent 42%, rgba(var(--avd-cyan-rgb), 0.06));
-    opacity: 0.45;
+    opacity: 0;
     transform: translateX(-80%);
-    animation: avd-surface-scan 14s ease-in-out infinite;
+    animation: none;
 }
 
 .avd-footer-inner {
     position: relative;
     z-index: 1;
-}
-
-.avd-footer-col a:hover,
-.avd-footer-bottom-links a:hover {
-    transform: translateX(3px);
 }
 
 .copy-toast.show {
@@ -932,22 +817,6 @@ textarea.form-control:focus {
     }
     50% {
         transform: scale(1.12);
-    }
-}
-
-@keyframes avd-surface-scan {
-    0%,
-    28% {
-        transform: translateX(-86%);
-        opacity: 0;
-    }
-    44% {
-        opacity: 0.48;
-    }
-    64%,
-    100% {
-        transform: translateX(86%);
-        opacity: 0;
     }
 }
 

@@ -124,7 +124,7 @@
                             <div class="fw-semibold">{{ Str::limit($job->summary, 80) }}</div>
                             <small class="text-muted">{{ Str::limit($job->display_name, 110) }}</small>
                             @if($job->uuid)
-                                <div><small class="text-muted">{{__('UUID')}}: <code>{{ $job->uuid }}</code></small></div>
+                                <div><small class="text-muted">{{ \App\Support\AdminText::labelled(__('UUID'), '') }}<code>{{ $job->uuid }}</code></small></div>
                             @endif
                         </td>
                         @php
@@ -136,9 +136,9 @@
                         </td>
                         <td>{{ $job->attempts }}</td>
                         <td>
-                            <small class="d-block">{{__('Created')}}: {{ $job->created_label }}</small>
-                            <small class="d-block">{{__('Available')}}: {{ $job->available_label }}</small>
-                            @if($job->reserved_label)<small class="d-block">{{__('Reserved')}}: {{ $job->reserved_label }}</small>@endif
+                            <small class="d-block">{{ \App\Support\AdminText::labelled(__('Created'), (string) $job->created_label) }}</small>
+                            <small class="d-block">{{ \App\Support\AdminText::labelled(__('Available'), (string) $job->available_label) }}</small>
+                            @if($job->reserved_label)<small class="d-block">{{ \App\Support\AdminText::labelled(__('Reserved'), (string) $job->reserved_label) }}</small>@endif
                         </td>
                         <td>
                             <div class="d-flex flex-wrap gap-1">
@@ -264,7 +264,8 @@
                     <tbody>
                     @forelse($activityLogs as $log)
                         <tr>
-                            <td><code>{{ $log->action }}</code><div class="text-muted small">{{ $log->details }}</div></td>
+                            {{-- the action in plain words, its key in the tooltip; the details in the admin's language (R2A-051) --}}
+                            <td><b title="{{ $log->action }}">{{ \App\Support\AuditActions::label((string) $log->action) }}</b><div class="text-muted small" style="overflow-wrap:anywhere">{{ \App\Support\AuditDetails::html((string) $log->action, $log->details) }}</div></td>
                             <td class="text-end text-muted small">{{ \Carbon\Carbon::parse($log->created_at)->diffForHumans() }}</td>
                         </tr>
                     @empty
@@ -280,7 +281,7 @@
             <div class="card-header"><h5 class="mb-0"><i class="fa-solid fa-terminal me-1"></i>{{__('Worker / Queue Logs')}}</h5></div>
             <div class="card-body">
                 <pre class="small mb-3" tabindex="0" style="max-height:260px; overflow:auto; white-space:pre-wrap;">{{ implode("\n", $workerLog ?: [__('No queue-worker.log output yet.')]) }}</pre>
-                <pre class="small mb-0 text-muted" tabindex="0" style="max-height:220px; overflow:auto; white-space:pre-wrap;">{{ implode("\n", $queueLog ?: [__('No recent queue lines in laravel.log.')]) }}</pre>
+                <pre class="small mb-0 text-muted" tabindex="0" style="max-height:220px; overflow:auto; white-space:pre-wrap;">{{ implode("\n", $queueLog ?: [__('No recent queue lines in the error log.')]) }}</pre>
             </div>
         </div>
     </div>

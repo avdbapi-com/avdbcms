@@ -8,7 +8,7 @@ use App\Events\Video\VideoError;
 use App\Events\Video\VideoInteracted;
 use App\Events\Video\VideoPublished;
 use App\Events\Video\VideoUploaded;
-use App\Notifications\Activity\NewVideo;
+use App\Notifications\Support\NotificationTasks;
 use App\Notifications\Video\VideoBanned as VideoBannedNotification;
 use App\Notifications\Video\VideoUploaded as VideoUploadedNotification;
 use App\Notifications\Video\VideoError as VideoErrorNotification;
@@ -22,9 +22,9 @@ class VideoEventSubscriber
      */
     public function sendVideoPublishedNotification(VideoPublished $event): void
     {
-        foreach ($event->video->user->subscribers as $subscriber) {
-            $subscriber->notify(new NewVideo($event->video));
-        }
+        // One task per video, done in batches by key (App\Notifications\Support\NotificationTasks): the subscribers
+        // are never loaded all at once, the publishing page does the first batches only, the queue / scheduler the rest.
+        NotificationTasks::announceVideo($event->video);
     }
 
     /**

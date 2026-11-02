@@ -2,6 +2,7 @@
 
 namespace App\Notifications\Premium;
 
+use App\Notifications\Support\MemberMail;
 use App\Models\User;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
@@ -39,11 +40,14 @@ class CardExpired extends Notification
      */
     protected function buildMailMessage(User $notifiable) : MailMessage
     {
+        // Account settings in the member's language (judge R1-051), or the payment service's page that comes back to it
+        $url = $notifiable->billingManagementUrl(MemberMail::link('user.edit'));
+
         return (new MailMessage)
-            ->subject(Lang::get('Your credit card is about to expire'))
-            ->markdown('mails.premium.card_expire', [
+            ->subject(MemberMail::cardExpire($notifiable, (string) $url)['subject'])
+            ->view(['mails.premium.card_expire', 'mails.text.premium.card_expire'], [
                 'notifiable' => $notifiable,
-                'url' => $notifiable->billingManagementUrl(route('user.edit')),
+                'url' => $url,
             ]);
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Notifications\Account;
 
+use App\Notifications\Support\MemberMail;
 use App\Models\User;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
@@ -40,8 +41,8 @@ class DeleteAccount extends Notification
     protected function buildMailMessage(User $notifiable) : MailMessage
     {
         return (new MailMessage)
-            ->subject(Lang::get('Your account was deleted'))
-            ->markdown('mails.account.delete', [
+            ->subject(MemberMail::delete($notifiable)['subject'])
+            ->view(['mails.account.delete', 'mails.text.account.delete'], [
                 'notifiable' => $notifiable,
             ]);
     }

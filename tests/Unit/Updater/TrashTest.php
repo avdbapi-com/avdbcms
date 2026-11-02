@@ -9,7 +9,7 @@ use Tests\Feature\Updater\Support\UpdaterSandbox;
 use Tests\TestCase;
 
 /**
- * The updater's trash (1.2.1, B1 of the 1.2.0 tests): a folder leaves its place in one rename, everything it held
+ * The updater's trash (1.2.1): a folder leaves its place in one rename, everything it held
  * goes with it, and purge() deletes the trash in slices of at most the seconds it is given, one purge at a time. Only
  * the updater's own work files are taken, and a link is removed, never followed.
  */
@@ -29,6 +29,7 @@ class TrashTest extends TestCase
 
     protected function tearDown(): void
     {
+        Trash::$slowDisk = null;
         $this->box->delete();
 
         parent::tearDown();
@@ -80,6 +81,15 @@ class TrashTest extends TestCase
         $nothing = $this->trash->purge(0.0);
         $this->assertSame(['pending' => true, 'deleted' => 0, 'busy' => false], $nothing, 'no time, nothing deleted');
 
+        // Slices of 10 ms until the trash is empty. How many that takes is the disk's matter, not the trash's: NTFS
+        // needs several, ext4 deletes all of it inside one slice (R1B-020: the suite failed on Linux when it counted
+        // the slices). What the trash promises is checked: the slices end soon after their time, and together they
+        // delete everything exactly once; a deletion that took longer than ten slices (NTFS: about a second) was cut
+        // into slices. How many files a slice may delete is checked on a slow disk, below.
+        // A single deletion can block far longer than a slice (a virus scanner, NTFS on a loaded machine: 2.6 s seen in
+        // a full suite, UP-T2), and the trash cannot interrupt it: the typical (median) slice must end far under a
+        // second, and a slice that ran a second or more is allowed now and then - at most one in twenty, never more
+        // than two. That the trash takes nothing after its time is checked exactly on a slow disk, below.
         $slices = [];
 
         do {
@@ -90,15 +100,85 @@ class TrashTest extends TestCase
 
         $this->assertFalse($result['pending']);
         $this->assertFalse($this->trash->pending());
-        $this->assertGreaterThan(1, count($slices));
+        $counts = json_encode(array_column($slices, 0));
         // 1,200 files, 12 folders and the entry with its staging folder.
-        $this->assertSame(1200 + 12 + 2, array_sum(array_column($slices, 0)));
+        $this->assertSame(1200 + 12 + 2, array_sum(array_column($slices, 0)), 'every file and folder deleted once: '.$counts);
 
-        foreach ($slices as [$deleted, $seconds]) {
-            $this->assertLessThan(1.0, $seconds, 'a slice keeps to its time (one file over at most)');
+        $times = array_column($slices, 1);
+        sort($times);
+        $median = $times[intdiv(count($times), 2)];
+        $this->assertLessThan(0.25, $median, sprintf('the typical slice ends soon after its 10 ms (median %.3f s): %s', $median, $counts));
+        $slow = count(array_filter($times, static fn (float $seconds): bool => $seconds >= 1.0));
+        $this->assertLessThanOrEqual(min(2, max(1, intdiv(count($times), 20))), $slow,
+            sprintf('%d of %d slices took a second or more (one deletion may block that long now and then, not more often): %s', $slow, count($times), $counts));
+
+        $total = array_sum(array_column($slices, 1));
+
+        if ($total > 10 * 0.01) {
+            $this->assertGreaterThan(1, count($slices), sprintf('%.2f s of deleting in slices of 10 ms: %s', $total, $counts));
         }
 
         $this->assertDirectoryExists($this->box->paths()->trash(), 'the trash folder itself stays');
+    }
+
+    /**
+     * R1B-020 (review): on a disk that takes 20 ms for every file and every folder (Trash::$slowDisk), a purge of 50 ms
+     * stops once its time is up, on any disk: it takes no file or folder after its deadline, so it deletes at most
+     * ceil(50 / 20) = 3, and the folder the last one emptied (deleted right after its last file). A purge that ignored
+     * its time would delete all 23 in one go.
+     */
+    public function test_on_a_slow_disk_a_purge_takes_no_file_after_its_time(): void
+    {
+        $this->files($this->box->paths()->job('1.0.1').'/staging', 20);
+        $this->assertTrue($this->trash->put($this->box->paths()->job('1.0.1')));
+        Trash::$slowDisk = 0.02;
+        $budget = 0.05;
+        $most = (int) ceil($budget / Trash::$slowDisk) + 1;
+        $slices = [];
+
+        do {
+            $started = microtime(true);
+            $result = $this->trash->purge($budget);
+            $slices[] = [$result['deleted'], microtime(true) - $started];
+        } while ($result['pending'] && count($slices) < 200);
+
+        Trash::$slowDisk = null;
+        $counts = json_encode(array_column($slices, 0));
+        $this->assertFalse($result['pending'], $counts);
+        // 20 files, the folder d0, staging and the entry.
+        $this->assertSame(20 + 3, array_sum(array_column($slices, 0)), 'every file and folder deleted once: '.$counts);
+        $this->assertGreaterThanOrEqual((int) ceil(23 / $most), count($slices), 'in slices: '.$counts);
+
+        foreach ($slices as [$deleted, $seconds]) {
+            $this->assertLessThanOrEqual($most, $deleted, "no file or folder taken after the slice's 50 ms (the folder the last one emptied aside): ".$counts);
+            $this->assertLessThan(1.0, $seconds, $counts);
+        }
+    }
+
+    /** count(): what the trash holds as purge() counts it (the bar of an undo back to 1.2.0), or null when out of time. */
+    public function test_count_says_how_many_files_and_folders_a_purge_deletes(): void
+    {
+        $this->assertSame(0, $this->trash->count(1.0), 'no trash yet');
+        $job = $this->box->paths()->job('1.0.1');
+        $this->files($job.'/staging', 250);
+        File::put($job.'/avdbcms-update-1.0.1.zip', 'zip');
+        $this->assertTrue($this->trash->put($job));
+        File::put($this->box->paths()->trash('loose-file-20261027000000-abcdef'), 'x');
+
+        $count = $this->trash->count(10.0);
+        // The entry, staging, 3 folders d0-d2, 250 files, the zip; and the loose file.
+        $this->assertSame(1 + 1 + 3 + 250 + 1 + 1, $count);
+        $this->assertNull($this->trash->count(0.0), 'no time to count');
+
+        $deleted = 0;
+
+        do {
+            $purge = $this->trash->purge(5.0);
+            $deleted += $purge['deleted'];
+        } while ($purge['pending']);
+
+        $this->assertSame($count, $deleted);
+        $this->assertSame(0, $this->trash->count(1.0));
     }
 
     public function test_one_purge_at_a_time(): void

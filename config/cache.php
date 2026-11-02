@@ -57,7 +57,9 @@ return [
 
         'file' => [
             'driver' => 'file',
-            'path' => storage_path('framework/cache/data'),
+            // A folder named from APP_KEY: the cached settings (mail password, API tokens ...) sit under a name nobody
+            // can guess if a server ever serves storage/ (security plan S03).
+            'path' => storage_path('framework/cache/data/'.substr(hash('sha256', 'cache|'.env('APP_KEY', '')), 0, 16)),
         ],
 
         'memcached' => [

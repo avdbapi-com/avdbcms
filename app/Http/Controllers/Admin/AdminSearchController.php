@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Middleware\ViewOnlyDemo;
 use App\Support\AdminNav;
 use App\Support\AdminPreferences;
 use App\Support\AdminSearchIndex;
+use App\Support\AdminSettingsCatalog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -60,7 +62,11 @@ class AdminSearchController extends Controller
             ->header('Cache-Control', 'private, no-store');
     }
 
-    /** "What moved where": every page of the old admin menu and where it lives now. */
+    /**
+     * "What moved where": every page of the old admin menu and where it lives now, and every tab of the old settings
+     * page with the pages its settings are on now (how many on each). A developer page is linked too: it opens the
+     * page that turns Developer mode on.
+     */
     public function moved(Request $request): View
     {
         $developer = AdminPreferences::developerMode($request->user());
@@ -69,20 +75,25 @@ class AdminSearchController extends Controller
         foreach ((array) config('admin_nav.old_menu', []) as $entry) {
             $page = AdminNav::page($entry['page'] ?? null);
 
-            if ($page === null) {
+            // A view-only demo account is not offered a closed page (ViewOnlyDemo::hides()).
+            if ($page === null || ViewOnlyDemo::hides($page['route'] ?? null)) {
                 continue;
             }
 
             $section = AdminNav::section($page['section']);
             $rows[] = [
-                'old' => __($entry['old']),
+                // Each step in the old menu's own words: its sidebar showed __(group) and __(title) of config/menu.php.
+                // One translation of the whole path ("Community > Reports") said other words than that menu in 335 of
+                // 850 path x language pairs (Arabic "التقارير" where the menu showed "البلاغات"; lane AD, pass 2).
+                'old' => implode(' > ', array_map(static fn (string $step): string => __($step), explode(' > ', (string) $entry['old']))),
                 'section' => __($section['label'] ?? ''),
                 'page' => __($page['label']),
-                'url' => AdminNav::visibleTo($page, $developer) ? AdminNav::url($page) : null,
+                'url' => AdminNav::url($page),
+                'developer' => ! AdminNav::visibleTo($page, $developer),
             ];
         }
 
-        return view('components.admin.page-moved', ['rows' => $rows]);
+        return view('components.admin.page-moved', ['rows' => $rows, 'tabs' => AdminSettingsCatalog::oldTabs($developer)]);
     }
 
     public function preferences(Request $request): JsonResponse|RedirectResponse
@@ -111,7 +122,15 @@ class AdminSearchController extends Controller
             return response()->json(['ok' => true, 'preferences' => AdminPreferences::all($request->user())]);
         }
 
-        // Back to the page the account menu was opened on.
-        return redirect()->back(fallback: route('admin.index'));
+        // Back to the page the account menu was opened on; "Turn on Developer mode" next to a setting comes back to
+        // that setting (#key). Only a plain id is used: anything else is left out of the address.
+        $response = redirect()->back(fallback: route('admin.index'));
+        $anchor = $request->input('anchor');
+
+        if (is_string($anchor) && preg_match('/^[A-Za-z0-9_-]{1,80}$/', $anchor)) {
+            $response->setTargetUrl(strtok($response->getTargetUrl(), '#').'#'.$anchor);
+        }
+
+        return $response;
     }
 }

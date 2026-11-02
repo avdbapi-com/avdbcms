@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Support\AuditDetails;
 use App\Models\User;
 use App\Support\AdminPagination;
 use App\Support\AdminPreferences;
@@ -47,24 +48,34 @@ class UserVerificationController
 
     public function verify(int $id): RedirectResponse
     {
-        User::query()->whereKey($id)->update(['email_verified_at' => now()]);
+        // Tools > Logs > Admin actions (R3-019): as Members > Confirm email; a confirmed address changes nothing.
+        if (User::query()->whereKey($id)->whereNull('email_verified_at')->update(['email_verified_at' => now()]) > 0) {
+            AuditLogController::log('member.email_confirmed', AuditDetails::member(User::query()->findOrFail($id)));
+        }
 
-        return redirect()->back()->withSuccess('User verified.');
+        return redirect()->back()->withSuccess(__('Member verified'));
     }
 
     public function unverify(int $id): RedirectResponse
     {
-        User::query()->whereKey($id)->update(['email_verified_at' => null]);
+        if (User::query()->whereKey($id)->whereNotNull('email_verified_at')->update(['email_verified_at' => null]) > 0) {
+            AuditLogController::log('member.email_unconfirmed', AuditDetails::member(User::query()->findOrFail($id)));
+        }
 
-        return redirect()->back()->withSuccess('User unverified.');
+        return redirect()->back()->withSuccess(__('Member no longer verified'));
     }
 
     public function verifyAll(): RedirectResponse
     {
+        $first = User::query()->whereNull('email_verified_at')->orderBy('id')->limit(AuditDetails::LIST_MAX)->get(['id', 'username']);
         $count = User::query()
             ->whereNull('email_verified_at')
             ->update(['email_verified_at' => now()]);
 
-        return redirect()->route('admin.verification.index')->withSuccess("{$count} users verified.");
+        if ($count > 0) {
+            AuditLogController::log($count === 1 ? 'member.email_confirmed' : 'members.email_confirmed', AuditDetails::names($first->map(fn (User $user): string => AuditDetails::member($user)), $count));
+        }
+
+        return redirect()->route('admin.verification.index')->withSuccess(trans_choice('Marked 1 email as confirmed.|Marked :count emails as confirmed.', $count));
     }
 }

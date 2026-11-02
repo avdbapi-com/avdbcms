@@ -54,6 +54,8 @@
         .ad-hub-results b{display:block;font-weight:600}
         .ad-hub-results small{display:block;color:var(--text-3);font-size:var(--fs-xs)}
         .ad-hub-results span{display:block;color:var(--text-2);font-size:var(--fs-sm)}
+        .ad-hub-results b .ad-badge{display:inline-flex;margin:0;margin-inline-start:6px;font-style:normal;font-weight:600;vertical-align:1px}
+        .ad-hub-results .ad-hub-note{margin-top:2px;color:var(--text-3);font-style:italic}
         .ad-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
     </style>
     <script>
@@ -69,7 +71,10 @@
             if (q === last) return;
             last = q;
             if (q === '') { box.innerHTML = ''; history.replaceState(null, '', form.action); return; }
-            fetch(form.action + '?q=' + encodeURIComponent(q) + '&partial=1', { headers: { 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
+            // a background GET: searching as you type leaves the session (and its one-time messages) as it is
+            var headers = { 'X-Requested-With': 'XMLHttpRequest' };
+            headers[@json(\App\Http\Middleware\BackgroundRequest::HEADER)] = '1';
+            fetch(form.action + '?q=' + encodeURIComponent(q) + '&partial=1', { headers: headers, credentials: 'same-origin' })
                 .then(function (res) { return res.ok ? res.text() : ''; })
                 .then(function (html) {
                     if (input.value.trim() !== q) return;

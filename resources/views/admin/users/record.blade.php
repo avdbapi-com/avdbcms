@@ -48,7 +48,10 @@
             @unless ($self)
                 <x-admin.menu id="ad-user-more" :label="__('More actions')">
                     @if ($impersonate)
-                        <a href="{{ $impersonate }}">{{ AdminTheme::icon('key') }}{{ __('Log in as this member') }}</a>
+                        <form method="POST" action="{{ $impersonate }}">
+                            @csrf
+                            <button type="submit">{{ AdminTheme::icon('key') }}{{ __('Log in as this member') }}</button>
+                        </form>
                     @endif
                     <a href="{{ route('admin.videos.index', ['user' => $user->id]) }}">{{ AdminTheme::icon('film') }}{{ __('Their videos') }}</a>
                     <a href="{{ route('admin.comments.index', ['user' => $user->id]) }}">{{ AdminTheme::icon('chat') }}{{ __('Their comments') }}</a>

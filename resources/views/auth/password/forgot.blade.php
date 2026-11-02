@@ -1,54 +1,54 @@
-@extends('layouts.default')
+@extends('auth.layout')
 
-@section('title', __('Password forget'))
+@section('title', __('Reset your password'))
 
-@section('content')
-    <div class="avd-auth-page">
-        <div class="row mx-0">
-            <div class="avd-auth-panel border border-1 bg-light">
-                <div class="row">
-                    <div class="col-6 d-none d-xl-flex px-0 border-end border-gray-200 d-flex justify-content-center align-items-center bg-white">
-                        <img class="img-fluid" src="{{asset('images/pages/forgot.png')}}" alt="{{__('Forgot password')}}" width="640" height="640" decoding="async">
-                    </div>
-                    <div class="col-12 col-xl-6 py-4 py-sm-5 px-3 px-sm-5">
-                        @if (session('status'))
-                            <div class="alert alert-success fade show" role="alert">
-                                <strong>{!! session('status') !!}</strong>
-                            </div>
-                        @endif
-                        <h1 class="h3 mb-5 fw-normal text-center">{{ __('Password forget') }}</h1>
-                         <ul class="ps-0 mb-5">
-                             <li class="d-flex align-items-center gap-3 mb-3">
-                                 <div class="bg-info bg-opacity-75 rounded-circle text-white border border-1 border-info d-flex align-items-center justify-content-center fw-bold dot">1</div>
-                                 <p class="mb-0">{{ __('Enter the email address associated with your account below.') }}</p>
-                             </li>
-                             <li class="d-flex align-items-center gap-3 mb-3">
-                                 <div class="bg-info bg-opacity-75 rounded-circle text-white border border-1 border-info d-flex align-items-center justify-content-center fw-bold dot">2</div>
-                                 <p class="mb-0">{{ __('You will receive an email, click on the link to choose a new password.') }}</p>
-                             </li>
-                             <li class="d-flex align-items-center gap-3 mb-3">
-                                 <div class="bg-info bg-opacity-75 rounded-circle text-white border border-1 border-info d-flex align-items-center justify-content-center fw-bold dot">3</div>
-                                 <p class="mb-0">{{ __('After validating your new password, you are connected to your account !') }}</p>
-                             </li>
-                         </ul>
-                        <form method="POST" action="{{ locale_url(route('password.email')) }}">
-                            @csrf
-                            <x-auth-errors />
-                            <div class="form-group form-floating mb-3">
-                                <input type="email" @class(['form-control', 'is-invalid' => $errors->has('email')]) name="email" id="email" autocomplete="email" inputmode="email" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="{{__('Email')}}" required value="{{ old('email') }}">
-                                <label for="email">{{ __('Email') }}</label>
-                                @error('email')
-                                <div class="invalid-feedback">
-                                    {{ $message }}
-                                </div>
-                                @enderror
-                            </div>
-                            <x-captcha action="password_reset" />
-                            <button class="w-100 btn btn-lg btn-primary" type="submit">{{ __('Send me instructions') }}</button>
-                        </form>
-                    </div>
+@section('auth-card')
+    <div class="mk-auth__intro" x-data x-init="$nextTick(() => { const card = $el.closest('.mk-auth__card'); const target = card && (card.querySelector('[data-auth-focus]') || card.querySelector('[aria-invalid=true]')); if (target) target.focus(); })">
+        <h1 class="mk-auth__title" id="authTitle">{{ __('Reset your password') }}</h1>
+        <p class="mk-auth__lead">{{ __('Enter the e-mail of your account. We send you a link to choose a new password.') }}</p>
+    </div>
+
+    {{-- The same answer for every address (auth-21): it never tells whether an account uses it. --}}
+    @if(session('reset_link_sent') && is_string(session('status')))
+        <div class="mk-alert mk-alert--success" role="status" tabindex="-1" data-auth-focus>
+            <i class="fa-solid fa-envelope" aria-hidden="true"></i>
+            <div class="mk-alert__body">
+                <span class="mk-alert__title">{{ __('Check your e-mail') }}</span>
+                <span>{{ session('status') }} {{ __('Check your spam folder too.') }}</span>
             </div>
+            <span></span>
         </div>
-    </div>
-    </div>
+    @endif
+    <x-auth-errors :fields="['email', 'captcha']" captcha="password_reset" />
+
+    <form class="mk-form" method="POST" action="{{ locale_url(route('password.email')) }}" novalidate>
+        @csrf
+        <div class="mk-field">
+            <label class="mk-label" for="email">{{ __('E-mail') }}</label>
+            <input
+                class="mk-input"
+                type="email"
+                name="email"
+                id="email"
+                value="{{ old('email') }}"
+                autocomplete="email"
+                inputmode="email"
+                autocapitalize="none"
+                autocorrect="off"
+                spellcheck="false"
+                maxlength="255"
+                required
+                @error('email') aria-invalid="true" aria-describedby="email-error" @enderror
+            >
+            @error('email')
+                <span class="mk-error" id="email-error">{{ $message }}</span>
+            @enderror
+        </div>
+
+        <x-captcha action="password_reset" />
+
+        <button type="submit" class="mk-btn mk-btn--primary mk-btn--block"><span>{{ __('Send reset link') }}</span></button>
+    </form>
+
+    <p class="mk-auth__switch"><a href="{{ locale_url(route('login')) }}"><i class="fa-solid fa-arrow-left mk-flip-rtl" aria-hidden="true"></i> {{ __('Back to sign in') }}</a></p>
 @endsection

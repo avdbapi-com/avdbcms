@@ -12,7 +12,7 @@
         <div class="ad-speed-head"><strong data-ad-speed-label>{{ $speed['label'] }}</strong> <span class="ad-muted">{{ __('with your choices') }}</span></div>
         <div data-ad-speed-meter>@include('admin.appearance.partials.meter', ['speed' => $speed])</div>
         <ul class="ad-speed-list" data-ad-speed-lines>
-            <li>{{ \App\Support\AdminTheme::icon('zap') }}<span><b>{{ trans_choice('{0} No heavy effect on|{1} 1 heavy effect on|[2,*] :count heavy effects on', count($heavyLabels), ['count' => count($heavyLabels)]) }}</b>@if ($heavyLabels !== [])<span>{{ implode(', ', $heavyLabels) }}.@if ($auto) {{ __('Turned off automatically on weak phones.') }}@endif</span>@endif</span></li>
+            <li>{{ \App\Support\AdminTheme::icon('zap') }}<span><b>{{ trans_choice('{0} No heavy effect on|{1} 1 heavy effect on|[2,*] :count heavy effects on', count($heavyLabels), ['count' => count($heavyLabels)]) }}</b>@if ($heavyLabels !== [])<span>{{ \App\Support\AdminText::list($heavyLabels) }}.@if ($auto) {{ __('Turned off automatically on weak phones.') }}@endif</span>@endif</span></li>
             <li>{{ \App\Support\AdminTheme::icon($speed['background'] ? 'sparkle' : 'check-circle') }}<span><b>{{ $speed['background'] ? __('Moving background on') : __('Moving background off') }}</b><span>{{ $speed['background'] ? __('Runs only on strong computers.') : __('Plain or still background, no cost.') }}</span></span></li>
             <li>{{ \App\Support\AdminTheme::icon('monitor') }}<span><b>{{ $auto ? __('Computers get every effect you chose') : __('Every device gets every effect') }}</b><span>{{ $auto ? __('Weak phones get still versions (Auto).') : __('Old phones may stutter.') }}</span></span></li>
         </ul>

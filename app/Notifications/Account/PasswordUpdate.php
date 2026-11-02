@@ -2,6 +2,7 @@
 
 namespace App\Notifications\Account;
 
+use App\Notifications\Support\MemberMail;
 use App\Models\User;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
@@ -40,7 +41,7 @@ class PasswordUpdate extends Notification
     protected function buildMailMessage(User $notifiable) : MailMessage
     {
         return (new MailMessage)
-            ->subject(Lang::get('Password Update'))
-            ->markdown('mails.account.password', compact('notifiable'));
+            ->subject(MemberMail::password($notifiable)['subject'])
+            ->view(['mails.account.password', 'mails.text.account.password'], compact('notifiable'));
     }
 }

@@ -17,12 +17,16 @@ return [
     'google' => [
         'client_id' => env('GOOGLE_CLIENT_ID'),
         'client_secret' => env('GOOGLE_CLIENT_SECRET'),
-        'redirect' => env('APP_URL') . '/oauth/callback/google',
+        // The address the provider sends the member back to: the site's own (App\Support\OAuthProviders::callbackUrl():
+        // APP_URL, /index.php after it where the site's links carry it), unless GOOGLE_REDIRECT_URI names another one.
+        'redirect' => env('GOOGLE_REDIRECT_URI'),
     ],
     'facebook' => [
         'client_id' => env('FACEBOOK_CLIENT_ID'),
         'client_secret' => env('FACEBOOK_CLIENT_SECRET'),
-        'redirect' => env('APP_URL') . '/oauth/callback/facebook',
+        // The address the provider sends the member back to: the site's own (App\Support\OAuthProviders::callbackUrl():
+        // APP_URL, /index.php after it where the site's links carry it), unless FACEBOOK_REDIRECT_URI names another one.
+        'redirect' => env('FACEBOOK_REDIRECT_URI'),
     ],
     'youtube' => [
         'api_key' => env('YOUTUBE_API_KEY', ''),

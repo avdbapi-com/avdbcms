@@ -54,13 +54,14 @@
             <div class="card-body p-0">
                 <div class="list-group list-group-flush">
                     @forelse($stats['recent_notifications'] as $n)
-                    @php $data = json_decode($n->data, true); @endphp
+                    {{-- one sent from here: its title and message as written; the site's own: its sentence, translated --}}
+                    @php [$recentTitle, $recentMessage] = \App\Notifications\Support\NotificationText::summary($n->type, $n->data); @endphp
                     <div class="list-group-item">
                         <div class="d-flex justify-content-between">
-                            <strong>{{ Str::limit($data['title'] ?? $n->type, 40) }}</strong>
+                            <strong>{{ Str::limit($recentTitle, 40) }}</strong>
                             <small class="text-muted">{{ \Carbon\Carbon::parse($n->created_at)->diffForHumans() }}</small>
                         </div>
-                        <small class="text-muted">{{ Str::limit($data['message'] ?? '', 80) }}</small>
+                        @if ($recentMessage !== '')<small class="text-muted">{{ Str::limit($recentMessage, 80) }}</small>@endif
                     </div>
                     @empty
                     <div class="list-group-item text-center text-muted py-4">{{__('No recent notifications')}}</div>

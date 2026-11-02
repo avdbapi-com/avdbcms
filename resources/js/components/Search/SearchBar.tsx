@@ -1,31 +1,53 @@
-import {useState, useRef} from 'preact/hooks';
+import {useEffect, useState, useRef} from 'preact/hooks';
 import {useTranslation} from "react-i18next";
 import clsx from 'clsx';
 import {QueryClient, QueryClientProvider} from "@tanstack/react-query";
 import {useSearchQuery, useClickOutside, useKeyboardNavigate} from "@/hooks";
 import {search} from "@/api/avdbclip";
 import {SearchVideoType} from "@/types";
-import {ChangeEvent, FormEvent} from "react";
-import {Loader} from "@/components/Commons";
+import {FormEvent} from "react";
+import {highlightTyped, sanitizeSearchHighlight} from "./highlight";
+import {localePath, siteFile} from "@/functions/sitePath";
 
 type Props = {
     query?: string,
     responsive?: boolean,
     searchurl?: string,
+    // From the server-printed form the component replaces (components/index.ts): the text typed there and whether it
+    // had the focus.
+    typed?: string,
+    refocus?: string | boolean,
 }
 
-function Main ({responsive = true, searchurl} : Props) {
+function Main ({responsive = true, searchurl, typed, refocus} : Props) {
     const { t } = useTranslation();
     const form = useRef<HTMLFormElement>(null);
     const inputId = useRef<string>('avd-search-' + Math.random().toString(36).slice(2));
     const resultsId = `${inputId.current}-results`;
     const composing = useRef(false);
     const searchParams = new URLSearchParams(window.location.search).get('q') ?? '';
-    const [query, setQuery] = useState<string>(searchParams);
+    const [query, setQuery] = useState<string>(typeof typed === 'string' && typed !== '' ? typed : searchParams);
     const [showResults, setShowResults] = useState<boolean>(false);
+    const input = useRef<HTMLInputElement>(null);
+
+    // The server form had the focus: the field keeps it, with the caret after the typed text.
+    useEffect(() => {
+        if (refocus === undefined || refocus === false || !input.current) {
+            return;
+        }
+
+        const field = input.current;
+        field.focus({preventScroll: true});
+        field.setSelectionRange(field.value.length, field.value.length);
+
+        if (field.value.trim() !== '') {
+            setShowResults(true);
+        }
+    }, []);
     const trimmedQuery = query.trim();
-    // Both header layouts receive the same server-generated, localized route.
-    const searchAction = searchurl || `${window.location.pathname.startsWith('/index.php') ? '/index.php' : ''}${window.LOCALE_PREFIX || ''}/search`;
+    // Both header layouts receive the same server-generated, localized route; without it the page's language with the
+    // site's folder and /index.php where its links carry them (sitePath.ts).
+    const searchAction = searchurl || localePath('/search');
     const resultsUrl = `${searchAction}?${new URLSearchParams({q: trimmedQuery})}`;
 
     const {data, isFetching, isError} = useSearchQuery({
@@ -71,8 +93,9 @@ function Main ({responsive = true, searchurl} : Props) {
         }
     }
 
-    const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
-        const value = e.currentTarget.value;
+    // One update per key (watch-45): onInput only; onChange fired again for the same keystroke.
+    const handleInput = (e: Event) => {
+        const value = (e.currentTarget as HTMLInputElement).value;
         setQuery(value)
         setShowResults(value.trim().length > 0)
         resetIndex()
@@ -83,9 +106,9 @@ function Main ({responsive = true, searchurl} : Props) {
             <div className="input-group flex-nowrap">
                 <input type="hidden" name="q" value={trimmedQuery} />
                 <input
+                    ref={input}
                     onClick={() => setShowResults(true)}
                     onFocus={() => setShowResults(true)}
-                    onChange={handleChange}
                     className="form-control"
                     type="search"
                     id={inputId.current}
@@ -98,7 +121,7 @@ function Main ({responsive = true, searchurl} : Props) {
                     aria-activedescendant={activeOptionId}
                     aria-busy={isFetching}
                     value={query}
-                    onInput={handleChange}
+                    onInput={handleInput}
                     onKeyDown={(event) => {
                         if (event.key === 'Escape') {
                             event.preventDefault();
@@ -118,15 +141,19 @@ function Main ({responsive = true, searchurl} : Props) {
                     spellcheck={false}
                     inputMode="search"
                 />
+                {/* The search icon stays put while suggestions load (it turned into a spinner on every keystroke, watch-45);
+                    the field says it is busy (aria-busy). */}
                 <button className="btn" type="submit" aria-label={t("Search")}>
-                    {isFetching ? <Loader small={true}/> : <i className="fa-solid fa-magnifying-glass"></i>}
+                    <i className="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
                 </button>
             </div>
             {resultsVisible && (
                 <div className={clsx('avd-search-results', !responsive && 'avd-search-results-floating')}>
                     {results?.categories && results.categories.length > 0 && (
                         <div className="d-flex align-items-center flex-wrap gap-2 px-3 py-2 border-bottom" style={{background: 'rgba(255,255,255,0.03)'}}>
-                            <span className="text-muted text-uppercase fw-bold" style={{fontSize: '11px', letterSpacing: '0.5px'}}>{t('Categories')}:</span>
+                            {/* the label in the reader's punctuation ("Catégories :", "分类："; 1.2.3 round 3, R3-048: a
+                                hard-coded ":"); nsSeparator off: i18next would read the key's colon as a namespace */}
+                            <span className="text-muted text-uppercase fw-bold" style={{fontSize: '11px', letterSpacing: '0.5px'}}>{t(':label:', {nsSeparator: false}).replace(':label', () => t('Categories'))}</span>
                             {results.categories.map((cat) => (
                                 <a key={cat.id} href={cat.url} className="badge bg-secondary text-decoration-none px-2 py-1" style={{fontSize: '11px'}}>
                                     {cat.title}
@@ -141,6 +168,7 @@ function Main ({responsive = true, searchurl} : Props) {
                                 key={key}
                                 optionId={`${resultsId}-option-${key}`}
                                 isSelected={index === key}
+                                query={trimmedQuery}
                             />
                         ))}
                         {results && results.items.length === 0 && !results.categories?.length && (
@@ -169,12 +197,15 @@ type ResultItemProps = {
     result: SearchVideoType
     optionId: string
     isSelected : boolean
+    query: string
 }
 
-function ResultItem ({result, optionId, isSelected} : ResultItemProps) {
+function ResultItem ({result, optionId, isSelected, query} : ResultItemProps) {
     const [loading, setLoading] = useState(true);
-    const formattedTitle = sanitizeSearchHighlight(result._formatted?.title);
-    const formattedUser = sanitizeSearchHighlight(result._formatted?.user);
+    // The search engine marks the matches (_formatted, <em>); the database search does not: the typed words are marked
+    // here, on the escaped text (watch-45).
+    const formattedTitle = sanitizeSearchHighlight(result._formatted?.title) || highlightTyped(result.title, query);
+    const formattedUser = sanitizeSearchHighlight(result._formatted?.user) || highlightTyped(result.user, query);
 
     return (
         <li role="none">
@@ -188,7 +219,7 @@ function ResultItem ({result, optionId, isSelected} : ResultItemProps) {
             >
                 <span className="avd-search-thumb">
                     {loading && <span className="avd-placeholder avd-image-skeleton d-block"></span>}
-                    <img className={clsx(loading && 'avd-image-loading')} src={result.thumbnail || '/images/placeholders/no-image.svg'} alt="" loading="lazy" onLoad={() => setLoading(false)} onError={(event) => {
+                    <img className={clsx(loading && 'avd-image-loading')} src={result.thumbnail || siteFile('/images/placeholders/no-image.svg')} alt="" loading="lazy" onLoad={() => setLoading(false)} onError={(event) => {
                         const image = event.currentTarget;
 
                         if (image.src.endsWith('/images/placeholders/no-image.svg')) {
@@ -196,17 +227,17 @@ function ResultItem ({result, optionId, isSelected} : ResultItemProps) {
                             return;
                         }
 
-                        image.src = '/images/placeholders/no-image.svg';
+                        image.src = siteFile('/images/placeholders/no-image.svg');
                     }} />
                 </span>
                 <span className="min-w-0">
                     {formattedTitle ? (
-                        <span className="d-block fw-bold text-break" dangerouslySetInnerHTML={{__html: formattedTitle}}></span>
+                        <span className="d-block fw-bold text-break avd-search-hit" dangerouslySetInnerHTML={{__html: formattedTitle}}></span>
                     ) : (
                         <span className="d-block fw-bold text-break">{result.title}</span>
                     )}
                     {formattedUser ? (
-                        <span className="d-block text-muted text-sm" dangerouslySetInnerHTML={{__html: formattedUser}}></span>
+                        <span className="d-block text-muted text-sm avd-search-hit" dangerouslySetInnerHTML={{__html: formattedUser}}></span>
                     ) : (
                         <span className="d-block text-muted text-sm">{result.user}</span>
                     )}
@@ -214,32 +245,6 @@ function ResultItem ({result, optionId, isSelected} : ResultItemProps) {
             </a>
         </li>
     )
-}
-
-function sanitizeSearchHighlight(value?: string): string {
-    if (!value) return '';
-
-    let safe = '';
-    let cursor = 0;
-    const tagPattern = /<\/?em>/gi;
-    let match: RegExpExecArray | null;
-
-    while ((match = tagPattern.exec(value)) !== null) {
-        safe += escapeHtml(value.slice(cursor, match.index));
-        safe += match[0].startsWith('</') ? '</em>' : '<em>';
-        cursor = match.index + match[0].length;
-    }
-
-    return safe + escapeHtml(value.slice(cursor));
-}
-
-function escapeHtml(value: string): string {
-    return value
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
 }
 
 export function SearchBar(props: Props) {

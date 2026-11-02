@@ -4,7 +4,9 @@ namespace Tests\Feature;
 
 use App\Support\AppearanceApplier;
 use App\Support\AppearanceSettings;
+use App\Support\FooterSettings;
 use App\Support\SettingsRevision;
+use App\Support\TelegramLinks;
 use App\Support\ThemeCatalog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -15,7 +17,7 @@ use Tests\Support\CreatesAdminSettingsSchema;
 use Tests\TestCase;
 
 /**
- * The theme catalogue v2 upgrade of saved appearance settings (migration plan B3): 120 old ids x {untouched,
+ * The theme catalogue v2 upgrade of saved appearance settings: 120 old ids x {untouched,
  * customised colour, customised layout key} x {no look, the look that uses the preset}, the four factory states, the
  * two legacy look ids and an unknown option value. Every case also checks: light/dark never flips, revision #0
  * restores the stored rows byte for byte, a second run changes nothing, other settings groups are untouched.
@@ -292,7 +294,12 @@ class ThemeCatalogMigrationTest extends TestCase
         $stored = SettingsRevision::rows('appearance');
 
         $first = $this->migration->run();
+        // "Finish update" runs the Telegram change of 1.2.3 right after it (2026_10_26_200000_new_telegram_links): the
+        // frozen 1.2.2 Support links the upgrade keeps for a site that never stored them become the group and personal
+        // support. "Use the new look again" (AppearanceApplier::upgrade()) does the same.
+        TelegramLinks::fixStoredSettings();
         $upgraded = SettingsRevision::rows('appearance');
+        $this->assertSame(FooterSettings::defaults()['footer_support_links'], $upgraded['footer_support_links'] ?? null);
         $this->assertSame(['FACTORY', 'tokyo_neon', 'signature'], [$first['class'], $first['theme'], $first['flavor']]);
         $this->assertNull(AppearanceApplier::upgrade(), 'an upgraded site is not upgraded twice');
 
@@ -442,10 +449,10 @@ class ThemeCatalogMigrationTest extends TestCase
         $this->assertSame(['tokyo_neon', 'signature', 'youtube_spotlight_pro'], [$after['theme_preset'], $after['theme_flavor'], $after['active_master_experience']], $label);
 
         foreach (self::LOOK_KEYS as $key) {
-            $this->assertSame($look[$key], $after[$key], "{$label}: demo1 parity {$key}");
+            $this->assertSame($look[$key], $after[$key], "{$label}: demo site parity {$key}");
         }
 
-        // demo1 parity values the owner asked to keep
+        // the demo site's values the owner asked to keep
         $this->assertSame(['youtube_spotlight', 'live_ticker_stream', 'classic_two_column', 'card_standard', '4', 'brand', 'intense', 'glass'], [
             $after['home_layout_mode'], $after['hero_layout_mode'], $after['watch_layout_mode'], $after['video_card_layout_style'],
             $after['grid_columns'], $after['scrollbar_style'], $after['watch_ambient_glow_intensity'], $after['surface_style'],

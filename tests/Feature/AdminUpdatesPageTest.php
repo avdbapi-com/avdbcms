@@ -27,7 +27,7 @@ use Symfony\Component\HttpFoundation\Cookie;
 use Tests\TestCase;
 
 /**
- * Tools > Updates (F8, the admin web layer): the page and its JSON, who reaches what (every admin; installing also needs
+ * Tools > Updates (the admin web layer): the page and its JSON, who reaches what (every admin; installing also needs
  * the operational tools), the password asked again with its ten-minute block, CSRF, the update cookie, Home's callout
  * from the kept check only, the `updates` status probe, the Health check row and the old dashboard's link. The updater
  * works on a temporary site root and GitHub is faked: nothing here touches the copy's own files or the network.
@@ -195,7 +195,8 @@ class AdminUpdatesPageTest extends TestCase
         $this->assertStringContainsString('data-ad-updates-open="ad-upd-install"', $html);
         $this->assertStringContainsString('Update to '.self::next(), $html);
         $this->assertStringContainsString('Update to AVDBCMS '.self::next().'?', $html);
-        $this->assertStringContainsString('AVDBCMS downloads the update from GitHub (68.0 MB) and checks that it arrived complete.', $html);
+        // the size set apart left to right inside the sentence (<bdi dir="ltr">, R2CD-RV-05): the text without the tags
+        $this->assertStringContainsString('AVDBCMS downloads the update from GitHub (68 MB) and checks that it arrived complete.', strip_tags($html));
         $this->assertStringContainsString('name="password"', $html);
         $this->assertStringContainsString('href="'.AppVersion::changelogUrl(self::next()).'"', $html);
         $this->assertStringContainsString('href="'.AppVersion::WEB_BASE.'/'.AppVersion::REPOSITORY.'/releases/tag/v'.self::next().'"', $html);
@@ -505,8 +506,41 @@ class AdminUpdatesPageTest extends TestCase
         $this->assertStringContainsString('data-ad-confirm="Cancel the update?"', $html);
     }
 
+    /**
+     * Judge R3-032: after the swap an update can only be finished (Cancel is not offered), so the stalled callout, Home's
+     * notice and a refused start say "Continue it first." without "or cancel it".
+     */
+    public function test_a_stalled_update_after_its_swap_offers_only_continue_and_says_so(): void
+    {
+        $this->writePlan(['status' => 'swapped', 'step_at' => time() - 3600, 'swapped_at' => time() - 3600]);
+        $admin = $this->admin();
+
+        $html = $this->actingAs($admin)->get(route('admin.updates.index'))->assertOk()->getContent();
+
+        $this->assertStringContainsString('An update to '.self::next().' stopped', $html);
+        $this->assertStringContainsString('Continue it first.', $html);
+        $this->assertStringNotContainsString('cancel it first', $html);
+        $this->assertStringContainsString('data-ad-updates-continue="finish"', $html);
+        // No Cancel in the callout after the swap; the progress panel's own (for a run of this page) stays hidden.
+        $this->assertSame(1, substr_count($html, 'data-ad-updates-cancel'), 'no Cancel after the swap');
+        $this->assertMatchesRegularExpression('/data-ad-updates-cancel[^>]*\shidden[\s>]/', $html);
+
+        $plan = json_decode((string) File::get($this->root.'/storage/app/updates/plan.json'), true);
+        $this->assertSame('An update to '.self::next().' stopped 1 hour ago. Continue it first.', Updater::stalledMessage($plan));
+        $this->assertSame('An update to '.self::next().' stopped 1 hour ago. Continue it or cancel it first.', Updater::stalledMessage(['status' => 'unpacking'] + $plan));
+
+        // Home's notice says the same.
+        config(['admin.ui' => 'v2']);
+        $home = $this->actingAs($admin)->get(route('admin.index'))->assertOk()->getContent();
+        $this->assertStringContainsString('stopped 1 hour ago. Continue it first.', $home);
+        $this->assertStringNotContainsString('cancel it first', $home);
+    }
+
     public function test_the_result_of_the_last_update_lists_kept_merged_and_replaced_files(): void
     {
+        // The update's database backup on Tools > Backups (its name there has a random part).
+        File::ensureDirectoryExists($this->root.'/storage/app/backups');
+        File::put($this->root.'/storage/app/backups/backup_before_update_'.self::next().'_2026-10-23_120000_0123456789ab.sql.gz', 'dump');
         $this->writePlan([
             'status' => 'done',
             'finished_at' => time() - 60,
@@ -525,7 +559,8 @@ class AdminUpdatesPageTest extends TestCase
             ->assertOk()
             ->assertSee('AVDBCMS '.self::next().' is installed.')
             ->assertSee('Files replaced: 12. Added: 3. Removed: 1.')
-            ->assertSee('Database backup: backup_before_update_'.self::next().'_2026-10-23_120000.sql.gz')
+            // As Tools > Backups lists it (round 1 of 1.2.3, R1-095: the name without its random part named no file).
+            ->assertSee('Database backup: backup_before_update_'.self::next().'_2026-10-23_120000_0123456789ab.sql.gz')
             ->assertSee('You changed these files, so the update kept your version. Compare them with the new copy.')
             ->assertSee('.htaccess.avdbcms-'.self::next())
             ->assertSee('These language files had texts you changed. Your texts stay; the new texts were added.')
@@ -548,6 +583,10 @@ class AdminUpdatesPageTest extends TestCase
         File::put($this->root.'/storage/app/updates/state.json', json_encode([
             'installed_version' => AppVersion::CURRENT, 'previous_version' => '0.9.9', 'updated_at' => time() - 600, 'backup_id' => $id, 'admin_id' => 1,
         ]));
+        // The database backup on Tools > Backups, with the random part of its name: the page names it like that (R1-095).
+        File::ensureDirectoryExists($this->root.'/storage/app/backups');
+        File::put($this->root.'/storage/app/backups/'.substr($dump, 0, -strlen('.sql.gz')).'_00aa11bb22cc.sql.gz', 'dump');
+        $dump = substr($dump, 0, -strlen('.sql.gz')).'_00aa11bb22cc.sql.gz';
         $admin = $this->admin();
 
         $this->actingAs($admin)
@@ -555,9 +594,14 @@ class AdminUpdatesPageTest extends TestCase
             ->assertOk()
             ->assertSee('Update backups')
             ->assertSee('AVDBCMS 0.9.9')
+            // The size as Tools > Backups writes it (12 bytes: "12 B", never "0.0 MB"), left to right on one line (R2CD-RV-05).
+            ->assertSee(' · <span dir="ltr" class="text-nowrap">12 B</span>', false)
+            ->assertDontSee('0.0 MB')
             ->assertSee('Undo this update')
             ->assertSee('Undo the update to AVDBCMS '.AppVersion::CURRENT.'?')
             ->assertSee("Your files go back to AVDBCMS 0.9.9. The database stays as it is now. If the old version shows errors, restore the database backup {$dump} with your hosting panel's database tool.")
+            // Back to a version older than 1.2.2: the development files 1.2.2 removed for safety stay removed.
+            ->assertSee('Three development files that AVDBCMS 1.2.2 removed for safety (in database/seeders/) stay removed. Your site does not need them to run.')
             ->assertSee('Database backup: '.$dump)
             ->assertSee('data-ad-confirm="Delete this update backup?"', false)
             // "Last updated" from state.json
@@ -586,6 +630,73 @@ class AdminUpdatesPageTest extends TestCase
         $this->assertDirectoryDoesNotExist($this->root.'/storage/app/updates/backups/'.$id);
         $this->assertTrue(DB::table('admin_audit_logs')->where('action', 'update.backup_deleted')->where('details', $id)->exists());
         $this->actingAs($admin)->get(route('admin.updates.index'))->assertOk()->assertSee('No update backups yet.')->assertDontSee('Undo this update');
+    }
+
+    public function test_the_undo_dialog_names_the_removed_development_files_only_when_it_goes_back_before_1_2_2(): void
+    {
+        $admin = $this->admin();
+        $note = 'Three development files that AVDBCMS 1.2.2 removed for safety (in database/seeders/) stay removed. Your site does not need them to run.';
+
+        foreach (['1.2.0' => true, '1.2.1' => true, '1.2.2' => false, '1.2.3' => false] as $from => $shown) {
+            File::deleteDirectory($this->root.'/storage/app/updates');
+            $to = '9.9.9';
+            $id = $from.'-to-'.$to.'-20261025120000';
+            File::ensureDirectoryExists($this->root.'/storage/app/updates/backups/'.$id.'/files/app');
+            File::put($this->root.'/storage/app/updates/backups/'.$id.'/files/app/Old.php', str_repeat('x', 3 * 1048576 + 1024));
+            File::put($this->root.'/storage/app/updates/backups/'.$id.'/backup.json', (string) json_encode([
+                'format' => 1, 'from' => $from, 'to' => $to, 'created_at' => time() - 600, 'admin_id' => 1, 'database_backup' => null,
+                'status' => 'complete', 'size' => 3 * 1048576 + 1024, 'entries' => [['path' => 'app/Old.php', 'action' => 'replaced', 'old' => str_repeat('a', 64), 'new' => str_repeat('b', 64)]],
+            ]));
+            File::put($this->root.'/storage/app/updates/state.json', (string) json_encode([
+                'installed_version' => $to, 'previous_version' => $from, 'updated_at' => time() - 600, 'backup_id' => $id, 'admin_id' => 1,
+            ]));
+            // The site runs 9.9.9 (the updater plays it), so Undo goes back to $from.
+            $this->app->instance(Updater::class, new Updater(new UpdatePaths($this->root, $this->root.'/storage'), new ReleaseCheck(), $this->database, version: $to));
+
+            $html = $this->actingAs($admin)->get(route('admin.updates.index'))->assertOk()->getContent();
+
+            $this->assertStringContainsString('Your files go back to AVDBCMS '.$from.'. The database stays as it is now.', $html);
+            $this->assertSame($shown, str_contains($html, $note), 'back to '.$from);
+            $this->assertStringContainsString(' · <span dir="ltr" class="text-nowrap">3 MB</span>', $html, 'the size as Tools > Backups writes it, left to right');
+        }
+    }
+
+    public function test_the_result_lists_per_language_the_texts_finish_corrected_and_kept(): void
+    {
+        $this->writePlan([
+            'status' => 'done',
+            'finished_at' => time() - 60,
+            'step_at' => time() - 60,
+            'report' => ['replaced' => 12, 'added' => 3, 'removed' => 1, 'unchanged' => 400, 'kept' => [], 'merged' => [], 'overwritten' => []],
+            'texts' => [
+                'de' => ['updated' => 178, 'kept' => 2],
+                'fr' => ['updated' => 0, 'kept' => 0, 'failed' => true],
+                'xx' => ['updated' => 1, 'kept' => 0],
+                // A write a cut-off Finish left open is not reported (that Finish goes on with it).
+                'es' => ['updated' => 5, 'kept' => 0, 'writing' => true, 'from' => str_repeat('a', 64), 'to' => str_repeat('b', 64)],
+                '../x' => ['updated' => 9, 'kept' => 9],
+            ],
+        ]);
+
+        $html = $this->actingAs($this->admin())->get(route('admin.updates.index'))->assertOk()->getContent();
+
+        // No merged file (the release added no text to them): the shorter heading.
+        $this->assertStringContainsString('These language files had texts you changed. Your texts stay.', $html);
+        $this->assertStringNotContainsString('the new texts were added', $html);
+        $this->assertStringContainsString('Texts you never changed now have the corrected wording of this version.', $html);
+        $this->assertStringContainsString('<code>lang/de.json</code> <span>Deutsch</span> <span class="ad-muted">178 texts corrected · your own wording kept for 2 texts this version corrects</span>', $html);
+        $this->assertStringContainsString('<code>lang/fr.json</code> <span>Français</span> <span class="ad-muted">Could not be saved, so its texts stay as they were.</span>', $html);
+        $this->assertStringContainsString('<code>lang/xx.json</code> <span class="ad-muted">1 text corrected</span>', $html);
+        $this->assertStringNotContainsString('lang/es.json', $html);
+        $this->assertStringNotContainsString('../x', $html);
+
+        // The JSON of the page says the same.
+        $languages = $this->actingAs($this->admin())->getJson(route('admin.updates.status'))->assertOk()->json('plan.languages');
+        $this->assertSame([
+            ['path' => 'lang/de.json', 'added' => 0, 'updated' => 178, 'kept' => 2, 'removed' => 0, 'failed' => false, 'name' => 'Deutsch'],
+            ['path' => 'lang/fr.json', 'added' => 0, 'updated' => 0, 'kept' => 0, 'removed' => 0, 'failed' => true, 'name' => 'Français'],
+            ['path' => 'lang/xx.json', 'added' => 0, 'updated' => 1, 'kept' => 0, 'removed' => 0, 'failed' => false, 'name' => null],
+        ], $languages);
     }
 
     public function test_an_unexpected_failure_is_answered_and_never_a_500(): void
@@ -702,6 +813,74 @@ class AdminUpdatesPageTest extends TestCase
     }
 
     /* ------------------------------------------------------------- helpers */
+
+    /**
+     * Security plan S03: a database backup's name has a random part (it must not be found by its time if a server ever
+     * serves storage/). This page is open to view-only accounts, which may not open Tools > Backups: they see a backup's
+     * name without that part, for the newest backup in Tools > Backups and for the update's own. An administrator sees
+     * the name as Tools > Backups lists it (round 1 of 1.2.3, R1-095: the name without its random part named a file
+     * that is not there), and a backup that is gone is not named at all.
+     */
+    public function test_backup_names_have_their_random_part_only_for_administrators(): void
+    {
+        $this->installManifest();
+        $this->keepRelease();
+        $this->database->recentBackup = ['name' => 'backup_2026-10-25_101010_ab12cd34ef56.sql.gz', 'date' => time() - 60, 'size' => 2048];
+        File::ensureDirectoryExists($this->root.'/storage/app/backups');
+        File::put($this->root.'/storage/app/backups/backup_before_update_'.self::next().'_2026-10-25_102020_0123456789ab.sql.gz', 'dump');
+        $this->writePlan([
+            'status' => 'done', 'admin_id' => 1, 'step_at' => time() - 5, 'finished_at' => time() - 5,
+            'database_backup' => ['name' => 'backup_before_update_'.self::next().'_2026-10-25_102020.sql.gz', 'size' => 4096, 'method' => 'Pure-PHP'],
+        ]);
+        $demo = $this->admin();
+        $demo->forceFill([\App\Http\Middleware\ViewOnlyDemo::COLUMN => true])->save();
+
+        $html = (string) $this->actingAs($demo->fresh())->get(route('admin.updates.index'))->assertOk()->getContent();
+        $this->assertStringNotContainsString('ab12cd34ef56', $html);
+        $this->assertStringNotContainsString('0123456789ab', $html);
+        $this->assertStringContainsString('backup_2026-10-25_101010.sql.gz', $html);
+        $this->assertStringContainsString('Database backup: backup_before_update_'.self::next().'_2026-10-25_102020.sql.gz', $html);
+
+        $html = (string) $this->actingAs($this->admin())->get(route('admin.updates.index'))->assertOk()->getContent();
+        $this->assertStringContainsString('backup_2026-10-25_101010_ab12cd34ef56.sql.gz', $html);
+        $this->assertStringContainsString('Database backup: backup_before_update_'.self::next().'_2026-10-25_102020_0123456789ab.sql.gz', $html);
+
+        // Deleted on Tools > Backups: the result names no file.
+        File::delete($this->root.'/storage/app/backups/backup_before_update_'.self::next().'_2026-10-25_102020_0123456789ab.sql.gz');
+        $html = (string) $this->actingAs($this->admin())->get(route('admin.updates.index'))->assertOk()->getContent();
+        $this->assertStringNotContainsString('Database backup: backup_before_update_', $html);
+    }
+
+    /** Round 1 of 1.2.3 (R1-095): the Undo dialog names the database backup to restore as Tools > Backups lists it. */
+    public function test_the_undo_dialog_names_the_database_backup_as_tools_backups_lists_it(): void
+    {
+        $id = '0.9.9-to-'.AppVersion::CURRENT.'-20261023120000';
+        $shown = 'backup_before_update_'.AppVersion::CURRENT.'_2026-10-23_120000.sql.gz';
+        $real = 'backup_before_update_'.AppVersion::CURRENT.'_2026-10-23_120000_a1b2c3d4e5f6.sql.gz';
+        File::ensureDirectoryExists($this->root.'/storage/app/updates/backups/'.$id.'/files/app');
+        File::put($this->root.'/storage/app/updates/backups/'.$id.'/files/app/Old.php', '<?php // old');
+        File::put($this->root.'/storage/app/updates/backups/'.$id.'/backup.json', json_encode([
+            'format' => 1, 'from' => '0.9.9', 'to' => AppVersion::CURRENT, 'created_at' => time() - 600, 'admin_id' => 1,
+            'database_backup' => $shown, 'status' => 'complete', 'size' => 12, 'entries' => [['path' => 'app/Old.php', 'action' => 'replaced', 'old' => str_repeat('a', 64), 'new' => str_repeat('b', 64)]],
+        ]));
+        File::put($this->root.'/storage/app/updates/state.json', json_encode([
+            'installed_version' => AppVersion::CURRENT, 'previous_version' => '0.9.9', 'updated_at' => time() - 600, 'backup_id' => $id, 'admin_id' => 1,
+        ]));
+        File::ensureDirectoryExists($this->root.'/storage/app/backups');
+        File::put($this->root.'/storage/app/backups/'.$real, 'dump');
+        $admin = $this->admin();
+
+        $html = (string) $this->actingAs($admin)->get(route('admin.updates.index'))->assertOk()->getContent();
+        $this->assertStringContainsString('restore the database backup '.$real.' with your hosting panel', $html);
+        $this->assertStringContainsString('Database backup: '.$real, $html, 'the Update backups list too');
+        $this->assertStringNotContainsString($shown, $html);
+
+        // The backup was deleted on Tools > Backups: the dialog names none.
+        File::delete($this->root.'/storage/app/backups/'.$real);
+        $html = (string) $this->actingAs($admin)->get(route('admin.updates.index'))->assertOk()->getContent();
+        $this->assertStringNotContainsString('restore the database backup', $html);
+        $this->assertStringContainsString('Your files go back to AVDBCMS 0.9.9. The database stays as it is now.', $html);
+    }
 
     private function admin(): User
     {

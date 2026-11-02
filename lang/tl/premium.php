@@ -1,9 +1,9 @@
 <?php
 return [
-    'billing' => 'Billing starts on :date, the end of your trial, and will renew automatically every :period.',
-    'trial_period' => 'Today: Free trial for :days days. Cancel anytime.',
-    'email_reminder' => 'We\'ll send you a reminder email :days days before your :app_name Premium trial ends.',
-    'get' => 'Get :app_name Premium',
-    'billing_without_trial' => 'Billing starts on :date, and will renew automatically every :period.',
-    'exist' => 'You already have an subscription, please manage it on your <a href=\':route\'>account</a>.',
+    'billing' => 'Magsisimula ang pagbabayad sa :date, sa pagtatapos ng iyong trial period, at awtomatikong magre-renew bawat :period.',
+    'trial_period' => 'Ngayon: Libreng trial ng :days araw. Kanselahin kahit kailan.',
+    'email_reminder' => 'Magpapadala kami ng reminder na email :days araw bago matapos ang iyong :app_name Premium trial period.',
+    'get' => 'Kunin ang :app_name Premium',
+    'billing_without_trial' => 'Magsisimula ang pagbabayad sa :date at awtomatikong magre-renew bawat :period.',
+    'exist' => 'Mayroon ka nang subscription, pamahalaan ito sa iyong <a href=":route">account</a>.',
 ];

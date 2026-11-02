@@ -15,13 +15,14 @@
         <section class="ad-sec" id="card-payment-keys{{ $provider === 'paypal' ? '-paypal' : '' }}" aria-labelledby="keys-{{ $provider }}-title">
             <div class="ad-sec-intro">
                 <h2 id="keys-{{ $provider }}-title">{{ $title }}</h2>
-                <p>{{ $intro }}</p>
+                <p>{{ \App\Support\AdminText::html($intro) }}</p>
             </div>
             <div class="ad-sec-body">
                 @foreach ($keys as $key)
                     @php($definition = $paymentKeys[$key])
                     @php($error = $errors->first($key))
-                    <div class="ad-field{{ $error ? ' is-error' : '' }}" data-payment-key="{{ $key }}">
+                    {{-- id="<KEY>-row": a search result (Ctrl+K, Settings) for this key lands here (config/admin_settings.php). --}}
+                    <div class="ad-field{{ $error ? ' is-error' : '' }}" id="{{ $key }}-row" data-payment-key="{{ $key }}">
                         <label class="ad-label" for="pay-{{ $key }}">{{ __($definition['label']) }}</label>
                         <div class="ad-control ad-row">
                             @if ($key === 'PAYPAL_MODE')
@@ -46,7 +47,11 @@
                                 <label class="ad-btn sm is-ghost ad-key-remove" data-key-clear @unless ($saved) hidden @endunless><input type="checkbox" name="clear[]" value="{{ $key }}" aria-label="{{ __('Remove :key', ['key' => __($definition['label'])]) }}" aria-describedby="pay-{{ $key }}-status"> {{ __('Remove') }}</label>
                             @endif
                         </div>
-                        @if ($error)<div class="ad-error" role="alert" data-error>{{ $error }}</div>@endif
+                        @if (in_array($key, ['STRIPE_WEBHOOK_SECRET', 'PAYPAL_WEBHOOK_ID'], true) && isset($webhookUrls))
+                            {{-- The address the payment service sends its messages to: its webhook is made for it. --}}
+                            <div class="ad-help" data-webhook-url>{{ \App\Support\AdminText::labelled($key === 'STRIPE_WEBHOOK_SECRET' ? __('Stripe webhook address') : __('PayPal webhook address'), '') }}<wbr><code dir="ltr">{{ $webhookUrls[$key === 'STRIPE_WEBHOOK_SECRET' ? 'stripe' : 'paypal'] }}</code></div>
+                        @endif
+                        @if ($error)<div class="ad-error" role="alert" data-error>{{ \App\Support\AdminText::html($error) }}</div>@endif
                     </div>
                 @endforeach
                 <div class="ad-field-meta ad-sec-pad">

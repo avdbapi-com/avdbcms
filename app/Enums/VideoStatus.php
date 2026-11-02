@@ -20,11 +20,15 @@ enum VideoStatus : int {
         return self::get();
     }
 
+    /**
+     * The statuses a video may be given, with their English names (translated where they are shown). A planned video
+     * is "Scheduled", as everywhere else in the admin and the studio (it read "Planned" in "New uploads start as").
+     */
     public static function getActive(): array {
         return [
             self::PUBLIC->value => ucfirst(strtolower(self::PUBLIC->name)),
             self::PRIVATE->value => ucfirst(strtolower(self::PRIVATE->name)),
-            self::PLANNED->value => ucfirst(strtolower(self::PLANNED->name)),
+            self::PLANNED->value => 'Scheduled',
             self::UNLISTED->value => ucfirst(strtolower(self::UNLISTED->name)),
         ];
     }

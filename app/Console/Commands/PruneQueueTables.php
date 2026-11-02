@@ -42,12 +42,12 @@ class PruneQueueTables extends Command
         $deletedSessions = $this->deleteOldSessions($sessionDays);
 
         $this->info("Deleted {$deletedImportStubs} obsolete AVDB import queue stubs.");
-        $this->info("Deleted {$deletedRealtime} stale realtime broadcast job(s) older than {$realtimeHours} hour(s).");
-        $this->info("Deleted {$deletedQueued} queued jobs older than {$queuedDays} day(s).");
-        $this->info("Deleted {$deletedFailed} failed jobs older than {$failedHours} hour(s).");
-        $this->info("Deleted {$deletedBatches} batch rows older than {$batchHours} hour(s).");
-        $this->info("Deleted {$deletedImportRuns} old AVDB import run row(s) and {$deletedImportFiles} import log/export file(s).");
-        $this->info("Deleted {$deletedSessions} stale DB session row(s) older than {$sessionDays} day(s).");
+        $this->info("Deleted {$deletedRealtime} stale realtime broadcast ".\Illuminate\Support\Str::plural('job', (int) $deletedRealtime)." older than {$realtimeHours} ".\Illuminate\Support\Str::plural('hour', (int) $realtimeHours).'.');
+        $this->info("Deleted {$deletedQueued} queued ".\Illuminate\Support\Str::plural('job', (int) $deletedQueued)." older than {$queuedDays} ".\Illuminate\Support\Str::plural('day', (int) $queuedDays).'.');
+        $this->info("Deleted {$deletedFailed} failed ".\Illuminate\Support\Str::plural('job', (int) $deletedFailed)." older than {$failedHours} ".\Illuminate\Support\Str::plural('hour', (int) $failedHours).'.');
+        $this->info("Deleted {$deletedBatches} batch ".\Illuminate\Support\Str::plural('row', (int) $deletedBatches)." older than {$batchHours} ".\Illuminate\Support\Str::plural('hour', (int) $batchHours).'.');
+        $this->info("Deleted {$deletedImportRuns} old AVDB import run ".\Illuminate\Support\Str::plural('row', (int) $deletedImportRuns)." and {$deletedImportFiles} import log or export ".\Illuminate\Support\Str::plural('file', (int) $deletedImportFiles).'.');
+        $this->info("Deleted {$deletedSessions} stale DB session ".\Illuminate\Support\Str::plural('row', (int) $deletedSessions)." older than {$sessionDays} ".\Illuminate\Support\Str::plural('day', (int) $sessionDays).'.');
 
         return self::SUCCESS;
     }

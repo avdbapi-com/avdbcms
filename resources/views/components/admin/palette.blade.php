@@ -13,6 +13,10 @@
         <span class="ad-kbd" aria-hidden="true">Esc</span>
     </div>
     <div id="ad-palette-list" class="ad-palette-list" role="listbox" aria-label="{{ __('Results') }}"></div>
+    {{-- What the list says for screen readers (WCAG 4.1.3, R2A-021): searching, could not load, nothing found, how many
+         results. The list's own lines stay; only this region is announced. --}}
+    <div id="ad-palette-status" class="ad-vh" role="status" aria-live="polite" aria-atomic="true"
+         data-results="{{ __('1 result|:count results') }}"></div>
     <div class="ad-palette-f" aria-hidden="true">
         <span><span class="ad-kbd">&uarr;</span> <span class="ad-kbd">&darr;</span> {{ __('to move') }}</span>
         <span><span class="ad-kbd">Enter</span> {{ __('to open') }}</span>

@@ -31,7 +31,7 @@ class AdminAccentTest extends TestCase
     private const DANGER = ['light' => '#b42318', 'dark' => '#f2675b'];
 
     /**
-     * spec/data/color_engine_golden.json admin_accent_cases (reference: contrast_engine.admin_accent).
+     * tests/Fixtures/color_engine_golden.json admin_accent_cases (from the redesign's reference admin accent rule).
      * [input, use site colour, mode, [accent, on_accent, accent_ink, accent_soft, accent_line, focus]]
      */
     public static function goldenAdminCases(): array

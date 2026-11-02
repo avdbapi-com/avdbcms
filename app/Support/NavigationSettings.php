@@ -187,4 +187,15 @@ class NavigationSettings
     {
         return str_replace('{site_name}', config('app.name', 'AVDBCMS'), $value);
     }
+
+    /**
+     * An owner's label with {site_name} in it, in the reader's language: translated first, with the site's name as the
+     * ":site" placeholder, then the name put in. The side menu's "{site_name} Premium" was translated after the name went
+     * in, so its key ("Sandbox Site Premium") never existed and every language showed it in English (R2A-043); the default
+     * label is now the translated ":site Premium". A label of the owner's own without a translation reads as typed.
+     */
+    public static function translatedSiteLabel(string $value): string
+    {
+        return (string) __(str_replace('{site_name}', ':site', $value), ['site' => (string) config('app.name', 'AVDBCMS')]);
+    }
 }

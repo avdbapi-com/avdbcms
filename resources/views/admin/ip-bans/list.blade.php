@@ -77,4 +77,13 @@
         @endforeach
     </x-admin.table>
     {!! preg_replace('/\n\s+/', "\n", (string) ob_get_clean()) !!}
+
+    {{-- The settings cards of this page in config/admin_settings.php (members.blocked), saved like every settings page (one save
+         bar). Outside the compacted list markup above, so a text box keeps its line breaks. --}}
+    @php($settingsForm = app(\App\Http\Controllers\Admin\SettingsPageController::class)->form(request(), 'members.blocked'))
+    @if ($settingsForm['cards'] !== [] || $settingsForm['advancedCards'] !== [] || $settingsForm['developerOnly'] !== [])
+        <div class="ad-page-settings" id="page-settings" style="margin-top:40px">
+            @include('admin.settings.partials.form', $settingsForm)
+        </div>
+    @endif
 @endsection

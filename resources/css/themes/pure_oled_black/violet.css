@@ -15,7 +15,7 @@ html[data-bs-theme="dark"][data-avd-flavor="violet"] {
   --avd-accent-fill: #c4b5fd;
   --avd-brand-gradient: linear-gradient(135deg, #8757f1 0%, #5b21b6 100%);
   --avd-focus: #946bfa;
-  --avd-btn-bg: #8757f1;
+  --avd-btn-bg: #8555ef;
   --avd-badge-bg: #8757f1;
   --avd-new-bg: #c4b5fd;
   --avd-kicker-color: #946bfa;
@@ -48,7 +48,7 @@ html[data-bs-theme="light"][data-avd-flavor="violet"] {
   --avd-on-accent: #141414;
   --avd-brand-gradient: linear-gradient(135deg, #8757f1 0%, #5b21b6 100%);
   --avd-focus: #7947e0;
-  --avd-btn-bg: #8757f1;
+  --avd-btn-bg: #8555ef;
   --avd-badge-bg: #8757f1;
   --avd-new-bg: #c4b5fd;
   --avd-new-text: #141414;

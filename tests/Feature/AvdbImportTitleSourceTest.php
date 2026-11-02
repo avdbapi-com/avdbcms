@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Jobs\SyncAvdbDurationBatch;
 use App\Models\User;
 use App\Models\Video;
+use App\Support\AvdbCreatorAvatarFactory;
 use App\Support\RemoteVideoDuration;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
@@ -357,10 +358,11 @@ class AvdbImportTitleSourceTest extends TestCase
                 return Http::response('', 404);
             });
 
+            // one row: 60 s is room enough on a busy machine (5 s ran out before the row under load)
             $this->artisan('avdb:queue-duration-sync', [
                 '--limit' => '1',
                 '--chunk' => '1',
-                '--max-runtime' => '5',
+                '--max-runtime' => '60',
             ])->assertExitCode(0);
 
             Queue::assertNothingPushed();
@@ -649,7 +651,63 @@ class AvdbImportTitleSourceTest extends TestCase
         Storage::assertExists(User::AVATAR_FOLDER.'/'.$creator->avatar);
         $avatar = Storage::get(User::AVATAR_FOLDER.'/'.$creator->avatar);
         $this->assertStringContainsString('data-avdb-avatar="actor"', $avatar);
-        $this->assertStringContainsString('<animate', $avatar);
+        $this->assertStringContainsString('data-avdb-avatar-style="adult-brand-badge"', $avatar);
+        // Generated avatars are static since 2026-10-15: the endless SMIL loops
+        // (shine pulse + turning dashed ring) kept every page showing an avatar from going idle. The shine layer stays,
+        // drawn at a fixed opacity (AvdbCreatorAvatarFactory::svg(), withoutSmil()).
+        $this->assertStringContainsString('fill="url(#shine)"', $avatar);
+        $this->assertStringNotContainsString('<animate', $avatar);
+        $this->assertStringNotContainsString('repeatCount', $avatar);
+    }
+
+    public function test_legacy_animated_creator_avatar_is_served_static(): void
+    {
+        Storage::fake();
+        User::factory()->create(['id' => 1, 'username' => 'admin']);
+        Http::fake(fn () => Http::response([
+            'list' => [$this->avdbItem([
+                'director' => '',
+                'actor' => 'First Actor, Second Actor',
+            ])],
+        ], 200));
+
+        $this->artisan('avdb:import', [
+            '--ids' => '79643',
+            '--skip-thumbs' => true,
+            '--skip-tags' => true,
+        ])->assertExitCode(0);
+
+        $creator = Video::where('avdb_id', 79643)->firstOrFail()->user()->firstOrFail();
+        $path = User::AVATAR_FOLDER.'/'.$creator->avatar;
+
+        // A file stored before 2026-10-15 keeps the old generator's output: a pulsing shine and a turning dashed ring.
+        $legacy = str_replace(
+            '<circle cx="128" cy="128" r="107" fill="url(#shine)" opacity="0.74"/>',
+            "<circle cx=\"128\" cy=\"128\" r=\"107\" fill=\"url(#shine)\">\n    <animate attributeName=\"opacity\" values=\"0.58;0.9;0.58\" dur=\"8s\" repeatCount=\"indefinite\"/>\n  </circle>",
+            Storage::get($path)
+        );
+        $legacy = (string) preg_replace(
+            '#(stroke-dasharray="\d+ 18" opacity="0\.45")/>#',
+            "$1>\n      <animateTransform attributeName=\"transform\" type=\"rotate\" from=\"0 128 128\" to=\"360 128 128\" dur=\"26s\" repeatCount=\"indefinite\"/>\n    </circle>",
+            $legacy
+        );
+        $this->assertStringContainsString('<animate attributeName="opacity"', $legacy);
+        $this->assertStringContainsString('<animateTransform', $legacy);
+        Storage::put($path, $legacy);
+
+        $response = $this->get(route('user.avatar', ['user' => $creator]))->assertOk();
+        $served = (string) $response->getContent();
+
+        $this->assertStringNotContainsString('<animate', $served);
+        $this->assertStringContainsString('fill="url(#shine)" opacity="0.74"/>', $served);
+        $this->assertNotFalse(@simplexml_load_string($served));
+        $this->assertSame(AvdbCreatorAvatarFactory::withoutSmil($legacy), $served);
+
+        // the 'static' variant in the version makes browsers drop an animated copy they cached
+        $this->assertStringContainsString(
+            'v='.substr(sha1($creator->avatar.'|static'), 0, 16),
+            $creator->fresh()->avatar_url
+        );
     }
 
     public function test_avdb_import_keeps_admin_owner_when_people_are_missing(): void

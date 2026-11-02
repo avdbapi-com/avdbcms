@@ -2,13 +2,14 @@
 
 namespace App\Http\Middleware;
 
+use App\Support\AdminIpLock;
 use App\Support\AppearanceDraft;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * Draft preview of the Appearance pages (interface I9). The settings are copied into config('site.*') while the
+ * Draft preview of the Appearance pages. The settings are copied into config('site.*') while the
  * application boots, before the session and the signed-in user exist, so the draft is applied here instead (web group,
  * after StartSession): a valid ?avd_draft= link shows the unpublished changes to the admin who made them, and only to
  * them. Any response to a preview link (?avd_draft=, ?theme=, ?theme_mode=, ...) is private and never indexed.
@@ -22,7 +23,8 @@ class ApplyAppearanceDraft
         if (is_string($token) && $token !== '') {
             $user = $request->user();
 
-            if ($user !== null && $user->is_admin) {
+            // an administrator outside the admin IP lock is an ordinary visitor here too (R1-089)
+            if ($user !== null && AdminIpLock::adminPowersHere($user)) {
                 $status = AppearanceDraft::status($token, $user);
 
                 if ($status['state'] === 'ok') {

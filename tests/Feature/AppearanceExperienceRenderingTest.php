@@ -443,7 +443,7 @@ class AppearanceExperienceRenderingTest extends TestCase
             ->getContent();
 
         $this->assertStringContainsString('data-avd-title-accent="off"', $html);
-        // The rule that attribute switches lives in the cached theme CSS (perf plan step 24), not inline.
+        // The rule that attribute switches lives in the cached theme CSS, not inline.
         $this->assertStringContainsString('html[data-avd-title-accent="off"] .avd-home-title', $this->themeCss());
     }
 
@@ -485,7 +485,7 @@ class AppearanceExperienceRenderingTest extends TestCase
         $this->assertStringNotContainsString('family=Montserrat', $html);
         $this->assertStringNotContainsString('family=Poppins', $html);
 
-        // The text contrast attribute is styled by the cached theme CSS (perf plan step 24), keyed on <html> only.
+        // The text contrast attribute is styled by the cached theme CSS, keyed on <html> only.
         $this->assertStringContainsString('html[data-avd-text-contrast="strong"]', $this->themeCss());
         $this->assertStringNotContainsString('html[data-theme="light"][data-avd-glassmorphism="on"]', $html.$this->themeCss());
     }
@@ -506,7 +506,7 @@ class AppearanceExperienceRenderingTest extends TestCase
 
         $html = $this->get(route('pages.home'))->assertOk()->getContent();
 
-        // One canvas; its single render loop lives in the layout bundle (perf plan step 25), not in an inline
+        // One canvas; its single render loop lives in the layout bundle, not in an inline
         // script: resources/js/layout/decor.ts draws it, started from one place and only on the rich tier.
         $this->assertSame(1, substr_count($html, 'id="avdSeasonalAtmosphere"'));
         $this->assertStringNotContainsString('var isRunning = false;', $html);
@@ -582,7 +582,10 @@ class AppearanceExperienceRenderingTest extends TestCase
             ->assertOk()
             ->getContent();
 
-        $this->assertStringContainsString('avd-profile-videos-page', $videosHtml);
+        // 1.2.3 (member design 6.3): My videos is a member-kit page now (its root .avd-mk.mk-page carries the look's
+        // tokens); the old .avd-profile-videos-page wrapper and its rules are gone.
+        $this->assertStringContainsString('class="avd-mk mk-page', $videosHtml);
+        $this->assertStringNotContainsString('avd-profile-videos-page', $videosHtml);
 
         $subscriptionsHtml = $this->actingAs($user)
             ->get(route('subscription.manage'))
@@ -769,7 +772,8 @@ class AppearanceExperienceRenderingTest extends TestCase
             ->getContent();
 
         $this->assertRenderedClassAbsent($html, 'avd-up-next-card');
-        $this->assertStringContainsString('Next Video', $html);
+        // the manual Next video button (sentence case since 1.2.3, R1-147)
+        $this->assertStringContainsString('<span>Next video</span>', $html);
     }
 
     public function test_watch_page_keeps_autoplay_control_removed(): void
@@ -794,7 +798,7 @@ class AppearanceExperienceRenderingTest extends TestCase
 
         $html = $this->get($video->route)
             ->assertOk()
-            ->assertSee('Next Video')
+            ->assertSee('Next video')
             ->getContent();
 
         $this->assertStringNotContainsString('<autoplay-switch', $html);

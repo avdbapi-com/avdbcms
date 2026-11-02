@@ -12,7 +12,7 @@ use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 /**
- * Draft preview of the Appearance pages (interface I9): changes are this admin's draft, shown on the real site through
+ * Draft preview of the Appearance pages: changes are this admin's draft, shown on the real site through
  * a signed, expiring link that only works for them; everybody else gets the published design, and preview responses
  * are private, no-store and noindex.
  */
@@ -131,7 +131,7 @@ class AdminAppearanceDraftPreviewTest extends TestCase
     public function test_the_banner_shows_only_for_the_author_and_keeps_the_draft_on_links(): void
     {
         if (! str_contains((string) file_get_contents(resource_path('views/components/layout.blade.php')), 'avd.appearance_draft')) {
-            $this->markTestSkipped('The public layout does not include the draft banner yet (request to THEME in notes/wp8.md).');
+            $this->markTestSkipped('The public layout does not include the draft banner yet.');
         }
 
         $author = $this->admin();

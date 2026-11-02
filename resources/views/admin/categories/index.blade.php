@@ -36,6 +36,8 @@
                 <tr class="bg-light">
                     <td class="align-middle">
                         <small>{{$category->title}}</small>
+                        {{-- 1.2.3: named with a word that is always blocked, visitors never see it (round 3, R3-072) --}}
+                        @if(\App\Support\ContentSafety::hides($category->title))<br><small class="text-muted">{{ __('Hidden from visitors: its name uses a word that is always blocked.') }}</small>@endif
                     </td>
                     <td class="align-middle">
                         <small>{{$category->slug}}</small>
@@ -44,7 +46,7 @@
                         <i class="fa-solid fa-{{$category->icon_name}}"></i>
                     </td>
                     <td class="align-middle">
-                        @if($category->in_menu) <span class="badge bg-success">{{__('Yes')}}</span> @else <span class="badge bg-secondary">{{__('No')}}</span> @endif
+                        @if(\App\Support\ContentSafety::hides($category->title)) <span class="badge bg-warning text-dark">{{ __('Hidden from visitors') }}</span> @elseif($category->in_menu) <span class="badge bg-success">{{__('Yes')}}</span> @else <span class="badge bg-secondary">{{__('No')}}</span> @endif
                     </td>
                     <td class="align-middle">
                         <span class="badge bg-info">{{ $category->videos_count ?? 0 }}</span>

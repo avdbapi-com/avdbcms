@@ -77,12 +77,136 @@ class InstallerTest extends TestCase
 
     public function test_clean_install_selects_migrations_when_no_backup_is_bundled(): void
     {
-        $this->assertMigrationChoice(false);
+        $this->assertDefaultImportMode(false);
     }
 
-    public function test_clean_install_defaults_to_migrations_even_if_a_backup_is_available(): void
+    /**
+     * The bundled example.sql is a new site's starting point (its settings, languages, categories and plans; the
+     * README, the help site and the release check rely on it), so the Database step preselects it: the default to
+     * migrations of 2026-09-23 was reverted on 2026-09-26 after the sites installed that way came out unusable.
+     * Migrations stay one click away, and an owner's own choice is kept.
+     */
+    public function test_database_step_preselects_the_bundled_backup_and_keeps_migrations_available(): void
     {
-        $this->assertMigrationChoice(true);
+        $this->assertDefaultImportMode(true);
+    }
+
+    public function test_a_migrations_choice_is_kept_when_a_backup_is_available(): void
+    {
+        // the choice saved by the Database step, and the one sent back after a validation error
+        foreach ([['installer.database' => ['mode' => 'migrate']], ['_old_input' => ['mode' => 'migrate']]] as $session) {
+            $xpath = $this->xpathOf($this->databaseStepResponse(true, $session));
+
+            $this->assertSame(1, $xpath->query('//input[@name="mode" and @value="migrate" and @checked]')->length);
+            $this->assertSame(0, $xpath->query('//input[@name="mode" and @value="backup" and @checked]')->length);
+        }
+    }
+
+    public function test_backup_mode_is_refused_when_no_backup_is_bundled(): void
+    {
+        $this->setInstallerAllowReinstall(true);
+        $installer = \Mockery::mock(\App\Support\Installer::class)->makePartial();
+        $installer->shouldReceive('backupInfo')->andReturn($this->backupFixture(false));
+        $installer->shouldNotReceive('testDatabase');
+        $this->app->instance(\App\Support\Installer::class, $installer);
+
+        $this->post('/install/database', [
+            'host' => '127.0.0.1',
+            'port' => '3306',
+            'database' => 'avdbcms',
+            'username' => 'installer',
+            'password' => 'secret',
+            'mode' => 'backup',
+        ])->assertRedirect('/install?step=database')->assertSessionHasErrors('mode');
+    }
+
+    public function test_the_review_step_names_the_bundled_backup_as_the_import(): void
+    {
+        $this->setInstallerAllowReinstall(true);
+        $installer = \Mockery::mock(\App\Support\Installer::class)->makePartial();
+        $installer->shouldReceive('backupInfo')->andReturn($this->backupFixture(true));
+        $this->app->instance(\App\Support\Installer::class, $installer);
+
+        $this->get('/install?step=install')
+            ->assertOk()
+            ->assertSee('SQL backup: example.sql')
+            ->assertDontSee('Migrations and seeders</dd>', false);
+    }
+
+    /**
+     * R1B-001: the final .env (APP_INSTALLED=true, a new key) is written only after the database work and the admin
+     * account succeeded. Before, it was written first and a failure put the old one back - from a shutdown function too,
+     * which a host that ends the request (PHP-FPM's request_terminate_timeout) never runs: the site was left "Already
+     * installed" over an empty database. Now the database work runs while .env is still the one the upload had, and a
+     * failure leaves that one as it is.
+     */
+    public function test_a_failed_install_leaves_the_env_it_found(): void
+    {
+        // without this seam the installer would write the copy's own .env
+        $this->assertTrue(method_exists(\App\Support\Installer::class, 'envPath'), 'Installer::envPath() is missing.');
+
+        $directory = storage_path('framework/testing/installer-env-'.bin2hex(random_bytes(6)));
+        @mkdir($directory, 0777, true);
+        $envPath = $directory.'/.env';
+        $original = "APP_NAME=AVDBCMS\nAPP_KEY=\nAPP_INSTALLED=false\n";
+        file_put_contents($envPath, $original);
+        $backups = glob(storage_path('app/installer-backups/.env.backup*')) ?: [];
+
+        $installer = new class($envPath) extends \App\Support\Installer
+        {
+            public ?string $envDuringInstall = null;
+
+            public function __construct(private string $testEnvPath)
+            {
+            }
+
+            protected function envPath(): string
+            {
+                return $this->testEnvPath;
+            }
+
+            protected function targetDatabasePdo(array $database): \PDO
+            {
+                return new \PDO('sqlite::memory:');
+            }
+
+            protected function databaseObjects(\PDO $pdo, string $database): array
+            {
+                return [];
+            }
+
+            public function repairFilesystem(): void
+            {
+            }
+
+            protected function applyRuntimeDatabaseConfig(array $database): void
+            {
+                // the database work starts; it fails, like a server that drops the connection
+                $this->envDuringInstall = (string) file_get_contents($this->testEnvPath);
+
+                throw new \RuntimeException('The database server closed the connection.');
+            }
+        };
+
+        try {
+            $installer->install($this->installPayload(false));
+            $this->fail('A failing database step must stop the installation.');
+        } catch (\RuntimeException $exception) {
+            $this->assertSame('The database server closed the connection.', $exception->getMessage());
+        } finally {
+            $after = is_file($envPath) ? (string) file_get_contents($envPath) : null;
+            @unlink($envPath);
+            @rmdir($directory);
+            $copies = array_values(array_diff(glob(storage_path('app/installer-backups/.env.backup*')) ?: [], $backups));
+            foreach ($copies as $copy) {
+                @unlink($copy);
+            }
+        }
+
+        $this->assertSame($original, $installer->envDuringInstall, 'The database work runs before .env is written.');
+        $this->assertStringNotContainsString('APP_INSTALLED=true', (string) $installer->envDuringInstall);
+        $this->assertSame($original, $after, 'A failed install must leave the .env it found, so the wizard stays open.');
+        $this->assertSame([], $copies, 'nothing was copied: .env was never touched');
     }
 
     public function test_database_step_requires_explicit_replacement_for_populated_database(): void
@@ -253,27 +377,57 @@ class InstallerTest extends TestCase
         ];
     }
 
-    private function assertMigrationChoice(bool $backupExists): void
+    /** Exactly one import mode is preselected: the bundled backup when there is one, else migrations. */
+    private function assertDefaultImportMode(bool $backupExists): void
+    {
+        $response = $this->databaseStepResponse($backupExists);
+        $xpath = $this->xpathOf($response);
+        $preselected = $backupExists ? 'backup' : 'migrate';
+        $other = $backupExists ? 'migrate' : 'backup';
+
+        $this->assertSame(1, $xpath->query('//input[@name="mode" and @value="'.$preselected.'" and @checked]')->length);
+        $this->assertSame(0, $xpath->query('//input[@name="mode" and @value="'.$other.'" and @checked]')->length);
+        $this->assertSame(1, $xpath->query('//input[@type="radio" and @name="mode" and @checked]')->length);
+        $this->assertSame($backupExists ? 0 : 1, $xpath->query('//input[@name="mode" and @value="backup" and @disabled]')->length);
+        $this->assertSame(0, $xpath->query('//input[@name="mode" and @value="migrate" and @disabled]')->length);
+
+        if ($backupExists) {
+            $response->assertSee('Keep Import SQL backup')->assertDontSee('Use migrations for a fresh installation');
+        } else {
+            $response->assertSee('No SQL backup was found');
+        }
+    }
+
+    private function databaseStepResponse(bool $backupExists, array $session = []): \Illuminate\Testing\TestResponse
     {
         $this->setInstallerAllowReinstall(true);
         $installer = \Mockery::mock(\App\Support\Installer::class)->makePartial();
-        $installer->shouldReceive('backupInfo')->andReturn([
-            'exists' => $backupExists,
+        $installer->shouldReceive('backupInfo')->andReturn($this->backupFixture($backupExists));
+        $this->app->instance(\App\Support\Installer::class, $installer);
+
+        return $this->withSession($session)->get('/install?step=database')->assertOk();
+    }
+
+    private function xpathOf(\Illuminate\Testing\TestResponse $response): \DOMXPath
+    {
+        $document = new \DOMDocument();
+        @$document->loadHTML((string) $response->getContent());
+
+        return new \DOMXPath($document);
+    }
+
+    /** @return array<string, mixed> */
+    private function backupFixture(bool $exists): array
+    {
+        return [
+            'exists' => $exists,
             'path' => null,
             'filename' => 'example.sql',
             'configured_filename' => 'example.sql',
-            'size' => $backupExists ? '1 KB' : 'Not bundled',
+            'size' => $exists ? '1 KB' : 'Not bundled',
             'source' => 'test fixture',
             'available' => [],
-        ]);
-        $this->app->instance(\App\Support\Installer::class, $installer);
-        $response = $this->get('/install?step=database')->assertOk();
-        $document = new \DOMDocument();
-        @$document->loadHTML($response->getContent());
-        $xpath = new \DOMXPath($document);
-        $this->assertSame(1, $xpath->query('//input[@name="mode" and @value="migrate" and @checked]')->length);
-        $this->assertSame(0, $xpath->query('//input[@name="mode" and @value="backup" and @checked]')->length);
-        $this->assertSame($backupExists ? 0 : 1, $xpath->query('//input[@name="mode" and @value="backup" and @disabled]')->length);
+        ];
     }
 
     public function test_installer_locks_when_admin_user_exists(): void
@@ -310,6 +464,128 @@ class InstallerTest extends TestCase
             $table->softDeletes();
             $table->timestamps();
         });
+    }
+
+    // Security plan S12: the install gate.
+
+    public function test_the_install_lock_beats_app_installed_false(): void
+    {
+        $installer = $this->installerWithLock(true);
+        $this->setRuntimeFlag('APP_INSTALLED', 'false');
+
+        $this->assertTrue($installer->isInstalled());
+        $this->get('/install')->assertOk()->assertSee('Already Installed');
+        $this->post('/install/introduction')->assertForbidden();
+    }
+
+    public function test_without_a_lock_app_installed_false_and_the_reinstall_switch_open_the_wizard(): void
+    {
+        $installer = $this->installerWithLock(false);
+        $this->setRuntimeFlag('APP_INSTALLED', 'false');
+        $this->assertFalse($installer->isInstalled());
+        $this->get('/install')->assertOk()->assertDontSee('Already Installed');
+
+        // The owner's reinstall switch opens it even with the lock.
+        $locked = $this->installerWithLock(true);
+        $this->setInstallerAllowReinstall(true);
+        $this->assertFalse($locked->isInstalled());
+    }
+
+    public function test_a_configured_site_whose_database_is_down_keeps_the_wizard_closed(): void
+    {
+        $installer = $this->installerWithLock(false);
+        $this->assertTrue(trim((string) \App\Support\RuntimeEnv::get('APP_KEY', '')) !== '', 'this copy has an APP_KEY');
+
+        $this->withUnreachableDatabase(function () use ($installer): void {
+            $this->assertTrue($installer->isInstalled(), 'a key in .env: a site that is down');
+            $this->post('/install/introduction')->assertForbidden();
+        });
+    }
+
+    public function test_a_fresh_upload_whose_database_is_not_reachable_yet_opens_the_wizard(): void
+    {
+        $installer = $this->installerWithLock(false, configured: false);
+
+        $this->withUnreachableDatabase(function () use ($installer): void {
+            $this->assertFalse($installer->isInstalled(), 'no key and no database user yet: a fresh upload');
+        });
+    }
+
+    // Security plan S19: after installation the public /install page names no server detail.
+
+    public function test_the_locked_page_names_no_server_detail(): void
+    {
+        $this->installerWithLock(true);
+        $html = (string) $this->get('/install')->assertOk()->assertSee('Already Installed')->assertSee('Open Admin')->getContent();
+
+        foreach ([base_path(), str_replace('\\', '/', base_path()), public_path(), str_replace('\\', '/', public_path()),
+            'Current Environment', 'Project root', 'Public path', '<span>Web server</span>', '<span>SQL backup</span>'] as $detail) {
+            $this->assertStringNotContainsString($detail, $html);
+        }
+
+        $backup = app(\App\Support\Installer::class)->backupInfo();
+        if ($backup['exists']) {
+            $this->assertStringNotContainsString($backup['filename'], $html);
+        }
+    }
+
+    public function test_the_wizard_before_installation_still_shows_the_environment(): void
+    {
+        $this->setInstallerAllowReinstall(true);
+
+        $this->get('/install?step=introduction')->assertOk()
+            ->assertSee('<span>Web server</span>', false)
+            ->assertSee('<span>SQL backup</span>', false)
+            ->assertSee('Detected panel');
+    }
+
+    /** An installer whose lock file is a temporary path that exists or not (the copy's own lock stays untouched). */
+    private function installerWithLock(bool $locked, bool $configured = true): \App\Support\Installer
+    {
+        $path = storage_path('framework/testing/installer-lock-'.uniqid().'.json');
+        @mkdir(dirname($path), 0777, true);
+
+        if ($locked) {
+            file_put_contents($path, '{"installed_at":"2026-10-25"}');
+            $this->beforeApplicationDestroyed(fn () => @unlink($path));
+        }
+
+        $installer = \Mockery::mock(\App\Support\Installer::class)->makePartial()->shouldAllowMockingProtectedMethods();
+        $installer->shouldReceive('lockPath')->andReturn($path);
+
+        if (! $configured) {
+            $installer->shouldReceive('hasConfiguredEnvironment')->andReturn(false);
+        }
+
+        $this->app->instance(\App\Support\Installer::class, $installer);
+
+        return $installer;
+    }
+
+    /** Runs the callback while the default database connection points at a closed port (a database that is down). */
+    private function withUnreachableDatabase(\Closure $callback): void
+    {
+        $default = config('database.default');
+        config(['database.connections.unreachable' => [
+            'driver' => 'mysql', 'host' => '127.0.0.1', 'port' => '1', 'database' => 'avd_down', 'username' => 'nobody',
+            'password' => '', 'charset' => 'utf8mb4', 'collation' => 'utf8mb4_unicode_ci', 'prefix' => '',
+            'options' => [\PDO::ATTR_TIMEOUT => 2],
+        ], 'database.default' => 'unreachable']);
+        \Illuminate\Support\Facades\DB::purge('unreachable');
+
+        try {
+            $callback();
+        } finally {
+            config(['database.default' => $default]);
+            \Illuminate\Support\Facades\DB::purge('unreachable');
+        }
+    }
+
+    private function setRuntimeFlag(string $key, string $value): void
+    {
+        putenv($key.'='.$value);
+        $_ENV[$key] = $value;
+        $_SERVER[$key] = $value;
     }
 
     private function setInstallerAllowReinstall(?bool $value): void

@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Enums\ThumbnailStatus;
 use App\Enums\VideoStatus;
 use App\Models\AvdbImportRun;
+use App\Models\Category;
 use App\Models\Tag;
 use App\Models\TagTranslation;
 use App\Models\Thumbnail;
@@ -15,6 +16,7 @@ use App\Support\AvdbCreatorAvatarFactory;
 use App\Support\AvdbDurationBackfill;
 use App\Support\AvdbStarterViews;
 use App\Support\ChannelCustomizationSettings;
+use App\Support\ContentSafety;
 use App\Support\RemoteVideoDuration;
 use App\Support\SeoSitemapCache;
 use Carbon\Carbon;
@@ -172,6 +174,14 @@ class ImportAvdbVideos extends Command
 
     private bool $dryRunActive = false;
 
+    /** 1.2.3: the blocked words of this run (App\Support\ContentSafety), and how many items they kept out. */
+    private ?ContentSafety $safety = null;
+
+    private int $blocked = 0;
+
+    /** @var array<int, string>|null the titles of the local categories the AVDB categories map to */
+    private ?array $localCategoryTitles = null;
+
     private const MAX_IMPORT_DATE_SPREAD_DAYS = 3650;
 
     private const PAGE_PROGRESS_LOG_INTERVAL = 100;
@@ -196,6 +206,7 @@ class ImportAvdbVideos extends Command
 
     public function handle(): int
     {
+        $this->resetRunState();
         $this->raiseImportMemoryLimit();
         DB::disableQueryLog();
 
@@ -219,6 +230,8 @@ class ImportAvdbVideos extends Command
         $skipTags = (bool) $this->option('skip-tags') || (bool) ($settings['skip_tags'] ?? false);
         $dryRun = (bool) $this->option('dry-run') || (bool) ($settings['dry_run'] ?? false);
         $this->dryRunActive = $dryRun;
+        // The owner's blocked words as they are when the run starts (a change applies from the next run).
+        $this->safety = ContentSafety::forImports();
         $fullLangs = (bool) ($settings['full_langs'] ?? $this->option('full-langs'));
         $verifyFullLangs = (bool) ($settings['verify_full_langs'] ?? $this->option('verify-full-langs'));
         $apiLang = $this->normalizeLocale((string) ($settings['api_lang'] ?? $this->option('api-lang') ?: 'en')) ?: 'en';
@@ -377,7 +390,7 @@ class ImportAvdbVideos extends Command
                 ? "AVDB {$chunk[0]}"
                 : 'AVDB IDs '.reset($chunk).'-'.end($chunk);
             $this->syncRunCounters("{$chunkLabel}: fetching details", ['current_page' => $this->completedPages + 1]);
-            $this->write("{$chunkLabel}: fetching details for ".count($chunk).' ID(s)');
+            $this->write("{$chunkLabel}: fetching details for ".$this->counted(count($chunk), 'ID'));
 
             $data = $this->apiGet($this->apiBaseForLocale('en'), [
                 'ac' => 'detail',
@@ -388,6 +401,14 @@ class ImportAvdbVideos extends Command
                 ->filter(fn ($item) => is_array($item) && (int) ($item['id'] ?? 0) > 0)
                 ->keyBy(fn ($item) => (int) $item['id'])
                 ->all();
+
+            // 1.2.3: items with blocked words are skipped before anything else (no translation fetch, no write).
+            [$allowedItems, $blockedIds] = $this->withoutBlockedItems(array_values($itemsById), null, $issues);
+            $blockedIdSet = array_flip($blockedIds);
+            if ($blockedIds !== []) {
+                $itemsById = collect($allowedItems)->keyBy(fn ($item) => (int) $item['id'])->all();
+                $this->write($this->blockedLine(count($blockedIds)));
+            }
 
             $batchTranslations = [];
             $fastSkippedIds = [];
@@ -406,12 +427,12 @@ class ImportAvdbVideos extends Command
                     $itemsById = collect($remainingItems)
                         ->keyBy(fn ($item) => (int) $item['id'])
                         ->all();
-                    $this->write("{$chunkLabel}: fast-skipped ".count($fastSkippedIds).' unchanged existing item(s)'.($needsTranslations ? ' before translation fetch' : ''));
+                    $this->write("{$chunkLabel}: fast-skipped ".$this->counted(count($fastSkippedIds), 'unchanged existing item').($needsTranslations ? ' before translation fetch' : ''));
                 }
             }
 
             if ($needsTranslations && $itemsById !== []) {
-                $this->write("{$chunkLabel}: checking translations for ".count($itemsById).' item(s)');
+                $this->write("{$chunkLabel}: checking translations for ".$this->counted(count($itemsById), 'item'));
                 $batchTranslations = $this->fetchBatchTranslations(
                     array_values($itemsById),
                     $requiredLocales,
@@ -419,7 +440,7 @@ class ImportAvdbVideos extends Command
                     $chunkLabel,
                     $fastTrustedFullLangs
                 );
-                $this->write("{$chunkLabel}: translations ready for ".count($batchTranslations).' item(s)');
+                $this->write("{$chunkLabel}: translations ready for ".$this->counted(count($batchTranslations), 'item'));
             }
             $fastSkippedIdSet = array_flip($fastSkippedIds);
 
@@ -431,6 +452,13 @@ class ImportAvdbVideos extends Command
                 if (isset($fastSkippedIdSet[$avdbId])) {
                     $this->completedPages++;
                     $this->syncRunCounters("AVDB {$avdbId}: fast-skipped unchanged", ['current_page' => $this->completedPages]);
+
+                    continue;
+                }
+
+                if (isset($blockedIdSet[$avdbId])) {
+                    $this->completedPages++;
+                    $this->syncRunCounters("AVDB {$avdbId}: skipped, blocked words", ['current_page' => $this->completedPages]);
 
                     continue;
                 }
@@ -469,7 +497,7 @@ class ImportAvdbVideos extends Command
 
             $delta = $this->counterDelta($before);
             $this->syncRunCounters("{$chunkLabel}: processed", ['current_page' => $this->completedPages]);
-            $this->write("{$chunkLabel}: processed ".count($chunk).' ID(s) in '.$this->formatSeconds(microtime(true) - $chunkStartedAt).' | '.$this->formatCounterDelta($delta));
+            $this->write("{$chunkLabel}: processed ".$this->counted(count($chunk), 'ID').' in '.$this->formatSeconds(microtime(true) - $chunkStartedAt).' | '.$this->formatCounterDelta($delta));
             $this->writeIssueSummary($issues);
             $this->maybeStartDurationBackfillDuringImport($dryRun);
             $this->sleepMs(min($delay, 250));
@@ -567,6 +595,14 @@ class ImportAvdbVideos extends Command
             $scanItems = array_slice($items, 0, $requestedPageSize);
             $items = $scanItems;
             $scanItemCount = count($scanItems);
+            // 1.2.3: items with blocked words are skipped before anything else (no translation fetch, no write).
+            [$items, $blockedIds] = $this->withoutBlockedItems($items, $catId, $issues);
+            $uncheckedIds = [];
+            if ($items !== [] && $listApiBase !== $this->apiBaseForLocale('en')) {
+                // A page listed in another language: its English details are checked too.
+                [$items, $blockedInEnglish, $uncheckedIds] = $this->withoutItemsBlockedInEnglish($items, $catId, $issues);
+                $blockedIds = [...$blockedIds, ...$blockedInEnglish];
+            }
             $needsTranslations = $fullLangs || ($translatedOnly && $apiLang !== 'en');
             $requiredLocales = $needsTranslations ? ($fullLangs ? $fullLocales : [$apiLang]) : [];
             [$items, $fastSkippedIds] = $this->fastSkipUnchangedExistingItems(
@@ -580,9 +616,15 @@ class ImportAvdbVideos extends Command
             );
             $sortLabel = ($apiFilters['sort_direction'] ?? 'desc') === 'asc' ? 'oldest first' : 'newest first';
             $fastSkippedCount = count($fastSkippedIds);
-            $this->write("Category {$catId}, page {$page}: received {$scanItemCount} item(s), AVDB IDs ".$this->itemIdRangeLabel($scanItems).", {$sortLabel}".($fastSkippedCount > 0 ? "; fast-skipped {$fastSkippedCount} unchanged" : '').($needsTranslations && $items !== [] ? '; checking translations' : ''));
+            $this->write("Category {$catId}, page {$page}: received ".$this->counted((int) $scanItemCount, 'item').", AVDB IDs ".$this->itemIdRangeLabel($scanItems).", {$sortLabel}".($fastSkippedCount > 0 ? "; fast-skipped {$fastSkippedCount} unchanged" : '').($needsTranslations && $items !== [] ? '; checking translations' : ''));
+            if ($blockedIds !== []) {
+                $this->write($this->blockedLine(count($blockedIds)));
+            }
+            if ($uncheckedIds !== []) {
+                $this->write('Not imported this time: '.$this->counted(count($uncheckedIds), 'video').' whose English details did not arrive, so their words could not be checked.');
+            }
 
-            $processed = $fastSkippedCount;
+            $processed = $fastSkippedCount + count($blockedIds) + count($uncheckedIds);
             $pageTranslations = [];
             if ($needsTranslations && $items !== []) {
                 $batchLabel = "Category {$catId}, page {$page}";
@@ -624,7 +666,7 @@ class ImportAvdbVideos extends Command
                         }));
 
                         if ($missingChunkItems !== []) {
-                            $this->write("{$chunkLabel}: retrying ".count($missingChunkItems).' item(s) for failed/timed-out locale(s): '.implode(',', $failedLocales));
+                            $this->write("{$chunkLabel}: retrying ".$this->counted(count($missingChunkItems), 'item').' for failed or timed-out '.(count($failedLocales) === 1 ? 'locale' : 'locales').': '.implode(',', $failedLocales));
                             $pageTranslations = $this->mergeTranslationSets($pageTranslations, $this->fetchBatchTranslations(
                                 $missingChunkItems,
                                 $failedLocales,
@@ -644,7 +686,7 @@ class ImportAvdbVideos extends Command
 
                 if ($missingTranslationItems > 0) {
                     $missingLabel = $this->requireExactTranslationTitles ? 'exact locale titles' : 'locale titles';
-                    $this->write("{$batchLabel}: {$missingTranslationItems} item(s) missing {$missingLabel} after translation fetch");
+                    $this->write("{$batchLabel}: ".$this->counted((int) $missingTranslationItems, 'item')." missing {$missingLabel} after translation fetch");
                 }
             }
 
@@ -828,6 +870,15 @@ class ImportAvdbVideos extends Command
         if ($avdbId <= 0) {
             $this->failed++;
             $this->recordPageIssue($pageIssues, 'failed', 0, '', 'missing AVDB id');
+
+            return false;
+        }
+
+        // 1.2.3: the pages and ID chunks leave these out before; every other way into this method is checked here too,
+        // and so are the texts of the other languages fetched for the item (its original Japanese title, a translation
+        // that names a minor): such an item is skipped as well, before anything is written.
+        if ($this->itemIsBlocked($item, $catId) || $this->translationsAreBlocked($preloadedTranslations)) {
+            $this->countBlocked($pageIssues, $avdbId);
 
             return false;
         }
@@ -1048,6 +1099,192 @@ class ImportAvdbVideos extends Command
         $this->write("AVDB {$avdbId}: ".Str::limit($e->getMessage(), 160));
 
         return false;
+    }
+
+    /**
+     * 1.2.3: every run starts from nothing. Artisan::call() runs the same object again in one process (a queue worker
+     * runs RunAvdbImport after RunAvdbImport, the inline scheduled runs one after another), so the counters, the run and
+     * the per-run caches of the run before went on into the next one (its imported / skipped numbers, a run without
+     * --run-id writing into the run before).
+     */
+    private function resetRunState(): void
+    {
+        $this->run = null;
+        $this->imported = $this->skipped = $this->updated = $this->failed = 0;
+        $this->thumbsDownloaded = $this->tagsCreated = $this->langSkipped = 0;
+        $this->plannedPages = $this->completedPages = 0;
+        $this->plannedPagesPrecomputed = false;
+        $this->avdbCreatorUserCache = [];
+        $this->usersHaveAvdbCreatorColumns = null;
+        $this->fallbackImportUserId = null;
+        $this->creatorAssignmentWarningWritten = false;
+        $this->lastAvdbCreatorProfileChanged = false;
+        $this->localAvdbApiTranslationsAvailable = null;
+        $this->lastDurationBackfillImportedCount = $this->lastDurationBackfillStartedAt = 0;
+        $this->safety = null;
+        $this->blocked = 0;
+        $this->localCategoryTitles = null;
+    }
+
+    /**
+     * 1.2.3: whether an item uses a blocked word in its title, its tags or its categories (App\Support\ContentSafety: the
+     * words that are always blocked and the site's own list, Content > Import). Such an item is skipped before anything
+     * is written: no video, tag, category, translation, creator profile or thumbnail; an existing video of it is left as
+     * it is.
+     */
+    private function itemIsBlocked(array $item, ?int $catId = null): bool
+    {
+        $catId ??= $this->categoryIdFromItem($item);
+
+        return ($this->safety ??= ContentSafety::forImports())->check([
+            $this->cleanText($item['name'] ?? ''),
+            $this->titleFromItem($item),
+            $this->extractTagNames($item),
+            $this->cleanList($item['category'] ?? []),
+            $this->cleanText($item['type_name'] ?? ''),
+            $this->localCategoryTitle($catId),
+        ]) !== null;
+    }
+
+    /**
+     * The items of a page or an ID chunk without those that use blocked words, which are counted (skipped) and named in
+     * the page's issues by their AVDB number only (the run log never repeats the words).
+     *
+     * @return array{0: list<mixed>, 1: list<int>} the items to go on with, and the AVDB ids skipped
+     */
+    private function withoutBlockedItems(array $items, ?int $catId, ?array &$pageIssues = null): array
+    {
+        $allowed = [];
+        $blockedIds = [];
+
+        foreach ($items as $item) {
+            if (is_array($item) && $this->itemIsBlocked($item, $catId)) {
+                $avdbId = (int) ($item['id'] ?? 0);
+                $blockedIds[] = $avdbId;
+                $this->countBlocked($pageIssues, $avdbId);
+
+                continue;
+            }
+
+            $allowed[] = $item;
+        }
+
+        return [$allowed, $blockedIds];
+    }
+
+    /**
+     * 1.2.3: a page listed in another language ("Fetch content in" another language with "Require real translation"
+     * off) has that language's titles, tags and categories, which the words of the lists may miss (the owner's list is
+     * written in English, and so are most words that are always blocked): the English details of its items are checked
+     * too, before anything else (one request per AVDB_API_PAGE_SIZE items). An item whose English details do not arrive
+     * is not imported this run, because its words could not be checked: it is counted as failed, and the next run tries
+     * it again.
+     *
+     * @return array{0: list<mixed>, 1: list<int>, 2: list<int>} the items to go on with, the AVDB ids skipped for
+     *                                                              blocked words, and the ids that could not be checked
+     */
+    private function withoutItemsBlockedInEnglish(array $items, int $catId, ?array &$pageIssues = null): array
+    {
+        $ids = array_values(array_unique(array_filter(
+            array_map(fn ($item): int => is_array($item) ? (int) ($item['id'] ?? 0) : 0, $items),
+            fn (int $id): bool => $id > 0
+        )));
+        $english = [];
+
+        foreach (array_chunk($ids, self::AVDB_API_PAGE_SIZE) as $chunk) {
+            $data = $this->apiGet($this->apiBaseForLocale('en'), ['ac' => 'detail', 'ids' => implode(',', $chunk)], 30);
+
+            foreach ((array) ($data['list'] ?? []) as $englishItem) {
+                if (is_array($englishItem) && (int) ($englishItem['id'] ?? 0) > 0) {
+                    $english[(int) $englishItem['id']] = $englishItem;
+                }
+            }
+        }
+
+        $allowed = [];
+        $blockedIds = [];
+        $unchecked = [];
+
+        foreach ($items as $item) {
+            $avdbId = is_array($item) ? (int) ($item['id'] ?? 0) : 0;
+
+            if ($avdbId <= 0) {
+                $allowed[] = $item;
+
+                continue;
+            }
+
+            if (! isset($english[$avdbId])) {
+                $unchecked[] = $avdbId;
+                $this->failed++;
+                $this->recordPageIssue($pageIssues, 'failed', $avdbId, '', 'English details did not arrive: blocked words not checked');
+
+                continue;
+            }
+
+            if ($this->itemIsBlocked($english[$avdbId], $catId)) {
+                $blockedIds[] = $avdbId;
+                $this->countBlocked($pageIssues, $avdbId);
+
+                continue;
+            }
+
+            $allowed[] = $item;
+        }
+
+        return [$allowed, $blockedIds, $unchecked];
+    }
+
+    /**
+     * 1.2.3: whether a text of another language fetched for an item (its title, type and categories in that language)
+     * uses a blocked word.
+     *
+     * @param  array<string, mixed>|null  $translations  locale => translation (translationFromItem())
+     */
+    private function translationsAreBlocked(?array $translations): bool
+    {
+        foreach ((array) $translations as $translation) {
+            if (is_array($translation) && ($this->safety ??= ContentSafety::forImports())->check([
+                (string) ($translation['title'] ?? ''),
+                (string) ($translation['type_name'] ?? ''),
+                is_array($translation['categories'] ?? null) ? $translation['categories'] : [],
+            ]) !== null) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function countBlocked(?array &$pageIssues, int $avdbId): void
+    {
+        $this->blocked++;
+        $this->skipped++;
+        $this->recordPageIssue($pageIssues, 'skipped', $avdbId, '', ContentSafety::REASON);
+    }
+
+    /** "Skipped 3 videos: blocked words." (the run log, in English like the rest of it) */
+    private function blockedLine(int $count): string
+    {
+        return 'Skipped '.$this->counted($count, 'video').': blocked words.';
+    }
+
+    /** The title of the local category an AVDB category maps to ('' when there is none). */
+    private function localCategoryTitle(int $catId): string
+    {
+        if ($this->localCategoryTitles === null) {
+            try {
+                $this->localCategoryTitles = Category::query()
+                    ->whereIn('id', array_values($this->categoryMap))
+                    ->pluck('title', 'id')
+                    ->map(fn ($title): string => (string) $title)
+                    ->all();
+            } catch (\Throwable) {
+                $this->localCategoryTitles = [];
+            }
+        }
+
+        return $this->localCategoryTitles[$this->categoryMap[$catId] ?? 0] ?? '';
     }
 
     private function createVideo(array $item, int $catId, bool $skipTags, string $languageOpt): ?Video
@@ -1857,7 +2094,7 @@ class ImportAvdbVideos extends Command
             fn ($translations) => $this->translationsAreComplete($translations, $locales)
         );
         if ($completeFromLocal !== []) {
-            $this->write("{$label}: local avdbapi translation database completed ".count($completeFromLocal).'/'.count($translationsById).' candidate(s)');
+            $this->write("{$label}: local avdbapi translation database completed ".count($completeFromLocal).'/'.$this->counted(count($translationsById), 'candidate'));
         }
         if (count($completeFromLocal) === count($translationsById)) {
             return $completeFromLocal;
@@ -1873,7 +2110,7 @@ class ImportAvdbVideos extends Command
         $throttleMs = min($delay, 250);
         $startedAt = microtime(true);
 
-        $this->write("{$label}: fetching page translations for ".count($translationsById).' candidate ID(s) across '.count($locales).' locale(s)');
+        $this->write("{$label}: fetching page translations for ".$this->counted(count($translationsById), 'candidate ID').' across '.$this->counted(count($locales), 'locale'));
 
         foreach ($localeGroups as $localeGroup) {
             if ($this->shouldCancel()) {
@@ -1891,7 +2128,6 @@ class ImportAvdbVideos extends Command
                         $pool->as($locale)
                             ->timeout(self::TRANSLATION_HTTP_TIMEOUT_SECONDS)
                             ->retry(self::TRANSLATION_HTTP_RETRIES, 300, null, false)
-                            ->withOptions(['verify' => false])
                             ->get($this->apiBaseForLocale($locale), $this->apiParams($apiFilters, [
                                 'ac' => 'detail',
                                 't' => $catId,
@@ -1916,7 +2152,7 @@ class ImportAvdbVideos extends Command
                         $englishTitlesById,
                         $englishTranslationsById
                     );
-                    $this->write("{$label}: locale {$locale} has ".count($titleIds).'/'.count($englishTitlesById).' usable title(s)');
+                    $this->write("{$label}: locale {$locale} has ".count($titleIds).'/'.$this->counted(count($englishTitlesById), 'usable title'));
                 } else {
                     if ($failedLocales !== null) {
                         $failedLocales[] = $locale;
@@ -2006,7 +2242,7 @@ class ImportAvdbVideos extends Command
             fn ($translations) => $this->translationsAreComplete($translations, $locales)
         );
         if ($completeFromLocal !== []) {
-            $this->write("{$label}: local avdbapi translation database completed ".count($completeFromLocal).'/'.count($translationsById).' candidate(s)');
+            $this->write("{$label}: local avdbapi translation database completed ".count($completeFromLocal).'/'.$this->counted(count($translationsById), 'candidate'));
         }
         if (count($completeFromLocal) === count($translationsById)) {
             return $completeFromLocal;
@@ -2019,7 +2255,7 @@ class ImportAvdbVideos extends Command
             && ! $trustedFastMode
         ) {
             $missingLocal = count($translationsById) - count($completeFromLocal);
-            $this->write("{$label}: local translation database is authoritative for bulk full-language import; skipping slow remote fallback for {$missingLocal} incomplete candidate(s)");
+            $this->write("{$label}: local translation database is authoritative for bulk full-language import; skipping slow remote fallback for ".$this->counted((int) $missingLocal, 'incomplete candidate'));
 
             return $completeFromLocal;
         }
@@ -2043,7 +2279,7 @@ class ImportAvdbVideos extends Command
         $batchNumber = 0;
         $startedAt = microtime(true);
 
-        $this->write("{$label}: checking ".count($ids).' candidate ID(s) across '.count($locales)." locale(s), {$totalBatches} API batch(es), {$effectiveChunkSize} ID(s) per batch");
+        $this->write("{$label}: checking ".$this->counted(count($ids), 'candidate ID').' across '.$this->counted(count($locales), 'locale').', '.$this->counted((int) $totalBatches, 'API batch', 'API batches').', '.$this->counted((int) $effectiveChunkSize, 'ID').' per batch');
 
         foreach ($idChunks as $chunk) {
             $seenLocalesForChunk = [];
@@ -2072,7 +2308,6 @@ class ImportAvdbVideos extends Command
                             $pool->as($locale)
                                 ->timeout(self::TRANSLATION_HTTP_TIMEOUT_SECONDS)
                                 ->retry(self::TRANSLATION_HTTP_RETRIES, 300, null, false)
-                                ->withOptions(['verify' => false])
                                 ->get($this->apiBaseForLocale($locale), [
                                     'ac' => 'detail',
                                     'ids' => implode(',', $chunk),
@@ -2106,7 +2341,7 @@ class ImportAvdbVideos extends Command
                     if ($fetchedLocale) {
                         $missingIds = array_values(array_diff($chunk, $titleIds));
                         if ($missingIds !== []) {
-                            $this->write("{$label}: locale {$locale} returned ".count($titleIds).'/'.count($chunk).' title(s); marking '.count($missingIds).' missing candidate(s) as no full lang without retry');
+                            $this->write("{$label}: locale {$locale} returned ".count($titleIds).'/'.$this->counted(count($chunk), 'title').'; marking '.$this->counted(count($missingIds), 'missing candidate').' as no full lang without retry');
                         }
 
                         $fetchedLocalesForGroup[] = $locale;
@@ -2128,8 +2363,8 @@ class ImportAvdbVideos extends Command
                     $translationsById,
                     fn ($translations) => $this->translationsAreComplete($translations, $locales)
                 ));
-                $this->syncRunCounters("{$label}: translation batch {$batchNumber}/{$totalBatches} done; {$remainingInChunk} candidate(s) still possible, {$completeCount} complete");
-                $this->write("{$label}: translation batch {$batchNumber}/{$totalBatches} done in ".$this->formatSeconds((int) ceil(microtime(true) - $startedAt))."; {$remainingInChunk} candidate(s) still possible, {$completeCount} complete");
+                $this->syncRunCounters("{$label}: translation batch {$batchNumber}/{$totalBatches} done; ".$this->counted((int) $remainingInChunk, 'candidate')." still possible, {$completeCount} complete");
+                $this->write("{$label}: translation batch {$batchNumber}/{$totalBatches} done in ".$this->formatSeconds((int) ceil(microtime(true) - $startedAt)).'; '.$this->counted((int) $remainingInChunk, 'candidate')." still possible, {$completeCount} complete");
 
                 unset($responses);
                 $this->collectGarbage();
@@ -2161,8 +2396,7 @@ class ImportAvdbVideos extends Command
         }
 
         try {
-            $request = Http::timeout(max(1, $timeout))
-                ->withOptions(['verify' => false]);
+            $request = Http::timeout(max(1, $timeout));
 
             if ($retry) {
                 $request = $request->retry(self::TRANSLATION_HTTP_RETRIES + 1, 500, null, false);
@@ -2643,6 +2877,14 @@ class ImportAvdbVideos extends Command
                 return;
             }
 
+            // Security plan S20: only a real picture becomes the stored thumbnail (an HTML or script body from the
+            // provider or the network path never does); otherwise the remote poster address is used, as on any failure.
+            $info = strlen($response->body()) <= 10 * 1024 * 1024 ? @getimagesizefromstring($response->body()) : false;
+            if (! is_array($info) || ! in_array($info[2] ?? null, [IMAGETYPE_JPEG, IMAGETYPE_PNG, IMAGETYPE_WEBP, IMAGETYPE_GIF], true)
+                || (int) ($info[0] ?? 0) < 1 || (int) ($info[1] ?? 0) < 1) {
+                return;
+            }
+
             $filename = (string) Str::uuid().'.jpg';
             Storage::disk('local')->put(Video::THUMBNAIL_FOLDER.'/'.$filename, $response->body());
 
@@ -2669,7 +2911,9 @@ class ImportAvdbVideos extends Command
         $tagIds = [];
         foreach ($tagNames as $name) {
             $slug = Str::slug($name);
-            if (! $slug) {
+            // 1.2.3: a tag named with a blocked word is never created (an item that has one is skipped before; this
+            // keeps it so for every other way in)
+            if (! $slug || ($this->safety ??= ContentSafety::forImports())->blocks($name)) {
                 continue;
             }
 
@@ -2788,7 +3032,9 @@ class ImportAvdbVideos extends Command
 
             foreach ($baseNames as $index => $baseName) {
                 $localizedName = $this->cleanText($translation['categories'][$index] ?? '');
-                if ($localizedName === '' || $localizedName === $baseName) {
+                // 1.2.3: a tag name of another language that uses a word that is always blocked is never stored (the
+                // tag keeps its own name in that language; App\Support\ContentSafety)
+                if ($localizedName === '' || $localizedName === $baseName || ContentSafety::hardMatch($localizedName) !== null) {
                     continue;
                 }
 
@@ -2813,7 +3059,6 @@ class ImportAvdbVideos extends Command
         try {
             $response = Http::timeout($timeout)
                 ->retry(2, 500)
-                ->withOptions(['verify' => false])
                 ->get($baseUrl, $params);
 
             return $response->successful() ? $response->json() : null;
@@ -3011,7 +3256,11 @@ class ImportAvdbVideos extends Command
 
         $scheme = strtolower((string) parse_url($validationUrl, PHP_URL_SCHEME));
 
-        return in_array($scheme, ['http', 'https'], true) ? $url : self::EN_API;
+        if (! in_array($scheme, ['http', 'https'], true) || \App\Support\OutboundUrl::namesLocalHost($validationUrl)) {
+            return self::EN_API;
+        }
+
+        return $url;
     }
 
     private function resolveCategories(array $settings): array
@@ -3448,6 +3697,7 @@ class ImportAvdbVideos extends Command
             'failed' => $this->failed,
             'thumbs_downloaded' => $this->thumbsDownloaded,
             'tags_created' => $this->tagsCreated,
+            'blocked' => $this->blocked,
         ];
     }
 
@@ -3472,7 +3722,7 @@ class ImportAvdbVideos extends Command
             $delta['failed'] ?? 0,
             $delta['thumbs_downloaded'] ?? 0,
             $delta['tags_created'] ?? 0
-        );
+        ).(($delta['blocked'] ?? 0) > 0 ? sprintf(' (blocked words +%d)', $delta['blocked']) : '');
     }
 
     private function newPageIssues(): array
@@ -3624,6 +3874,12 @@ class ImportAvdbVideos extends Command
         }
     }
 
+    /** "1 ID", "3 IDs": a count of the run log in plain English (the log is this command's own output, in English). */
+    private function counted(int $count, string $one, ?string $many = null): string
+    {
+        return $count.' '.($count === 1 ? $one : ($many ?? $one.'s'));
+    }
+
     private function formatSeconds(float|int $seconds): string
     {
         $seconds = max(0, (float) $seconds);
@@ -3755,6 +4011,7 @@ class ImportAvdbVideos extends Command
             .($actualConcurrency < $requestedConcurrency ? " (auto-capped from {$requestedConcurrency} for PHP memory_limit)" : ''));
         $sortDirection = strtolower((string) ($filters['sort_direction'] ?? 'desc')) === 'asc' ? 'asc' : 'desc';
         $this->write('Source order: '.($sortDirection === 'asc' ? 'oldest first' : 'newest first')." (API sort_direction={$sortDirection})");
+        $this->write('Blocked words: '.$this->counted(($this->safety ??= ContentSafety::forImports())->siteWordCount(), 'word').' of your list (Content > Import), and the words that are always blocked.');
         $starterViews = (array) ($context['starterViews'] ?? []);
         if (($starterViews['mode'] ?? AvdbStarterViews::MODE_DISABLED) !== AvdbStarterViews::MODE_DISABLED) {
             $this->write('Starter views: mode='.($starterViews['mode'] ?? 'disabled')
@@ -3812,6 +4069,11 @@ class ImportAvdbVideos extends Command
     {
         if (! $this->dryRunActive) {
             SeoSitemapCache::clear();
+        }
+
+        // 1.2.3: the run's message names what blocked words kept out ("Skipped 3 videos: blocked words.").
+        if ($this->blocked > 0) {
+            $message .= ' '.$this->blockedLine($this->blocked);
         }
 
         if ($this->run && $this->run->started_at) {
@@ -3973,6 +4235,7 @@ class ImportAvdbVideos extends Command
         $this->failed = (int) ($snapshot['failed'] ?? $this->failed);
         $this->thumbsDownloaded = (int) ($snapshot['thumbs_downloaded'] ?? $this->thumbsDownloaded);
         $this->tagsCreated = (int) ($snapshot['tags_created'] ?? $this->tagsCreated);
+        $this->blocked = (int) ($snapshot['blocked'] ?? $this->blocked);
     }
 
     private function isTransientDatabaseError(QueryException $e): bool
@@ -4024,6 +4287,7 @@ class ImportAvdbVideos extends Command
         $this->info("Imported:  {$this->imported}");
         $this->info("Updated:   {$this->updated}");
         $this->info("Skipped:   {$this->skipped}");
+        $this->info("Blocked:   {$this->blocked} (blocked words, counted in Skipped)");
         $this->info("LangSkip:  {$this->langSkipped}");
         $this->info("Failed:    {$this->failed}");
         $this->info("Thumbs:    {$this->thumbsDownloaded}");

@@ -38,7 +38,9 @@ class VideoFactory extends Factory
             'published_at' => $date,
             'category_id' => Category::inRandomOrder()->first()?->id,
             'language' => null,
-            'allow_comments' => fake()->boolean(90),
+            // Comments on, as a new upload has them: at random (fake()->boolean(90)) one video in ten had them off, and the
+            // tests that report or like a comment under it failed now and then (round 3 R3-085 and its siblings).
+            'allow_comments' => true,
             'default_comments_sort' => fake()->randomElement(['top', 'newest']),
             'show_likes' => fake()->boolean(90),
             "show_ad" => fake()->boolean(90),

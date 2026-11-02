@@ -3,9 +3,12 @@
 namespace App\Actions\Video;
 
 use App\Data\NextVideoDTO;
+use App\Models\Interaction;
 use App\Models\Playlist;
 use App\Models\Video;
+use App\Playlists\Types\LikedVideosPlaylist;
 use App\Services\VideoService;
+use App\Support\AdminIpLock;
 use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\Auth;
@@ -54,7 +57,7 @@ class ShowVideoAction
 
     private function getVideoData(): Video
     {
-        return $this->video
+        $video = $this->video
             ->load([
                 'user' => fn(BelongsTo $query) => $query->withCount('subscribers'),
                 'reportByAuthUser',
@@ -69,6 +72,9 @@ class ShowVideoAction
                 'likes as liked_by_auth_user' => fn($query) => $query->where('user_id', Auth::id()),
                 'dislikes as disliked_by_auth_user' => fn($query) => $query->where('user_id', Auth::id()),
             ]);
+
+        // 1.2.3: no tag named with a word that is always blocked, on the page or in its keywords (App\Support\ContentSafety)
+        return $video->setRelation('tags', \App\Support\ContentSafety::visibleTags($video->tags));
     }
 
     private function getPlaylist(): ?Playlist
@@ -83,7 +89,9 @@ class ShowVideoAction
         $playlistQuery = Playlist::query()
             ->where('uuid', $playlistUuid->value());
 
-        if (! $viewer?->is_admin) {
+        // Another member's private playlist only for an administrator with admin powers here: from an address
+        // outside the admin IP lock an administrator is an ordinary member (R1-089), as on the playlist page.
+        if (! AdminIpLock::adminPowersHere($viewer)) {
             $playlistQuery->where(function (EloquentBuilder $query) use ($viewer) {
                 $query->active();
 
@@ -104,11 +112,48 @@ class ShowVideoAction
         return $playlist;
     }
 
+    /** The most videos of a Liked videos queue on the watch page (the newest likes). */
+    private const LIKED_QUEUE_LIMIT = 200;
+
     private function loadPlaylistVideos(Playlist $playlist): void
     {
-        $videosQuery = $playlist->videos();
         $viewer = Auth::user();
-        $canViewAllPlaylistVideos = $viewer?->is_admin === true
+
+        // The viewer's own Liked videos: its videos are the viewer's likes (App\Playlists\Types\LikedVideosPlaylist),
+        // never rows of the list, so its "Play all" had an empty queue. The queue is the likes of active videos, the
+        // newest first, as the Liked videos page lists them (member design 6.11).
+        if (
+            $viewer !== null
+            && (int) $playlist->user_id === (int) $viewer->id
+            && ! $playlist->is_deletable
+            && ($playlist->getAttributes()['title'] ?? null) === LikedVideosPlaylist::getName()
+        ) {
+            $ids = Interaction::query()
+                ->where('user_id', $viewer->id)
+                ->where('status', true)
+                ->where('likeable_type', Video::class)
+                ->whereHasMorph('likeable', [Video::class], fn (EloquentBuilder $video) => $video->active())
+                ->latest('perform_at')
+                ->latest('id')
+                ->limit(self::LIKED_QUEUE_LIMIT)
+                ->pluck('likeable_id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
+
+            $playlist->setAttribute('videos_count', count($ids));
+            $this->playlistVideos = Video::query()
+                ->whereKey($ids)
+                ->with('user')
+                ->get()
+                ->sortBy(fn (Video $video) => array_search((int) $video->getKey(), $ids, true))
+                ->values();
+            $this->currentIndex = $this->playlistVideos->search(fn (Video $video) => $video->id === $this->video->id);
+
+            return;
+        }
+
+        $videosQuery = $playlist->videos();
+        $canViewAllPlaylistVideos = AdminIpLock::adminPowersHere($viewer)
             || ($viewer !== null && $viewer->id === $playlist->user_id);
 
         if (! $canViewAllPlaylistVideos) {

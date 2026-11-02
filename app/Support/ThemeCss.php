@@ -8,7 +8,7 @@ use Illuminate\Support\HtmlString;
 use Throwable;
 
 /**
- * Perf plan step 24: the layout's static theme CSS lives in resources/css/layout-theme-*.css
+ * The layout's static theme CSS lives in resources/css/layout-theme-*.css
  * and is served as cached build files instead of ~200 KB of inline CSS on every page.
  *
  * tags() prints the normal Vite tags for one of those files. It prints the same CSS inline

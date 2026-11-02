@@ -18,11 +18,15 @@
 --}}
 @props(['pages' => [], 'src' => null, 'shot' => null, 'shotPage' => null, 'device' => 'computer'])
 @php($src ??= array_key_first($pages))
+{{-- shot-page is a path of the site ("/"); the pages are addresses as the browser asks for them (the folder of a site
+     installed in one, /index.php where the site's links carry it: AppearanceController::monitorPages()), so the picture's
+     page is compared in that same form (round 3 review SB-RV-02: "/index.php" and "/site/" never equalled "/"). --}}
+@php($shotPage = $shotPage === null ? null : \App\Support\CleanUrls::requestForm(site_browser_path((string) $shotPage)))
 @php($shotShown = $shot && ($shotPage === null || parse_url((string) $src, PHP_URL_PATH) === $shotPage))
 @php($deviceName = 'ad_monitor_device_'.\Illuminate\Support\Str::lower(\Illuminate\Support\Str::random(6)))
 <div {{ $attributes->class(['ad-monitor']) }} data-ad-monitor @if($src) data-src="{{ $src }}" @endif data-frame-title="{{ __('Preview of your site') }}" data-blocked="{{ __('Your site does not allow its preview inside this page (its security settings). Open it in a new tab instead.') }}" data-open-label="{{ __('Open the preview in a new tab') }}">
     <div class="ad-monitor-bar">
-        <x-admin.segmented :name="$deviceName" :value="$device" :label="__('Preview on')" :options="['computer' => __('Computer'), 'phone' => __('Phone')]" data-ad-ignore />
+        <x-admin.segmented :name="$deviceName" :value="$device" :label="__('Preview on')" :options="['computer' => __('Computer'), 'phone' => __('Mobile phone')]" data-ad-ignore />
         @if (count($pages) > 1)
             <select class="ad-select" aria-label="{{ __('Page to preview') }}" data-ad-monitor-page data-ad-ignore>
                 @foreach ($pages as $url => $label)

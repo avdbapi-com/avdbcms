@@ -56,8 +56,8 @@
             <td class="align-middle"><span class="badge bg-dark">{{ ucfirst($a->position) }}</span></td>
             <td class="align-middle">
                 <small>
-                    @if($a->starts_at) {{__('From')}}: {{ \Carbon\Carbon::parse($a->starts_at)->translatedFormat('M d H:i') }}<br> @endif
-                    @if($a->expires_at) {{__('Until')}}: {{ \Carbon\Carbon::parse($a->expires_at)->translatedFormat('M d H:i') }}
+                    @if($a->starts_at) {{ \App\Support\AdminText::labelled(__('From'), \Carbon\Carbon::parse($a->starts_at)->translatedFormat('M d H:i')) }}<br> @endif
+                    @if($a->expires_at) {{ \App\Support\AdminText::labelled(__('Until'), \Carbon\Carbon::parse($a->expires_at)->translatedFormat('M d H:i')) }}
                         @if(\Carbon\Carbon::parse($a->expires_at)->isPast()) <span class="badge bg-secondary">{{__('Expired')}}</span> @endif
                     @else
                         <span class="text-muted">{{__('No expiry')}}</span>

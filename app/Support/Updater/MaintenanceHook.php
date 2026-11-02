@@ -580,10 +580,24 @@ final class MaintenanceHook
         // that cannot be encoded throws.
         $json = json_encode($plan, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR);
 
-        if (@file_put_contents($temporary, $json, LOCK_EX) !== strlen($json) || ! @rename($temporary, $file)) {
+        if (@file_put_contents($temporary, $json, LOCK_EX) !== strlen($json)) {
             @unlink($temporary);
 
             throw new \RuntimeException('The update plan cannot be saved. The disk may be full.');
+        }
+
+        // On Windows another program that holds plan.json open (a virus scanner, a backup tool) refuses the rename for a
+        // moment: tried again for about a second (PlanStore::replace() does the same in Laravel).
+        for ($try = 1; ! @rename($temporary, $file); $try++) {
+            clearstatcache(true, $temporary);
+
+            if ($try >= 11 || ! is_file($temporary)) {
+                @unlink($temporary);
+
+                throw new \RuntimeException('The update plan (plan.json) could not be replaced with its new copy: another program may be holding it open.');
+            }
+
+            usleep(100000);
         }
     }
 

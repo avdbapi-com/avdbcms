@@ -46,13 +46,13 @@ class AdminListQueryCountTest extends TestCase
             'blocked addresses' => ['admin.ip-bans.index'],
             'announcements' => ['admin.announcements.index'],
             'email not confirmed' => ['admin.verification.index'],
-            // Wave 3 (ADMB): the other list pages.
+            // The other list pages.
             'signed in now' => ['admin.sessions.index'],
             'devices' => ['admin.devices.index'],
             'password resets' => ['admin.password-resets.index'],
             'activity' => ['admin.activities.index'],
+            // (with the one send form, judge R1-161; /admin/broadcast opens it there)
             'notifications sent' => ['admin.notifications.index'],
-            'notification to everyone' => ['admin.broadcast.index'],
             'homepage picks' => ['admin.featured.index'],
             'views' => ['admin.views.index'],
             'searches' => ['admin.searches.index'],
@@ -86,9 +86,9 @@ class AdminListQueryCountTest extends TestCase
     }
 
     /**
-     * The old admin (one release) renders the same rows from the same controllers. Its views still show member
-     * avatars, and User::avatar_url reads each member's row again (AvdbCreatorAvatarFactory), so it is not held
-     * to the budget; the controllers' eager loading still serves it.
+     * The old admin (one release) renders the same rows from the same controllers. Its views still read some
+     * relations per row (the comments list) and its reports page reads more than the budget, so it is not held to
+     * the budget or the N+1 check; the controllers' eager loading still serves it.
      */
     #[DataProvider('lists')]
     public function test_the_old_admin_still_renders_the_lists(string $route): void
@@ -154,7 +154,7 @@ class AdminListQueryCountTest extends TestCase
             Language::query()->firstOrCreate(['code' => 'l'.chr(97 + $i % 26).chr(97 + intdiv($video->id, 26) % 26)], ['label' => 'Language '.$video->id, 'emoji' => 'XX', 'direction' => 'ltr', 'is_active' => true, 'is_default' => false, 'sort_order' => $i]);
         }
 
-        // The tables of the wave-3 lists (devices, notifications, payments, failed jobs ...).
+        // The tables of the other lists (devices, notifications, payments, failed jobs ...).
         AdminPageSmokeTest::seedOtherLists(User::factory()->admin()->create(), $n, 'q'.$n.'-');
     }
 }

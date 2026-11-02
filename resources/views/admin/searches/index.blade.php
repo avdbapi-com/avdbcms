@@ -67,7 +67,7 @@
                 </td>
                 <td class="align-middle">
                     <span class="badge {{ $search->max_results > 0 ? 'bg-success' : 'bg-danger' }}">
-                        {{ number_format($search->max_results) }} {{__('results')}}
+                        {{ trans_choice('1 result|:count results', (int) $search->max_results, ['count' => number_format((int) $search->max_results)]) }}
                     </span>
                 </td>
                 <td class="align-middle">

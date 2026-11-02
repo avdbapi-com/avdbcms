@@ -1,5 +1,10 @@
 <!DOCTYPE html>
 @php
+    // A demo site's visitor choices (App\Support\VisitorChoices: the look this browser tries, ads turned on or off):
+    // every page this layout draws for the public site gets them, whatever its address or method (the ApplyVisitorChoices
+    // middleware applied them already to a page a visitor reads; here the 404 page of an /admin address, the answer to a
+    // form, a page rendered outside the web middleware). Nothing while both settings are off, or in the admin's layout.
+    \App\Support\VisitorChoices::applyForLayout(request(), (string) $attributes->get('type', ''));
     // The resolved appearance of this request: AppearanceSettings::current() (theme catalogue v2: what the provider
     // applied, drafts included) where it exists, else the stored group with this request's previews.
     $appearance = method_exists(\App\Support\AppearanceSettings::class, 'current')
@@ -75,6 +80,12 @@
     // authoritative, but make the global effects and motion controls able to
     // turn off its render loop before the canvas is emitted.
     $dailyAtmosphereParticles = $effectEnabled('daily_design_atmosphere_particles') && $motionLevel !== 'off';
+    // The "Today's design" pill and its HUD (member design 4.1a, 4.4, owner decision OD-M17): never on the member
+    // back office (studio and account: that corner is the studio menu's account card and the save bar) nor on the
+    // sign-in pages; the particle canvas never on a member page (a requestAnimationFrame loop at rest). Evaluated
+    // below, once the route is known.
+    $showDailyPill = false;
+    $showDailyParticles = false;
     $cssAnimationsEnabled = $effectEnabled('css_animations_enabled');
     $cssTransitionsEnabled = $effectEnabled('css_transitions_enabled');
     $cssHoverEffectsEnabled = $effectEnabled('css_hover_effects_enabled');
@@ -93,8 +104,11 @@
     $jsLazyCommentsEnabled = $effectEnabled('js_lazy_comments_enabled');
     $customCodeEnabled = $configBool('custom_code_enabled', $appearanceBool('custom_code_enabled'));
     $customCss = $customCodeEnabled ? ($appearance['custom_css'] ?? '') : '';
-    $customJs = $customCodeEnabled ? ($appearance['custom_js'] ?? '') : '';
-    $customHead = $customCodeEnabled ? ($appearance['custom_head_html'] ?? '') : '';
+    // The password-reset page carries the reset token (in its address) and the e-mail (in its query): the owner's own
+    // scripts and head code (an analytics or chat snippet reads location.href) do not run there. Custom CSS stays.
+    $isPasswordResetPage = request()->routeIs('password.reset');
+    $customJs = $customCodeEnabled && ! $isPasswordResetPage ? ($appearance['custom_js'] ?? '') : '';
+    $customHead = $customCodeEnabled && ! $isPasswordResetPage ? ($appearance['custom_head_html'] ?? '') : '';
     $announcementBanner = $configBool('announcement_banner_enabled', $appearanceBool('announcement_banner_enabled')) ? ($appearance['announcement_banner'] ?? '') : '';
     $frontSidebarPinned = $configBool('front_sidebar_pinned_enabled', $appearanceBool('front_sidebar_pinned_enabled'));
     $cardHoverEnabled = $cssHoverEffectsEnabled && $configBool('video_card_hover_enabled', $appearanceBool('video_card_hover_enabled'));
@@ -217,6 +231,48 @@
     // (layouts/menus/sidebars/back: html[data-avd-back-office]) and a home hero zone (body.has-hero-zone; the
     // hero partial declares it, and the page's sections are known before the layout renders).
     $backOfficeMenu = ($sidebar ?? null) === 'back';
+    // Member pages (member design 5.13, the member scaffold): the route names of config/member_pages.php. The member
+    // CSS entry loads for a signed-in visitor on every page and for guests on the member routes, never on the admin's
+    // pages; html[data-avd-member] is printed on the member routes once config('member_pages.marker') is on.
+    // Error and status pages declare themselves member pages (resources/views/errors/minimal.blade.php sets the request
+    // attribute avd.member_page before the layout renders: member design 6.15, the error-* mockups).
+    $memberPage = (is_string($routeName) && \Illuminate\Support\Str::is((array) config('member_pages.routes', []), $routeName))
+        || request()->attributes->get('avd.member_page') === true;
+    $memberMarker = $memberPage && (bool) config('member_pages.marker', false);
+    // An error page a guest sees links the entry itself (errors/minimal.blade.php, request attribute avd.member_css_pushed,
+    // set before this layout renders): linked once, not twice.
+    $memberCss = ($memberPage || auth()->check()) && $layoutType !== 'admin' && ! request()->routeIs('admin.*')
+        && request()->attributes->get('avd.member_css_pushed') !== true;
+    // R1-070: the sign-in pages' part of the member kit (resources/sass/auth-pages.scss, member/_auth.scss) is its own
+    // entry, printed after the member entry where its rules are used: the sign-in pages, the contact form, the account
+    // page (its "Always on" divider) and the error pages (errors/minimal.blade.php marks itself with avd.member_page).
+    $memberAuthCss = ($memberCss || request()->attributes->get('avd.member_css_pushed') === true)
+        && (request()->routeIs('login', 'logout', 'registration', 'password.*', 'verification.*', 'phone.*', 'contact.show', 'user.edit')
+            || request()->attributes->get('avd.member_page') === true);
+    // The member back office (studio and account: layouts/user, type="user"). The admin's back office (type="admin")
+    // shares html[data-avd-back-office] but never the studio's tab bar, slim footer or member rules.
+    $isMemberBackOffice = $layoutType === 'user';
+    // A one-time toast that comes with the page (member design 5.10: the toast system is the layout's). A controller
+    // flashes `toast` as a string or as ['message' => ..., 'type' => success|error|info|warning]; the layout prints it
+    // in the kit toast stack and marks <html data-mk-toast> while it shows, so "Back to top" and the daily-design pill
+    // step aside (4.4). The text is always escaped.
+    $flashToast = (function (): ?array {
+        $raw = session('toast');
+        $toast = is_array($raw) ? $raw : (is_string($raw) ? ['message' => $raw] : null);
+        $message = is_array($toast) && is_scalar($toast['message'] ?? null) ? trim((string) $toast['message']) : '';
+        if ($message === '') {
+            return null;
+        }
+        $type = in_array($toast['type'] ?? 'success', ['success', 'error', 'info', 'warning'], true) ? ($toast['type'] ?? 'success') : 'success';
+
+        return ['message' => $message, 'type' => $type];
+    })();
+    // A page that can show one visitor's flashed message (this toast, a status line, form errors) is that visitor's:
+    // the edge cache leaves it private (App\Support\OneTimePage; the flash data is gone from the session by the time the
+    // outer middleware sees the response). The toast marks it even when it is not a flash.
+    if (! \App\Support\OneTimePage::markIfFlashed() && $flashToast !== null) {
+        \App\Support\OneTimePage::mark();
+    }
     $pageHasHeroZone = class_exists(\App\Support\ThemeStructure::class) && \App\Support\ThemeStructure::pageHasHeroZone();
     // Capability tier (perf v2). Admin pages always render rich, so the Theme Studio previews
     // show every effect; a non-auto performance_tier_mode pins every visitor to that tier.
@@ -246,7 +302,7 @@
     } elseif ($routeName === 'playlist.show' && !config('site.playlist_pages_indexable', true)) {
         $pageRobots = 'noindex, follow';
     } elseif ($routeName && (
-        in_array($routeName, ['login', 'registration'], true) ||
+        in_array($routeName, ['login', 'registration', 'logout'], true) ||
         \Illuminate\Support\Str::startsWith($routeName, ['password.', 'verification.', 'phone.', 'oauth.'])
     )) {
         $pageRobots = 'noindex, nofollow';
@@ -255,6 +311,9 @@
     } elseif ($routeName && \Illuminate\Support\Str::startsWith($routeName, 'user.') && $routeName !== 'user.show') {
         $pageRobots = 'noindex, nofollow';
     }
+    // 1.2.3: a watch page that opens in a language where the video is not indexable (App\Support\VideoLanguages::robots(),
+    // also its X-Robots-Tag header) says so here too
+    $pageRobots = request()->attributes->get(\App\Support\VideoLanguages::ROBOTS) ?? $pageRobots;
 
     $robotsMeta = $robotsOverride !== '' ? $robotsOverride : $pageRobots;
     $adCodeHeader = config('site.ad_code_header', '');
@@ -263,15 +322,38 @@
     $adCodeOnclick = config('site.ad_code_onclick', '');
     $adPrerollAds = \App\Support\PrerollAds::parse(config('site.ad_preroll_media_url', ''), config('site.ad_preroll_click_url', ''));
     $adPrerollMediaUrls = array_column($adPrerollAds, 'src');
+    // 'logout': the "Sign out of <site>?" page an old GET link opens (auth-22) is drawn in the sign-in layout: no ads (6.20)
     $isAuthRoute = $routeName && (
-        in_array($routeName, ['login', 'registration'], true) ||
+        in_array($routeName, ['login', 'registration', 'logout'], true) ||
         \Illuminate\Support\Str::startsWith($routeName, ['password.', 'verification.', 'phone.', 'oauth.'])
+    );
+    // /premium, the checkout returns and the welcome sheet sell an ad-free plan: no ad slot, phone strip or popunder
+    // there (member design 6.20, owner decision OD-M10; revertible in this one line).
+    $isCheckoutPage = $routeName && (
+        $routeName === 'pages.premium' || \Illuminate\Support\Str::startsWith($routeName, ['premium.', 'paypal.', 'stripe.'])
     );
     $adsEnabled = config('site.ads_enabled', false);
     $hideAds = $adsEnabled && config('site.ads_hide_for_premium', true) && auth()->user()?->is_premium;
-    $showAds = $adsEnabled && ! $hideAds && ! $isBackOfficeLayout && ! $isAuthRoute;
+    $showAds = $adsEnabled && ! $hideAds && ! $isBackOfficeLayout && ! $isAuthRoute && ! $isCheckoutPage;
     $showMobileAd = $showAds && trim((string) $adCodeMobile) !== '';
     $showOnclickAd = $showAds && config('site.ad_onclick_enabled', false) && trim((string) $adCodeOnclick) !== '';
+    // The demo site's "Demo · Ads off" pill and palette button (layouts/partials/visitor-choices): null, so nothing at
+    // all is printed, while both settings are off, on the admin's pages and on pages the feature leaves alone.
+    $avdVisitorDock = \App\Support\VisitorChoices::dock(request(), $layoutType, $backToTopEnabled);
+    $showDailyPill = $dailyBadgeEnabled && $activeDailyDesign && ! $isMemberBackOffice && ! $isAuthRoute;
+    $showDailyParticles = $showDailyPill && $dailyAtmosphereParticles && ! $memberPage;
+    // The studio's phone tab bar replaces the site's bottom bar on member back-office pages while "Mobile
+    // Bottom Nav Bar" is on: body.has-studio-tabbar marks it, so the 62px band,
+    // the save bar's lift and the hidden head/header Upload follow the real tab bar, and with the setting off studio
+    // phones keep an Upload button and no empty band.
+    $studioTabbar = $mobileBottomNavEnabled && $isMemberBackOffice;
+    // auth-8 / auth-18: the layout's sign-in entries (phone bottom bar, the guest prompt) bring the visitor back to the
+    // page they came from and keep their language: the header's own link (ReturnPath::loginUrl()), whose ?redirect= is
+    // a path of this site (ReturnPath::safePath(); round 3 R3-079: it was the address as received, "//host/x" too). Not
+    // from the sign-in pages themselves. Create account carries no return address (the sign-up page reads none), as
+    // in the header and the guest prompt.
+    $signInUrl = $isAuthRoute || ! request()->isMethod('GET') ? locale_url(route('login')) : \App\Http\Controllers\Auth\ReturnPath::loginUrl();
+    $signUpUrl = locale_url(route('registration'));
     $jsonScriptFlags = JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT;
     $primaryValues = sscanf($primaryColor, '#%02x%02x%02x') ?: [255, 61, 97];
     $secondaryValues = sscanf($secondaryColor, '#%02x%02x%02x') ?: [255, 139, 92];
@@ -293,10 +375,21 @@
     $currentPath = request()->getPathInfo();
     $appUrl = rtrim(config('app.url'), '/');
     $defaultLocale = config('site.default_locale', config('app.locale', 'en'));
-    $canonicalDefault = $appUrl . locale_url($currentPath);
+    // A site installed in a folder (APP_URL https://example.com/site): locale_url() gives the whole address, and the
+    // alternates below put the page after APP_URL, which holds the folder (R2R-05).
+    $canonicalDefault = site_folder() === '' ? $appUrl . locale_url($currentPath) : locale_url($currentPath);
     $canonicalUrl = trim($__env->yieldContent('canonical', $canonicalDefault)) ?: $canonicalDefault;
     $canonicalPath = parse_url($canonicalUrl, PHP_URL_PATH) ?: $currentPath;
-    $canonicalPath = '/' . ltrim($canonicalPath, '/');
+    $canonicalPath = site_path('/' . ltrim($canonicalPath, '/'));
+    // A site whose links keep /index.php/...: the language goes after it (/index.php/fr/trend), never before it
+    // (/fr/index.php answers 404 on nginx).
+    $alternatePrefix = '';
+    if ($canonicalPath === '/index.php' || str_starts_with($canonicalPath, '/index.php/')) {
+        $alternatePrefix = '/index.php';
+        $canonicalPath = substr($canonicalPath, strlen('/index.php')) ?: '/';
+    }
+    // The home page of a site installed in a folder: the folder with its slash, as its canonical (R2R-05).
+    $alternateHome = $alternatePrefix === '' && site_folder() !== '' ? '/' : '';
     $languagesForSeo = config('languages', []);
     $pathSegments = explode('/', trim($canonicalPath, '/'));
     if (!empty($pathSegments[0]) && isset($languagesForSeo[$pathSegments[0]])) {
@@ -325,7 +418,7 @@
     $themeModes = $theme === 'auto' || $jsThemeMemoryEnabled || $configBool('sidebar_theme_switcher_enabled', true) || (bool) config('site.footer_theme_switcher_enabled', true)
         ? [$resolvedTheme, $resolvedTheme === 'dark' ? 'light' : 'dark']
         : [$resolvedTheme];
-    // Theme-owned structure (theme_spec theme_owned_recipe) and the side menu. On public pages WP5's ThemeStructure
+    // Theme-owned structure (theme_spec theme_owned_recipe) and the side menu. On public pages ThemeStructure
     // is the one resolver once installed. Until then body.has-sidebar keeps the v1 rule: the v1 menu
     // (layouts/menus/sidebars/front) is pinned whenever front_sidebar_pinned_enabled is on, and the theme CSS turns
     // a 'hidden' style into a drawer (the theme's --avd-sidebar-w is 0, so nothing is offset); the CSS before the
@@ -357,6 +450,11 @@
         'data-avd-sidebar-style' => $sidebarStyle,
     ];
     $themeAttributes = array_replace($themeAttributes, array_intersect_key($themeStructure, $themeAttributes));
+    // Back-office pages print the plain bar (layouts/menus/header.blade.php): the masthead and crest decorations and
+    // their header rules stay on the public pages (studio-37, studio-40).
+    if ($isBackOfficeLayout && in_array($themeAttributes['data-avd-header-deco'] ?? '', ['masthead', 'crest'], true)) {
+        $themeAttributes['data-avd-header-deco'] = 'none';
+    }
     $headerStyleAttribute = (string) ($themeStructure['data-avd-header-style'] ?? $headerStyle);
     // The owner's custom colours: a colour setting of this request that differs from the colour style's own
     // value (AppearanceSettings marks them as _custom_colours where it can). Fitted by the colour engine
@@ -454,6 +552,9 @@
     {{ $themeAttribute }}="{{ $themeAttributeValue }}"
     @endforeach
     @if($backOfficeMenu) data-avd-back-office @endif
+    @if($isMemberBackOffice) data-avd-member-back-office @endif
+    @if($memberMarker) data-avd-member @endif
+    @if($flashToast) data-mk-toast @endif
     data-avd-home-layout="{{ $homeLayoutMode }}"
     data-avd-watch-layout="{{ $watchLayoutMode }}"
     data-avd-card-layout="{{ $videoCardLayoutStyle }}"
@@ -479,13 +580,13 @@
     <meta charset="utf-8">
     <title>{{ $fullTitle }}</title>
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    {{-- Perf plan steps 21-22: early hints from the page content (the first hero image, the VideosList
+    {{-- Early hints from the page content (the first hero image, the VideosList
          chunk and its imports). Pages render before this layout, so their pushes are already here. --}}
     @stack('preload')
     @php
         // The page's early feeds (<x-videos-area early>, see resources/views/components/videos-area.blade.php): one
-        // for every width, or one below 768px and one from 768px (`media`); for guests on a home feed its first page
-        // (the API's JSON), else (a cold API cache) its first row's pictures.
+        // for every width, or one below 768px and one from 768px (`media`); on a home feed its first page (the API's
+        // JSON, for guests and signed-in members alike since R1-072), else (a cold API cache) its first row's pictures.
         $avdEarlyFeeds = $layoutType !== 'admin'
             ? array_values(array_filter((array) request()->attributes->get('avd.early_feeds', []), fn ($feed): bool => is_array($feed) && is_string($feed['url'] ?? null) && $feed['url'] !== ''))
             : [];
@@ -529,19 +630,19 @@
     @endforeach
     @if($avdEarlyFeeds !== [])
     <script>
-        /* Perf plan step 21: the early feed's first-page API request starts here, in parallel with the CSS
+        {{-- The early feed's first-page API request starts here, in parallel with the CSS
            and JS, instead of after the app boots. It is exactly the request VideosList makes (getVideos ->
            jsonFetch: same URL, headers and credentials, the same /index.php rule). VideosList takes the
            promise from window.__avdFeedEarly[url] once, for the first page only; a missing, failed or
            unexpected response falls back to its own request. When the page carries that first page
-           (#avdFeedEarlyPage, guests on a home feed) no request is made: VideosList takes it as its initial
-           data (window.__avdFeedShipped[url]) and the promise resolves to it. Without it (a cold API cache) the
+           (#avdFeedEarlyPage: a home feed, for guests and members) no request is made: VideosList takes it as its
+           initial data (window.__avdFeedShipped[url]) and the promise resolves to it. Without it (a cold API cache) the
            page carries the first row's pictures: VideosList's skeleton shows them (window.__avdFeedThumbs[url],
            with `warm`: eager only where the server skeleton loads them eagerly, i.e. no hero photo and early at
            every width). A feed that is early at one width only (its media query = VideosList's early-media) makes
            no request at the other widths, where it loads like any other feed; a page it carries still answers
            that later first-page request (window.__avdFeedEarly[url]) instead of the API, without rendering it at
-           boot. Arguments: [[url, media, page id, thumbs], ...], locale, CSRF token, warm. ES5. */
+           boot. Arguments: [[url, media, page id, thumbs], ...], locale, CSRF token, warm. ES5. --}}
         (function (w, feeds, locale, token, warm) {
             var early = function (url, media, pageId, thumbs) {
                 if (!w.Promise) return;
@@ -562,7 +663,8 @@
                 if (target.indexOf('/api/') === 0 && w.location.pathname.indexOf('/index.php') !== -1) target = '/index.php' + target;
                 var request = w.fetch(target, {
                     method: 'GET',
-                    headers: {'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': token, 'X-Locale': locale},
+                    {{-- X-Background-Request (App\Http\Middleware\BackgroundRequest): the session is read, never changed. --}}
+                    headers: {'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': token, 'X-Locale': locale, 'X-Background-Request': '1'},
                     credentials: 'include'
                 }).then(function (response) {
                     if (!response.ok) throw response.status;
@@ -570,9 +672,9 @@
                 });
                 request['catch'](function () {});
                 registry[url] = request;
-                /* Under a hero without a photo of its own (the ranked lists) the feed's first row is the largest
+                {{-- Under a hero without a photo of its own (the ranked lists) the feed's first row is the largest
                    picture of the first screen: its thumbnails start loading as soon as the list arrives, while the
-                   app still boots; the cards' <img>s then find them in the image cache. */
+                   app still boots; the cards' <img>s then find them in the image cache. --}}
                 if (warm) request.then(function (page) {
                     var items = page && page.data, n = Math.min(items && items.length || 0, w.innerWidth < 768 ? 2 : 4);
                     for (var i = 0; i < n; i++) {
@@ -613,10 +715,13 @@
         <link rel="canonical" href="{{ $canonicalUrl }}">
     @endif
     @if(config('site.hreflang_enabled', true))
+        {{-- 1.2.3 round 3: an imported video's page is indexable only in English, the default language and the languages of its translations (App\Support\VideoLanguages) --}}
+        @php $hreflangOnly = request()->attributes->get(\App\Support\VideoLanguages::HREFLANG); @endphp
         @foreach(config('languages', []) as $langCode => $langInfo)
-            <link rel="alternate" hreflang="{{ $langCode }}" href="{{ $appUrl . ($langCode === $defaultLocale ? ($canonicalPath === '/' ? '' : $canonicalPath) : '/' . $langCode . ($canonicalPath === '/' ? '' : $canonicalPath)) }}">
+            @continue(is_array($hreflangOnly) && ! in_array($langCode, $hreflangOnly, true))
+            <link rel="alternate" hreflang="{{ $langCode }}" href="{{ $appUrl . $alternatePrefix . ($langCode === $defaultLocale ? ($canonicalPath === '/' ? $alternateHome : $canonicalPath) : '/' . $langCode . ($canonicalPath === '/' ? '' : $canonicalPath)) }}">
         @endforeach
-        <link rel="alternate" hreflang="x-default" href="{{ $appUrl . ($canonicalPath === '/' ? '' : $canonicalPath) }}">
+        <link rel="alternate" hreflang="x-default" href="{{ $appUrl . $alternatePrefix . (is_array($hreflangOnly) && $hreflangOnly !== [] && ! in_array($defaultLocale, $hreflangOnly, true) ? '/' . $hreflangOnly[0] : '') . ($canonicalPath === '/' ? $alternateHome : $canonicalPath) }}">
     @endif
     @if($fbAppId)<meta property="fb:app_id" content="{{ $fbAppId }}">@endif
     <meta name="twitter:card" content="{{ $twitterCard }}">
@@ -627,7 +732,7 @@
     @if($googleVerif)<meta name="google-site-verification" content="{{ $googleVerif }}">@endif
     <link rel="icon" href="{{ $faviconUrl ? site_asset_url($faviconUrl) : asset('/icons/favicon.ico') }}" sizes="any">
     <link rel="apple-touch-icon" href="{{asset('/icons/apple-touch-icon.png')}}">
-    <link rel="manifest" href="/manifest.json">
+    <link rel="manifest" href="{{ site_browser_path('/manifest.json') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="preconnect" href="https://upload18.org">
@@ -638,11 +743,14 @@
         // Font budget (theme collection v2, App\Support\ThemeTokens::fonts): public pages request the typography
         // pairing's display and body families with only the styles the theme uses (Vietnamese / Cyrillic pages
         // swap a display face without their glyphs) and families the custom code names; font_family no longer
-        // adds one. Admin and account pages keep the full v1 stylesheet (the Theme Studio previews every
-        // pairing; some of their views name fonts directly) plus the theme's families.
+        // adds one. The admin's pages keep the full v1 stylesheet (the Theme Studio previews every pairing) plus
+        // the theme's families. The member studio and account pages (type="user") load the look's families only,
+        // like every other member page (studio-20, account-36: they requested all 15 families, 63 KB of CSS gzip,
+        // for the 2 the look uses).
+        $avdAllFontFamilies = $layoutType === 'admin';
         if ($themeFonts === null) {
             $avdGoogleFontsUrl = \App\Support\AppearanceSettings::googleFontsUrl(
-                $isBackOfficeLayout
+                $avdAllFontFamilies
                     ? array_keys(\App\Support\AppearanceSettings::googleFontFamilySpecs())
                     : \App\Support\AppearanceSettings::googleFontFamiliesFor(
                         $typographyPairing,
@@ -652,7 +760,7 @@
                     )
             );
         } else {
-            $avdGoogleFontsUrl = $isBackOfficeLayout
+            $avdGoogleFontsUrl = $avdAllFontFamilies
                 ? \App\Support\ThemeTokens::backOfficeFontsUrl(\App\Support\AppearanceSettings::googleFontFamilySpecs(), $themeFonts['families'])
                 : $themeFonts['url'];
         }
@@ -661,6 +769,19 @@
     <link rel="preload" as="style" href="{{ $avdGoogleFontsUrl }}">
     <link href="{{ $avdGoogleFontsUrl }}" rel="stylesheet" media="print" onload="this.media='all'">
     <noscript><link rel="stylesheet" href="{{ $avdGoogleFontsUrl }}"></noscript>
+    @endif
+    @php
+        // R1-068 (perf-12): a metric-matched fallback face for each web font of the look (ThemeTokens::fallbackFaces(): the
+        // local Arial, Times New Roman or Courier New with the family's size-adjust and ascent / descent overrides), named
+        // right after the family in the look's font stacks, so the swap to the web font re-wraps and moves nothing.
+        $avdFontFallbacks = $themeFonts !== null ? \App\Support\ThemeTokens::fallbackFaces(array_keys((array) ($themeFonts['families'] ?? []))) : '';
+        $avdFontFallbackFamilies = $avdFontFallbacks !== '' ? \App\Support\ThemeTokens::fallbackFamilies(array_keys((array) ($themeFonts['families'] ?? []))) : [];
+    @endphp
+    @if($avdFontFallbacks !== '')
+    <style id="avd-font-fallbacks">{!! $avdFontFallbacks !!}</style>
+    {{-- R3-023: the faces are asked for now, while the page waits for its stylesheets: the browser's one-time set-up of
+         local font matching then happens here instead of inside the page's first full layout (ThemeTokens::fallbackFamilies). ES5. --}}
+    <script>(function(f,n){if(f&&f.load)for(var i=0;i<n.length;i++){f.load('1em "'+n[i]+' Fallback"')['catch'](function(){});f.load('700 1em "'+n[i]+' Fallback"')['catch'](function(){})}})(document.fonts,@json($avdFontFallbackFamilies))</script>
     @endif
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <style>
@@ -672,15 +793,15 @@
     </style>
     <script>
         (function(){
-            // Clean up any stale legacy localStorage theme key to prevent desyncing from server presets
+            {{-- Clean up any stale legacy localStorage theme key to prevent desyncing from server presets --}}
             try {
                 if (localStorage.getItem('theme')) {
                     localStorage.removeItem('theme');
                 }
             } catch(e) {}
-            // Perf plan step 25e: the visitor's Live Custom Accent Hue and (with the Daily Aesthetic badge)
-            // personal glow are restored here, before the first paint, instead of at the end of the body.
-            // Theme previews included, as before. resources/js/layout/core.ts syncs the HUD's picker.
+            {{-- The visitor's Live Custom Accent Hue and (with the Daily Aesthetic badge)
+                 personal glow are restored here, before the first paint, instead of at the end of the body.
+                 Theme previews included, as before. resources/js/layout/core.ts syncs the HUD's picker. --}}
             try {
                 var savedAccent = localStorage.getItem('avd_custom_accent');
                 if (savedAccent) {
@@ -700,7 +821,7 @@
             var urlParams = new URLSearchParams(window.location.search);
             var isUrlTheme = urlParams.has('theme') || urlParams.has('theme_preset') || urlParams.has('theme_mode') || ['light', 'dark'].includes(urlParams.get('mode'));
             if (isUrlTheme) {
-                // When previewing via ?theme= or ?theme_preset=, strictly honor the server-rendered theme
+                {{-- When previewing via ?theme= or ?theme_preset=, strictly honor the server-rendered theme --}}
                 return;
             }
             var memory = {{ $jsThemeMemoryEnabled ? 'true' : 'false' }};
@@ -714,12 +835,28 @@
                         root.setAttribute('data-bs-theme', manualTheme);
                         hasManualTheme = true;
                     }
+                    // "Device" in the account panel (layouts/menus/account.blade.php): follow the device in every look,
+                    // also when the look's default is light or dark.
+                    if (localStorage.getItem('avd_manual_theme_context') === themeContext && manualTheme === 'device' && window.matchMedia) {
+                        var deviceScheme = window.matchMedia('(prefers-color-scheme: dark)');
+                        var followDevice = function() {
+                            try {
+                                if (localStorage.getItem('avd_manual_theme') !== 'device') return;
+                            } catch(e) {}
+                            root.setAttribute('data-bs-theme', deviceScheme.matches ? 'dark' : 'light');
+                            window.dispatchEvent(new CustomEvent('theme-changed'));
+                        };
+                        root.setAttribute('data-bs-theme', deviceScheme.matches ? 'dark' : 'light');
+                        if (deviceScheme.addEventListener) deviceScheme.addEventListener('change', followDevice);
+                        else if (deviceScheme.addListener) deviceScheme.addListener(followDevice);
+                        hasManualTheme = true;
+                    }
                 } catch(e) {}
             }
             if (root.dataset.avdThemeDefault === 'auto' && !hasManualTheme && window.matchMedia) {
                 var scheme = window.matchMedia('(prefers-color-scheme: dark)');
                 var syncScheme = function() {
-                    // A later manual switch retains priority for this preset.
+                    {{-- A later manual switch retains priority for this preset. --}}
                     try {
                         if (memory && localStorage.getItem('avd_manual_theme_context') === themeContext &&
                             ['light', 'dark'].includes(localStorage.getItem('avd_manual_theme'))) return;
@@ -757,9 +894,9 @@
                 'speedPxPerSecond' => $homeWidgetMotionSpeed,
             ],
         ], $jsonScriptFlags) !!};
-        // Perf plan step 25b: the layout's page features run from the module bundle
-        // (resources/js/layout/core.ts). Until it has run, the names that onclick attributes, page
-        // scripts and admin pages call queue their calls here; core.ts replays them. ES5.
+        {{-- The layout's page features run from the module bundle
+             (resources/js/layout/core.ts). Until it has run, the names that onclick attributes, page
+             scripts and admin pages call queue their calls here; core.ts replays them. ES5. --}}
         (function (w) {
             var names = ['avdToggleLightsOut', 'avdToggleTheater', 'openDailyAestheticModal', 'openSpotlightSearch', 'closeSpotlightSearch', 'showCopyToast', 'avdToast', 'alertToast', 'avdQuickShare', 'avdQuickSave', 'avdShowAuthPrompt', 'updateWatchLaterCardBadges'];
             for (var i = 0; i < names.length; i++) {
@@ -771,21 +908,41 @@
                     w[name] = stub;
                 })(names[i]);
             }
-            // The watch page's theater buttons get their click listener from core.ts; a click before then
-            // is queued here.
+            {{-- The watch page's theater buttons get their click listener from core.ts; a click before then
+                 is queued here. --}}
             document.addEventListener('click', function (e) {
                 var target = e.target;
                 if (!w.__avdCore && target && target.closest && target.closest('[data-theater-toggle]')) w.avdToggleTheater();
             });
-            // The bundle has run by the load event. If it has not (public/build missing or older than these
-            // views, or its scripts blocked), the calls above stay queued: say so instead of failing silently.
+            {{-- The bundle has run by the load event. If it has not (public/build missing or older than these
+                 views, or its scripts blocked), the calls above stay queued: say so instead of failing silently. --}}
             w.addEventListener('load', function () {
                 if (!w.__avdCore && w.console) w.console.error('AVD: the layout script bundle did not run, so theater mode, lights out, search (Ctrl+K), watch later and the other layout features are off. Upload public/build together with resources/views, then check that /build/assets/*.js loads.');
             });
         })(window);
+        {{-- A select with data-avd-apply (the footer's and the account panel's language) applies an explicit choice only
+             (R2A-003, WCAG 3.2.2): a pick in its open list (a click, a tap, the list's Enter) or Enter on the select.
+             Windows and Linux browsers change a closed select with the arrow and letter keys and send "change" at once:
+             those keys now only show the choices one by one; leaving the select (or the page), Escape, a press that opens
+             the list and a page shown again from the history put the page's own choice back. In a form the select sends
+             the form, elsewhere it opens the address of its choice. On the document, so the selects work from the first
+             paint. ES5. --}}
+        (function(w,d){var keyed=null,
+        pick=function(e){var s=e.target;return s&&s.tagName==='SELECT'&&s.hasAttribute('data-avd-apply')?s:null},
+        own=function(s){for(var i=0;i<s.options.length;i++)if(s.options[i].defaultSelected)return i;return 0},
+        back=function(s){if(s.selectedIndex!==own(s))s.selectedIndex=own(s)},
+        backAll=function(){var a=d.querySelectorAll('select[data-avd-apply]');for(var i=0;i<a.length;i++)back(a[i])},
+        apply=function(s){if(s.selectedIndex===own(s))return;if(s.form){if(s.form.requestSubmit)s.form.requestSubmit();else s.form.submit()}else if(s.value)w.location.href=s.value},
+        on=function(t,f){d.addEventListener(t,function(e){var s=pick(e);if(s)f(s,e)},true)};
+        on('keydown',function(s,e){var k=e.key||'';if(k==='Enter'){if(s.selectedIndex!==own(s)){e.preventDefault();apply(s)}}
+        else if(k==='Escape'||k==='Esc')back(s);
+        else if(!e.altKey&&!e.ctrlKey&&!e.metaKey&&(k.length===1||/^(Arrow|Page|Home|End)/.test(k))){keyed=s;w.setTimeout(function(){keyed=null},0)}});
+        on('change',function(s){if(s!==keyed)apply(s)});
+        on('mousedown',back);on('focusout',back);
+        w.addEventListener('pageshow',backAll);w.addEventListener('blur',backAll)})(window,document);
     </script>
     <script>
-        /* Capability tier (perf v2): html[data-avd-tier] = rich | balanced | lite, decided here
+        {{-- Capability tier (perf v2): html[data-avd-tier] = rich | balanced | lite, decided here
            before the first paint and only ever LOWERED afterwards (never raised within a tab
            session). The tier decides HOW effects render; the admin data-avd-* switches still
            decide WHETHER they exist. data-avd-perf stays the legacy alias: 'lite' exactly when
@@ -798,7 +955,7 @@
            resources/js/motion/tier.ts. Each dispatches a document 'avd:tier' event {tier, why}.
            One signal only pins this tab; the 7-day hint (scoped to this build) is written once
            two independent signals agree, and a clean probe in a later session clears a
-           single-signal hint. ES5 only (no ?. or ??); every storage access is guarded. */
+           single-signal hint. ES5 only (no ?. or ??); every storage access is guarded. --}}
         (function () {
             var root = document.documentElement;
             var T = ['lite', 'balanced', 'rich'];
@@ -832,8 +989,8 @@
                 }
                 if (ev) document.dispatchEvent(ev);
             }
-            /* Hint: {t, ts, v: build, why, n: 1 pending (one signal) | 2 confirmed, sid}. Only a
-               confirmed hint caps the static result; a stale or other-build hint is dropped. */
+            {{-- Hint: {t, ts, v: build, why, n: 1 pending (one signal) | 2 confirmed, sid}. Only a
+               confirmed hint caps the static result; a stale or other-build hint is dropped. --}}
             function readHint() {
                 var h = null;
                 try { h = JSON.parse(store('localStorage', 'avd_tier_hint') || 'null'); } catch (e) {}
@@ -847,8 +1004,8 @@
             function writeHint(t, n, why) {
                 store('localStorage', 'avd_tier_hint', JSON.stringify({t: t, ts: Date.now(), v: build, why: why, n: n, sid: sid}));
             }
-            /* The two independent signals: the other detector in this session (LoAF + rAF probe),
-               or a downgrade in an earlier session. The hint keeps only the level both agree on. */
+            {{-- The two independent signals: the other detector in this session (LoAF + rAF probe),
+               or a downgrade in an earlier session. The hint keeps only the level both agree on. --}}
             function remember(why) {
                 var sig = store('sessionStorage', 'avd_tier_sig') || '';
                 if ((',' + sig + ',').indexOf(',' + why + ',') < 0) {
@@ -870,7 +1027,7 @@
                 get: function () { return T[cur]; },
                 src: function () { return src; },
                 at: function (min) { return cur >= idx(min); },
-                /* Never raises the tier and never overrides an admin, visitor or QA pin. */
+                {{-- Never raises the tier and never overrides an admin, visitor or QA pin. --}}
                 down: function (to, why) {
                     var i = idx(to);
                     if (i < 0 || i >= cur || src === 'admin' || src === 'user' || src === 'qa') return false;
@@ -881,14 +1038,14 @@
                     emit(why);
                     return true;
                 },
-                /* A clean probe: a single-signal hint left by an earlier session is dropped. */
+                {{-- A clean probe: a single-signal hint left by an earlier session is dropped. --}}
                 ok: function () {
                     var h = readHint();
                     if (h && h.n < 2 && h.sid !== sid) store('localStorage', 'avd_tier_hint', null);
                 }
             };
-            /* Balanced runs its bounded title/chip loops only once the page is idle after load
-               (motion.scss); this marks that moment. */
+            {{-- Balanced runs its bounded title/chip loops only once the page is idle after load
+               (motion.scss); this marks that moment. --}}
             function bootIdle() {
                 var mark = function () { root.setAttribute('data-avd-boot', 'idle'); };
                 if (window.requestIdleCallback) window.requestIdleCallback(mark, {timeout: 3000}); else setTimeout(mark, 300);
@@ -898,7 +1055,7 @@
             function staticTier() {
                 var nav = window.navigator || {};
                 var mem = +nav.deviceMemory || 0;
-                /* Core counts are trusted only where deviceMemory exists (Chromium). */
+                {{-- Core counts are trusted only where deviceMemory exists (Chromium). --}}
                 var cpu = mem ? (+nav.hardwareConcurrency || 0) : 0;
                 var conn = nav.connection || {};
                 var et = String(conn.effectiveType || '');
@@ -911,14 +1068,35 @@
                 if (coarse || (mem && mem <= 4) || (cpu && cpu <= 4) || et === '3g'
                     || mq('(prefers-reduced-motion: reduce)') || root.getAttribute('data-avd-motion') === 'off'
                     || (bigScreen && mem && (mem < 8 || cpu < 8))) return 1;
-                return 2;
+                return cpuFast() ? 2 : 1;
             }
 
-            /* LoAF governor (Chromium 123+), only for an auto-detected tier above lite. Frames of
+            {{-- perf-6: threads and memory say nothing about how fast a CPU is (a weak or busy laptop with
+               8 threads and 8 GB got the rich tier, then ran home at 31 fps until the probe caught up).
+               Rich also needs the CPU to pass a 2 ms work loop, measured once per tab session (kept in
+               sessionStorage avd_tier_cpu as steps per ms). Measured on page loads of the reference desktop:
+               130-180 steps/ms, 65-75 with the CPU slowed 2x (still rich), 14-20 slowed 4x (balanced). --}}
+            function cpuFast() {
+                var BAR = 36;
+                var kept = +store('sessionStorage', 'avd_tier_cpu');
+                if (kept > 0) return kept >= BAR;
+                var perf = window.performance;
+                if (!perf || !perf.now) return true;
+                var n = 0, x = 0, j, start = perf.now(), end = start + 2;
+                while (perf.now() < end) {
+                    for (j = 0; j < 1000; j++) { x = (x * 31 + j) % 1000003; }
+                    n++;
+                }
+                var rate = Math.round(n / Math.max(perf.now() - start, 0.1) * 10) / 10 + (x < 0 ? 1 : 0);
+                store('sessionStorage', 'avd_tier_cpu', String(rate));
+                return rate >= BAR;
+            }
+
+            {{-- LoAF governor (Chromium 123+), only for an auto-detected tier above lite. Frames of
                200 ms or more count while the page is visible (not in the second after it becomes
                visible), inside two windows: DOMContentLoaded+1 s to +21 s, and the first scroll to
                +10 s. Three within 10 s drop one tier; five within 10 s, or more than 2.5 s of
-               blocking time in one window, drop to lite. */
+               blocking time in one window, drop to lite. --}}
             function governor() {
                 var PO = window.PerformanceObserver;
                 var types = PO && PO.supportedEntryTypes;
@@ -987,18 +1165,18 @@
                     sid = String(Math.random()).slice(2, 10);
                     store('sessionStorage', 'avd_tier_sid', sid);
                 }
-                /* The old perf key pinned lite forever. */
+                {{-- The old perf key pinned lite forever. --}}
                 store('localStorage', 'avd_perf', null);
-                /* 1. Admin: the server already rendered the pinned tier (admin pages are always rich). */
+                {{-- 1. Admin: the server already rendered the pinned tier (admin pages are always rich). --}}
                 if (src === 'admin') { apply(cur, 'admin'); return; }
                 var qa = /[?&]avd_tier=(lite|balanced|rich|auto)(?:&|$)/.exec(window.location.search || '');
                 if (qa) store('sessionStorage', 'avd_tier_qa', qa[1] === 'auto' ? null : qa[1]);
-                /* 2. Visitor pin, 3. QA pin. */
+                {{-- 2. Visitor pin, 3. QA pin. --}}
                 var pin = idx(store('localStorage', 'avd_tier_user'));
                 if (pin >= 0) { apply(pin, 'user'); return; }
                 pin = idx(store('sessionStorage', 'avd_tier_qa'));
                 if (pin >= 0) { apply(pin, 'qa'); return; }
-                /* 5. Static signals, capped by a confirmed hint; 4. the session lock only lowers them. */
+                {{-- 5. Static signals, capped by a confirmed hint; 4. the session lock only lowers them. --}}
                 var level = staticTier(), source = 'auto';
                 var hint = readHint();
                 if (hint && hint.n > 1 && idx(hint.t) < level) { level = idx(hint.t); source = 'hint'; }
@@ -1015,22 +1193,41 @@
     @endif
     @vite(['resources/js/app.ts'])
     @php
-        // Perf plan step 22.4: the Font Awesome solid and regular fonts (header and card icons; font-display
-        // block, so icons stay blank until they arrive) are requested with the CSS instead of after it has been
-        // parsed and laid out. Step 22.7: a non-English page also preloads its locale chunk, which
-        // resources/js/lang/config.ts imports before the components render. Exact build URLs; skipped in hot
-        // mode or when the manifest lacks an entry.
+        // The Font Awesome solid and regular fonts (header and card icons) are requested with the CSS instead of
+        // after it has been parsed and laid out. R1-071: the fonts cut to the icons the site's code names
+        // (resources/fonts/fontawesome, a fraction of the full fonts' 158 KB and 25 KB, which competed with the
+        // render-blocking CSS on slow phones); the full solid font as well on a page that shows an icon an owner chose
+        // outside the cut (App\Support\IconSubset), and instead of the cut fonts on the old admin layout's pages, whose
+        // full icon set (fa-full.scss) draws every icon from the full fonts. The font preloads ask for a low priority:
+        // the browser fetches them after the render-blocking CSS, still well before the first paint on a slow phone
+        // (Fast 3G, CPU x4: the icons' font 3.5 s, the first paint 4.6-5.8 s), instead of holding the CSS back (high
+        // priority: the first paint 0.7 s later) or arriving 4 s after it (no preload). A non-English page also
+        // preloads its locale chunk, which resources/js/lang/config.ts imports before the components render. Exact
+        // build URLs; skipped in hot mode or when the manifest lacks an entry.
         $avdBootPreloads = [];
         $avdBootNonce = null;
+        $avdIconExtraCss = \App\Support\IconSubset::extraCss();
 
         if (! \Illuminate\Support\Facades\Vite::isRunningHot()) {
-            foreach (['fa-solid-900', 'fa-regular-400'] as $avdIconFont) {
+            $avdIconFonts = ($type ?? null) === 'admin'
+                ? ['node_modules/@fortawesome/fontawesome-free/webfonts/fa-solid-900.woff2', 'node_modules/@fortawesome/fontawesome-free/webfonts/fa-regular-400.woff2']
+                : ['resources/fonts/fontawesome/fa-solid-900.woff2', 'resources/fonts/fontawesome/fa-regular-400.woff2'];
+
+            if (($type ?? null) !== 'admin' && \App\Support\IconSubset::needsFullFont($avdIconExtraCss)) {
+                $avdIconFonts[] = 'node_modules/@fortawesome/fontawesome-free/webfonts/fa-solid-900.woff2';
+            }
+
+            foreach ($avdIconFonts as $avdIconFont) {
                 try {
                     // The built CSS names its fonts relative to itself (vite.config.ts renderBuiltUrl), so the
                     // URL it requests is the asset() URL on every install type: /build/assets/<file>,
                     // /public/build/assets/<file> (root install) or the CDN ASSET_URL. A preload of any other
                     // URL would be a second, unused download.
-                    $avdBootPreloads[] = ['font', \Illuminate\Support\Facades\Vite::asset('node_modules/@fortawesome/fontawesome-free/webfonts/' . $avdIconFont . '.woff2')];
+                    $avdIconFontUrl = \Illuminate\Support\Facades\Vite::asset($avdIconFont);
+
+                    if ($avdIconFontUrl !== '') {
+                        $avdBootPreloads[] = ['font', $avdIconFontUrl];
+                    }
                 } catch (\Throwable) {
                 }
             }
@@ -1049,11 +1246,32 @@
     @endphp
     @foreach($avdBootPreloads as [$avdBootPreloadType, $avdBootPreloadUrl])
         @if($avdBootPreloadType === 'font')
-    <link rel="preload" as="font" type="font/woff2" href="{{ $avdBootPreloadUrl }}" crossorigin>
+    <link rel="preload" as="font" type="font/woff2" href="{{ $avdBootPreloadUrl }}" fetchpriority="low" crossorigin>
         @else
     <link rel="modulepreload" as="script" href="{{ $avdBootPreloadUrl }}"@if($avdBootNonce) nonce="{{ $avdBootNonce }}"@endif>
         @endif
     @endforeach
+    @php
+        // perf-7: the main CSS carries only the Font Awesome icons the site's code names. The icons owners choose
+        // (categories, side-menu links, premium feature boxes) that it lacks get their rules here, usually none
+        // (App\Support\IconSubset, $avdIconExtraCss above); the old admin layout's pages name icons of their own and
+        // link the full set.
+        $avdIconsAll = null;
+
+        if (($type ?? null) === 'admin') {
+            try {
+                $avdIconsAll = \Illuminate\Support\Facades\Vite::asset('resources/sass/fa-full.scss') ?: null;
+            } catch (\Throwable) {
+                $avdIconsAll = null;
+            }
+        }
+    @endphp
+    @if($avdIconExtraCss !== '')
+    <style id="avd-icon-extra">{!! $avdIconExtraCss !!}</style>
+    @endif
+    @if($avdIconsAll)
+    <link rel="stylesheet" href="{{ $avdIconsAll }}" data-avd-icons="all">
+    @endif
     <style id="dynamic-theme">
         :root {
             --avd-grid-columns: {{ $gridColumns }};
@@ -1063,7 +1281,7 @@
             --avd-font-scale-card-title: {{ $cardTitleFontRatio }};
             @if($themeRecord !== null)
             {{-- Compatibility aliases: names older rules and partials read, resolved from the theme tokens (the
-                 token file below defines them per mode on html[data-bs-theme]). The audit G3 names (--avd-primary(-rgb),
+                 token file below defines them per mode on html[data-bs-theme]). The compatibility names (--avd-primary(-rgb),
                  --avd-surface-rgb, --avd-dark-surface-rgb, --avd-surface-card, --avd-cyan(-rgb)) are tokens themselves,
                  so the player colours follow the theme without touching its CSS. --avd-theme-primary(-rgb) stay
                  server-only copies (--avd-primary, not --avd-brand: the visitor accent picker rewrites that one). --}}
@@ -1113,7 +1331,7 @@
             --avd-dark-surface: {{ $darkSurfaceColor }};
             --avd-light-bg: {{ $lightBgColor }};
             --avd-light-surface: {{ $lightSurfaceColor }};
-            {{-- Perf plan step 24: server-only copies of the theme colours for the rules that now live in
+            {{-- Server-only copies of the theme colours for the rules that now live in
                  resources/css/layout-theme-*.css (they used to print these Blade values). Not --avd-brand-rgb:
                  the visitor accent picker rewrites that one, and these rules never followed it. --}}
             --avd-theme-primary: {{ $primaryColor }};
@@ -1134,11 +1352,18 @@
     @endif
     @if($isBackOfficeLayout)
     {{-- The v1 admin and account menu is a full pinned column with text labels: not the public theme's rail or
-         hidden (0px) side menu width. --}}
+         hidden (0px) side menu width. The back office prints the one-row bar (no second row of sections, no masthead
+         or crest: layouts/menus/header.blade.php), so a look whose header token counts two rows or the crest (104,
+         112, 76px) gets the bar's real height there: the header has no empty band and every sticky part sits right
+         under it (--avd-header-h). The phone bar (60px, layout-theme-b.css) comes
+         later and keeps its value. --}}
     <style id="avd-back-office-menu">html[data-bs-theme][data-avd-theme]{--avd-sidebar-w:260px}</style>
+    @if(in_array((string) ($themeRecord['layout']['header'] ?? ''), ['megabar', 'masthead', 'masthead_brutal', 'crest'], true))
+    <style id="avd-back-office-header">html[data-bs-theme][data-avd-theme]{--avd-header-h:64px}</style>
     @endif
     @endif
-    {{-- Perf plan step 24: the static theme CSS that used to fill the <style> above is in
+    @endif
+    {{-- The static theme CSS that used to fill the <style> above is in
          resources/css/layout-theme-a.css and -b.css, served as cached build files (Vite input,
          whitespace-only minify). The cascade order is the old one: main.css, the :root tokens,
          theme-a, #avd-custom-css, theme-b, #avd-theme-tail. Blade-conditional rules stay inline;
@@ -1253,6 +1478,29 @@
             }
         }
     </style>
+    {{-- The member CSS entry (member design 5.13): after the theme CSS, before the owner's custom head code (which
+         keeps the last word). A build without the entry (an older public/build) renders the page without it, as the
+         font preloads above do, instead of failing every page of a signed-in visitor. --}}
+    @if($memberCss)
+        @php
+            try {
+                $avdMemberCss = app(\Illuminate\Foundation\Vite::class)('resources/sass/member.scss');
+            } catch (\Illuminate\Foundation\ViteException) {
+                $avdMemberCss = null;
+            }
+        @endphp
+        {{ $avdMemberCss }}
+    @endif
+    {{-- R1-070: the member danger tokens of this look (App\Support\Member\DangerMap: at most four short rules, both modes),
+         wherever the member entry is printed (by an error page for a guest too), instead of all 348 blocks in it. --}}
+    @if(($memberCss || request()->attributes->get('avd.member_css_pushed') === true) && $themeRecord !== null)
+        @php
+            $avdMemberDanger = \App\Support\Member\DangerMap::css($themeSelection['theme'] ?? null, $themeSelection['flavor'] ?? null);
+        @endphp
+        @if($avdMemberDanger !== '')
+    <style id="avd-member-danger">{!! $avdMemberDanger !!}</style>
+        @endif
+    @endif
     @if(config('site.website_schema_enabled', true))
         <script type="application/ld+json">{!! json_encode($seoService->websiteSchema(), $jsonScriptFlags) !!}</script>
     @endif
@@ -1261,9 +1509,31 @@
     @endif
     @stack('structured-data')
     @stack('seo-head')
+    {{-- R1-070: the sign-in pages' part of the member kit, after the member entry (and after an error page's own link
+         of it, above), on the pages that use it ($memberAuthCss). --}}
+    @if($memberAuthCss)
+        @php
+            try {
+                $avdAuthCss = app(\Illuminate\Foundation\Vite::class)('resources/sass/auth-pages.scss');
+            } catch (\Illuminate\Foundation\ViteException) {
+                $avdAuthCss = null;
+            }
+        @endphp
+        {{ $avdAuthCss }}
+    @endif
+    {{-- A page's own cached stylesheets (the watch page's rules, watch-7): after every stylesheet above, before the
+         body's style blocks and the owner's custom head code. --}}
+    @stack('head-styles')
+    @if($avdVisitorDock !== null)
+    @include('layouts.partials.visitor-choices', ['part' => 'head', 'dock' => $avdVisitorDock])
+    @endif
     @if($customHead){!! $customHead !!}@endif
 </head>
-<body @class(['avd-app', 'has-bottom-nav' => $mobileBottomNavEnabled && !$isBackOfficeLayout, 'avd-admin' => $attributes->get('type') === 'admin', 'has-sidebar' => $sidebarPinnedLayout, 'has-mobile-ad' => $showMobileAd, 'has-hero-zone' => $pageHasHeroZone])>
+<body @class(['avd-app', 'has-bottom-nav' => $mobileBottomNavEnabled && !$isBackOfficeLayout, 'has-studio-tabbar' => $studioTabbar, 'avd-admin' => $attributes->get('type') === 'admin', 'has-sidebar' => $sidebarPinnedLayout, 'has-mobile-ad' => $showMobileAd, 'has-hero-zone' => $pageHasHeroZone])>
+    {{-- R3-050: the keyboard's first stop on every page: past the header and the side or studio menu to the page's own
+         content (shown only while it has the focus: header.scss; the focus move: resources/js/layout/core.ts).
+         tabindex="0": Safari's Tab (without "Press Tab to highlight each item") skips links but stops here too. --}}
+    <a class="avd-skip-link" href="#main-container" tabindex="0">{{ __('Skip to content') }}</a>
     <div class="page-wrapper">
         @if($showAds && $adCodeHeader)
             <div id="ad-slot-header" class="ad-slot ad-slot-header" role="complementary" aria-label="{{__('Advertisement')}}">{!! $adCodeHeader !!}</div>
@@ -1276,272 +1546,253 @@
             </div>
         @endif
 
+        {{-- R1-069: the chrome's partials (header, side menu, account panel, footer) reach the browser without their
+             source indentation (App\Support\CompactHtml: a run of white space alone between two tags becomes one
+             space, which renders the same): about 20 KB of a signed-in visitor's page. --}}
+        @php ob_start(); @endphp
         @include('layouts.menus.header')
+        {!! \App\Support\CompactHtml::compact((string) ob_get_clean()) !!}
+        {{-- Header fit: the site's name is never cut, and the bar never runs off the screen, while the bar's own links can
+             make room. Links the row cannot hold step out from the end (the current page's last); every one of them stays
+             in the side menu. The search box gives way before them (header.scss). Imperial Salon's centred crest at
+             1200-1440px in French, Spanish, German or Tagalog cut the name to one to six letters. Runs before the first
+             paint, again when the bar's width changes and when a web font arrives. Only where the bar carries links (a
+             public page of a look that shows them; the back-office bar has none). ES5. --}}
+        @if(! $isBackOfficeLayout && \App\Support\ThemeStructure::headerLinksVisible())
+        <script>(function(){
+        var row=document.querySelector('.avd-header-inner'),nav=row&&row.querySelector('.avd-hnav'),
+        brand=row&&row.querySelector('.avd-brand');
+        if(!nav||!brand)return;
+        var text=brand.querySelector('.avd-brand-text'),links=[],current=[],queued=0,i;
+        for(i=nav.children.length-1;i>=0;i--)(nav.children[i].classList.contains('active')?current:links).push(nav.children[i]);
+        links=links.concat(current);
+        var tight=function(){return(text&&text.scrollWidth>text.clientWidth+1)||brand.scrollWidth>brand.clientWidth+1
+        ||row.scrollWidth>row.clientWidth+1};
+        var fit=function(){
+        for(i=0;i < links.length;i++)links[i].hidden=false;
+        if(!nav.getClientRects().length)return;
+        for(i=0;i < links.length&&tight();i++)links[i].hidden=true};
+        var later=function(){if(queued)return;queued=1;requestAnimationFrame(function(){queued=0;fit()})};
+        fit();
+        if(window.ResizeObserver)new ResizeObserver(later).observe(row);else addEventListener('resize',later);
+        if(document.fonts&&document.fonts.addEventListener)document.fonts.addEventListener('loadingdone',later);
+        addEventListener('load',later)})();</script>
+        @endif
 
-        {{-- The --sidebar-top updater runs from resources/js/layout/core.ts (perf plan step 25b). --}}
+        {{-- The --sidebar-top updater runs from resources/js/layout/core.ts. --}}
 
         <main class="avd-main position-relative">
             <div class="avd-shell d-flex">
+                @php ob_start(); @endphp
                 @include('layouts.menus.sidebars.'.$sidebar, ['type' => $type ?? null])
+                {!! \App\Support\CompactHtml::compact((string) ob_get_clean()) !!}
                 <div id="main-container" class="container-fluid my-3 @yield('class')" style="@yield('style')" data-avd-main>
                     {{$slot}}
                     @yield('content')
                 </div>
             </div>
 
-            <div class="toast-container pe-4 end-0 position-fixed" style="top:68px;">
-                <div id="toast" class="toast align-items-center bg-danger text-white" role="alert" aria-live="assertive" aria-atomic="true" data-bs-autohide="true" data-bs-delay="10000">
-                    <div class="d-flex align-items-center justify-content-between mr-2">
-                        <div class="toast-body d-flex align-items-center gap-3">
-                            <div class="rounded-4 px-2 py-1 bg-danger text-white">
-                                <i class="fa-2x fa-solid fa-triangle-exclamation"></i>
-                            </div>
-                            <strong id="toast-message" class="text-break"></strong>
-                        </div>
-                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" aria-label="{{__('Close')}}"></button>
-                    </div>
-                </div>
-            </div>
-
             @if (Auth::check())
                 @include('users.videos.modals.upload')
+                @php ob_start(); @endphp
                 @include('layouts.menus.account')
+                {!! \App\Support\CompactHtml::compact((string) ob_get_clean()) !!}
             @endif
         </main>
 
-        @include('layouts.menus.footer')
+        @php
+            // The slim footer (studio and account pages) lines up with the page's frame: the page root's width
+            // (member/_kit.scss: .mk-page 1280px, .mk-page--form 1180px, .mk-page--narrow 880px), known here because the
+            // content has rendered. At 1920px the footer spanned the whole main column: 151px before the page, its
+            // language select 43px past it.
+            $footerFrame = null;
+            if (($footer ?? null) === 'slim') {
+                $footerFrame = preg_match('/class="[^"]*\bmk-page\b[^"]*"/', (string) $slot.$__env->yieldContent('content'), $footerFrameClass) === 1
+                    ? (str_contains($footerFrameClass[0], 'mk-page--narrow') ? 'narrow' : (str_contains($footerFrameClass[0], 'mk-page--form') ? 'form' : 'page'))
+                    : null;
+            }
+        @endphp
+        @php ob_start(); @endphp
+        @include('layouts.menus.footer', ['footerVariant' => ($footer ?? null) === 'slim' ? 'slim' : 'full', 'footerFrame' => $footerFrame])
+        {!! \App\Support\CompactHtml::compact((string) ob_get_clean()) !!}
 
-        @if($dailyBadgeEnabled && $activeDailyDesign)
-        {{-- The optional atmosphere canvas is emitted once below when its setting is enabled. --}}
-
-        <div class="avd-daily-design-pill-dock position-fixed bottom-0 end-0 m-3 z-3 d-none d-md-block">
-            <button type="button" class="avd-daily-badge d-flex align-items-center gap-2 px-3 py-2 rounded-pill shadow-lg"
-                 id="dailyThemeBadge"
-                 onclick="window.openDailyAestheticModal && window.openDailyAestheticModal()"
-                 aria-label="{{ __('Open Daily Aesthetic Identity HUD') }}"
-                 style="background: rgba(15, 23, 42, 0.88); border: 1px solid rgba(255, 255, 255, 0.15); font-size: 0.78rem; transition: transform 0.2s ease, box-shadow 0.2s ease; cursor: pointer;"
-                 title="{{ __('Click to view Daily Aesthetic Identity HUD (Press D)') }}">
-                <span class="rounded-circle d-inline-block" style="width: 10px; height: 10px; background: var(--avd-brand); box-shadow: 0 0 10px var(--avd-brand);"></span>
-                <span class="text-white-50">{{ __('Today:') }}</span>
-                <strong class="text-white fw-bold">{{ $activeDailyDesign['name'] }}</strong>
-                <span class="badge rounded-pill px-2 py-0.5" style="background: rgba(var(--avd-brand-rgb, 255, 61, 97), 0.22); color: var(--avd-brand); font-size: 0.7rem; font-weight: 700;">
-                    {{ __('Day') }} {{ $activeDailyDesign['day'] }}/{{ $dailyDaysInYear }}
-                </span>
-                @if(!empty($activeDailyDesign['holiday']))
-                    <span class="badge rounded-pill bg-warning text-dark px-2 py-0.5" style="font-size: 0.68rem; font-weight: 700;">
-                        <i class="fa-solid fa-star me-1"></i>{{ $activeDailyDesign['holiday'] }}
-                    </span>
-                @endif
-            </button>
-        </div>
-
-        <!-- Daily Aesthetic Identity Master HUD Modal -->
-        <div class="modal fade" id="dailyAestheticModal" tabindex="-1" aria-labelledby="dailyAestheticModalLabel" aria-hidden="true" style="backdrop-filter: blur(8px);">
-            <div class="modal-dialog modal-dialog-centered modal-lg">
-                <div class="modal-content text-white border-0 shadow-2xl" style="background: rgba(15, 20, 32, 0.95); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 20px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8), 0 0 30px rgba(var(--avd-brand-rgb, 255, 61, 97), 0.2);">
-                    <div class="modal-header border-0 pb-0 pt-4 px-4 d-flex justify-content-between align-items-center">
-                        <div>
-                            <span class="badge rounded-pill px-3 py-1 mb-2" style="background: rgba(var(--avd-brand-rgb, 255, 61, 97), 0.2); color: var(--avd-brand); border: 1px solid rgba(var(--avd-brand-rgb, 255, 61, 97), 0.4); font-size: 0.75rem; font-weight: 700;">
-                                <i class="fa-solid fa-calendar-day me-1"></i> {{ __('365-DAY AESTHETIC IDENTITY') }}
-                            </span>
-                            <h4 class="modal-title fw-bold text-white mb-0" id="dailyAestheticModalLabel">
-                                {{ $activeDailyDesign['name'] }}
-                            </h4>
-                            <div class="text-white-50 small mt-1">
-                                {{ __('Day') }} {{ $activeDailyDesign['day'] }}/{{ $dailyDaysInYear }} &bull; {{ date('F j, Y') }}
-                                @if(!empty($activeDailyDesign['holiday']))
-                                    &bull; <span class="text-warning fw-semibold"><i class="fa-solid fa-wand-magic-sparkles me-1"></i>{{ $activeDailyDesign['holiday'] }}</span>
-                                @endif
-                            </div>
+        @if($showDailyPill)
+        @php
+            // The day's design in the reader's language: its look and colour style by name (the catalogue's English
+            // "<theme> · <colour style>" before), the day of the year and the date in the admin's "Date format" (it
+            // was always English: "October 26, 2026").
+            $dailyName = filled($activeDailyDesign['theme_name'] ?? null)
+                ? __((string) $activeDailyDesign['theme_name']).(filled($activeDailyDesign['flavor_name'] ?? null) ? ' · '.__((string) $activeDailyDesign['flavor_name']) : '')
+                : (string) ($activeDailyDesign['name'] ?? '');
+            $dailyDayText = __('Day :day of :days', ['day' => $activeDailyDesign['day'], 'days' => $dailyDaysInYear]);
+            $dailyDateText = \App\Support\SiteDate::date(filled($activeDailyDesign['date'] ?? null) ? \Carbon\CarbonImmutable::parse((string) $activeDailyDesign['date']) : now());
+            $dailyHoliday = filled($activeDailyDesign['holiday'] ?? null) ? __((string) $activeDailyDesign['holiday']) : '';
+            $dailyColours = ['primary' => __('Primary colour'), 'secondary' => __('Secondary colour'), 'accent' => __('Accent colour')];
+            try {
+                $avdDailySheetCss = \Illuminate\Support\Facades\Vite::asset('resources/sass/daily-sheet.scss');
+            } catch (\Illuminate\Foundation\ViteException) {
+                $avdDailySheetCss = null;
+            }
+        @endphp
+        {{-- The sheet's own rules (resources/sass/daily-sheet.scss) load without holding the page: the sheet shows only
+             after a click, so the main CSS every visitor parses before the first paint does not carry them. --}}
+        @if($avdDailySheetCss)
+            <link rel="stylesheet" id="avdDailySheetCss" href="{{ $avdDailySheetCss }}" media="print" onload="this.media='all'">
+        @endif
+        {{-- "Today's design" opens from ONE pill at the bottom-start corner (.avd-daily-pill, below). The sheet is the
+             kit's dialog (a centred, side or bottom sheet as the look's pop-up style says) in the look's own colours, in
+             both modes: it was white text on a fixed dark panel, unreadable in the light looks. Plain words (not
+             "365-DAY AESTHETIC IDENTITY" or "SOUNDSCAPE SYNTHESIS"), buttons that keep their words on one line, and the
+             sound switch only where the site plays sounds (Appearance > Effects & speed > Click sounds), saying
+             whether they are on. --}}
+        <div class="modal fade" id="dailyAestheticModal" tabindex="-1" aria-labelledby="dailyAestheticModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable mk-dialog avd-mk avd-daily-sheet">
+                <div class="modal-content">
+                    <div class="mk-sheet__head">
+                        <span class="mk-sheet__grip" aria-hidden="true"></span>
+                        <div class="avd-daily-sheet__head">
+                            <span class="avd-daily-sheet__kicker"><i class="fa-solid fa-calendar-day" aria-hidden="true"></i> {{ __("Today's design") }}</span>
+                            <h2 class="mk-sheet__title" id="dailyAestheticModalLabel">{{ $dailyName }}</h2>
+                            <p class="avd-daily-sheet__meta">{{ $dailyDayText }}&nbsp;· {{ $dailyDateText }}@if($dailyHoliday !== '')&nbsp;· <span class="avd-daily-sheet__holiday"><i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i> {{ $dailyHoliday }}</span>@endif</p>
                         </div>
-                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="{{ __('Close') }}"></button>
+                        <button type="button" class="mk-icon-btn mk-icon-btn--muted" data-bs-dismiss="modal" aria-label="{{ __('Close') }}" title="{{ __('Close') }}"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
                     </div>
 
-                    <div class="modal-body px-4 py-3">
-                        <!-- Mood Quote Banner -->
-                        <div class="p-3 rounded-3 mb-4" style="background: rgba(255, 255, 255, 0.04); border-left: 3px solid var(--avd-brand);">
-                            <p class="fst-italic text-white-75 mb-0 small" style="line-height: 1.5;">
-                                &ldquo;{{ $activeDailyDesign['mood'] ?? __('A distinct and inspiring visual experience crafted uniquely for today.') }}&rdquo;
-                            </p>
-                        </div>
+                    <div class="mk-sheet__body">
+                        <p class="avd-daily-sheet__mood">{{ $activeDailyDesign['mood'] ?? __('A distinct and inspiring visual experience crafted uniquely for today.') }}</p>
 
-                        <!-- Active Color Palette Capsules -->
-                        <div class="mb-4">
-                            <label class="form-label text-white-50 text-uppercase fw-bold small" style="font-size: 0.72rem; letter-spacing: 0.5px;">
-                                {{ __('Active Daily Color Palette (Click to copy hex)') }}
-                            </label>
-                            <div class="row g-2">
-                                <div class="col-4">
-                                    <button type="button" class="p-2 rounded-3 text-center cursor-pointer transition-all hover-scale w-100"
-                                         aria-label="{{ __('Copy Primary Hex') }}"
-                                         onclick="window.copyColorHex('{{ $activeDailyDesign['primary'] }}', 'Primary')"
-                                         style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); cursor: pointer;">
-                                        <div class="rounded-2 mb-1 mx-auto" style="width: 100%; height: 28px; background: {{ $activeDailyDesign['primary'] }}; box-shadow: 0 0 10px {{ $activeDailyDesign['primary'] }}44;"></div>
-                                        <div class="fw-bold small">{{ __('Primary') }}</div>
-                                        <div class="text-white-50 font-monospace" style="font-size: 0.72rem;">{{ $activeDailyDesign['primary'] }}</div>
+                        <section class="avd-daily-sheet__part avd-daily-sheet__colours" aria-labelledby="avdDailyColoursTitle">
+                            <h3 class="avd-daily-sheet__label" id="avdDailyColoursTitle">{{ __("Today's colours") }}</h3>
+                            <p class="avd-daily-sheet__hint">{{ __('Click a colour to copy its code.') }}</p>
+                            <div class="avd-daily-sheet__swatches">
+                                @foreach($dailyColours as $dailyColourKey => $dailyColourName)
+                                    <button type="button" class="avd-daily-swatch" aria-label="{{ __(':label: :value', ['label' => $dailyColourName, 'value' => __('Copy colour code :code', ['code' => $activeDailyDesign[$dailyColourKey]])]) }}" onclick="window.copyColorHex(@js((string) $activeDailyDesign[$dailyColourKey]), @js((string) $dailyColourName))">
+                                        <span class="avd-daily-swatch__chip" style="background: {{ $activeDailyDesign[$dailyColourKey] }}" aria-hidden="true"></span>
+                                        <span class="avd-daily-swatch__name">{{ $dailyColourName }}</span>
+                                        <span class="avd-daily-swatch__code" dir="ltr">{{ $activeDailyDesign[$dailyColourKey] }}</span>
                                     </button>
-                                </div>
-                                <div class="col-4">
-                                    <button type="button" class="p-2 rounded-3 text-center cursor-pointer transition-all hover-scale w-100"
-                                         aria-label="{{ __('Copy Secondary Hex') }}"
-                                         onclick="window.copyColorHex('{{ $activeDailyDesign['secondary'] }}', 'Secondary')"
-                                         style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); cursor: pointer;">
-                                        <div class="rounded-2 mb-1 mx-auto" style="width: 100%; height: 28px; background: {{ $activeDailyDesign['secondary'] }}; box-shadow: 0 0 10px {{ $activeDailyDesign['secondary'] }}44;"></div>
-                                        <div class="fw-bold small">{{ __('Secondary') }}</div>
-                                        <div class="text-white-50 font-monospace" style="font-size: 0.72rem;">{{ $activeDailyDesign['secondary'] }}</div>
-                                    </button>
-                                </div>
-                                <div class="col-4">
-                                    <button type="button" class="p-2 rounded-3 text-center cursor-pointer transition-all hover-scale w-100"
-                                         aria-label="{{ __('Copy Accent Hex') }}"
-                                         onclick="window.copyColorHex('{{ $activeDailyDesign['accent'] }}', 'Accent')"
-                                         style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); cursor: pointer;">
-                                        <div class="rounded-2 mb-1 mx-auto" style="width: 100%; height: 28px; background: {{ $activeDailyDesign['accent'] }}; box-shadow: 0 0 10px {{ $activeDailyDesign['accent'] }}44;"></div>
-                                        <div class="fw-bold small">{{ __('Accent') }}</div>
-                                        <div class="text-white-50 font-monospace" style="font-size: 0.72rem;">{{ $activeDailyDesign['accent'] }}</div>
-                                    </button>
-                                </div>
+                                @endforeach
                             </div>
-                        </div>
+                        </section>
 
-                        <!-- Personal Glow & Soundscape Controls -->
-                        <!-- Personal Glow & Soundscape Controls -->
-                        <div class="row g-3 mb-4">
-                            <div class="col-12 col-md-6">
-                                <label class="form-label text-white-50 text-uppercase fw-bold small" style="font-size: 0.72rem; letter-spacing: 0.5px;">
-                                    {{ __('Personal Glow Intensity') }}
-                                </label>
-                                <div class="btn-group w-100" role="group">
-                                    <button type="button" class="btn btn-sm btn-outline-secondary text-white py-1.5 glow-btn" data-glow="subtle" onclick="window.setPersonalGlow('subtle')">{{ __('Subtle') }}</button>
-                                    <button type="button" class="btn btn-sm btn-outline-secondary text-white py-1.5 glow-btn active" data-glow="balanced" onclick="window.setPersonalGlow('balanced')">{{ __('Balanced') }}</button>
-                                    <button type="button" class="btn btn-sm btn-outline-secondary text-white py-1.5 glow-btn" data-glow="vivid" onclick="window.setPersonalGlow('vivid')">{{ __('Vivid') }}</button>
-                                </div>
+                        <section class="avd-daily-sheet__part" aria-labelledby="avdDailyGlowTitle">
+                            <h3 class="avd-daily-sheet__label" id="avdDailyGlowTitle">{{ __('Glow strength') }}</h3>
+                            <div class="avd-daily-sheet__choices" role="group" aria-labelledby="avdDailyGlowTitle">
+                                @foreach(['subtle' => __('Subtle'), 'balanced' => __('Balanced'), 'vivid' => __('Vivid')] as $dailyGlow => $dailyGlowLabel)
+                                    <button type="button" @class(['avd-daily-choice glow-btn', 'active' => $dailyGlow === 'balanced']) data-glow="{{ $dailyGlow }}" aria-pressed="{{ $dailyGlow === 'balanced' ? 'true' : 'false' }}" onclick="window.setPersonalGlow('{{ $dailyGlow }}')">{{ $dailyGlowLabel }}</button>
+                                @endforeach
                             </div>
-                            <div class="col-12 col-md-6">
-                                <label class="form-label text-white-50 text-uppercase fw-bold small" style="font-size: 0.72rem; letter-spacing: 0.5px;">
-                                    {{ __('Soundscape Synthesis') }}
-                                </label>
-                                <button type="button" class="btn btn-sm btn-outline-info text-white w-100 py-1.5" id="avdSoundToggleBtn" onclick="window.AvdAudio && window.AvdAudio.toggleSound()">
-                                    <i class="fa-solid fa-volume-high me-1"></i> <span id="avdSoundToggleText">{{ __('Audio FX: ON') }}</span>
-                                </button>
-                            </div>
-                        </div>
+                        </section>
 
-                        <!-- Live Custom Accent Hue Tinting -->
-                        <div class="p-3 rounded-3 mb-4" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);">
-                            <div class="d-flex align-items-center justify-content-between mb-2">
-                                <label class="form-label text-white-50 text-uppercase fw-bold small mb-0" style="font-size: 0.72rem; letter-spacing: 0.5px;">
-                                    <i class="fa-solid fa-palette text-warning me-1"></i> {{ __('Live Custom Accent Hue') }}
-                                </label>
-                                <button type="button" class="btn btn-xs btn-link text-white-50 text-decoration-none p-0" onclick="window.resetCustomAccent && window.resetCustomAccent()" style="font-size: 0.72rem;">
-                                    <i class="fa-solid fa-rotate-left me-1"></i> {{ __('Reset to Today') }}
-                                </button>
+                        @if($uiAudioFeedbackEnabled)
+                            <section class="avd-daily-sheet__part" aria-labelledby="avdDailySoundTitle">
+                                <h3 class="avd-daily-sheet__label" id="avdDailySoundTitle">{{ __('Sounds') }}</h3>
+                                <button type="button" class="avd-daily-choice avd-daily-sheet__sound" id="avdSoundToggleBtn" aria-pressed="true" onclick="window.AvdAudio && window.AvdAudio.toggleSound()"><i class="fa-solid fa-volume-high" aria-hidden="true"></i> <span id="avdSoundToggleText">{{ __('Sound effects: on') }}</span></button>
+                            </section>
+                        @endif
+
+                        <section class="avd-daily-sheet__part" aria-labelledby="avdDailyAccentTitle">
+                            <div class="avd-daily-sheet__row">
+                                <h3 class="avd-daily-sheet__label" id="avdDailyAccentTitle">{{ __('Your accent colour') }}</h3>
+                                <button type="button" class="mk-btn mk-btn--quiet mk-btn--sm" onclick="window.resetCustomAccent && window.resetCustomAccent()"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i><span>{{ __("Use today's colour") }}</span></button>
                             </div>
-                            <div class="d-flex align-items-center gap-3">
-                                <input type="color" id="avdCustomColorPicker" class="form-control form-control-color bg-transparent border-0 p-0" value="{{ $activeDailyDesign['primary'] }}" style="width: 36px; height: 36px; cursor: pointer; border-radius: 8px;" onchange="window.setCustomAccent && window.setCustomAccent(this.value)" oninput="window.setCustomAccent && window.setCustomAccent(this.value)">
-                                <div class="flex-grow-1">
-                                    <div class="small text-white fw-semibold" id="avdCustomColorName">{{ $activeDailyDesign['name'] }}</div>
-                                    <div class="small text-white-50" style="font-size: 0.75rem;">{{ __('Instantly recolor buttons, glows, and badges across the entire site') }}</div>
+                            <div class="avd-daily-sheet__accent">
+                                <input type="color" id="avdCustomColorPicker" class="avd-daily-sheet__picker" value="{{ $activeDailyDesign['primary'] }}" aria-labelledby="avdDailyAccentTitle" onchange="window.setCustomAccent && window.setCustomAccent(this.value)" oninput="window.setCustomAccent && window.setCustomAccent(this.value)">
+                                <div class="avd-daily-sheet__accent-text">
+                                    <div class="avd-daily-sheet__accent-name" id="avdCustomColorName">{{ $dailyName }}</div>
+                                    <p class="avd-daily-sheet__hint">{{ __('Changes the colour of buttons and highlights on this device.') }}</p>
                                 </div>
                             </div>
-                        </div>
+                        </section>
 
                         @if($tomorrowDailyDesign)
-                        <!-- Tomorrow Sneak Peek -->
-                        <div class="p-3 rounded-3 d-flex align-items-center justify-content-between" style="background: rgba(255,255,255,0.03); border: 1px dashed rgba(255,255,255,0.15);">
-                            <div>
-                                <span class="text-white-50 small">{{ __('Tomorrow Sneak Peek:') }}</span>
-                                <strong class="text-white d-block">{{ $tomorrowDailyDesign['name'] }}</strong>
-                            </div>
-                            <a href="?preview_day={{ $tomorrowDailyDesign['day'] }}" class="btn btn-xs btn-outline-warning text-nowrap">
-                                <i class="fa-solid fa-eye me-1"></i> {{ __('Preview Tomorrow') }}
-                            </a>
-                        </div>
+                            @php
+                                $dailyTomorrowName = filled($tomorrowDailyDesign['theme_name'] ?? null)
+                                    ? __((string) $tomorrowDailyDesign['theme_name']).(filled($tomorrowDailyDesign['flavor_name'] ?? null) ? ' · '.__((string) $tomorrowDailyDesign['flavor_name']) : '')
+                                    : (string) ($tomorrowDailyDesign['name'] ?? '');
+                            @endphp
+                            <section class="avd-daily-sheet__part avd-daily-sheet__row avd-daily-sheet__tomorrow" aria-labelledby="avdDailyTomorrowTitle">
+                                <div class="avd-daily-sheet__accent-text">
+                                    <h3 class="avd-daily-sheet__label" id="avdDailyTomorrowTitle">{{ __('Tomorrow') }}</h3>
+                                    <div class="avd-daily-sheet__accent-name">{{ $dailyTomorrowName }}</div>
+                                </div>
+                                <a href="?preview_day={{ $tomorrowDailyDesign['day'] }}" class="mk-btn mk-btn--secondary mk-btn--sm"><i class="fa-solid fa-eye" aria-hidden="true"></i><span>{{ __('Preview') }}</span></a>
+                            </section>
                         @endif
                     </div>
 
-                    <div class="modal-footer border-0 pt-0 pb-4 px-4 d-flex justify-content-between">
-                        <div class="d-flex gap-2">
-                            <button type="button" class="btn btn-sm btn-primary text-white px-3" onclick="window.generateAestheticCard()">
-                                <i class="fa-solid fa-image me-1"></i> {{ __('Export Wallpaper Card') }}
-                            </button>
-                            <button type="button" class="btn btn-sm btn-outline-warning px-3" onclick="window.avdSurpriseMe()">
-                                <i class="fa-solid fa-dice me-1"></i> {{ __('Surprise Me') }}
-                            </button>
-                        </div>
-                        <button type="button" class="btn btn-sm btn-outline-secondary text-white" data-bs-dismiss="modal">
-                            {{ __('Close') }}
-                        </button>
+                    <div class="mk-sheet__foot">
+                        <button type="button" class="mk-btn mk-btn--quiet" onclick="window.avdSurpriseMe()"><i class="fa-solid fa-dice" aria-hidden="true"></i><span>{{ __('Surprise me') }}</span></button>
+                        <button type="button" class="mk-btn mk-btn--secondary" onclick="window.generateAestheticCard()"><i class="fa-solid fa-image" aria-hidden="true"></i><span>{{ __('Download wallpaper') }}</span></button>
                     </div>
                 </div>
             </div>
         </div>
+        {{-- Each time the sheet opens: its rules apply (also if it opens before they finished loading), and a saved accent
+             colour reads "Your colour: #FF0066" in the reader's language (the page-load restore in core.ts wrote the
+             English "Custom Tone: ..."). ES5. --}}
+        <script>(function(){
+        var sheet=document.getElementById('dailyAestheticModal');
+        if(sheet)sheet.addEventListener('show.bs.modal',function(){
+        var css=document.getElementById('avdDailySheetCss'),name=document.getElementById('avdCustomColorName'),hex=null;
+        if(css&&css.media!=='all')css.media='all';
+        try{hex=localStorage.getItem('avd_custom_accent')}catch(e){}
+        if(name&&hex)name.textContent=@json((string) __('Your colour: :code')).replace(':code',function(){
+        return'\u2066'+String(hex).toUpperCase()+'\u2069'})})})();</script>
         @endif
 
-        <!-- Global Spotlight Command Palette Search Modal (Ctrl+K / /) -->
-        <div class="modal fade" id="avdSpotlightModal" tabindex="-1" aria-labelledby="avdSpotlightModalLabel" aria-hidden="true" style="backdrop-filter: blur(14px);">
-            <div class="modal-dialog modal-dialog-centered" style="max-width: 620px;">
-                <div class="modal-content text-white border-0 shadow-2xl" style="background: rgba(12, 16, 26, 0.96); border: 1px solid rgba(255, 255, 255, 0.18); border-radius: 20px; overflow: hidden; box-shadow: 0 25px 50px rgba(0, 0, 0, 0.9), 0 0 35px rgba(var(--avd-brand-rgb, 255, 61, 97), 0.25);">
-                    <div class="p-3 border-bottom d-flex align-items-center gap-3" style="border-color: rgba(255, 255, 255, 0.1) !important;">
-                        <i class="fa-solid fa-magnifying-glass text-info fs-5 ps-2"></i>
-                        <form action="{{ (function_exists('locale_url') ? locale_url('/search') : url('/search')) }}" method="GET" class="flex-grow-1 mb-0" id="avdSpotlightForm">
-                            <input type="text" name="q" id="avdSpotlightInput" class="form-control bg-transparent border-0 text-white shadow-none ps-0" placeholder="{{ __('Type to search videos, tags, channels...') }}" autocomplete="off" style="font-size: 1.1rem;">
+        {{-- Spotlight search (Ctrl+K or /; watch-36): the look's own colours (token classes in enhancements.scss, both
+             modes), plain words, and no product name. No backdrop blur. --}}
+        <div class="modal fade avd-spotlight" id="avdSpotlightModal" tabindex="-1" aria-labelledby="avdSpotlightModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered avd-spotlight__dialog">
+                <div class="modal-content avd-spotlight__content">
+                    <h2 class="visually-hidden" id="avdSpotlightModalLabel">{{ __('Search') }}</h2>
+                    <div class="avd-spotlight__head">
+                        <i class="fa-solid fa-magnifying-glass avd-spotlight__icon" aria-hidden="true"></i>
+                        <form action="{{ (function_exists('locale_url') ? locale_url('/search') : url('/search')) }}" method="GET" class="flex-grow-1 mb-0" id="avdSpotlightForm" role="search">
+                            <label class="visually-hidden" for="avdSpotlightInput">{{ __('Search videos, tags and channels') }}</label>
+                            <input type="search" name="q" id="avdSpotlightInput" class="avd-spotlight__input" placeholder="{{ __('Search videos, tags and channels') }}" autocomplete="off" maxlength="255" enterkeyhint="search">
                         </form>
-                        <kbd class="text-white-50 border border-secondary px-2 py-1 rounded small" style="background: rgba(255,255,255,0.06); font-size: 0.72rem;">ESC</kbd>
+                        <kbd class="avd-spotlight__kbd">Esc</kbd>
                     </div>
-                    <div class="p-3" style="max-height: 420px; overflow-y: auto;">
-                        <div class="text-white-50 text-uppercase fw-bold mb-2" style="font-size: 0.7rem; letter-spacing: 0.5px;">
-                            {{ __('Trending Searches & Channels') }}
-                        </div>
-                        <div class="d-flex flex-wrap gap-2 mb-3">
+                    <div class="avd-spotlight__body">
+                        <p class="avd-spotlight__group">{{ __('Popular searches') }}</p>
+                        <div class="avd-spotlight__chips">
                             {{-- only suggestions that find videos on this site (catalogs differ per install) --}}
                             @foreach (\App\Support\SpotlightChips::all() as $spotlightChip)
-                                <a href="{{ (function_exists('locale_url') ? locale_url('/search?q=' . urlencode($spotlightChip['q'])) : url('/search?q=' . urlencode($spotlightChip['q']))) }}" class="btn btn-sm btn-outline-secondary text-white rounded-pill px-3 py-1" style="font-size: 0.8rem;">
-                                    <i class="fa-solid fa-hashtag {{ $spotlightChip['icon'] }} me-1"></i> {{ $spotlightChip['label'] }}
+                                <a href="{{ (function_exists('locale_url') ? locale_url('/search?q=' . urlencode($spotlightChip['q'])) : url('/search?q=' . urlencode($spotlightChip['q']))) }}" class="avd-spotlight__chip">
+                                    <i class="fa-solid fa-hashtag" aria-hidden="true"></i> {{ $spotlightChip['label'] }}
                                 </a>
                             @endforeach
-                            <a href="{{ (function_exists('locale_url') ? locale_url('/categories') : url('/categories')) }}" class="btn btn-sm btn-outline-secondary text-white rounded-pill px-3 py-1" style="font-size: 0.8rem;">
-                                <i class="fa-solid fa-shapes text-success me-1"></i> {{ __('All Categories') }}
+                            <a href="{{ (function_exists('locale_url') ? locale_url('/categories') : url('/categories')) }}" class="avd-spotlight__chip">
+                                <i class="fa-solid fa-shapes" aria-hidden="true"></i> {{ __('All categories') }}
                             </a>
                         </div>
 
-                        <div class="text-white-50 text-uppercase fw-bold mb-2" style="font-size: 0.7rem; letter-spacing: 0.5px;">
-                            {{ __('Quick Navigation & Tools') }}
-                        </div>
-                        <div class="d-flex flex-column gap-1">
-                            <a href="{{ (function_exists('locale_url') ? locale_url('/') : url('/')) }}" class="p-2 rounded-3 text-white text-decoration-none d-flex align-items-center justify-content-between" style="background: rgba(255,255,255,0.03); transition: background 0.15s ease;">
-                                <span class="d-flex align-items-center gap-2.5">
-                                    <i class="fa-solid fa-house text-muted"></i>
-                                    <span>{{ __('Home Billboard & Trending Shelves') }}</span>
-                                </span>
-                                <kbd class="text-white-50 small">↵</kbd>
+                        <p class="avd-spotlight__group">{{ __('Go to') }}</p>
+                        <div class="avd-spotlight__links">
+                            <a href="{{ (function_exists('locale_url') ? locale_url('/') : url('/')) }}" class="avd-spotlight__link">
+                                <span><i class="fa-solid fa-house" aria-hidden="true"></i>{{ __('Home') }}</span>
                             </a>
-                            <a href="{{ (function_exists('locale_url') ? locale_url('/categories') : url('/categories')) }}" class="p-2 rounded-3 text-white text-decoration-none d-flex align-items-center justify-content-between" style="background: rgba(255,255,255,0.03); transition: background 0.15s ease;">
-                                <span class="d-flex align-items-center gap-2.5">
-                                    <i class="fa-solid fa-shapes text-muted"></i>
-                                    <span>{{ __('Browse Categories Catalog') }}</span>
-                                </span>
-                                <kbd class="text-white-50 small">↵</kbd>
+                            <a href="{{ (function_exists('locale_url') ? locale_url('/categories') : url('/categories')) }}" class="avd-spotlight__link">
+                                <span><i class="fa-solid fa-shapes" aria-hidden="true"></i>{{ __('Categories') }}</span>
                             </a>
-                            <button type="button" onclick="bootstrap.Modal.getInstance(document.getElementById('avdSpotlightModal'))?.hide(); window.openDailyAestheticModal && window.openDailyAestheticModal();" class="p-2 rounded-3 text-white text-decoration-none d-flex align-items-center justify-content-between w-100 border-0" style="background: rgba(255,255,255,0.03); transition: background 0.15s ease;">
-                                <span class="d-flex align-items-center gap-2.5">
-                                    <i class="fa-solid fa-wand-magic-sparkles text-warning"></i>
-                                    <span>{{ __('Open Daily Aesthetic Identity HUD') }}</span>
-                                </span>
-                                <kbd class="text-white-50 small">D</kbd>
+                            @if($showDailyPill)
+                            <button type="button" class="avd-spotlight__link" onclick="var m=window.bootstrap&&bootstrap.Modal.getInstance(document.getElementById('avdSpotlightModal')); if(m){m.hide();} window.openDailyAestheticModal && window.openDailyAestheticModal();">
+                                <span><i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i>{{ __("Today's design") }}</span>
+                                <kbd class="avd-spotlight__kbd">D</kbd>
                             </button>
-                            <button type="button" onclick="bootstrap.Modal.getInstance(document.getElementById('avdSpotlightModal'))?.hide(); var o=document.getElementById('shortcuts-overlay'); if(o){o.classList.add('active'); window.AvdAudio&&window.AvdAudio.playClick();}" class="p-2 rounded-3 text-white text-decoration-none d-flex align-items-center justify-content-between w-100 border-0" style="background: rgba(255,255,255,0.03); transition: background 0.15s ease;">
-                                <span class="d-flex align-items-center gap-2.5">
-                                    <i class="fa-solid fa-keyboard text-info"></i>
-                                    <span>{{ __('Show Keyboard Shortcuts Cheat Sheet') }}</span>
-                                </span>
-                                <kbd class="text-white-50 small">?</kbd>
+                            @endif
+                            @if($watchKeyboardShortcutsEnabled)
+                            <button type="button" class="avd-spotlight__link" onclick="var m=window.bootstrap&&bootstrap.Modal.getInstance(document.getElementById('avdSpotlightModal')); if(m){m.hide();} var o=document.getElementById('shortcuts-overlay'); if(o){o.classList.add('active'); window.AvdAudio&&window.AvdAudio.playClick();}">
+                                <span><i class="fa-solid fa-keyboard" aria-hidden="true"></i>{{ __('Keyboard shortcuts') }}</span>
+                                <kbd class="avd-spotlight__kbd">?</kbd>
                             </button>
+                            @endif
                         </div>
                     </div>
-                    <div class="p-2.5 px-3 border-top d-flex align-items-center justify-content-between text-white-50 small" style="border-color: rgba(255, 255, 255, 0.08) !important; font-size: 0.72rem;">
-                        <span><i class="fa-solid fa-lightbulb text-warning me-1"></i> {{ __('Pro tip: Press / or Ctrl+K anywhere to search instantly') }}</span>
-                        <span>AVDBCMS Spotlight</span>
+                    <div class="avd-spotlight__foot">
+                        {{ __('Press / or Ctrl+K anywhere to search.') }}
                     </div>
                 </div>
             </div>
@@ -1567,47 +1818,66 @@
     </div>
 
     @if($mobileBottomNavEnabled && !$isBackOfficeLayout)
+        @php
+            // The phone bottom bar (auth-3, channel-1, watch-1, channel-29, watch-10). "Your channel" opens the member's
+            // own channel by its route key (slug or profile id: a username is not a channel address, /@<username> was a
+            // 404 for most members) and is marked on that channel; "Library" opens the library page (history, watch
+            // later, liked videos, playlists) and is marked on every page of the library.
+            $bottomNavUser = auth()->user();
+            $bottomNavRouteUser = request()->route('user');
+            $bottomNavOwnChannel = $bottomNavUser !== null && request()->routeIs('user.show')
+                && $bottomNavRouteUser instanceof \App\Models\User && $bottomNavRouteUser->is($bottomNavUser);
+            $bottomNavItems = [
+                'home' => request()->routeIs('pages.home'),
+                'categories' => request()->routeIs('pages.categories', 'pages.category'),
+                'explore' => request()->routeIs('search.index'),
+                'library' => request()->routeIs('pages.library', 'pages.history', 'custom-playlist.show', 'playlist.manage', 'subscription.manage'),
+                'channel' => $bottomNavOwnChannel,
+                'signin' => request()->routeIs('login'),
+                'signup' => request()->routeIs('registration'),
+            ];
+        @endphp
         <nav class="avd-mobile-bottom-nav d-md-none fixed-bottom" id="avdMobileBottomNav" aria-label="{{ __('Mobile navigation') }}" data-avd-bottom-nav>
             <div class="d-flex align-items-center justify-content-around py-2 px-1">
-                <a href="{{ (function_exists('locale_url') ? locale_url('/') : url('/')) }}" class="avd-mob-nav-item {{ request()->routeIs('pages.home') ? 'active' : '' }}">
-                    <i class="fa-solid fa-house"></i>
+                <a href="{{ (function_exists('locale_url') ? locale_url('/') : url('/')) }}" @class(['avd-mob-nav-item', 'active' => $bottomNavItems['home']]) @if($bottomNavItems['home']) aria-current="page" @endif>
+                    <i class="fa-solid fa-house" aria-hidden="true"></i>
                     <span>{{ __('Home') }}</span>
                 </a>
-                <a href="{{ (function_exists('locale_url') ? locale_url('/categories') : url('/categories')) }}" class="avd-mob-nav-item {{ request()->is('*categories*') ? 'active' : '' }}">
-                    <i class="fa-solid fa-shapes"></i>
+                <a href="{{ (function_exists('locale_url') ? locale_url('/categories') : url('/categories')) }}" @class(['avd-mob-nav-item', 'active' => $bottomNavItems['categories']]) @if($bottomNavItems['categories']) aria-current="page" @endif>
+                    <i class="fa-solid fa-shapes" aria-hidden="true"></i>
                     <span>{{ __('Categories') }}</span>
                 </a>
                 @if($configBool('header_random_button_enabled', true))
                 <a href="{{ (function_exists('locale_url') ? locale_url(route('video.random')) : route('video.random')) }}" class="avd-mob-nav-item avd-mob-special">
-                    <div class="avd-mob-fab">
-                        <i class="fa-solid fa-shuffle"></i>
-                    </div>
+                    <span class="avd-mob-fab">
+                        <i class="fa-solid fa-shuffle" aria-hidden="true"></i>
+                    </span>
                     <span>{{ __('Random') }}</span>
                 </a>
                 @else
-                <a href="{{ (function_exists('locale_url') ? locale_url('/search') : url('/search')) }}" class="avd-mob-nav-item {{ request()->is('*search*') ? 'active' : '' }}">
-                    <i class="fa-solid fa-compass"></i>
+                <a href="{{ (function_exists('locale_url') ? locale_url('/search') : url('/search')) }}" @class(['avd-mob-nav-item', 'active' => $bottomNavItems['explore']]) @if($bottomNavItems['explore']) aria-current="page" @endif>
+                    <i class="fa-solid fa-compass" aria-hidden="true"></i>
                     <span>{{ __('Explore') }}</span>
                 </a>
                 @endif
                 @auth
-                <a href="{{ locale_url(route('subscription.manage')) }}" class="avd-mob-nav-item {{ request()->is('*subscription*') ? 'active' : '' }}">
-                    <i class="fa-solid fa-folder-open"></i>
+                <a href="{{ locale_url(route('pages.library')) }}" @class(['avd-mob-nav-item', 'active' => $bottomNavItems['library']]) @if($bottomNavItems['library']) aria-current="page" @endif>
+                    <i class="fa-solid fa-folder-open" aria-hidden="true"></i>
                     <span>{{ __('Library') }}</span>
                 </a>
-                <a href="{{ locale_url(route('user.show', auth()->user()->username)) }}" class="avd-mob-nav-item">
-                    <i class="fa-solid fa-circle-user"></i>
-                    <span>{{ __('Profile') }}</span>
+                <a href="{{ locale_url(route('user.show', $bottomNavUser)) }}" @class(['avd-mob-nav-item', 'active' => $bottomNavItems['channel']]) @if($bottomNavItems['channel']) aria-current="page" @endif>
+                    <i class="fa-solid fa-circle-user" aria-hidden="true"></i>
+                    <span>{{ __('Your channel') }}</span>
                 </a>
                 @else
-                <a href="{{ locale_url(route('login')) }}" class="avd-mob-nav-item {{ request()->routeIs('login') ? 'active' : '' }}">
-                    <i class="fa-solid fa-arrow-right-to-bracket"></i>
-                    <span>{{ __('Login') }}</span>
+                <a href="{{ $signInUrl }}" @class(['avd-mob-nav-item', 'active' => $bottomNavItems['signin']]) @if($bottomNavItems['signin']) aria-current="page" @endif>
+                    <i class="fa-solid fa-arrow-right-to-bracket" aria-hidden="true"></i>
+                    <span>{{ __('Sign in') }}</span>
                 </a>
                 @if(config('site.registration_enabled', true))
-                <a href="{{ locale_url(route('registration')) }}" class="avd-mob-nav-item {{ request()->routeIs('registration') ? 'active' : '' }}">
-                    <i class="fa-solid fa-user-plus"></i>
-                    <span>{{ __('Register') }}</span>
+                <a href="{{ $signUpUrl }}" @class(['avd-mob-nav-item', 'active' => $bottomNavItems['signup']]) @if($bottomNavItems['signup']) aria-current="page" @endif>
+                    <i class="fa-solid fa-user-plus" aria-hidden="true"></i>
+                    <span>{{ __('Create account') }}</span>
                 </a>
                 @endif
                 @endauth
@@ -1619,6 +1889,9 @@
         window.USER = {!! Auth::check() ? Auth::user()->json  : 'null' !!}
         window.LANG = '{{app()->getLocale()}}'
         window.LOCALE_PREFIX = '{{ app()->getLocale() !== config('site.default_locale', config('app.locale', 'en')) ? '/' . app()->getLocale() : '' }}'
+        {{-- The start of every address the scripts build (resources/js/functions/sitePath.ts): the site's folder, then
+             /index.php where its links carry it. --}}
+        window.SITE_BASE = {!! json_encode(site_folder() . (index_php_links() ? '/index.php' : ''), $jsonScriptFlags) !!}
         window.API_BASE = '{{ str_contains(request()->getRequestUri(), "/index.php") ? url("/index.php/api") : url("/api") }}'
         window.AD_CONFIG = {
             enabled: {{ $showAds ? 'true' : 'false' }},
@@ -1628,39 +1901,13 @@
             prerollMediaUrls: {!! json_encode($showAds ? $adPrerollMediaUrls : [], $jsonScriptFlags) !!},
             prerollAds: {!! json_encode($showAds ? $adPrerollAds : [], $jsonScriptFlags) !!},
             prerollCode: {!! json_encode($showAds ? config('site.ad_code_video', '') : '', $jsonScriptFlags) !!},
-            gridAdCodeByContext: {!! json_encode($showAds ? [
-                'smart_discovery' => config('site.ad_code_grid_smart_discovery', ''),
-                'creator_spotlight' => config('site.ad_code_grid_creator_spotlight', ''),
-                'trending_actors' => config('site.ad_code_grid_trending_actors', ''),
-                'new_videos' => config('site.ad_code_grid_new_videos', ''),
-                'trend_page' => config('site.ad_code_grid_trend_page', ''),
-                'category_page' => config('site.ad_code_grid_category_page', ''),
-                'subscriptions' => config('site.ad_code_grid_subscriptions', ''),
-                'channel_videos' => config('site.ad_code_grid_channel_videos', ''),
-                'search_results' => config('site.ad_code_grid_search_results', ''),
-                'playlist_videos' => config('site.ad_code_grid_playlist_videos', ''),
-                'watch_related' => config('site.ad_code_grid_watch_related', ''),
-                'channel_home_featured' => config('site.ad_code_grid_channel_home_featured', ''),
-                'channel_home_latest' => config('site.ad_code_grid_channel_home_latest', ''),
-            ] : [], $jsonScriptFlags) !!},
+            {{-- The list ad code and shape of each list of Money > Ads by its ad context (App\Support\ListAdContexts):
+                 one entry per list, so each code is printed once. --}}
+            gridAdCodeByContext: {!! json_encode($showAds ? \App\Support\ListAdContexts::codes() : [], $jsonScriptFlags) !!},
             gridPosition: {{ config('site.ad_grid_position', 6) }},
             gridMaxPerFeed: {{ config('site.ad_grid_max_per_feed', 1) }},
             gridLayout: {!! json_encode(config('site.ad_grid_layout', 'grid_card'), $jsonScriptFlags) !!},
-            gridLayoutByContext: {!! json_encode($showAds ? [
-                'smart_discovery' => config('site.ad_grid_layout_smart_discovery', 'inherit'),
-                'creator_spotlight' => config('site.ad_grid_layout_creator_spotlight', 'inherit'),
-                'trending_actors' => config('site.ad_grid_layout_trending_actors', 'inherit'),
-                'new_videos' => config('site.ad_grid_layout_new_videos', 'inherit'),
-                'trend_page' => config('site.ad_grid_layout_trend_page', 'inherit'),
-                'category_page' => config('site.ad_grid_layout_category_page', 'inherit'),
-                'subscriptions' => config('site.ad_grid_layout_subscriptions', 'inherit'),
-                'channel_videos' => config('site.ad_grid_layout_channel_videos', 'inherit'),
-                'search_results' => config('site.ad_grid_layout_search_results', 'inherit'),
-                'playlist_videos' => config('site.ad_grid_layout_playlist_videos', 'inherit'),
-                'watch_related' => config('site.ad_grid_layout_watch_related', 'inherit'),
-                'channel_home_featured' => config('site.ad_grid_layout_channel_home_featured', 'inherit'),
-                'channel_home_latest' => config('site.ad_grid_layout_channel_home_latest', 'inherit'),
-            ] : [], $jsonScriptFlags) !!},
+            gridLayoutByContext: {!! json_encode($showAds ? \App\Support\ListAdContexts::shapes() : [], $jsonScriptFlags) !!},
             sidebarAdCode: {!! json_encode($showAds ? config('site.ad_code_sidebar', '') : '', $jsonScriptFlags) !!},
         };
 
@@ -1681,27 +1928,27 @@
         <div class="shortcuts-overlay" id="shortcuts-overlay" role="button" tabindex="0" aria-label="{{ __('Close') }}" onclick="if(event.target===this)this.classList.remove('active')" onkeydown="if((event.key==='Enter'||event.key===' ')&&event.target===this){event.preventDefault();this.classList.remove('active');}">
             <div class="shortcuts-panel">
                 <div class="d-flex align-items-center justify-content-between mb-3">
-                    <h3 class="mb-0"><i class="fa-solid fa-keyboard text-info"></i> {{__('Keyboard Shortcuts')}}</h3>
+                    <h3 class="mb-0"><i class="fa-solid fa-keyboard text-info" aria-hidden="true"></i> {{__('Keyboard shortcuts')}}</h3>
                     <button type="button" class="btn-close btn-close-white" onclick="document.getElementById('shortcuts-overlay').classList.remove('active')"></button>
                 </div>
                 <div class="shortcuts-grid">
-                    <div class="shortcut-item"><span class="shortcut-label">{{__('Fullscreen')}}</span><kbd>F</kbd></div>
-                    <div class="shortcut-item"><span class="shortcut-label">{{__('Theater Mode')}}</span><kbd>T</kbd></div>
-                    <div class="shortcut-item"><span class="shortcut-label">{{__('Lights Out')}}</span><kbd>L</kbd></div>
-                    <div class="shortcut-item"><span class="shortcut-label">{{__('Color Grade Filter')}}</span><kbd>C</kbd></div>
-                    <div class="shortcut-item"><span class="shortcut-label">{{__('Mirror Flip View')}}</span><kbd>M</kbd></div>
-                    <div class="shortcut-item"><span class="shortcut-label">{{__('Aspect Ratio')}}</span><kbd>W</kbd></div>
-                    <div class="shortcut-item"><span class="shortcut-label">{{__('Rotate 90° Frame')}}</span><kbd>O</kbd></div>
-                    <div class="shortcut-item"><span class="shortcut-label">{{__('Zen Immersion')}}</span><kbd>Shift+F</kbd></div>
-                    <div class="shortcut-item"><span class="shortcut-label">{{__('Specs & Telemetry')}}</span><kbd>I</kbd></div>
-                    <div class="shortcut-item"><span class="shortcut-label">{{__('Ambilight Halo Glow')}}</span><kbd>A</kbd></div>
-                    <div class="shortcut-item"><span class="shortcut-label">{{__('Night Shift (Warm)')}}</span><kbd>Shift+N</kbd></div>
-                    <div class="shortcut-item"><span class="shortcut-label">{{__('Sleep Timer')}}</span><kbd>Z</kbd></div>
-                    <div class="shortcut-item"><span class="shortcut-label">{{__('Quick Notes')}}</span><kbd>N</kbd></div>
-                    <div class="shortcut-item"><span class="shortcut-label">{{__('Mini Player (PiP)')}}</span><kbd>P</kbd></div>
-                    <div class="shortcut-item"><span class="shortcut-label">{{__('Daily Aesthetic HUD')}}</span><kbd>D</kbd></div>
-                    <div class="shortcut-item"><span class="shortcut-label">{{__('Quick Search')}}</span><kbd>Ctrl+K / /</kbd></div>
-                    <div class="shortcut-item"><span class="shortcut-label">{{__('Show Shortcuts')}}</span><kbd>?</kbd></div>
+                    <div class="shortcut-item"><span class="shortcut-label">{{__('Full screen')}}</span><kbd>F</kbd></div>
+                    <div class="shortcut-item"><span class="shortcut-label">{{__('Theater mode')}}</span><kbd>T</kbd></div>
+                    <div class="shortcut-item"><span class="shortcut-label">{{__('Lights out')}}</span><kbd>L</kbd></div>
+                    <div class="shortcut-item"><span class="shortcut-label">{{__('Color filter')}}</span><kbd>C</kbd></div>
+                    <div class="shortcut-item"><span class="shortcut-label">{{__('Mirror the video')}}</span><kbd>M</kbd></div>
+                    <div class="shortcut-item"><span class="shortcut-label">{{__('Aspect ratio')}}</span><kbd>W</kbd></div>
+                    <div class="shortcut-item"><span class="shortcut-label">{{__('Rotate the video')}}</span><kbd>O</kbd></div>
+                    <div class="shortcut-item"><span class="shortcut-label">{{__('Focus mode')}}</span><kbd>Shift+F</kbd></div>
+                    <div class="shortcut-item"><span class="shortcut-label">{{__('Video details')}}</span><kbd>I</kbd></div>
+                    <div class="shortcut-item"><span class="shortcut-label">{{__('Glow around the player')}}</span><kbd>A</kbd></div>
+                    <div class="shortcut-item"><span class="shortcut-label">{{ __(':label: :value', ['label' => __('Color filter'), 'value' => __('Night')]) }}</span><kbd>Shift+N</kbd></div>
+                    <div class="shortcut-item"><span class="shortcut-label">{{__('Sleep timer')}}</span><kbd>Z</kbd></div>
+                    <div class="shortcut-item"><span class="shortcut-label">{{__('Notes')}}</span><kbd>N</kbd></div>
+                    <div class="shortcut-item"><span class="shortcut-label">{{__('Mini player')}}</span><kbd>P</kbd></div>
+                    <div class="shortcut-item"><span class="shortcut-label">{{ __("Today's design") }}</span><kbd>D</kbd></div>
+                    <div class="shortcut-item"><span class="shortcut-label">{{__('Search')}}</span><kbd>Ctrl+K / /</kbd></div>
+                    <div class="shortcut-item"><span class="shortcut-label">{{__('Keyboard shortcuts')}}</span><kbd>?</kbd></div>
                     <div class="shortcut-item"><span class="shortcut-label">{{__('Close / Exit')}}</span><kbd>Esc</kbd></div>
                 </div>
             </div>
@@ -1709,23 +1956,41 @@
     @endif
 
     @if($backToTopEnabled)
-        <button type="button" class="back-to-top" id="back-to-top" tabindex="-1" title="{{__('Back to top')}}" onclick="window.scrollTo({top:0,behavior:'{{ $scrollBehavior }}'})">
-            <i class="fa-solid fa-chevron-up"></i>
+        {{-- data-label: the floating pill's visible label (layout-theme-a.css, content: attr(data-label)), translated
+             for every language. It is the button's own name, "Back to top": the short "Top" is the
+             ranking word of other screens and read "summit" or "leading" in many languages. Phones show the icon only. --}}
+        <button type="button" class="back-to-top" id="back-to-top" tabindex="-1" title="{{ __('Back to top') }}" aria-label="{{ __('Back to top') }}" data-label="{{ __('Back to top') }}" onclick="window.scrollTo({top:0,behavior:'{{ $scrollBehavior }}'})">
+            <i class="fa-solid fa-chevron-up" aria-hidden="true"></i>
         </button>
     @endif
 
-    @if($jsCopyToastEnabled)
-        <div class="copy-toast" id="copy-toast"><i class="fa-solid fa-check-circle"></i> <span>{{__('Copied!')}}</span></div>
+    {{-- A demo site's visitor buttons, only while their settings are on ($avdVisitorDock, above). --}}
+    @if($avdVisitorDock !== null)
+        @include('layouts.partials.visitor-choices', ['part' => 'body', 'dock' => $avdVisitorDock])
     @endif
 
-    {{-- Perf plan step 25: back-to-top, theater mode and lights out, the keyboard shortcuts, the toasts, the UI
+    {{-- One toast system on every page (watch-47; member design 4.4, 5.10): the member kit's toast (.mk-toast, its
+         CSS is in the main CSS), drawn by resources/js/layout/core.ts (window.avdToast, showCopyToast and the error
+         toast of resources/js/functions/toast.ts). Above the bottom bar, the ad strip and the member bars; at the top
+         while a dialog or a side panel is open. A toast that comes with the page is printed here. --}}
+    <div class="mk-toasts avd-mk" id="avd-toasts" role="region" aria-label="{{ __('Messages') }}" data-avd-toasts>
+        @if($flashToast)
+            <div @class(['mk-toast', 'mk-toast--'.$flashToast['type']]) role="{{ $flashToast['type'] === 'error' ? 'alert' : 'status' }}" data-avd-toast data-avd-toast-flash>
+                <i @class(['fa-solid', 'fa-circle-check' => $flashToast['type'] === 'success', 'fa-triangle-exclamation' => $flashToast['type'] === 'error' || $flashToast['type'] === 'warning', 'fa-circle-info' => $flashToast['type'] === 'info']) aria-hidden="true"></i>
+                <span class="mk-toast__text">{{ $flashToast['message'] }}</span>
+                <button type="button" class="mk-icon-btn mk-icon-btn--sm mk-toast__close" aria-label="{{ __('Close') }}" data-avd-toast-close><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+            </div>
+        @endif
+    </div>
+
+    {{-- Back-to-top, theater mode and lights out, the keyboard shortcuts, the toasts, the UI
          sounds, the Spotlight palette, the Daily HUD and the accent restore run from resources/js/layout/core.ts
          (and its daily-hud / decor chunks); window.* names called before it runs are queued by the <head> stubs. --}}
     @if($jsTheaterMemoryEnabled)
     <script>
-        /* Theater mode memory: restored at this point of the parse, as before (the toggle is in
-           resources/js/layout/core.ts). No scroll reset here any more (perf plan step 25f): only a real
-           change of mode resets the horizontal scroll. ES5. */
+        {{-- Theater mode memory: restored at this point of the parse, as before (the toggle is in
+           resources/js/layout/core.ts). No scroll reset here any more: only a real
+           change of mode resets the horizontal scroll. ES5. --}}
         (function () {
             var buttons = document.querySelectorAll('[data-theater-toggle]');
             if (!buttons.length) return;
@@ -1747,239 +2012,103 @@
         })();
     </script>
     @endif
-    <script>
-        (function(){
-            // The one click ripple engine, on every page that renders this layout (the Upload18 embed
-            // shell has its own layout). It replaces the second inline engine and the motion chunk's
-            // anime.js ripple, which stacked up to three ripples per click. The card tilt, spotlight,
-            // glare, magnet, click burst and cursor halo live in resources/js/motion/pointerFx.ts.
-            // Each target gets one span, reused on every click and animated with WAAPI (compositor
-            // transform and opacity), and taken out again when its ripple ends, so the target's markup
-            // is unchanged at rest. Engines without WAAPI (Safari < 13.1, older WebViews) run the same
-            // ripple as a CSS animation (.avd-click-ripple-css), as the old CSS ripple did there.
-            // It is rendered whatever the admin click ripple switch says (see motionChunkTargets).
-            if (!document.body || typeof WeakMap !== 'function') return;
-            var root = document.documentElement;
-            var waapi = typeof document.body.animate === 'function';
-            var rippleTargets = '.btn, .avd-chip, .avd-tag, .avd-category-pill, .nav-link, .avd-mob-nav-item, .avd-sidebar-link, .avd-shelf-paddle, .avd-player-control, .avd-video-card';
-            // Mouse clicks keep a ripple on the controls only the motion chunk's ripple covered (public
-            // pages, rich tier, full motion, anime effects on).
-            var richMouseTargets = '.avd-icon-button, .avd-sidebar-toggle, .avd-social-btn, .avd-action-pill';
-            // Where the layout's ripples never showed, the motion chunk's script-driven mouse ripple still did,
-            // on its own controls: the click ripple switch off (the server left the layout engines out, the
-            // chunk ignored the switch), the motion engine 'off' setting (it cuts every CSS animation to 1 ms)
-            // and 'CSS animations off' (it removes them).
-            var motionChunkTargets = '.btn:not(.btn-close), .avd-icon-button, .avd-sidebar-toggle, .avd-tag, .avd-social-btn, .avd-player-control, .avd-action-pill';
-            // Framework-managed media subtrees (player, preroll ad, upload) never get injected nodes.
-            var excludedSubtrees = 'video-player, video-upload, .avd-player-stage, .avd-preroll-ad, .avd-embed-shell';
-            var reducedMotion = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
-            var ripples = new WeakMap();
-            var pendingTap = null;
-
-            // The balanced tier or above (lite has none), motion on and no reduced-motion preference.
-            function rippleOn() {
-                if (root.getAttribute('data-avd-motion') === 'off') return false;
-                if (reducedMotion && reducedMotion.matches) return false;
-                return window.AVD_TIER ? window.AVD_TIER.at('balanced') : root.getAttribute('data-avd-perf') !== 'lite';
-            }
-
-            // pointerFx (rich tier, fine pointer) sets data-avd-pointer-budget="ok" when the page is within the
-            // old motion chunk's budget (128 cards, comments, list and dropdown items), as its ripple required.
-            function richMouseRipple() {
-                return !document.body.classList.contains('avd-admin')
-                    && (root.getAttribute('data-avd-motion') || 'full') === 'full'
-                    && !!(window.AVD_TIER && window.AVD_TIER.at('rich'))
-                    && !(window.AVD_SETTINGS && window.AVD_SETTINGS.animeEffects === false)
-                    && root.getAttribute('data-avd-pointer-budget') === 'ok';
-            }
-
-            function rippleTargetFor(node, mouse) {
-                if (!node || !node.closest || !rippleOn()) return null;
-                var target;
-                if (root.getAttribute('data-avd-ripple') !== 'on' || root.getAttribute('data-avd-motion-engine') === 'off' || root.getAttribute('data-avd-css-animations') === 'off') {
-                    target = mouse && richMouseRipple() ? node.closest(motionChunkTargets) : null;
-                } else {
-                    target = node.closest(rippleTargets) || (mouse && richMouseRipple() ? node.closest(richMouseTargets) : null);
-                }
-                if (!target || target.getAttribute('data-avd-no-ripple') === 'true' || target.closest(excludedSubtrees)) return null;
-                return target;
-            }
-
-            function spawnRipple(target, clientX, clientY) {
-                var entry = ripples.get(target);
-                if (!entry) {
-                    var span = document.createElement('span');
-                    span.className = 'avd-click-ripple';
-                    span.setAttribute('aria-hidden', 'true');
-                    entry = { span: span, animation: null, timer: 0 };
-                    ripples.set(target, entry);
-                }
-                var rect = target.getBoundingClientRect();
-                var size = Math.max(rect.width, rect.height) * 2;
-                var style = window.getComputedStyle(target);
-                // The target clips its ripple. The stylesheet makes most targets relative and clipped;
-                // the others get the inline pair the old engine wrote on every click.
-                if (style.position === 'static') target.style.position = 'relative';
-                if (style.overflow !== 'hidden') target.style.overflow = 'hidden';
-                if (entry.animation) entry.animation.cancel();
-                entry.span.style.width = entry.span.style.height = size + 'px';
-                entry.span.style.left = (clientX - rect.left - size / 2) + 'px';
-                entry.span.style.top = (clientY - rect.top - size / 2) + 'px';
-                if (entry.span.parentNode !== target) target.appendChild(entry.span);
-                if (!waapi) {
-                    // Restart the CSS ripple (a reflow between dropping and adding the class), and take the
-                    // span out once it is over.
-                    entry.span.classList.remove('avd-click-ripple-css');
-                    void entry.span.offsetWidth;
-                    entry.span.classList.add('avd-click-ripple-css');
-                    window.clearTimeout(entry.timer);
-                    entry.timer = window.setTimeout(function() {
-                        entry.timer = 0;
-                        entry.span.classList.remove('avd-click-ripple-css');
-                        if (entry.span.parentNode) entry.span.parentNode.removeChild(entry.span);
-                    }, 700);
-                    return;
-                }
-                var animation = entry.span.animate([
-                    { transform: 'scale(0)', opacity: 1 },
-                    { transform: 'scale(1)', opacity: 0 }
-                ], { duration: 650, easing: 'ease-out' });
-                entry.animation = animation;
-                animation.onfinish = function() {
-                    if (entry.animation !== animation) return;
-                    entry.animation = null;
-                    if (entry.span.parentNode) entry.span.parentNode.removeChild(entry.span);
-                };
-            }
-
-            // Mouse ripples on press, as before. Touch and pen: pointerdown also starts every
-            // scroll gesture, so remember the target and ripple on 'click', which only taps fire.
-            // Cards get no touch ripple; their coarse :active press scale is the tap feedback.
-            document.addEventListener('pointerdown', function(e) {
-                var mouse = e.pointerType === 'mouse';
-                var target = rippleTargetFor(e.target, mouse);
-                pendingTap = null;
-                if (!target) return;
-                if (mouse) {
-                    spawnRipple(target, e.clientX, e.clientY);
-                } else if (!target.classList.contains('avd-video-card')) {
-                    pendingTap = target;
-                }
-            }, { passive: true });
-
-            document.addEventListener('pointercancel', function() {
-                pendingTap = null;
-            }, { passive: true });
-
-            // Capture phase: buttons whose own handlers stop the click (card actions, carousel
-            // controls) still get their tap ripple, as they did on pointerdown. Engines without
-            // pointer events (Safari < 13) ripple every input on click, cards excepted, as the old
-            // click-driven CSS ripple did there.
-            var pointerEvents = !!window.PointerEvent;
-            document.addEventListener('click', function(e) {
-                var target = pendingTap;
-                pendingTap = null;
-                if (!pointerEvents) {
-                    target = e.detail ? rippleTargetFor(e.target, false) : null;
-                    if (target && !target.classList.contains('avd-video-card')) spawnRipple(target, e.clientX, e.clientY);
-                    return;
-                }
-                if (!target || !e.detail || !target.isConnected) return;
-                if (rippleTargetFor(e.target, false) !== target) return;
-                spawnRipple(target, e.clientX, e.clientY);
-            }, { capture: true, passive: true });
-        })();
-    </script>
+    {{-- The click ripple engine runs from the module bundle (resources/js/layout/ripple.ts, installed by core.ts before
+         DOMContentLoaded): 9 KB less inline script on every page (member design 4.3 layout budget). --}}
 
     {{-- Cinema Lights Out Backdrop --}}
     <div id="avdLightsOutBackdrop" role="button" tabindex="0" aria-label="{{ __('Lights Out') }}" onclick="window.avdToggleLightsOut()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();window.avdToggleLightsOut();}"></div>
 
-    {{-- Seasonal Ambient Particles Canvas --}}
-    @if($dailyBadgeEnabled && $activeDailyDesign && $dailyAtmosphereParticles)
+    {{-- Seasonal Ambient Particles Canvas: never on a member page (a requestAnimationFrame loop at rest, 4.1a). --}}
+    @if($showDailyParticles)
         <canvas id="avdSeasonalAtmosphere"></canvas>
     @endif
 
-    {{-- 365-Day Daily Design Floating Dock Badge & Interactive HUD Modal --}}
-    @if($dailyBadgeEnabled && $activeDailyDesign)
-        <div class="position-fixed d-none d-md-flex align-items-center gap-2 py-1.5 px-3 rounded-pill shadow-lg transition-all"
-             role="button" tabindex="0" aria-label="{{ __('Open Daily Aesthetic Identity HUD') }}"
-             style="bottom: 24px; left: 24px; z-index: 1040; cursor: pointer; background: rgba(15, 23, 42, 0.88); border: 1px solid rgba(255, 255, 255, 0.16); box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 0 18px -2px {{ $activeDailyDesign['primary'] }}55 !important; font-size: 0.78rem;"
-             onclick="window.openDailyAestheticModal()"
-             onkeydown="if(event.target===this&&(event.key==='Enter'||event.key===' ')){event.preventDefault();window.openDailyAestheticModal();}"
-             title="{{ __('Click to explore today\'s aesthetic identity & seasonal atmosphere') }}">
-            <span class="rounded-circle d-inline-flex align-items-center justify-content-center text-white flex-shrink-0"
-                  style="width: 22px; height: 22px; background: linear-gradient(135deg, {{ $activeDailyDesign['primary'] }}, {{ $activeDailyDesign['accent'] }}); font-size: 0.7rem;">
-                <i class="fa-solid fa-wand-magic-sparkles"></i>
-            </span>
-            <span class="text-white-50">{{ __('Today:') }}</span>
-            <strong class="text-white text-truncate" style="max-width: 140px;">{{ $activeDailyDesign['name'] }}</strong>
-            <span class="badge rounded-pill bg-black text-white-50 border" style="font-size: 0.64rem; border-color: rgba(255,255,255,0.1) !important;">
-                {{ __('Day') }} {{ $activeDailyDesign['day'] }}/{{ $dailyDaysInYear }}
-            </span>
-            @if(!empty($activeDailyDesign['holiday']))
-                <span class="badge rounded-pill bg-warning text-dark fw-bold" style="font-size: 0.64rem;">
-                    {{ $activeDailyDesign['holiday'] }}
-                </span>
-            @endif
-            {{-- Closes this pill (its d-md-flex display is !important, hence the important inline value). It used to
-                 target #dailyThemeBadge, the other badge, an id this pill shared until 4b, and changed nothing.
-                 Activated from the keyboard (a click with detail 0 while this x has focus), it first moves focus to
-                 #dailyThemeBadge, the badge that opens the same HUD and is shown at the same breakpoint, so a keyboard
-                 user is not sent back to the top of the page. A mouse click or tap moves no focus, so no focus ring
-                 appears for pointer users, also in browsers without :focus-visible. --}}
-            <button type="button" class="btn-close btn-close-white ms-1" style="font-size: 0.55rem;" onclick="event.stopPropagation(); var badge = document.getElementById('dailyThemeBadge'); if (badge && !event.detail && document.activeElement === this) badge.focus({ preventScroll: true }); this.parentElement.style.setProperty('display', 'none', 'important');" aria-label="Close"></button>
+    {{-- "Today's design" (daily_design_show_badge while the design changes every day): ONE pill at the bottom-start
+         corner (member design 4.4, OD-M17). Its place is logical (.avd-daily-pill: inset-inline-start, so it
+         mirrors in Arabic and never meets the toasts and "Back to top" at the bottom-end corner) and it floats above
+         the bottom layers (--avd-bottom-chrome, --mk-bars-h). Not on the member back office or the sign-in pages
+         ($showDailyPill). Two real buttons: open the day's design, hide the pill. --}}
+    @if($showDailyPill)
+        <div class="avd-daily-pill d-none d-md-flex" id="avdDailyPill" style="--avd-daily-primary: {{ $activeDailyDesign['primary'] }}; --avd-daily-accent: {{ $activeDailyDesign['accent'] }};">
+            <button type="button" class="avd-daily-pill__open" id="dailyThemeBadge" aria-haspopup="dialog" aria-controls="dailyAestheticModal" title="{{ __("Open today's design") }}" onclick="window.openDailyAestheticModal && window.openDailyAestheticModal()">
+                <span class="avd-daily-pill__mark" aria-hidden="true"><i class="fa-solid fa-wand-magic-sparkles"></i></span>
+                <span class="avd-daily-pill__label">{{ __('Today:') }}</span>
+                <strong class="avd-daily-pill__name">{{ $dailyName }}</strong>
+                <span class="avd-daily-pill__day">{{ $dailyDayText }}</span>
+                @if($dailyHoliday !== '')
+                    <span class="avd-daily-pill__holiday">{{ $dailyHoliday }}</span>
+                @endif
+            </button>
+            {{-- Hides the pill for this page. From the keyboard (a click with detail 0) focus moves on to the page's
+                 content, so a keyboard user is not sent back to the top of the page. --}}
+            <button type="button" class="avd-daily-pill__close" aria-label="{{ __('Close') }}" title="{{ __('Close') }}" onclick="var pill = this.closest('.avd-daily-pill'); if (!event.detail) { var next = document.getElementById('main-container'); if (next) { if (!next.hasAttribute('tabindex')) next.setAttribute('tabindex', '-1'); next.focus({preventScroll: true}); } } if (pill) pill.style.setProperty('display', 'none', 'important');">
+                <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+            </button>
         </div>
-
-        {{-- The HUD modal is emitted once (above, with the first badge): this second copy was never shown and
-             duplicated its ids. Its sounds, glow, card and particles run from resources/js/layout (perf plan
-             step 25c/d). --}}
     @endif
 
     @php
         $authWatchLaterIds = Auth::check()
             ? (Auth::user()->playlists()->where('title', \App\Playlists\Types\WatchLaterPlaylist::getName())->first()?->videos()->pluck('videos.id')->map(fn($id) => (int)$id)->toArray() ?? [])
             : [];
-        // Perf plan step 25e: the translations and settings of resources/js/layout/*.ts, once, instead of
-        // Blade tokens inside inline scripts. Plain text, not HTML (perf plan 4c): the scripts set it as
+        // The translations and settings of resources/js/layout/*.ts, once, instead of
+        // Blade tokens inside inline scripts. Plain text, not HTML: the scripts set it as
         // textContent, title or canvas text, and escape it where it goes into markup (avdToast). The JSON
         // flags (JSON_HEX_TAG, _AMP, _APOS, _QUOT) write < > & ' " as JSON unicode escapes, so no value can
         // end the <script> element.
         $avdLayoutJs = [
             't' => [
-                'lightsOut' => (string) __("Lights Out Mode (Press L to Restore)"),
-                'lightsRestored' => (string) __("Lights Restored"),
-                'audioOn' => (string) __("Audio FX: ON"),
-                'audioOff' => (string) __("Audio FX: OFF"),
-                'audioEnabled' => (string) __("Audio FX: Enabled"),
-                'audioMuted' => (string) __("Audio FX: Muted"),
+                // a name and its value in the reader's punctuation (R3-048: French "Éteindre les lumières : Activé")
+                'lightsOut' => __(':label: :value', ['label' => __('Lights out'), 'value' => __('On').' (L)']),
+                'lightsRestored' => __(':label: :value', ['label' => __('Lights out'), 'value' => __('Off')]),
+                'audioOn' => (string) __('Sound effects: on'),
+                'audioOff' => (string) __('Sound effects: off'),
+                'audioEnabled' => (string) __('Sound effects on'),
+                'audioMuted' => (string) __('Sound effects off'),
                 'copied' => (string) __("Copied"),
                 'copiedColon' => (string) __("Copied:"),
-                'wallpaperDownloaded' => (string) __("🎨 Aesthetic Wallpaper Card Downloaded!"),
-                'cardDownloaded' => (string) __("Aesthetic Card Downloaded!"),
-                'wlPromptTitle' => (string) __('Want to watch this later?'),
-                'wlPromptMessage' => (string) __('Sign in to add this video to your Watch Later playlist.'),
-                'wlQuickSaveMessage' => (string) __('Sign in to add this video to your Watch Later playlist and keep track of videos you want to watch across all your devices.'),
-                'wlSavedTitle' => (string) __('Saved in Watch Later (Click to remove)'),
-                'wlTitle' => (string) __('Watch Later'),
-                'wlSaved' => (string) __('Saved to Watch Later!'),
-                'wlRemoved' => (string) __('Removed from Watch Later'),
-                'wlFailed' => (string) __('Failed to update Watch Later'),
+                'wallpaperDownloaded' => (string) __('Wallpaper downloaded'),
+                'cardDownloaded' => (string) __('Wallpaper downloaded'),
+                // "Today's design" (resources/js/layout/daily-hud.ts): the wallpaper's words and the sheet's messages.
+                'dailyTitle' => (string) __("Today's design"),
+                'dayOf' => (string) __('Day :day of :days'),
+                'colourPrimary' => (string) __('Primary colour'),
+                'colourSecondary' => (string) __('Secondary colour'),
+                'colourAccent' => (string) __('Accent colour'),
+                'customColour' => (string) __('Your colour: :code'),
+                'loadingDay' => (string) __('Loading day :day'),
+                'wlPromptTitle' => (string) __('Sign in to save videos'),
+                'wlPromptMessage' => (string) __('Watch later keeps videos for you on every device. It takes a minute to create an account.'),
+                'wlQuickSaveMessage' => (string) __('Watch later keeps videos for you on every device. It takes a minute to create an account.'),
+                'wlSavedTitle' => (string) __('Remove from Watch later'),
+                'wlTitle' => (string) __('Save to Watch later'),
+                'wlSaved' => (string) __('Saved to Watch later'),
+                'wlRemoved' => (string) __('Removed from Watch later'),
+                'wlFailed' => (string) __('That did not work. Check your connection and try again.'),
+                // The toast system (core.ts) and the searchable lists of app.ts (TomSelect, studio-27).
+                'close' => (string) __('Close'),
+                'error' => (string) __('Something went wrong. Please try again.'),
+                'linkCopied' => (string) __('Link copied'),
+                'shareUrl' => (string) __('Share this link:'),
+                'noResults' => (string) __('No results for ":query"'),
+                'removeItem' => (string) __('Remove'),
             ],
             'theaterMemory' => (bool) $jsTheaterMemoryEnabled,
             'copyToast' => (bool) $jsCopyToastEnabled,
             'primaryColor' => (string) $themeBrandColor,
             'themePreset' => (string) $themePreset,
+            'siteName' => (string) config('app.name'),
             'user' => [
                 'isAuthenticated' => Auth::check(),
                 'id' => Auth::id(),
-                'loginUrl' => locale_url(route('login')),
-                'registerUrl' => locale_url(route('registration')),
+                'loginUrl' => $signInUrl,
+                'registerUrl' => $signUpUrl,
                 'watchLaterIds' => $authWatchLaterIds,
             ],
             'dailyCard' => [
-                'name' => (string) ($activeDailyDesign['name'] ?? __((string) ($themeRecord['name'] ?? config('app.name')))),
+                'name' => (string) ($dailyName ?? __((string) ($themeRecord['name'] ?? config('app.name')))),
                 'day' => (string) ($activeDailyDesign['day'] ?? now()->dayOfYear),
-                'date' => (string) date('F j, Y'),
+                'date' => \App\Support\SiteDate::date(now()),
                 'mood' => (string) ($activeDailyDesign['mood'] ?? 'A distinctive visual atmosphere crafted uniquely for today.'),
                 'daysInYear' => $dailyDaysInYear,
             ],
@@ -1993,9 +2122,9 @@
                 'secondary' => (string) $activeDailyDesign['secondary'],
                 'accent' => (string) $activeDailyDesign['accent'],
                 'day' => (string) $activeDailyDesign['day'],
-                'dateLabel' => (string) $activeDailyDesign['date_label'],
-                'name' => (string) $activeDailyDesign['name'],
-                'seasonMood' => (string) $activeDailyDesign['season_mood'],
+                'dateLabel' => (string) ($dailyDateText ?? $activeDailyDesign['date_label']),
+                'name' => (string) ($dailyName ?? $activeDailyDesign['name']),
+                'seasonMood' => (string) __((string) $activeDailyDesign['season_mood']),
                 'layout' => (string) Str::headline($activeDailyDesign['home_layout_mode']),
                 'surface' => (string) Str::headline($activeDailyDesign['surface_style']),
                 'typography' => (string) Str::headline($activeDailyDesign['font_family']),
@@ -2054,43 +2183,8 @@
         })();
     </script>
 
-    <!-- Auth Prompt Modal for Watch Later and Personalized Actions -->
-    <div class="modal fade" id="avdAuthPromptModal" tabindex="-1" aria-labelledby="avdAuthPromptTitle" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered" style="max-width: 430px;">
-            <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden" style="background: rgba(18, 24, 38, 0.98); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.15) !important; color: #fff;">
-                <div class="modal-header border-0 pb-0 pt-4 px-4 d-flex justify-content-between align-items-center">
-                    <div class="d-flex align-items-center gap-3">
-                        <div class="rounded-circle d-flex align-items-center justify-content-center shadow-sm" style="width: 44px; height: 44px; background: rgba(var(--avd-primary-rgb, 255, 61, 97), 0.15); color: var(--avd-primary, #ff3d61); border: 1px solid rgba(var(--avd-primary-rgb, 255, 61, 97), 0.25);">
-                            <i class="fa-regular fa-clock fs-5" id="avdAuthPromptIcon"></i>
-                        </div>
-                        <div>
-                            <h5 class="modal-title fw-bold fs-5 mb-0" id="avdAuthPromptTitle">{{ __('Want to watch this later?') }}</h5>
-                            <span class="text-body-secondary small">{{ __('Personalized Playlist') }}</span>
-                        </div>
-                    </div>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="{{ __('Close') }}"></button>
-                </div>
-                <div class="modal-body px-4 py-3">
-                    <p class="text-body-secondary mb-0" id="avdAuthPromptMessage" style="font-size: 0.92rem; line-height: 1.55;">
-                        {{ __('Sign in to add this video to your Watch Later playlist and keep track of videos you want to watch across all your devices.') }}
-                    </p>
-                </div>
-                <div class="modal-footer border-0 pt-0 pb-4 px-4 d-flex flex-column gap-2">
-                    <a href="{{ locale_url(route('login')) }}" class="btn btn-primary w-100 py-2.5 rounded-3 fw-bold d-flex align-items-center justify-content-center gap-2 shadow-sm" id="avdAuthPromptLoginBtn">
-                        <i class="fa-solid fa-arrow-right-to-bracket"></i>
-                        <span>{{ __('Sign In') }}</span>
-                    </a>
-                    @if(config('site.registration_enabled', true))
-                    <a href="{{ locale_url(route('registration')) }}" class="btn btn-outline-secondary w-100 py-2.5 rounded-3 fw-semibold text-white d-flex align-items-center justify-content-center gap-2" style="border-color: rgba(255,255,255,0.22); background: rgba(255,255,255,0.04);">
-                        <i class="fa-solid fa-user-plus"></i>
-                        <span>{{ __('Create an Account') }}</span>
-                    </a>
-                    @endif
-                </div>
-            </div>
-        </div>
-    </div>
-    {{-- Appearance draft preview (admin only, WP8's ApplyAppearanceDraft marks the request): the "you are previewing a draft" banner. --}}
+    @include('layouts.partials.auth-prompt')
+    {{-- Appearance draft preview (admin only, the ApplyAppearanceDraft middleware marks the request): the "you are previewing a draft" banner. --}}
     @includeWhen(request()->attributes->get('avd.appearance_draft'), 'admin.appearance.partials.draft-banner')
 </body>
 </html>

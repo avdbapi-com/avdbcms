@@ -126,6 +126,21 @@ final class Environment
         };
     }
 
+    /**
+     * A web server or panel label as Tools > Health check shows it: the words of the generic ones in the admin's language
+     * ("None / generic host", "PHP built-in web server": R1-080), product names (Nginx, cPanel / WHM) as they are.
+     */
+    public static function shownLabel(string $label): string
+    {
+        return match ($label) {
+            'PHP built-in web server' => __('PHP built-in web server'),
+            'CLI / console' => __('CLI / console'),
+            'Unknown web server' => __('Unknown web server'),
+            'None / generic host' => __('None / generic host'),
+            default => $label,
+        };
+    }
+
     public static function osFamily(): string
     {
         return PHP_OS_FAMILY;
@@ -446,18 +461,40 @@ final class Environment
      */
     public static function visitorScheme(?Request $request = null): ?string
     {
+        return self::visitorSchemeSource($request)['scheme'];
+    }
+
+    /**
+     * visitorScheme() and how it knows: guessed is true when the answer is 'http' only because the request looks like
+     * it came straight from the visitor (an address on the internet, no proxy header at all). A proxy in front that ended
+     * TLS, sends no header and passes the visitor's address on looks exactly the same, so "Always use the secure address
+     * (https)" guards such a redirect against a loop (Security). Cloudflare's CF-Visitor and a listed proxy's
+     * X-Forwarded-Proto are not guesses.
+     *
+     * @return array{scheme: ?string, guessed: bool}
+     */
+    public static function visitorSchemeSource(?Request $request = null): array
+    {
         if ($request === null) {
             if (app()->runningInConsole()) {
-                return null;
+                return ['scheme' => null, 'guessed' => false];
             }
 
             try {
                 $request = request();
             } catch (Throwable) {
-                return null;
+                return ['scheme' => null, 'guessed' => false];
             }
         }
 
+        $scheme = self::schemeOf($request);
+
+        return ['scheme' => $scheme === 'http-direct' ? 'http' : $scheme, 'guessed' => $scheme === 'http-direct'];
+    }
+
+    /** visitorScheme() of a request, with 'http-direct' for the guess from a request without any proxy header. */
+    private static function schemeOf(Request $request): ?string
+    {
         if ($request->secure()) {
             return 'https';
         }
@@ -496,7 +533,7 @@ final class Environment
             }
         }
 
-        return 'http';
+        return 'http-direct';
     }
 
     /**

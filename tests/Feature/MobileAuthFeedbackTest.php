@@ -33,8 +33,10 @@ class MobileAuthFeedbackTest extends TestCase
             ->assertRedirect('/login')
             ->assertSessionHasInput('username', 'phone-user')
             ->assertSessionMissing('_old_input.password');
+        // auth-16: the wait in seconds, in the sign-in card (not a bare "Too many attempts !")
         $this->get('/login')->assertOk()
-            ->assertSee(__('Too many attempts !'))
+            ->assertSeeText('Too many tries. Wait')
+            ->assertSeeText('then try again.')
             ->assertSee('value="phone-user"', false)
             ->assertDontSee('private-test-password');
     }
@@ -55,7 +57,8 @@ class MobileAuthFeedbackTest extends TestCase
             ->assertSessionMissing('_old_input.password')
             ->assertSessionMissing('_old_input.password_confirmation');
         $this->get('/register')->assertOk()
-            ->assertSee(__('Too many attempts !'))
+            ->assertSeeText('Too many tries. Wait')
+            ->assertSeeText('then try again.')
             ->assertSee('value="phone-user@example.test"', false)
             ->assertDontSee('private-test-password');
         $this->assertGuest();
@@ -70,7 +73,7 @@ class MobileAuthFeedbackTest extends TestCase
             ->assertRedirect('/vi/login')
             ->assertSessionHas('error');
         // The front controller strips /vi before Laravel receives the request.
-        $this->get('/login')->assertOk()->assertSee(__('Registration is currently disabled.'));
+        $this->get('/login')->assertOk()->assertSee(__('Sign-ups are closed'));
     }
 
     public function test_unconfigured_social_provider_redirects_directly_to_localized_login(): void

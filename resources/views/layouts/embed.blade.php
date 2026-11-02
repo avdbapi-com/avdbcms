@@ -20,10 +20,8 @@
     <meta name="msapplication-navbutton-color" content="#0b0e15" />
     <meta name="apple-mobile-web-app-status-bar-style" content="#0b0e15" />
 
-    <link rel="shortcut icon" href="{{asset('favicon.ico')}}">
-    <link rel="apple-touch-icon" sizes="180x180" href="{{asset('/images/icons/apple-touch-icon.png')}}">
-    <link rel="icon" type="image/png" sizes="32x32" href="{{asset('/images/icons/favicon-32x32.png')}}">
-    <link rel="icon" type="image/png" sizes="16x16" href="{{asset('/images/icons/favicon-16x16.png')}}">
+    <link rel="icon" href="{{ config('site.favicon_url') ? site_asset_url((string) config('site.favicon_url')) : asset('/icons/favicon.ico') }}" sizes="any">
+    <link rel="apple-touch-icon" href="{{asset('/icons/apple-touch-icon.png')}}">
 
     <meta name="robots" content="noindex">
 

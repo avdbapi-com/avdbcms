@@ -75,8 +75,8 @@
         @foreach ($plans as $plan)
             @php($period = match ((int) $plan->duration) { 1 => __('per month'), 12 => __('per year'), default => __('every :count months', ['count' => (int) $plan->duration]) })
             <tr>
-                <td class="c-main"><p><a id="ad-plan-{{ $plan->id }}" href="{{ route('admin.plans.edit', $plan, false) }}">{{ $plan->name }}</a><small class="ad-phone-only">{{ $plan->price }} {{ $period }}</small></p></td>
-                <td class="c-meta"><span class="hide-phone">{{ $plan->price }} <small class="ad-muted">{{ $period }}</small></span>@if (blank($plan->stripe_id) || blank($plan->paypal_plan_id))<small class="ad-phone-only"><x-admin.status type="warn">{{ __('Payment ID missing') }}</x-admin.status></small>@endif</td>
+                <td class="c-main"><p><a id="ad-plan-{{ $plan->id }}" href="{{ route('admin.plans.edit', $plan, false) }}">{{ $plan->name }}</a><small class="ad-phone-only">{{ \App\Support\PremiumAvailability::price($plan) }} {{ $period }}</small></p></td>
+                <td class="c-meta"><span class="hide-phone">{{ \App\Support\PremiumAvailability::price($plan) }} <small class="ad-muted">{{ $period }}</small></span>@if (blank($plan->stripe_id) || blank($plan->paypal_plan_id))<small class="ad-phone-only"><x-admin.status type="warn">{{ __('Payment ID missing') }}</x-admin.status></small>@endif</td>
                 <td class="hide-tab">@if ($plan->stripe_id)<code>{{ $plan->stripe_id }}</code>@else<x-admin.status type="warn">{{ __('Missing') }}</x-admin.status>@endif</td>
                 <td class="hide-tab">@if ($plan->paypal_plan_id)<code>{{ $plan->paypal_plan_id }}</code>@else<x-admin.status type="warn">{{ __('Missing') }}</x-admin.status>@endif</td>
                 <td class="hide-tab is-date">{{ $plan->created_at?->translatedFormat('j M Y') }}</td>

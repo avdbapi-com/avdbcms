@@ -957,7 +957,7 @@ class AppearanceSettings
     }
 
     /**
-     * The Google Fonts families a public page renders with (perf plan step 22.3): the quoted families of the typography
+     * The Google Fonts families a public page renders with: the quoted families of the typography
      * pairing's heading and body stacks (the --avd-font-heading / --avd-font-body values), the quoted families of the
      * font_family preset while typography controls are on (--avd-font-family-base), and any family the owner's custom
      * code names.

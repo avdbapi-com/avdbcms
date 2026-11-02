@@ -11,6 +11,11 @@
 |
 |   version  --stage=DIR [--tag=vX.Y.Z]
 |       Prints AppVersion::CURRENT. With --tag it fails unless the tag is exactly "v" + CURRENT.
+|   scripts  --stage=DIR
+|       Gives every script of the stage LF line endings (CRLF -> LF; a lone CR stays): artisan and any other file that
+|       starts with "#!", and *.sh / *.bash / *.zsh / *.fish files; never a file with a NUL byte. With CRLF a script
+|       fails on Linux ("./artisan": /usr/bin/env: 'php\r': No such file or directory). The build runs it before the
+|       manifest, so every hash and both zips have the LF copies. Prints what it changed.
 |   manifest --stage=DIR [--previous=FILE] [--requires-php=8.3.0] [--min-from=1.2.0]
 |       Writes DIR/avdbcms-manifest.json {product, version, requires_php, min_from, built_at, files, removed}:
 |       files = path => SHA-256 of every file of the stage except bin/, storage/, database/install/ and the manifest
@@ -21,9 +26,9 @@
 |   verify   --stage=DIR --zip=FILE --kind=full|update [--engine=all|auto|ZipArchive|PharData]
 |       The zip against the stage: the same files and empty folders (update: without bin/) with the same sizes and
 |       CRC-32; entry names the updater accepts (update: the whole ZipEntries guard and the updater's "every file of
-|       the zip is in the manifest and the other way round" rule); the manifest equal to the staged one; every listed
-|       file read back through ZipArchive and/or PharData (both with --engine=all, the default) with the SHA-256 the
-|       manifest gives.
+|       the zip is in the manifest and the other way round" rule); no script with CRLF line endings (see scripts); the
+|       manifest equal to the staged one; every listed file read back through ZipArchive and/or PharData (both with
+|       --engine=all, the default) with the SHA-256 the manifest gives.
 |   sha256   --stage=DIR --zip=FILE
 |       FILE.sha256 must be exactly "<64 lower-case hex>  <zip name>" and a line feed (sha256sum format), accepted for
 |       that name by the updater's Checksum::parse(), and its hash must be the zip's SHA-256.
@@ -182,6 +187,99 @@ final class Tree
         }
 
         return strtolower(rtrim($path, '\\'));
+    }
+}
+
+/**
+ * The scripts of a package and their line endings (R1B-022). A tree built on Windows may hold artisan with CRLF line
+ * endings; Linux then reads its first line as "#!/usr/bin/env php\r" and "./artisan" (a cron line, a host's deploy
+ * script) fails with "/usr/bin/env: 'php\r': No such file or directory". Every script gets LF: artisan and any other
+ * file that starts with "#!" (vendor/bin and the packages' own tools), and shell files run or sourced by name.
+ * Other files keep their bytes (a .bat file needs its CRLF, PHP and Blade read either).
+ */
+final class Scripts
+{
+    /** Shell files that need LF without a "#!" line: run with "bash file.sh" or sourced. */
+    private const SUFFIXES = ['.sh', '.bash', '.zsh', '.fish'];
+
+    /** A script is a few KB; anything bigger (the bundled FFmpeg builds, pictures) is never read here. */
+    private const MAX_BYTES = 4194304;
+
+    /** Is $abs (at $path in the tree) a script whose line endings matter on Linux? */
+    public static function isScript(string $path, string $abs): bool
+    {
+        $size = @filesize($abs);
+        if ($size === false || $size < 2 || $size > self::MAX_BYTES) {
+            return false;
+        }
+        foreach (self::SUFFIXES as $suffix) {
+            if (str_ends_with(strtolower($path), $suffix)) {
+                return true;
+            }
+        }
+        $handle = @fopen($abs, 'rb');
+        if ($handle === false) {
+            return false;
+        }
+        $head = (string) fread($handle, 2);
+        fclose($handle);
+
+        return $head === '#!';
+    }
+
+    /** CRLF in a script that is text (a file with a NUL byte is a binary that happens to start with "#!"). */
+    private static function hasCrlf(string $data): bool
+    {
+        return str_contains($data, "\r\n") && !str_contains($data, "\0");
+    }
+
+    /**
+     * Rewrite every script of $files with CRLF line endings with LF ones (a lone CR stays); the paths it changed.
+     *
+     * @param array<string, string> $files relative path => absolute path (Tree::scan())
+     * @return array<int, string>
+     */
+    public static function normalize(array $files): array
+    {
+        $changed = [];
+        foreach ($files as $path => $abs) {
+            if (!self::isScript((string) $path, $abs)) {
+                continue;
+            }
+            $data = @file_get_contents($abs);
+            if (!is_string($data)) {
+                throw new Failed("{$path}: the script cannot be read.");
+            }
+            if (!self::hasCrlf($data)) {
+                continue;
+            }
+            $fixed = str_replace("\r\n", "\n", $data);
+            if (@file_put_contents($abs, $fixed) !== strlen($fixed)) {
+                throw new Failed("{$path}: the script cannot be written with LF line endings.");
+            }
+            clearstatcache(true, $abs);
+            $changed[] = (string) $path;
+        }
+
+        return $changed;
+    }
+
+    /**
+     * The scripts of $files that have CRLF line endings.
+     *
+     * @param array<string, string> $files relative path => absolute path
+     * @return array<int, string>
+     */
+    public static function withCrlf(array $files): array
+    {
+        $found = [];
+        foreach ($files as $path => $abs) {
+            if (self::isScript((string) $path, $abs) && is_string($data = @file_get_contents($abs)) && self::hasCrlf($data)) {
+                $found[] = (string) $path;
+            }
+        }
+
+        return $found;
     }
 }
 
@@ -507,6 +605,13 @@ final class Zips
             }
         }
 
+        // Its scripts run on Linux: LF line endings only (the zip holds the staged bytes, checked just above).
+        $crlf = Scripts::withCrlf($want);
+        if ($crlf !== []) {
+            throw new Failed("{$label}: scripts with CRLF line endings (on Linux they fail with /usr/bin/env: 'php\\r'): "
+                . implode(', ', array_slice($crlf, 0, 10)) . (count($crlf) > 10 ? ', ...' : '') . '. Run the scripts command on the stage first.');
+        }
+
         // The manifest: the staged one, naming exactly the files the updater takes from the zip.
         if (!isset($files[Manifests::FILE])) {
             throw new Failed("{$label} has no " . Manifests::FILE . ' at its root.');
@@ -602,6 +707,7 @@ final class Cli
 {
     private const COMMANDS = [
         'version' => ['stage', 'tag'],
+        'scripts' => ['stage'],
         'manifest' => ['stage', 'previous', 'requires-php', 'min-from'],
         'verify' => ['stage', 'zip', 'kind', 'engine'],
         'sha256' => ['stage', 'zip'],
@@ -610,6 +716,7 @@ final class Cli
 
     private const USAGE = <<<'TXT'
 usage: php scripts/release-manifest.php version  --stage=DIR [--tag=vX.Y.Z]
+       php scripts/release-manifest.php scripts  --stage=DIR
        php scripts/release-manifest.php manifest --stage=DIR [--previous=FILE] [--requires-php=8.3.0] [--min-from=1.2.0]
        php scripts/release-manifest.php verify   --stage=DIR --zip=FILE --kind=full|update [--engine=all|auto|ZipArchive|PharData]
        php scripts/release-manifest.php sha256   --stage=DIR --zip=FILE
@@ -630,6 +737,8 @@ TXT;
             switch ($command) {
                 case 'version':
                     return self::version($stage, $opt);
+                case 'scripts':
+                    return self::scripts($stage);
                 case 'manifest':
                     return self::manifest($stage, $opt);
                 case 'verify':
@@ -664,6 +773,23 @@ TXT;
                 . ' or set AppVersion::CURRENT to the version you mean and build again.');
         }
         echo $version, PHP_EOL;
+
+        return 0;
+    }
+
+    private static function scripts(string $stage): int
+    {
+        $files = Tree::scan($stage)['files'];
+        $changed = Scripts::normalize($files);
+        $left = Scripts::withCrlf($files);
+        if ($left !== []) {
+            throw new Failed('scripts still with CRLF line endings: ' . implode(', ', array_slice($left, 0, 10)));
+        }
+        echo $changed === []
+            ? 'Line endings: every script has LF line endings'
+            : sprintf('Line endings: %d %s given LF line endings (CRLF fails on Linux): %s', count($changed), count($changed) === 1 ? 'script' : 'scripts',
+                implode(', ', array_slice($changed, 0, 20)) . (count($changed) > 20 ? ', ...' : '')),
+            PHP_EOL;
 
         return 0;
     }

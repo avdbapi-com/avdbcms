@@ -12,6 +12,25 @@ use Symfony\Component\Process\Process;
 
 class SystemController
 {
+    /**
+     * The labels of the System information tables that are shown in the admin's language (translation keys). Every
+     * other label is the name of a program or of PHP's own setting and stays as it is (PHP SAPI, OPcache, cURL, GD,
+     * Imagick, FFmpeg). scripts/i18n/sources.json lists this constant, so the translation tools keep these keys.
+     */
+    public const LABELS = [
+        // PHP settings
+        'PHP Version', 'Server OS', 'Max Execution Time', 'Memory Limit', 'Upload Max Filesize', 'Post Max Size',
+        'Max Input Vars', 'Max File Uploads', 'Display Errors', 'Error Reporting', 'Timezone', 'Open Basedir',
+        'Disable Functions', 'Session Handler', 'Session Path',
+        // Laravel configuration
+        'AVDBCMS version', 'Version', 'Environment', 'Debug Mode', 'URL', 'Locale', 'Cache Driver', 'Session Driver',
+        'Queue Driver', 'Mail Driver', 'Log Channel', 'Filesystem', 'DB Connection', 'DB Host', 'DB Name', 'Scout Driver',
+        'Broadcast Driver',
+        // Database and disk
+        'Database', 'Tables', 'Total Size', 'Charset', 'Collation', 'Max Connections', 'Error',
+        'Total Space', 'Free Space', 'Used Space', 'Usage',
+    ];
+
     public function phpinfo(): View
     {
         // PHP Info
@@ -102,18 +121,16 @@ class SystemController
             'Usage' => round((1 - disk_free_space(base_path()) / disk_total_space(base_path())) * 100, 1) . '%',
         ];
 
-        // Storage folders
+        // Storage folders: counted for about 3 seconds in all (StatusProbeController::folderSize()); a folder with more
+        // files than that shows its size so far with "+". Counting every file of a big storage passed the time limit.
         $storageFolders = [];
+        $deadline = microtime(true) + 3;
         $dirs = ['app/public', 'logs', 'framework/cache', 'framework/sessions', 'framework/views'];
         foreach ($dirs as $dir) {
             $path = storage_path($dir);
             if (is_dir($path)) {
-                $size = 0;
-                $files = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($path));
-                foreach ($files as $file) {
-                    if ($file->isFile()) $size += $file->getSize();
-                }
-                $storageFolders[$dir] = round($size / 1048576, 2) . ' MB';
+                $folder = StatusProbeController::folderSize($path, $deadline);
+                $storageFolders[$dir] = round($folder['size'] / 1048576, 2) . ' MB' . ($folder['partial'] ? '+' : '');
             }
         }
 
@@ -153,28 +170,50 @@ class SystemController
                 Artisan::call('config:clear');
                 Artisan::call('route:clear');
                 Artisan::call('view:clear');
-                $msg = 'All caches cleared.';
+                $msg = __('All caches cleared.');
                 break;
             case 'config':
                 Artisan::call('config:clear');
-                $msg = 'Config cache cleared.';
+                $msg = __('Config cache cleared.');
                 break;
             case 'route':
                 Artisan::call('route:clear');
-                $msg = 'Route cache cleared.';
+                $msg = __('Route cache cleared.');
                 break;
             case 'view':
                 Artisan::call('view:clear');
-                $msg = 'View cache cleared.';
+                $msg = __('View cache cleared.');
                 break;
             case 'app':
                 Artisan::call('cache:clear');
-                $msg = 'Application cache cleared.';
+                $msg = __('Application cache cleared.');
                 break;
             default:
-                $msg = 'Unknown cache type.';
+                $msg = __('Unknown cache type.');
+        }
+
+        // Tools > Logs > Admin actions (R3-019): which cache was cleared (the old settings page's names "data" and
+        // "application" clear nothing here).
+        if (in_array($type, ['all', 'config', 'route', 'view', 'app'], true) && ($action = self::cacheAction($type)) !== null) {
+            AuditLogController::log($action);
         }
 
         return redirect()->route('admin.system.index')->withSuccess($msg);
+    }
+
+    /**
+     * The Admin actions row of a cache clear, by the cache (Tools > System and the old settings page's System tab):
+     * null for an unknown one (nothing was cleared).
+     */
+    public static function cacheAction(string $type): ?string
+    {
+        return match ($type) {
+            'all' => 'tools.cache.all_cleared',
+            'config' => 'tools.cache.config_cleared',
+            'route' => 'tools.cache.routes_cleared',
+            'view' => 'tools.cache.views_cleared',
+            'app', 'data', 'application' => 'tools.cache.data_cleared',
+            default => null,
+        };
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Notifications\Account;
 
+use App\Notifications\Support\MemberMail;
 use App\Models\User;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
@@ -45,8 +46,8 @@ class VerifyUpdatedEmail extends Notification
     protected function buildMailMessage(string $url, User $notifiable): MailMessage
     {
         return (new MailMessage)
-            ->subject('Updating your email address')
-            ->markdown('mails.account.email-update', compact('url', 'notifiable'));
+            ->subject(MemberMail::emailUpdate($notifiable, $url)['subject'])
+            ->view(['mails.account.email-update', 'mails.text.account.email-update'], compact('url', 'notifiable'));
     }
 
     /**

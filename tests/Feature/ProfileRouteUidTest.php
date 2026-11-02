@@ -77,13 +77,13 @@ class ProfileRouteUidTest extends TestCase
             ->assertOk()
             ->assertSee('<link rel="canonical" href="' . $user->route . '">', false)
             ->assertSee('"@type":"ProfilePage"', false)
-            ->assertSee('class="avd-channel-avatar-wrap avd-avatar-frame"', false)
-            ->assertSee('class="avd-channel-avatar-img avd-avatar-media"', false)
-            ->assertSee('width="120" height="120"', false)
+            // 1.2.3: the member kit's channel band (member design 6.10)
+            ->assertSee('class="mk-avatar mk-avatar--96"', false)
+            ->assertSee('width="96" height="96"', false)
             ->assertSee('onerror="this.onerror=null;this.src=', false)
             ->assertSee('default_men.png', false)
-            ->assertSee('class="avd-subscribe-button btn btn-dark', false)
-            ->assertSee('fa-user-plus', false);
+            ->assertSee('data-auth-prompt', false)
+            ->assertSee('fa-bell', false);
     }
 
     public function test_profile_subscribe_control_maps_guest_and_authenticated_state(): void
@@ -100,7 +100,7 @@ class ProfileRouteUidTest extends TestCase
             ->getContent();
 
         $this->assertStringNotContainsString('<subscribe-button', $guestHtml);
-        $this->assertStringContainsString('class="avd-subscribe-button btn btn-dark', $guestHtml);
+        $this->assertStringContainsString('data-auth-prompt', $guestHtml);
 
         $viewer = User::factory()->create();
 
@@ -131,11 +131,8 @@ class ProfileRouteUidTest extends TestCase
 
         $this->assertStringContainsString('user="' . $creator->id . '"', $attributes);
 
-        if ($expectsSubscribeAttribute) {
-            $this->assertStringContainsString('is-subscribe', $attributes);
-        } else {
-            $this->assertStringNotContainsString('is-subscribe', $attributes);
-        }
+        // 1.2.3: the state is named (subscribed="0|1"); Subscribe.tsx still reads the 1.2.2 is-subscribe attribute
+        $this->assertStringContainsString($expectsSubscribeAttribute ? 'subscribed="0"' : 'subscribed="1"', $attributes);
     }
 
     public function test_profile_sitemap_includes_canonical_uid_url(): void

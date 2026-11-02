@@ -3,9 +3,33 @@
 namespace App\Support;
 
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\DB;
+use Throwable;
 
 class ChannelCustomizationSettings
 {
+    /** The accent every install before 1.2.3 stored as its default (database/install/example.sql). */
+    public const SEED_ACCENT = 'coral';
+
+    /** The cache key of accentIsInstallerSeed() (under the admin cache's version: every settings save renews it). */
+    public const SEED_CACHE_KEY = 'channel_default_accent.installer_seed';
+
+    /**
+     * The mark of an accent a member picked (QA channel-11 on channels saved before 1.2.3): 1.2.0 to 1.2.2 stored every
+     * field of the channel form with each save, the default accent "coral" too, so a channel's stored "coral" without
+     * this mark is that old default, not a pick: the channel follows the site's default accent (the look's colour unless
+     * the owner chose another). The Channel section of Account settings writes the mark with the accent a member saves
+     * there (normalizeForStorage()), so a member who picks Coral since 1.2.3 keeps it. Nothing stored is rewritten.
+     */
+    public const ACCENT_CHOSEN = 'accent_chosen';
+
+    /**
+     * The settings revisions an admin's own save writes (App\Support\SettingsRevision): a settings page
+     * (settings_save), an Appearance page such as Appearance > Channels (publish) and an Undo of either (restore).
+     * The automatic kinds (upgrade snapshots, look applies) never count as a choice.
+     */
+    public const SEED_CHOICE_KINDS = ['settings_save', 'publish', 'restore'];
+
     public static function defaults(): array
     {
         return [
@@ -38,7 +62,9 @@ class ChannelCustomizationSettings
             'channel_customization_upload_rhythm_enabled' => '1',
             'channel_default_layout' => 'spotlight',
             'channel_default_theme' => 'midnight',
-            'channel_default_accent' => 'coral',
+            // 1.2.3 (member design 6.19, QA channel-11): a channel that has not chosen an accent follows the look's own
+            // colour. A site that stored another default keeps it (an owner's stored setting is never changed).
+            'channel_default_accent' => 'look',
             'channel_default_custom_accent' => '#18c8d8',
             'channel_default_surface' => 'glass',
             'channel_default_banner_treatment' => 'cinematic',
@@ -71,7 +97,7 @@ class ChannelCustomizationSettings
         return [
             'layout' => config('site.channel_default_layout', 'spotlight'),
             'theme' => config('site.channel_default_theme', 'midnight'),
-            'accent' => config('site.channel_default_accent', 'coral'),
+            'accent' => config('site.channel_default_accent', 'look'),
             'custom_accent' => config('site.channel_default_custom_accent', '#18c8d8'),
             'surface' => config('site.channel_default_surface', 'glass'),
             'banner_treatment' => config('site.channel_default_banner_treatment', 'cinematic'),
@@ -158,6 +184,9 @@ class ChannelCustomizationSettings
                 'compact' => 'Compact',
             ],
             'theme' => [
+                // 1.2.3 (OD-M14): the band takes no colour of its own and follows the look's surfaces. The site's default
+                // (channel_default_theme, midnight) is unchanged.
+                'look' => 'Follow the look',
                 'midnight' => 'Midnight',
                 'sunrise' => 'Sunrise',
                 'ocean' => 'Ocean',
@@ -166,13 +195,16 @@ class ChannelCustomizationSettings
                 'graphite' => 'Graphite',
             ],
             'accent' => [
+                // 1.2.3 (QA channel-11): the look's own colour in light and dark (App\Support\ChannelAccent::LOOK).
+                'look' => 'Look colour',
                 'coral' => 'Coral',
                 'cyan' => 'Cyan',
                 'violet' => 'Violet',
                 'amber' => 'Amber',
                 'emerald' => 'Emerald',
                 'rose' => 'Rose',
-                'custom' => 'Custom color',
+                // British spelling, as the rest of the admin writes it (R3-078: it said Custom color, the American way, next to Look colour).
+                'custom' => 'Custom colour',
             ],
             'surface' => [
                 'glass' => 'Glass',
@@ -259,6 +291,12 @@ class ChannelCustomizationSettings
     public static function merge(?array $customization): array
     {
         $customization = is_array($customization) ? $customization : [];
+
+        // the old default accent of a channel saved before 1.2.3 is no pick: the site's default applies (ACCENT_CHOSEN)
+        if (self::isOldDefaultAccent($customization)) {
+            unset($customization['accent']);
+        }
+
         $merged = array_merge(self::userDefaults(), Arr::only($customization, array_keys(self::userDefaults())));
 
         foreach (self::options() as $key => $options) {
@@ -290,7 +328,22 @@ class ChannelCustomizationSettings
 
     public static function normalizeForStorage(array $input, ?array $current = null): array
     {
-        $merged = self::merge(array_merge($current ?? [], $input));
+        // a save of the form never takes the mark from what the request sends: it picks an accent by changing it
+        // (chosenDefaults()); without $current, $input is what is stored (User::channelCustomization()) and keeps it
+        if ($current !== null) {
+            unset($input[self::ACCENT_CHOSEN]);
+        }
+        $combined = array_merge($current ?? [], $input);
+        $accentOn = (bool) config('site.channel_customization_accent_enabled', true);
+
+        // a save of the member's channel form ($current: what is stored): the defaults the member chose (R2A-017)
+        $chosen = $current !== null ? self::chosenDefaults($input, $current) : null;
+
+        if ($chosen !== null && isset($chosen['accent']) && $accentOn) {
+            $combined[self::ACCENT_CHOSEN] = '1';
+        }
+
+        $merged = self::merge($combined);
 
         if (! config('site.channel_customization_layout_enabled', true)) {
             $merged['layout'] = self::userDefaults()['layout'];
@@ -375,7 +428,123 @@ class ChannelCustomizationSettings
             $merged['show_upload_rhythm'] = '0';
         }
 
+        // the mark stays with an accent the member picked (also "look" or a preset: the next default changes none of them)
+        if ($accentOn && (string) ($combined[self::ACCENT_CHOSEN] ?? '') === '1') {
+            $merged[self::ACCENT_CHOSEN] = '1';
+        }
+
+        // what the member did not choose is not stored: it keeps following the site's defaults (Appearance > Channels,
+        // "Used on channels that have not chosen their own"), also after the admin changes them
+        if ($chosen !== null) {
+            foreach (self::DEFAULTED as $key) {
+                if (! isset($chosen[$key])) {
+                    unset($merged[$key]);
+                }
+            }
+
+            if (! isset($chosen['accent'])) {
+                unset($merged[self::ACCENT_CHOSEN]);
+            }
+        }
+
         return $merged;
+    }
+
+    /**
+     * The fields of a channel that follow one of the site's defaults (channel_default_*, Appearance > Channels: "Used on
+     * channels that have not chosen their own").
+     */
+    public const DEFAULTED = [
+        'layout', 'theme', 'accent', 'custom_accent', 'surface', 'banner_treatment', 'avatar_frame', 'motion', 'pattern',
+        'header_shape', 'stats_style', 'video_layout', 'featured_mode', 'featured_layout', 'featured_columns',
+        'featured_rows', 'latest_uploads_layout', 'latest_uploads_columns', 'latest_uploads_rows', 'playlists_layout',
+        'playlists_columns', 'playlists_rows', 'playlist_video_columns', 'playlist_video_rows', 'density',
+    ];
+
+    /**
+     * Which of DEFAULTED a save of the member's Channel form keeps as the member's own (judge R2A-017): what the member
+     * chose before (stored; an accent only as a pick, isOldDefaultAccent()), and what this save changes from what the
+     * form showed (the channel's values as merge() gives them when the save starts). The form sends every field of its
+     * open groups with the value it shows, so a member who only changed the tagline sent the site's defaults of that
+     * moment; stored as choices they locked the channel against every later default (the accent, the layout ...). The
+     * own colour belongs to the accent: chosen with an accent "Your own colour".
+     *
+     * @param  array<string, mixed>  $input
+     * @param  array<string, mixed>  $current
+     * @return array<string, true>
+     */
+    private static function chosenDefaults(array $input, array $current): array
+    {
+        $shown = self::merge($current);
+        $chosen = [];
+        $changed = static fn (string $key): bool => array_key_exists($key, $input) && (string) $input[$key] !== (string) ($shown[$key] ?? '');
+        $storedBefore = static fn (string $key): bool => array_key_exists($key, $current)
+            && ! ($key === 'accent' && self::isOldDefaultAccent($current));
+
+        foreach (self::DEFAULTED as $key) {
+            if ($key !== 'custom_accent' && ($storedBefore($key) || $changed($key))) {
+                $chosen[$key] = true;
+            }
+        }
+
+        $accent = (string) ($input['accent'] ?? $shown['accent'] ?? '');
+
+        if ($accent === 'custom' && $changed('custom_accent')) {
+            $chosen['accent'] = true;
+        }
+
+        if (isset($chosen['accent']) && $accent === 'custom') {
+            $chosen['custom_accent'] = true;
+        }
+
+        return $chosen;
+    }
+
+    /**
+     * Whether a channel's stored customization holds the old default accent rather than a pick: "coral" (the default
+     * of 1.2.0 to 1.2.2, stored with every save of the channel form) without the mark of a pick (ACCENT_CHOSEN).
+     *
+     * @param  array<string, mixed>  $customization
+     */
+    public static function isOldDefaultAccent(array $customization): bool
+    {
+        return ($customization['accent'] ?? null) === self::SEED_ACCENT
+            && (string) ($customization[self::ACCENT_CHOSEN] ?? '') !== '1';
+    }
+
+    /**
+     * The value the admin's "Accent colour" field (Appearance > Channels, the old settings page) shows for the stored
+     * default accent: what channels use. The installer's untouched "coral" of a site installed before 1.2.3 reads as
+     * the look's colour (text()), so the field shows that, and a save that leaves the field alone keeps it (QA channel-11:
+     * the field said "Coral" while every channel used the look's colour, and a page posted whole stored that "Coral").
+     */
+    public static function adminAccentValue(string $stored): string
+    {
+        return $stored === self::SEED_ACCENT && self::accentIsInstallerSeed() ? ChannelAccent::LOOK : $stored;
+    }
+
+    /**
+     * Coral picked in the admin over the untouched installer "coral" (R1-039): the field shows that seed as the look's
+     * colour (adminAccentValue()), so a save that sends "coral" for it is the owner's pick. The stored value stays the
+     * same, so no save recorded anything and the pick read as the seed again (Appearance > Channels answered "Published"
+     * and the old settings page saved, while every channel kept the look's colour). The row gets the save's time
+     * (updated_at): accentIsInstallerSeed() reads it as a choice from then on. Called by the admin's saves before they
+     * write the value, inside their transaction; their cache flush renews the seed check. True when it marked a pick.
+     */
+    public static function keepAccentPick(mixed $sent): bool
+    {
+        if (! is_string($sent) || $sent !== self::SEED_ACCENT || ! self::accentIsInstallerSeed()) {
+            return false;
+        }
+
+        try {
+            return DB::table('settings')
+                ->where('key', 'channel_default_accent')
+                ->where('value', self::SEED_ACCENT)
+                ->update(['updated_at' => now()]) > 0;
+        } catch (Throwable) {
+            return false;
+        }
     }
 
     public static function bool(array $settings, string $key): bool
@@ -388,8 +557,48 @@ class ChannelCustomizationSettings
     public static function text(array $settings, string $key): string
     {
         $defaults = self::defaults();
+        $value = (string) ($settings[$key] ?? $defaults[$key] ?? '');
 
-        return (string) ($settings[$key] ?? $defaults[$key] ?? '');
+        // QA channel-11 on sites installed before 1.2.3: their installer stored the old default accent; nobody chose it
+        if ($key === 'channel_default_accent' && $value === self::SEED_ACCENT && self::accentIsInstallerSeed()) {
+            return ChannelAccent::LOOK;
+        }
+
+        return $value;
+    }
+
+    /**
+     * Whether the stored default accent is still the one the installer wrote (member design 6.19, QA channel-11:
+     * the coral accent of the old default clashed with every look that is not pink; since 1.2.3 a channel that has not
+     * chosen its accent follows the look). The stored setting is never changed; an untouched seed just counts as "no
+     * choice", so it reads as the look's colour:
+     * - the settings row still has its installer time (updated_at = created_at: no save ever changed its value), and
+     * - no save of the admin ever wrote the key (admin_setting_revisions of SEED_CHOICE_KINDS: a settings page or the
+     *   Appearance > Channels page): an owner who saves Coral keeps Coral, also when the stored value did not change.
+     * Read once per admin cache version (App\Support\AdminCache: a settings save starts a new one), never fails a page.
+     */
+    public static function accentIsInstallerSeed(): bool
+    {
+        return (bool) AdminCache::rememberForever(self::SEED_CACHE_KEY, static function (): bool {
+            try {
+                $row = DB::table('settings')->where('key', 'channel_default_accent')->first(['value', 'created_at', 'updated_at']);
+
+                if ($row === null || (string) $row->value !== self::SEED_ACCENT) {
+                    return false;
+                }
+
+                if ($row->created_at !== null && $row->updated_at !== null && (string) $row->created_at !== (string) $row->updated_at) {
+                    return false;
+                }
+
+                return ! (SettingsRevision::available() && DB::table('admin_setting_revisions')
+                    ->whereIn('kind', self::SEED_CHOICE_KINDS)
+                    ->where('after', 'like', '%"channel_default_accent"%')
+                    ->exists());
+            } catch (Throwable) {
+                return false;
+            }
+        });
     }
 
     public static function sanitizeColor(string $value): string

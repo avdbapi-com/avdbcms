@@ -175,7 +175,10 @@ if (!is_dir($publicDir) || !is_file($realPublicIndex)) {
         @copy($envExamplePath, $envPath);
         // Ensure it's writable by PHP
         if (is_file($envPath)) {
-            @chmod($envPath, 0664);
+            // Read and written by its owner (this PHP user) only, read by the group: .env holds every secret of the
+            // site; another account never reads it, and the web server's group (www-data in the site's group on many
+            // panels) never rewrites it (R1B-016).
+            @chmod($envPath, 0640);
         }
     }
 
@@ -187,115 +190,20 @@ if (!is_dir($publicDir) || !is_file($realPublicIndex)) {
     //    return Nginx 404 before PHP can run. This is best-effort only because
     //    aaPanel open_basedir can block PHP from reading this panel directory.
     if ($isLinux) {
-        $rewriteDir = '/www/server/panel/vhost/rewrite';
-        if (@is_dir($rewriteDir)) {
-            // Detect our site domain
-            $domain = strtolower(trim((string) ($_SERVER['HTTP_HOST'] ?? $_SERVER['SERVER_NAME'] ?? '')));
-            if (str_contains($domain, ':')) {
-                $domain = explode(':', $domain, 2)[0];
+        $aaPanelRoot = '/www/server/panel';
+        if (@is_dir($aaPanelRoot . '/vhost/rewrite')) {
+            // The rules and when to write them (App\Support\AaPanelRewrite, loaded before Laravel): an empty or broken
+            // file, rules of an earlier release without the storage/ location, or exactly aaPanel's laravel5 preset
+            // (its plain try_files serves every file under storage/). Other rules stay as they are. The site is the one
+            // whose aaPanel vhost serves this folder, found in the panel's own files: never the Host header of the
+            // request, which a visitor chooses (a request with another site's Host must not replace that site's rules).
+            $rewriteHelper = $projectRoot . '/app/Support/AaPanelRewrite.php';
+            if (!class_exists(\App\Support\AaPanelRewrite::class, false) && is_file($rewriteHelper)) {
+                require_once $rewriteHelper;
             }
-            if (str_starts_with($domain, 'www.')) {
-                $domain = substr($domain, 4);
-            }
-
-            // If host is an IP or localhost, try to detect from document root
-            if ($domain === '' || $domain === 'localhost' || filter_var($domain, FILTER_VALIDATE_IP)) {
-                $docRoot = rtrim(str_replace('\\', '/', ($_SERVER['DOCUMENT_ROOT'] ?? '')), '/');
-                // Try matching document root to /www/wwwroot/<domain>
-                if (preg_match('#^/www/wwwroot/([^/]+)(?:/public)?$#', $docRoot, $m)) {
-                    $domain = $m[1];
-                } else {
-                    // Scan vhost configs to find which domain points to our directory
-                    $vhostDir = '/www/server/panel/vhost/nginx';
-                    if (@is_dir($vhostDir)) {
-                        $vhostFiles = @glob($vhostDir . '/*.conf') ?: [];
-                        foreach ($vhostFiles as $vhostFile) {
-                            $vhostContent = @file_get_contents($vhostFile);
-                            if ($vhostContent !== false) {
-                                $escapedRoot = preg_quote(str_replace('\\', '/', $projectRoot), '#');
-                                if (preg_match('#root\s+' . $escapedRoot . '(?:/public)?[;\s]#', $vhostContent)) {
-                                    $domain = pathinfo($vhostFile, PATHINFO_FILENAME);
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            if ($domain !== '' && $domain !== 'localhost' && !filter_var($domain, FILTER_VALIDATE_IP)) {
-                $rewriteFile = $rewriteDir . '/' . $domain . '.conf';
-                $currentContent = @is_file($rewriteFile) ? trim((string) @file_get_contents($rewriteFile)) : '';
-
-                $laravelRewrite = implode("\n", [
-                    '# AVDBClip auto-configured rules (web root = project root).',
-                    'location / {',
-                    '    try_files $uri $uri/ /index.php?$query_string;',
-                    '}',
-                    '',
-                    '# Public-disk files (the php artisan storage:link target) are served straight',
-                    '# from storage/app/public, so they work even when PHP symlink() is disabled.',
-                    'location ^~ /storage/ {',
-                    '    alias ' . $projectRoot . '/storage/app/public/;',
-                    '    location ~ \.php$ { return 404; }',
-                    '    try_files $uri =404;',
-                    '    expires 1d;',
-                    '}',
-                    '',
-                    '# Published package assets (Horizon, Log Viewer, Umami) live in public/vendor;',
-                    '# the composer vendor/ source tree is never served (missing file = plain 404).',
-                    'location ^~ /vendor/ {',
-                    '    alias ' . $projectRoot . '/public/vendor/;',
-                    '    location ~ \.php$ { return 404; }',
-                    '    try_files $uri =404;',
-                    '}',
-                    '',
-                    '# Never serve application source, config, tests, dotfiles or install data.',
-                    '# Prefix locations with ^~ win over the panel regex PHP handler whatever the order.',
-                    'location ^~ /app/ { return 404; }',
-                    'location ^~ /bootstrap/ { return 404; }',
-                    'location ^~ /config/ { return 404; }',
-                    'location ^~ /database/ { return 404; }',
-                    'location ^~ /lang/ { return 404; }',
-                    'location ^~ /resources/ { return 404; }',
-                    'location ^~ /routes/ { return 404; }',
-                    'location ^~ /tests/ { return 404; }',
-                    'location ^~ /node_modules/ { return 404; }',
-                    'location ~ ^/\.(?!well-known/) { return 404; }',
-                    'location ~ ^/(artisan|composer\.(json|lock)|package(-lock)?\.json|phpunit\.xml|vite\.config\.(js|ts))$ { return 404; }',
-                ]);
-
-                // Write the rewrite rule if:
-                // - File is empty (default aaPanel state)
-                // - File contains a broken server{} block
-                // - File doesn't have try_files yet
-                $shouldWrite = false;
-                if ($currentContent === '' || !str_contains($currentContent, 'location')) {
-                    $shouldWrite = true;
-                } elseif (str_contains($currentContent, 'server {') || str_contains($currentContent, 'server{')) {
-                    $shouldWrite = true; // Bad nested server block — replace it
-                }
-                // Don't overwrite if try_files already exists
-                if (str_contains($currentContent, 'try_files')) {
-                    $shouldWrite = false;
-                }
-                // Upgrade rules written by an earlier release (they lack the
-                // /storage/ location); hand-written rules are left alone.
-                if (str_contains($currentContent, '# AVDBClip auto-configured') && !str_contains($currentContent, 'location ^~ /storage/')) {
-                    $shouldWrite = true;
-                }
-
-                if ($shouldWrite) {
-                    if (@file_put_contents($rewriteFile, $laravelRewrite . "\n")) {
-                        // Try to reload Nginx so the rule takes effect immediately
-                        if (function_exists('exec') && !in_array('exec', array_map('trim', explode(',', (string) ini_get('disable_functions'))), true)) {
-                            @exec('nginx -t 2>&1', $testOutput, $testStatus);
-                            if ($testStatus === 0) {
-                                @exec('nginx -s reload 2>&1');
-                            }
-                        }
-                    }
-                }
+            // (An incomplete upload without the helper leaves the panel's files alone.)
+            if (class_exists(\App\Support\AaPanelRewrite::class, false)) {
+                \App\Support\AaPanelRewrite::apply($projectRoot, $aaPanelRoot);
             }
         }
     }
@@ -372,6 +280,18 @@ if (!is_dir($publicDir) || !is_file($realPublicIndex)) {
 $requestUri = $_SERVER['REQUEST_URI'] ?? '/';
 $uri = urldecode(parse_url($requestUri, PHP_URL_PATH) ?? '/');
 
+// A site installed in a folder of its domain (https://example.com/site: the web server runs /site/index.php): every
+// check below reads the address inside that folder, as at a domain's root ("" at a domain's root). The helper is plain
+// PHP (App\Support\SiteAddress), loaded before Laravel; a package without it is read as at a domain's root.
+$siteAddressHelper = __DIR__ . '/app/Support/SiteAddress.php';
+if (!class_exists(\App\Support\SiteAddress::class, false) && is_file($siteAddressHelper)) {
+    require_once $siteAddressHelper;
+}
+$siteFolder = class_exists(\App\Support\SiteAddress::class, false) ? \App\Support\SiteAddress::folder($_SERVER) : '';
+if ($siteFolder !== '') {
+    $uri = $uri === $siteFolder || str_starts_with($uri, $siteFolder . '/') ? ((string) substr($uri, strlen($siteFolder)) ?: '/') : $uri;
+}
+
 // Handle PATH_INFO: /index.php/install → real URI is /install
 $pathInfo = '';
 if (preg_match('#^/index\.php(/.*)?$#i', $uri, $m)) {
@@ -379,7 +299,7 @@ if (preg_match('#^/index\.php(/.*)?$#i', $uri, $m)) {
     $_SERVER['AVDBCLIP_USED_INDEX_PHP'] = true;
     // Rewrite so Laravel sees /install, not /index.php/install
     $uri = $pathInfo ?: '/';
-    $_SERVER['REQUEST_URI'] = $uri . (isset($_SERVER['QUERY_STRING']) && $_SERVER['QUERY_STRING'] !== '' ? '?' . $_SERVER['QUERY_STRING'] : '');
+    $_SERVER['REQUEST_URI'] = $siteFolder . $uri . (isset($_SERVER['QUERY_STRING']) && $_SERVER['QUERY_STRING'] !== '' ? '?' . $_SERVER['QUERY_STRING'] : '');
     $_SERVER['PATH_INFO'] = $pathInfo;
 }
 
@@ -427,7 +347,12 @@ foreach ($blockedFiles as $prefix) {
 //    Only for URIs that look like static assets (have a file extension).
 //    Avoids the is_file() call on PATH_INFO-style paths that trigger
 //    open_basedir warnings (e.g., /public/index.php/install).
-if ($uri !== '/' && !str_ends_with($uriLower, '.php') && preg_match('#\.\w{1,10}$#', $uri)) {
+//    Never a script file (as text) or a database dump, log or backup copy: those go on to Laravel, which answers 404
+//    (or the site's own address that ends like that, such as an admin's download of a backup), as in the shipped
+//    web server configurations (docs/server-configs/).
+$neverStatic = preg_match('#\.ph(p[0-9]*|ar|tml|t|ps)(\.|/|$)#i', $uriLower) === 1
+    || preg_match('#(\.(sql|sqlite3?|db|dump|log|bak|backup|old|orig|save|swp|gz|tgz|tar)|~)$#i', $uriLower) === 1;
+if ($uri !== '/' && !$neverStatic && !str_ends_with($uriLower, '.php') && preg_match('#\.\w{1,10}$#', $uri)) {
     // Public-disk files (Storage::url() => /storage/...) live in storage/app/public.
     // Resolve them there directly so they are served even when the public/storage
     // symlink could not be created (symlink() is disabled on many panels), and so
@@ -589,10 +514,11 @@ chdir($publicDir);
 $_SERVER['AVDBCLIP_ROOT_FALLBACK'] = true;
 
 // Override DOCUMENT_ROOT and SCRIPT_FILENAME so Laravel and PHP see
-// public/ as the document root, exactly as if Nginx pointed there directly.
+// public/ as the document root, exactly as if Nginx pointed there directly
+// (in the site's folder, when it lives in one: /site/index.php).
 $_SERVER['DOCUMENT_ROOT'] = $publicDir;
 $_SERVER['SCRIPT_FILENAME'] = $realPublicIndex;
-$_SERVER['SCRIPT_NAME'] = '/index.php';
-$_SERVER['PHP_SELF'] = '/index.php';
+$_SERVER['SCRIPT_NAME'] = $siteFolder . '/index.php';
+$_SERVER['PHP_SELF'] = $siteFolder . '/index.php';
 
 require $realPublicIndex;

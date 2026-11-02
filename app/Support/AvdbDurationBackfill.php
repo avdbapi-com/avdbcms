@@ -99,7 +99,8 @@ final class AvdbDurationBackfill
             'available' => true,
             'videos' => $videoIds->count(),
             'jobs' => $jobs,
-            'message' => "Queued {$jobs} AVDB duration job(s) for {$videoIds->count()} video(s).",
+            // two numbers: the label form reads right for every number in every language
+            'message' => __('Queued duration jobs: :jobs. AVDB videos in them: :videos.', ['jobs' => $jobs, 'videos' => $videoIds->count()]),
         ];
     }
 

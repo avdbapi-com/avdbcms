@@ -9,4 +9,3 @@ Disallow: /search
 Disallow: /*/search
 Disallow: /*/update-locale
 Crawl-delay: 2
-Sitemap: /sitemap.xml

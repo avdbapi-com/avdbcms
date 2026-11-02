@@ -49,11 +49,20 @@
             <tr>
                 <td class="c-main"><p><a id="ad-pg-{{ $page->id }}" href="{{ route('admin.pages.edit', $page->id, false) }}">{{ $page->title }}</a><small>/page/{{ $page->slug }}</small></p></td>
                 <td class="c-meta"><x-admin.status :type="$page->is_published ? 'ok' : 'off'">{{ $page->is_published ? __('Published') : __('Draft') }}</x-admin.status></td>
-                <td class="hide-tab">{{ $places !== [] ? implode(', ', $places) : '-' }}</td>
+                <td class="hide-tab">{{ $places !== [] ? \App\Support\AdminText::list($places) : '-' }}</td>
                 <td class="is-num hide-tab">{{ (int) $page->sort_order }}</td>
                 <td class="is-actions"><button type="button" class="ad-iconbtn is-more" aria-haspopup="true" aria-labelledby="ad-l-act ad-pg-{{ $page->id }}" data-id="{{ $page->id }}" data-state="{{ $page->is_published ? 'published' : 'draft' }}"></button></td>
             </tr>
         @endforeach
     </x-admin.table>
     {!! preg_replace('/\n\s+/', "\n", (string) ob_get_clean()) !!}
+
+    {{-- The settings cards of this page in config/admin_settings.php (content.pages), saved like every settings page (one save
+         bar). Outside the compacted list markup above, so a text box keeps its line breaks. --}}
+    @php($settingsForm = app(\App\Http\Controllers\Admin\SettingsPageController::class)->form(request(), 'content.pages'))
+    @if ($settingsForm['cards'] !== [] || $settingsForm['advancedCards'] !== [] || $settingsForm['developerOnly'] !== [])
+        <div class="ad-page-settings" id="page-settings" style="margin-top:40px">
+            @include('admin.settings.partials.form', $settingsForm)
+        </div>
+    @endif
 @endsection

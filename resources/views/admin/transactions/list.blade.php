@@ -2,7 +2,7 @@
     Money > Payments & invoices > Payments, in the redesigned admin (the old admin keeps transactions/index.blade.php):
     the money taken (all time, this month, today), the last 12 months and the best customers (folded), every payment
     with its tax and fee, a row menu filled from one template (modules/list-rows.ts: delete the record with Undo),
-    the pager. Amounts are shown as before (stored in cents, printed in dollars).
+    the pager. Amounts are stored in cents and printed in the site's currency (R1B-024: they were always "$").
 --}}
 @use('App\Support\AdminTheme')
 @extends('layouts.admin')
@@ -11,10 +11,10 @@
 
 @section('content')
     <x-admin.list-page>
-    @php $money = fn (float|int $amount): string => '$'.number_format((float) $amount, 2); @endphp
+    @php $money = fn (float|int $amount): string => \App\Support\PremiumAvailability::money((int) round((float) $amount * 100), 2); @endphp
 
     <x-admin.page-header page="money.payments"
-        :description="__(':revenue taken in :count payments (:net after tax and fees). This month :month, today :today.', ['revenue' => $money($summary['revenue']), 'count' => number_format($summary['total']), 'net' => $money($summary['net']), 'month' => $money($summary['month_revenue']), 'today' => $money($summary['today_revenue'])])" />
+        :description="trans_choice(':revenue taken in 1 payment (:net after tax and fees). This month :month, today :today.|:revenue taken in :count payments (:net after tax and fees). This month :month, today :today.', (int) $summary['total'], ['revenue' => $money($summary['revenue']), 'count' => number_format($summary['total']), 'net' => $money($summary['net']), 'month' => $money($summary['month_revenue']), 'today' => $money($summary['today_revenue'])])" />
 
     @if ($summary['months'] !== [])
         <div class="ad-grid2 ad-console-block">
@@ -63,7 +63,7 @@
         @foreach ($transactions as $payment)
             @php $date = \Illuminate\Support\Carbon::parse($payment->date); @endphp
             <tr>
-                <td class="c-main"><p><b id="ad-pay-{{ $payment->id }}">{{ $payment->username ?? $payment->name ?? __('Deleted member') }}</b><small>{{ \Illuminate\Support\Str::headline($payment->payment_provider ?? 'stripe') }}@if ($payment->country) &middot; {{ strtoupper($payment->country) }}@endif @if ($payment->stripe_id) &middot; <code>{{ \Illuminate\Support\Str::limit($payment->stripe_id, 24) }}</code>@endif</small></p></td>
+                <td class="c-main"><p><b id="ad-pay-{{ $payment->id }}">{{ $payment->username ?? $payment->name ?? __('Deleted member') }}</b><small>{{ \App\Support\PaymentProviders::label($payment->payment_provider) }}@if ($payment->country) &middot; {{ strtoupper($payment->country) }}@endif @if ($payment->stripe_id) &middot; <code>{{ \Illuminate\Support\Str::limit($payment->stripe_id, 24) }}</code>@endif</small></p></td>
                 <td class="c-meta is-num"><b>{{ $money($payment->amount / 100) }}</b></td>
                 <td class="is-num hide-tab">{{ $money($payment->tax / 100) }}</td>
                 <td class="is-num hide-tab">{{ $money($payment->fee / 100) }}</td>

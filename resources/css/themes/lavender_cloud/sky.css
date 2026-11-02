@@ -73,8 +73,8 @@ html[data-bs-theme="light"][data-avd-flavor="sky"] {
   --avd-brand-gradient: linear-gradient(135deg, #1178cf 0%, #6b4eff 100%);
   --avd-focus: #0f63ac;
   --avd-chip-active-bg: #1178cf;
-  --avd-btn-bg: #1178cf;
-  --avd-play-bg: #1178cf;
+  --avd-btn-bg: #0f77ce;
+  --avd-play-bg: #0f77ce;
   --avd-badge-bg: #1178cf;
   --avd-new-bg: #e64980;
   --avd-new-text: #1a1530;

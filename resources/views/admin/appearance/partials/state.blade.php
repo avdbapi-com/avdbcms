@@ -6,10 +6,14 @@
     $texts = [
         'noChanges' => __('No changes'),
         'allPublished' => __('Everything is published.'),
-        'oneChange' => __('1 change not published'),
-        'manyChanges' => __(':count changes not published'),
+        // counted texts: the whole plural line, the script picks the form as trans_choice() does (lib/plural.ts)
+        'changes' => __('1 change not published|:count changes not published'),
         'previewing' => __('Previewing :name'),
         'notPublished' => __('Not published. Only you see it, in the preview.'),
+        // how the admin's language joins a list (AdminText::list(): "a, b", Arabic "a، b", Chinese "a、b")
+        'listSeparator' => \App\Support\AdminText::punctuation()['list'],
+        // and a label and its value (a calendar day's name: "Oct 31: <look>", "10月31日：<look>"; R3-048)
+        'labelSeparator' => \App\Support\AdminText::punctuation()['label'],
         'lookNote' => __('Not published. Changes colours, fonts, homepage, video page and cards. Your logo, texts, menus, ads and custom code stay.'),
         'themeNote' => __('Not published. Changes colours, fonts and shapes. Your homepage layout, logo, texts, menus and ads stay.'),
         'themeLayoutsNote' => __('Not published. Changes colours, fonts, shapes and the page layouts. Your logo, texts, menus and ads stay.'),
@@ -39,7 +43,7 @@
         'close' => __('Close'),
         'showMore' => __('Show more'),
         'noThemes' => __('No theme matches. Try another word, or an old theme name.'),
-        'colourStyles' => __(':count colour styles'),
+        'colourStyles' => __('1 colour style|:count colour styles'),
         'colourStyleFor' => __('Colour style for :name'),
         'useLook' => __('Preview this look'),
         'useTheme' => __('Preview this theme'),

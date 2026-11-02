@@ -14,7 +14,7 @@
 @endif
 @if ($card['more'] !== [])
 <details class="ad-more" data-remember="{{ $pageId }}.{{ $card['id'] }}">
-<summary class="ad-disclose">{{ __('More options (:count)', ['count' => count($card['more'])]) }}: {{ implode(', ', array_map(fn (array $f): string => __($f['label']), array_slice($card['more'], 0, 3))) }}{{ count($card['more']) > 3 ? ', ...' : '' }}</summary>
+<summary class="ad-disclose">{{ \App\Support\AdminText::labelled(__('More options (:count)', ['count' => count($card['more'])]), \App\Support\AdminText::list(array_merge(array_map(fn (array $f): string => __($f['label']), array_slice($card['more'], 0, 3)), count($card['more']) > 3 ? ['...'] : []))) }}</summary>
 @foreach ($card['more'] as $f)
 @include('admin.appearance.partials.field', ['f' => $f, 'fx' => $fx])
 @endforeach

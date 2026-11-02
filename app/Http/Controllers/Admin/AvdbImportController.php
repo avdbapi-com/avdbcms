@@ -2,6 +2,9 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Support\AuditDetails;
+use App\Support\ImportAudit;
+use App\Support\OutboundUrl;
 use App\Jobs\RunAvdbImport;
 use App\Jobs\SyncAvdbDurationBatch;
 use App\Models\AvdbImportRun;
@@ -93,34 +96,36 @@ class AvdbImportController
             : collect();
         $avdbCronHealth = $this->avdbCronHealth($importSchedules);
 
+        // Shown in the admin's language (the category picker and the "Fixed locale" list), like the badges and the
+        // "Fetch content in" list of the same page; the ids and locale codes are what the import uses.
         $avdbCategories = [
-            1 => ['name' => 'Censored', 'icon' => 'fa-lock'],
-            2 => ['name' => 'Uncensored', 'icon' => 'fa-lock-open'],
-            3 => ['name' => 'Uncensored Leaked', 'icon' => 'fa-droplet'],
-            4 => ['name' => 'Amateur', 'icon' => 'fa-user'],
-            5 => ['name' => 'Chinese AV', 'icon' => 'fa-flag'],
-            6 => ['name' => 'Hentai', 'icon' => 'fa-wand-magic-sparkles'],
-            7 => ['name' => 'English Subtitle', 'icon' => 'fa-closed-captioning'],
+            1 => ['name' => __('Censored'), 'icon' => 'fa-lock'],
+            2 => ['name' => __('Uncensored'), 'icon' => 'fa-lock-open'],
+            3 => ['name' => __('Uncensored Leaked'), 'icon' => 'fa-droplet'],
+            4 => ['name' => __('Amateur'), 'icon' => 'fa-user'],
+            5 => ['name' => __('Chinese AV'), 'icon' => 'fa-flag'],
+            6 => ['name' => __('Hentai'), 'icon' => 'fa-wand-magic-sparkles'],
+            7 => ['name' => __('English Subtitle'), 'icon' => 'fa-closed-captioning'],
         ];
 
         $languages = [
-            'en' => 'English',
-            'ja' => 'Japanese',
-            'zh' => 'Chinese',
-            'ko' => 'Korean',
-            'vi' => 'Vietnamese',
-            'th' => 'Thai',
-            'ms' => 'Malay',
-            'id' => 'Indonesian',
-            'fr' => 'French',
-            'de' => 'German',
-            'es' => 'Spanish',
-            'pt' => 'Portuguese',
-            'ru' => 'Russian',
-            'ar' => 'Arabic',
-            'hi' => 'Hindi',
-            'tl' => 'Filipino',
-            'tr' => 'Turkish',
+            'en' => __('English'),
+            'ja' => __('Japanese'),
+            'zh' => __('Chinese'),
+            'ko' => __('Korean'),
+            'vi' => __('Vietnamese'),
+            'th' => __('Thai'),
+            'ms' => __('Malay'),
+            'id' => __('Indonesian'),
+            'fr' => __('French'),
+            'de' => __('German'),
+            'es' => __('Spanish'),
+            'pt' => __('Portuguese'),
+            'ru' => __('Russian'),
+            'ar' => __('Arabic'),
+            'hi' => __('Hindi'),
+            'tl' => __('Filipino'),
+            'tr' => __('Turkish'),
         ];
 
         $defaultApiBase = self::DEFAULT_API_BASE;
@@ -181,7 +186,6 @@ class AvdbImportController
                     'User-Agent' => 'Mozilla/5.0',
                     'Accept' => 'application/json',
                 ])
-                ->withOptions(['verify' => false])
                 ->get(self::DEFAULT_API_BASE, self::API_SUMMARY_QUERY);
 
             $summary = self::apiSummaryFrom($response->successful(), $response->json());
@@ -272,7 +276,9 @@ class AvdbImportController
                 'frequency' => AvdbImportSchedule::FREQUENCY_HOURLY,
                 'interval_minutes' => 60,
                 'run_time' => '00:15',
-                'weekday' => 'monday',
+                // A number like the form's (0 = Sunday ... 6 = Saturday): Monday. The column is a small number, and
+                // 'monday' was stored as 0 (Sunday) or refused by MySQL's strict mode (R1B-021).
+                'weekday' => 1,
                 'month_day' => 1,
                 'skip_if_active' => true,
                 'settings' => [
@@ -313,7 +319,16 @@ class AvdbImportController
             'api_base_url' => 'nullable|string|max:500',
         ]);
 
-        $apiBase = $this->normalizeApiUrl((string) ($request->input('api_base_url') ?? self::DEFAULT_API_BASE));
+        $raw = trim((string) ($request->input('api_base_url') ?? ''));
+
+        // An address that is not on the internet (this server, a private network, a cloud metadata address) is never
+        // fetched, and the answer says why instead of testing another address.
+        if ($raw !== '' && filter_var(str_replace('{locale}', 'en', $raw), FILTER_VALIDATE_URL) && ! OutboundUrl::isPublic(str_replace('{locale}', 'en', $raw))) {
+            return response()->json(['success' => false, 'message' => OutboundUrl::refusal()]);
+        }
+
+        $apiBase = $this->normalizeApiUrl($raw === '' ? self::DEFAULT_API_BASE : $raw);
+        $options = OutboundUrl::options(str_replace('{locale}', 'en', $apiBase));
         $cacheKey = 'avdb_api_test_connection:'.sha1($apiBase);
         $cached = Cache::get($cacheKey);
         if (is_array($cached)) {
@@ -322,7 +337,7 @@ class AvdbImportController
 
         try {
             $response = Http::timeout(10)
-                ->withOptions(['verify' => false])
+                ->withOptions($options)
                 ->get($apiBase, ['ac' => 'detail', 'pagesize' => 1]);
 
             if (! $response->successful()) {
@@ -337,7 +352,7 @@ class AvdbImportController
 
             foreach (range(1, 7) as $catId) {
                 $catResponse = Http::timeout(10)
-                    ->withOptions(['verify' => false])
+                    ->withOptions($options)
                     ->get($apiBase, ['ac' => 'detail', 't' => $catId, 'pagesize' => 1]);
 
                 if ($catResponse->successful()) {
@@ -480,6 +495,9 @@ class AvdbImportController
                 'message' => __('Could not start the import. Check PHP process support, AVDB_IMPORT_PHP_BINARY, or set AVDB_IMPORT_MODE=inline to run inside the request.'),
                 'finished_at' => now(),
             ])->save();
+        } else {
+            // Tools > Logs > Admin actions (R3-019): the run's number, and whether it is a dry run (nothing saved).
+            AuditLogController::log('import.avdb.started', ImportAudit::run((int) $run->id, (bool) $settings['dry_run']));
         }
 
         return response()->json([
@@ -524,12 +542,13 @@ class AvdbImportController
             'finished_at' => now(),
         ])->save();
         $run->appendLog(__('Stop requested by admin. Active workers will exit at the next cancellation checkpoint.'));
+        AuditLogController::log('import.avdb.stopped', ImportAudit::run((int) $run->id));
 
         return response()->json([
             'success' => true,
             'run' => $this->formatRun($run->fresh()),
             'message' => $deletedQueueRows > 0
-                ? __('Import cancelled. Removed :count queued job(s).', ['count' => $deletedQueueRows])
+                ? __('Import cancelled.').' '.trans_choice('Removed 1 queued job.|Removed :count queued jobs.', $deletedQueueRows)
             : __('Import cancelled.'),
         ]);
     }
@@ -538,12 +557,14 @@ class AvdbImportController
     {
         $cancelledRuns = 0;
         $deletedQueueRows = 0;
+        $stopped = [];
 
         AvdbImportRun::query()
             ->whereIn('status', self::ACTIVE_RUN_STATUSES)
             ->orderBy('id')
             ->get()
-            ->each(function (AvdbImportRun $run) use (&$cancelledRuns, &$deletedQueueRows): void {
+            ->each(function (AvdbImportRun $run) use (&$cancelledRuns, &$deletedQueueRows, &$stopped): void {
+                $stopped[] = (int) $run->id;
                 $deletedQueueRows += $this->deleteImportRunQueueRows((int) $run->id, false);
                 $run->forceFill([
                     'status' => 'cancelled',
@@ -556,6 +577,11 @@ class AvdbImportController
                 $cancelledRuns++;
             });
 
+        // the runs it stopped ("#12, #13"); none running: nothing written
+        if ($stopped !== []) {
+            AuditLogController::log('import.avdb.force_stopped', AuditDetails::ids($stopped));
+        }
+
         $latestRun = AvdbImportRun::query()->orderByDesc('id')->first();
 
         return response()->json([
@@ -563,14 +589,10 @@ class AvdbImportController
             'run' => $latestRun ? $this->formatRun($latestRun) : null,
             'cancelled_runs' => $cancelledRuns,
             'deleted_queue_rows' => $deletedQueueRows,
-            'message' => $cancelledRuns > 0
-                ? __('Force stopped :runs active AVDB import run(s) and removed :queues queued AVDB job(s).', [
-                    'runs' => $cancelledRuns,
-                    'queues' => $deletedQueueRows,
-                ])
-                : __('No active AVDB import runs were found. Removed :queues queued AVDB job(s).', [
-                    'queues' => $deletedQueueRows,
-                ]),
+            'message' => ($cancelledRuns > 0
+                ? trans_choice('Stopped 1 running AVDB import.|Stopped :count running AVDB imports.', $cancelledRuns)
+                : __('No AVDB import was running.'))
+                .' '.trans_choice('Removed 1 queued AVDB job.|Removed :count queued AVDB jobs.', $deletedQueueRows),
         ]);
     }
 
@@ -584,12 +606,9 @@ class AvdbImportController
         $deletedFiles = $this->deleteRunArtifacts($runId);
         $deletedQueueRows = $this->deleteImportRunQueueRows($runId);
         $run->delete();
+        AuditLogController::log('import.avdb.run_deleted', ImportAudit::run($runId));
 
-        return back()->withSuccess(__('Deleted import run #:id, :files log/export file(s), and :queues queue row(s).', [
-            'id' => $runId,
-            'files' => $deletedFiles,
-            'queues' => $deletedQueueRows,
-        ]));
+        return back()->withSuccess(__('Deleted import run #:id.', ['id' => $runId]).self::removedParts($deletedFiles, $deletedQueueRows));
     }
 
     public function cleanFinishedRuns()
@@ -597,13 +616,17 @@ class AvdbImportController
         $deletedRuns = 0;
         $deletedFiles = 0;
         $deletedQueueRows = 0;
+        $deletedIds = [];
 
         AvdbImportRun::query()
             ->whereNotIn('status', self::ACTIVE_RUN_STATUSES)
             ->orderBy('id')
-            ->chunkById(100, function ($runs) use (&$deletedRuns, &$deletedFiles, &$deletedQueueRows): void {
+            ->chunkById(100, function ($runs) use (&$deletedRuns, &$deletedFiles, &$deletedQueueRows, &$deletedIds): void {
                 foreach ($runs as $run) {
                     $runId = (int) $run->id;
+                    if (count($deletedIds) < AuditDetails::LIST_MAX) {
+                        $deletedIds[] = $runId;
+                    }
                     $deletedFiles += $this->deleteRunArtifacts($runId);
                     $deletedQueueRows += $this->deleteImportRunQueueRows($runId);
                     $run->delete();
@@ -611,11 +634,12 @@ class AvdbImportController
                 }
             });
 
-        return back()->withSuccess(__('Cleaned :runs finished import run(s), :files log/export file(s), and :queues queue row(s). Active runs were kept.', [
-            'runs' => $deletedRuns,
-            'files' => $deletedFiles,
-            'queues' => $deletedQueueRows,
-        ]));
+        if ($deletedRuns > 0) {
+            AuditLogController::log('import.avdb.runs_deleted', AuditDetails::ids($deletedIds, $deletedRuns));
+        }
+
+        return back()->withSuccess(trans_choice('Deleted 1 finished import run.|Deleted :count finished import runs.', $deletedRuns)
+            .self::removedParts($deletedFiles, $deletedQueueRows).' '.__('Active runs were kept.'));
     }
 
     public function cleanFinishedRunsHelp()
@@ -667,9 +691,12 @@ class AvdbImportController
         ]);
         $schedule->next_run_at = $schedule->enabled ? $schedule->calculateNextRunAt() : null;
         $schedule->save();
+        AuditLogController::log('import.avdb.schedule.created', AuditDetails::titled($schedule, 'name'));
 
+        // The installer's own call (no binary: the scheduler's PHP, CRON_PHP_BINARY first): the line a saved schedule
+        // adds is the installer's, not one with the import PHP (review of AD-X1, AD-R2).
         $cronInstall = $schedule->enabled && $this->schedulerCronAutoInstallEnabled()
-            ? LaravelSchedulerCron::ensureInstalled($this->phpBinary())
+            ? LaravelSchedulerCron::ensureInstalled()
             : null;
         $message = __('Saved cron schedule #:id. Next run: :next.', [
             'id' => $schedule->id,
@@ -695,6 +722,7 @@ class AvdbImportController
         $schedule->last_status = $schedule->enabled ? 'enabled' : 'paused';
         $schedule->last_message = $schedule->enabled ? __('Schedule enabled.') : __('Schedule paused.');
         $schedule->save();
+        AuditLogController::log($schedule->enabled ? 'import.avdb.schedule.on' : 'import.avdb.schedule.off', AuditDetails::titled($schedule, 'name'));
 
         return back()->withSuccess($schedule->enabled ? __('AVDB cron schedule enabled.') : __('AVDB cron schedule paused.'));
     }
@@ -706,9 +734,9 @@ class AvdbImportController
         }
 
         Artisan::call('avdb:schedules:run', ['--id' => $schedule->id]);
-        $output = trim(Artisan::output());
+        AuditLogController::log('import.avdb.schedule.run', AuditDetails::titled($schedule, 'name'));
 
-        return back()->withSuccess($output !== '' ? $output : __('AVDB cron schedule checked.'));
+        return back()->withSuccess($this->scheduleRunAnswer([(int) $schedule->id]));
     }
 
     public function runDueSchedules()
@@ -717,16 +745,60 @@ class AvdbImportController
             return back()->withErrors(__('AVDB cron schedule table is not installed.'));
         }
 
-        Artisan::call('avdb:schedules:run');
-        $output = trim(Artisan::output());
+        // the schedules the command is about to check (the same rule as avdb:schedules:run: enabled and due)
+        $due = AvdbImportSchedule::query()
+            ->where('enabled', true)
+            ->where(function ($query): void {
+                $query->whereNull('next_run_at')->orWhere('next_run_at', '<=', now());
+            })
+            ->orderBy('id')
+            ->pluck('id')
+            ->map(fn ($id): int => (int) $id)
+            ->all();
 
-        return back()->withSuccess($output !== '' ? $output : __('Due AVDB cron schedules checked.'));
+        Artisan::call('avdb:schedules:run');
+
+        // the schedules that were due ("#2, #5"); none due: nothing written
+        if ($due !== []) {
+            AuditLogController::log('import.avdb.schedules.run_due', AuditDetails::ids($due));
+        }
+
+        return back()->withSuccess($this->scheduleRunAnswer($due));
+    }
+
+    /**
+     * The answer of Run now and Run Due Now in the admin's language: how many schedules were checked and what each one
+     * did, read from what the scheduler saved on it. (1.2.2 showed the command's English lines, such as "Checked 1 AVDB
+     * import schedule(s).", in every language; the command keeps them for the cron log.)
+     *
+     * @param  list<int>  $ids  the schedules the command checked
+     */
+    private function scheduleRunAnswer(array $ids): string
+    {
+        if ($ids === []) {
+            return __('No AVDB cron schedule was due.');
+        }
+
+        $parts = [trans_choice('Checked 1 AVDB cron schedule.|Checked :count AVDB cron schedules.', count($ids))];
+
+        foreach (AvdbImportSchedule::query()->whereKey($ids)->orderBy('id')->get() as $schedule) {
+            $parts[] = match ((string) $schedule->last_status) {
+                'started' => __('Schedule #:id started import run #:run.', ['id' => $schedule->id, 'run' => $schedule->last_run_id]),
+                'failed' => __('Schedule #:id could not start import run #:run.', ['id' => $schedule->id, 'run' => $schedule->last_run_id]),
+                'skipped' => __('Schedule #:id was skipped: another AVDB import is still running.', ['id' => $schedule->id]),
+                default => '',
+            };
+        }
+
+        return implode(' ', array_filter($parts, fn (string $part): bool => $part !== ''));
     }
 
     public function destroySchedule(AvdbImportSchedule $schedule)
     {
         $id = $schedule->id;
+        $name = AuditDetails::titled($schedule, 'name');
         $schedule->delete();
+        AuditLogController::log('import.avdb.schedule.deleted', $name);
 
         return back()->withSuccess(__('Deleted AVDB cron schedule #:id.', ['id' => $id]));
     }
@@ -835,6 +907,11 @@ class AvdbImportController
             SeoSitemapCache::clear();
             $this->clearLocalStatsCache();
 
+            // nothing deleted: a row only when it stopped an import or removed queued jobs
+            if ($cancelledRuns > 0 || $deletedQueueRows > 0) {
+                AuditLogController::log('import.avdb.cleaned', ImportAudit::cleaned(0, 0, $cancelledRuns, $deletedQueueRows));
+            }
+
             return response()->json([
                 'success' => true,
                 'deleted' => 0,
@@ -906,6 +983,7 @@ class AvdbImportController
 
         SeoSitemapCache::clear();
         $this->clearLocalStatsCache();
+        AuditLogController::log('import.avdb.cleaned', ImportAudit::cleaned($count, $deletedTags, $cancelledRuns, $deletedQueueRows));
 
         return response()->json([
             'success' => true,
@@ -914,23 +992,42 @@ class AvdbImportController
         ]);
     }
 
+    /** " Removed 2 log or export files. Removed 5 queued jobs." after a run was deleted (only the parts that removed something). */
+    private static function removedParts(int $files, int $queued): string
+    {
+        $parts = '';
+
+        if ($files > 0) {
+            $parts .= ' '.trans_choice('Removed 1 log or export file.|Removed :count log or export files.', $files);
+        }
+
+        if ($queued > 0) {
+            $parts .= ' '.trans_choice('Removed 1 queued job.|Removed :count queued jobs.', $queued);
+        }
+
+        return $parts;
+    }
+
     private function cleanMessage(int $deletedVideos, int $deletedTags, int $cancelledRuns, int $deletedQueueRows): string
     {
         $parts = [];
 
         if ($deletedVideos > 0) {
-            $parts[] = __(':count AVDB videos permanently deleted.', ['count' => $deletedVideos]);
-            $parts[] = __(':count orphan AVDB tag(s) were removed.', ['count' => $deletedTags]);
+            $parts[] = trans_choice('Deleted 1 AVDB video permanently.|Deleted :count AVDB videos permanently.', $deletedVideos);
+
+            if ($deletedTags > 0) {
+                $parts[] = trans_choice('Removed 1 AVDB tag no video uses any more.|Removed :count AVDB tags no video uses any more.', $deletedTags);
+            }
         } else {
             $parts[] = __('No AVDB videos found. Nothing was deleted.');
         }
 
         if ($cancelledRuns > 0) {
-            $parts[] = __('Stop requested for :count active AVDB import run(s).', ['count' => $cancelledRuns]);
+            $parts[] = trans_choice('Asked 1 running AVDB import to stop.|Asked :count running AVDB imports to stop.', $cancelledRuns);
         }
 
         if ($deletedQueueRows > 0) {
-            $parts[] = __('Removed :count queued AVDB import/duration job(s).', ['count' => $deletedQueueRows]);
+            $parts[] = trans_choice('Removed 1 queued AVDB import or duration job.|Removed :count queued AVDB import or duration jobs.', $deletedQueueRows);
         }
 
         return implode(' ', $parts);
@@ -975,7 +1072,7 @@ class AvdbImportController
      *   3. `AVDB_IMPORT_MODE=inline` runs artisan synchronously inside the
      *      current request. This is the last-resort mode for locked-down hosts.
      *
-     * Each step logs a structured message to `storage/logs/laravel.log`
+     * Each step logs a structured message to the error log (`storage/logs/laravel-....log`)
      * so the failure mode is obvious from the admin UI.
      */
     private function startBackgroundImport(AvdbImportRun $run): bool
@@ -1162,9 +1259,7 @@ class AvdbImportController
             return;
         }
 
-        $message = __('Cancelled stale import run because no progress was reported for over :minutes minutes.', [
-            'minutes' => self::STALE_ACTIVE_RUN_MINUTES,
-        ]);
+        $message = trans_choice('Cancelled stale import run because no progress was reported for over 1 minute.|Cancelled stale import run because no progress was reported for over :count minutes.', self::STALE_ACTIVE_RUN_MINUTES);
 
         $run->forceFill([
             'status' => 'cancelled',
@@ -1353,21 +1448,9 @@ class AvdbImportController
 
     private function avdbCronHealth($importSchedules): array
     {
-        $logPaths = [
-            storage_path('logs/cron.log'),
-            storage_path('logs/schedule-run.log'),
-            storage_path('logs/schedule-work.out.log'),
-        ];
-
-        $lastSeenTimestamp = null;
-        foreach ($logPaths as $path) {
-            if (is_file($path)) {
-                $timestamp = filemtime($path);
-                if ($timestamp !== false && ($lastSeenTimestamp === null || $timestamp > $lastSeenTimestamp)) {
-                    $lastSeenTimestamp = $timestamp;
-                }
-            }
-        }
+        // The system cron's own runs (every schedule:run it starts stamps itself). The runs the site starts after page
+        // requests write cron.log too and never count: they stop when nobody visits (judge R1B-004/R1B-006).
+        $lastSeenTimestamp = LaravelSchedulerCron::lastCronRunAt();
 
         $lastSeenAt = $lastSeenTimestamp ? Carbon::createFromTimestamp($lastSeenTimestamp) : null;
         $overdueSchedules = $importSchedules->filter(
@@ -1376,7 +1459,12 @@ class AvdbImportController
                 && $schedule->next_run_at->lessThan(now())
         );
 
-        $php = $this->phpBinary() ?: 'php';
+        // Everything on this card is the scheduler's (schedule:run), not an import's: its PHP is the one the installer and
+        // Tools > Scheduled tasks use (CRON_PHP_BINARY first, then AVDB_IMPORT_PHP_BINARY: CronController::findPhpBinary(),
+        // with the installer's own 'php' when none is found), so the line shown and the line added here are the
+        // installer's. The imports themselves still start with AVDB_IMPORT_PHP_BINARY's PHP (phpBinary()). With
+        // CRON_PHP_BINARY set, this card named the import PHP: not the installer's line (review of AD-X1, AD-R2).
+        $php = CronController::findPhpBinary() ?: 'php';
         $artisan = base_path('artisan');
         $scheduleCommand = $this->quoteShellArg($php).' '.$this->quoteShellArg($artisan).' schedule:run';
         $autoInstall = null;
@@ -1403,8 +1491,20 @@ class AvdbImportController
             'auto_install' => $autoInstall,
             'auto_install_command' => LaravelSchedulerCron::command($php),
             'panel_script_command' => LaravelSchedulerCron::panelScriptCommand($php),
-            'windows_task_command' => 'schtasks /Create /SC MINUTE /MO 1 /TN "AVDBClip Laravel Scheduler" /TR '.$this->quoteShellArg($scheduleCommand).' /F',
-            'unix_cron_command' => '* * * * * cd '.$this->quoteShellArg(base_path()).' && '.$this->quoteShellArg($php).' artisan schedule:run >> /dev/null 2>&1',
+            // The line to add, exactly as the installer adds it and Tools > Scheduled tasks shows it
+            // (LaravelSchedulerCron::lineFor(): the cron line with its lock; on Windows the command that creates this
+            // site's task in the Task Scheduler, which runs PHP itself), and the variant for panels that run cron jobs as
+            // root. The page showed a line without the lock: added next to the installer's, the scheduler ran twice every
+            // minute (AD-X1, found by installer lane IN with R3-036).
+            'windows' => Environment::isWindows(),
+            'scheduler_line' => LaravelSchedulerCron::lineFor($php),
+            // A hosting panel's cron job run as the site's account (cPanel, Plesk, DirectAdmin ...) takes "every minute"
+            // in fields of its own and hands its command field to /bin/sh, which read the "* * * * *" of the line above
+            // as file names: the job never started the scheduler. Its command is the line without the schedule, as
+            // Tools > Scheduled tasks shows it (LaravelSchedulerCron::commandFor(); review of AD-X1: AD-V1, lane IN's
+            // IN-RV-01).
+            'scheduler_command' => Environment::isWindows() ? null : LaravelSchedulerCron::commandFor($php),
+            'scheduler_panel_line' => Environment::isWindows() ? null : LaravelSchedulerCron::panelLineFor($php),
         ];
     }
 
@@ -1485,7 +1585,12 @@ class AvdbImportController
 
         $scheme = strtolower((string) parse_url($validationUrl, PHP_URL_SCHEME));
 
-        return in_array($scheme, ['http', 'https'], true) ? $url : self::DEFAULT_API_BASE;
+        // Only addresses on the internet: an import never fetches this server or its private network.
+        if (! in_array($scheme, ['http', 'https'], true) || ! OutboundUrl::isPublic($validationUrl)) {
+            return self::DEFAULT_API_BASE;
+        }
+
+        return $url;
     }
 
     private function apiUrlForLocale(string $apiBase, string $locale): string
@@ -1542,7 +1647,7 @@ class AvdbImportController
             'processed_items' => $processedItems,
             'estimated_items' => $estimatedItems,
             'items_label' => number_format($processedItems).' / '.number_format($estimatedItems),
-            'rate_label' => $ratePerSecond > 0 ? number_format($ratePerSecond * 60, 1).'/min' : __('Calculating'),
+            'rate_label' => $ratePerSecond > 0 ? __(':rate/min', ['rate' => number_format($ratePerSecond * 60, 1)]) : __('Calculating'),
             'eta_seconds' => $etaSeconds,
             'eta_label' => in_array($run->status, ['completed', 'failed', 'cancelled'], true)
                 ? __('Done')

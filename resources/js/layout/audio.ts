@@ -1,4 +1,4 @@
-// UI sound synthesis (perf plan step 25c): window.AvdAudio (watch-page controls, the Daily HUD, the
+// UI sound synthesis: window.AvdAudio (watch-page controls, the Daily HUD, the
 // shortcuts) and window.avdPlaySound (html[data-avd-audio="on"] click sounds, the admin Theme Studio)
 // on ONE AudioContext, where the layout used to create up to three. The context is created by the
 // first sound (a user gesture, as before) and suspended about a second after the last one, so an
@@ -245,7 +245,11 @@ export const installAudio = (): void => {
 
     const texts = config.t;
     const daily = config.daily !== null;
-    let enabled = store.get('avd_sound_fx') !== '0';
+    // The owner's "Click sounds" (Appearance > Effects & speed; html[data-avd-audio], off by default) decides whether the
+    // site plays sounds at all, the watch page's tools and the "Today's design" sheet included: they played while it
+    // was off, and the sheet said "Audio FX: ON". A visitor's own choice (avd_sound_fx) only turns them off.
+    const siteSounds = document.documentElement.getAttribute('data-avd-audio') === 'on';
+    let enabled = siteSounds && store.get('avd_sound_fx') !== '0';
 
     const playChime = () => {
         if (enabled) play(daily ? badge.chime : classic.chime);
@@ -257,6 +261,8 @@ export const installAudio = (): void => {
         const text = byId('avdSoundToggleText');
         const label = enabled ? texts.audioOn : texts.audioOff;
         if (text && text.textContent !== label) text.textContent = label;
+        const button = byId('avdSoundToggleBtn');
+        if (button) button.setAttribute('aria-pressed', enabled ? 'true' : 'false');
     };
 
     const api: AvdAudioApi = {
@@ -280,6 +286,12 @@ export const installAudio = (): void => {
         isEnabled: () => enabled,
         isSoundOn: () => enabled,
         toggleSound(enable?: boolean) {
+            if (!siteSounds) {
+                enabled = false;
+                syncSoundText();
+                return false;
+            }
+
             if (!daily) {
                 enabled = !enabled;
                 store.set('avd_sound_fx', enabled ? '1' : '0');

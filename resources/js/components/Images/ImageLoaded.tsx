@@ -2,6 +2,7 @@ import {useCallback, useEffect, useRef, useState} from 'preact/hooks';
 import {clsx} from "clsx";
 import {ImgHTMLAttributes} from "react";
 import {useTranslation} from "react-i18next";
+import {siteFile} from "@/functions/sitePath";
 
 type Props = {
     source: string,
@@ -13,7 +14,7 @@ type Props = {
 
 export default function ImageLoaded ({source, title = '', hover = false, ...props}: Props) {
     const {t} = useTranslation();
-    const fallbackSource = '/images/placeholders/no-image.svg';
+    const fallbackSource = siteFile('/images/placeholders/no-image.svg');
     const resolvedSource = source || fallbackSource;
     const isFallbackSource = (value: string) => value === fallbackSource || value.endsWith(fallbackSource);
     const [loading, setLoading] = useState<boolean>(() => !isFallbackSource(resolvedSource));

@@ -4,10 +4,14 @@ namespace App\Notifications\Video;
 
 use App\Models\User;
 use App\Models\Video;
+use App\Notifications\Support\BellNotification;
+use App\Notifications\Support\NotificationText;
 use Illuminate\Notifications\Notification;
 
 class VideoUploaded extends Notification
 {
+    use BellNotification;
+
     private Video $video;
 
     /**
@@ -20,31 +24,21 @@ class VideoUploaded extends Notification
         $this->video = $video;
     }
 
-
     /**
-     * Get the notification's delivery channels.
-     *
-     * @param User $notifiable
-     * @return array
-     */
-    public function via(User $notifiable) : array
-    {
-        return ['database', 'broadcast'];
-    }
-
-    /**
-     * Get the array representation of the notification.
+     * The bell's data: "Your video is ready: <title>" (translated when shown) and where to finish or edit it.
      *
      * @param  User $notifiable
      * @return array
      */
     public function toArray(User $notifiable) : array
     {
-        return [
-            'message' => 'Your video : ' .$this->video->title. ' was successfully processed.',
+        return NotificationText::data('video_ready', [
+            'title' => $this->video->title,
+        ], [
+            'video_id' => (int) $this->video->getKey(),
             'url' => $this->video->is_draft ? route('user.videos.create', $this->video) : route('user.videos.edit', $this->video),
             'created_at' => now(),
-            'is_read' => false
-        ];
+            'is_read' => false,
+        ]);
     }
 }

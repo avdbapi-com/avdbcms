@@ -66,9 +66,9 @@ html[data-bs-theme="light"][data-avd-flavor="strawberry"] {
   --avd-sidebar-active-bg: #dc3450;
   --avd-chip-shadow: 0 4px 10px -4px rgba(226,58,84,0.35), inset 0 -2px 0 rgba(226,58,84,0.12);
   --avd-chip-active-bg: #dc3450;
-  --avd-btn-bg: #dc3450;
+  --avd-btn-bg: #da324e;
   --avd-btn-shadow: 0 8px 18px -8px rgba(226,58,84,0.6), inset 0 -3px 0 rgba(0,0,0,.14), inset 0 2px 0 rgba(255,255,255,.35);
-  --avd-play-bg: #dc3450;
+  --avd-play-bg: #da324e;
   --avd-card-shadow: 0 12px 26px -14px rgba(226,58,84,0.35), inset 0 -3px 0 rgba(255,159,90,0.1), inset 0 2px 0 rgba(255,255,255,.9);
   --avd-badge-bg: #dc3450;
   --avd-icon-color: #c00739;

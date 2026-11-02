@@ -8,7 +8,7 @@ use InvalidArgumentException;
 use Throwable;
 
 /**
- * Preferences each admin sets for the admin itself (interface I8): light/dark, the accent colour,
+ * Preferences each admin sets for the admin itself: light/dark, the accent colour,
  * advanced pages, Developer mode and the old/new admin. They never change the public site.
  *
  * Stored as a JSON object in users.admin_preferences (migration 2026_10_20_000003). Until that

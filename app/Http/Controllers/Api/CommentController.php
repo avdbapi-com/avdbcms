@@ -93,12 +93,18 @@ class CommentController extends Controller
 
     public function replies (Video $video, Comment $comment, Request $request) : ResourceCollection {
 
+        // The gate the comment list has (a private video or one with comments turned off answers 404; its owner and
+        // an administrator still see them), and a thread a moderator hid is gone, as it is from the list.
+        $this->authorize('viewAny', [Comment::class, $video]);
+        abort_if($comment->is_banned, 404);
+
         $sort = $request->get('sort', 'top');
 
         return (new RepliesCollection(
             $comment
-                ->loadCount('replies')
+                ->loadCount(['replies' => fn ($query) => $query->public()])
                 ->replies()
+                ->public()
                 ->with([
                     'user',
                     'video' => fn($q) => $q->with('user'),
@@ -150,8 +156,24 @@ class CommentController extends Controller
     {
         $this->authorize('delete', $comment);
 
-        $comment->interactions()->delete();
-        $comment->forceDelete();
+        // A comment goes with its replies, as the studio's and the admin's removals do: before, the
+        // replies stayed in the database under a parent that no longer existed, and the video's stored comment count
+        // kept counting them. Every row goes through the model once (CommentObserver counts it off the video, the
+        // activity listener drops its activity); replies are read in id order, never in offset pages.
+        \Illuminate\Support\Facades\DB::transaction(function () use ($comment): void {
+            if ($comment->parent_id === null) {
+                Comment::query()->where('parent_id', $comment->getKey())->chunkById(200, function ($replies): void {
+                    foreach ($replies as $reply) {
+                        $reply->interactions()->delete();
+                        $reply->forceDelete();
+                    }
+                });
+            }
+
+            $comment->interactions()->delete();
+            $comment->forceDelete();
+        });
+
         return response()->noContent();
     }
 

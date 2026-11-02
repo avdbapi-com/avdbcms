@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Support\AdminCache;
 use App\Support\AdminPreferences;
+use App\Support\AuditDetails;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -73,10 +74,10 @@ class TagController
 
         $exists = DB::table('tags')->where('slug', $slug)->exists();
         if ($exists) {
-            return redirect()->route('admin.tags.index')->withErrors(['name' => 'Tag already exists.']);
+            return redirect()->route('admin.tags.index')->withErrors(['name' => __('This tag exists already.')]);
         }
 
-        DB::table('tags')->insert([
+        $id = DB::table('tags')->insertGetId([
             'name' => $name,
             'slug' => $slug,
             'usage_count' => 0,
@@ -84,25 +85,41 @@ class TagController
             'updated_at' => now(),
         ]);
 
-        return redirect()->route('admin.tags.index')->withSuccess("Tag \"{$name}\" created.");
+        // Tools > Logs > Admin actions (R3-019): the tag by its name and number.
+        AuditLogController::log('tag.created', self::tagName((object) ['id' => $id, 'name' => $name]));
+
+        return redirect()->route('admin.tags.index')->withSuccess(__('Tag ":name" created.', ['name' => $name]));
     }
 
     public function update(Request $request, int $id): RedirectResponse
     {
         $request->validate(['name' => 'required|string|max:100']);
+        $before = DB::table('tags')->where('id', $id)->first(['id', 'name']);
         DB::table('tags')->where('id', $id)->update([
             'name' => trim($request->name),
             'slug' => Str::slug(trim($request->name)),
             'updated_at' => now(),
         ]);
-        return redirect()->route('admin.tags.index')->withSuccess('Tag updated.');
+
+        // A new name: "old name (#id) -> new name"; the same name again writes nothing.
+        if ($before !== null && (string) $before->name !== trim($request->name)) {
+            AuditLogController::log('tag.renamed', self::tagName($before).' -> '.Str::limit(trim($request->name), AuditDetails::NAME_MAX));
+        }
+
+        return redirect()->route('admin.tags.index')->withSuccess(__('Changes saved.'));
     }
 
     public function destroy(int $id): RedirectResponse
     {
-        DB::table('tags')->where('id', $id)->delete();
+        $tag = DB::table('tags')->where('id', $id)->first(['id', 'name']);
+        $deleted = DB::table('tags')->where('id', $id)->delete();
         DB::table('video_tags')->where('tag_id', $id)->delete();
-        return redirect()->route('admin.tags.index')->withSuccess('Tag deleted.');
+
+        if ($tag !== null && $deleted > 0) {
+            AuditLogController::log('tag.deleted', self::tagName($tag));
+        }
+
+        return redirect()->route('admin.tags.index')->withSuccess(__('Tag deleted'));
     }
 
     public function merge(Request $request): RedirectResponse
@@ -111,6 +128,9 @@ class TagController
             'source_id' => 'required|integer',
             'target_id' => 'required|integer|different:source_id',
         ]);
+
+        $source = DB::table('tags')->where('id', $request->source_id)->first(['id', 'name']);
+        $target = DB::table('tags')->where('id', $request->target_id)->first(['id', 'name']);
 
         // Move all video associations from source to target
         DB::table('video_tags')->where('tag_id', $request->source_id)
@@ -123,12 +143,29 @@ class TagController
         // Delete source
         DB::table('tags')->where('id', $request->source_id)->delete();
 
-        return redirect()->route('admin.tags.index')->withSuccess('Tags merged successfully.');
+        // "source (#1) -> target (#2)": the tag that went and the one that has its videos now.
+        if ($source !== null && $target !== null) {
+            AuditLogController::log('tags.merged', self::tagName($source).' -> '.self::tagName($target));
+        }
+
+        return redirect()->route('admin.tags.index')->withSuccess(__('Tags merged'));
     }
 
     public function deleteUnused(): RedirectResponse
     {
+        $unused = DB::table('tags')->where('usage_count', 0)->orderBy('id')->limit(AuditDetails::LIST_MAX)->get(['id', 'name']);
         $count = DB::table('tags')->where('usage_count', 0)->delete();
-        return redirect()->route('admin.tags.index')->withSuccess("{$count} unused tags deleted.");
+
+        if ($count > 0) {
+            AuditLogController::log('tags.unused_deleted', AuditDetails::names($unused->map(fn (object $tag): string => self::tagName($tag)), $count));
+        }
+
+        return redirect()->route('admin.tags.index')->withSuccess(trans_choice('Deleted 1 tag no video uses.|Deleted :count tags no video uses.', $count));
+    }
+
+    /** "music (#12)": a tag as Tools > Logs > Admin actions names it (R3-019). */
+    private static function tagName(object $tag): string
+    {
+        return AuditDetails::titled((object) ['id' => (int) ($tag->id ?? 0), 'title' => (string) ($tag->name ?? '')]);
     }
 }

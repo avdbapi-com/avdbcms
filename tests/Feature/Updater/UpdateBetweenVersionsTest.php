@@ -16,7 +16,7 @@ use Tests\Feature\Updater\Support\UpdaterScenario;
 use Tests\TestCase;
 
 /**
- * What passes between two versions in a one-click update (1.2.1, B1 of the 1.2.0 tests): the update from 1.2.0 runs
+ * What passes between two versions in a one-click update (1.2.1): the update from 1.2.0 runs
  * every step up to the swap in 1.2.0's code (its maintenance hook too) and Finish in the new code; Undo runs the new
  * code's steps and hook, then 1.2.0's Finish. Here 1.2.0's own updater (Updater120: the files it shipped, byte for
  * byte) plays the old side.
@@ -87,7 +87,7 @@ class UpdateBetweenVersionsTest extends TestCase
 
         // Every admin-log row once.
         $this->assertSame(['update.started', 'update.database_backup', 'update.files', 'update.finished'], array_column($this->auditRows(), 'action'));
-        $this->assertSame(AppVersion::CURRENT.' -> '.$this->next.' (1 database changes)', $this->auditRows()[3]['details']);
+        $this->assertSame(AppVersion::CURRENT.' -> '.$this->next.' (1 database change)', $this->auditRows()[3]['details']);
 
         // state.json and the file backup, complete; the step log kept (1.2.0's lines and the new Finish line).
         $state = $this->updater($this->next)->state();
@@ -96,10 +96,10 @@ class UpdateBetweenVersionsTest extends TestCase
         $this->assertSame('complete', $backup['status']);
         $log = implode("\n", $this->updater($this->next)->logLines(null, 500));
         $this->assertStringContainsString('started by owner', $log);
-        $this->assertStringContainsString('database step done (1 migrations); AVDBCMS '.$this->next.' is installed', $log);
+        $this->assertStringContainsString('database step done (1 migration); AVDBCMS '.$this->next.' is installed', $log);
         $this->assertTrue($this->updater($this->next)->backups()[0]['undo'], 'Undo this update is offered');
 
-        // B1: the work folder left its place in one rename, with all it held: nothing of it was deleted in Finish.
+        // The work folder left its place in one rename, with all it held: nothing of it was deleted in Finish.
         $this->assertDirectoryDoesNotExist($job);
         $trashed = glob($this->box->paths()->trash($this->next.'-*'), GLOB_ONLYDIR) ?: [];
         $this->assertCount(1, $trashed);
@@ -140,7 +140,9 @@ class UpdateBetweenVersionsTest extends TestCase
         $this->assertSame('done', $again['status'], (string) $again['message']);
         $this->assertSame($rows, $this->auditRows(), 'no admin-log row twice');
         $this->assertDirectoryDoesNotExist($this->jobFolder());
-        $this->assertSame(['recorded'], $this->storedPlan()['finish_steps']);
+        // The texts step of this version's Finish runs too (the sandbox has no data file: nothing to correct), and so does
+        // its starter-data step (1.2.3 round 1, R1-100: the sandbox's zip has no plausible example.sql, nothing changes).
+        $this->assertSame(['recorded', 'texts', 'install data', 'leftovers'], $this->storedPlan()['finish_steps']);
         $this->assertSame(['update.files', 'update.finished'], $this->storedPlan()['audit_rows']);
 
         // And once more (the answer of the second one was lost too): nothing changes.
@@ -162,7 +164,7 @@ class UpdateBetweenVersionsTest extends TestCase
 
         $this->assertSame('done', $done['status'], (string) $done['message']);
         $this->assertSame(['update.started', 'update.database_backup', 'update.files', 'update.finished'], array_column($this->auditRows(), 'action'));
-        $this->assertSame(AppVersion::CURRENT.' -> '.$this->next.' (1 database changes)', $this->auditRows()[3]['details']);
+        $this->assertSame(AppVersion::CURRENT.' -> '.$this->next.' (1 database change)', $this->auditRows()[3]['details']);
         $this->assertSame(1, $this->storedPlan()['migrations']);
     }
 
@@ -171,11 +173,19 @@ class UpdateBetweenVersionsTest extends TestCase
         $old = Updater120::updater($this->box->paths(), $this->database, AppVersion::CURRENT);
         $this->assertSame('swapped', $this->swapThroughHook($this->oldToSwap($old)['token'])['step']);
         $this->assertSame('done', $this->finishOn($this->updater($this->next))['status']);
+        // The update came from 1.2.0 (the sandbox calls the installed release CURRENT, whichever code plays it).
+        $this->updateCameFrom('1.2.0');
         $this->assertTrue($this->updater($this->next)->tidyPending(), 'the update\'s work files wait in the trash');
+        // The old file cache Finish of 1.2.3 renamed, still where it was renamed: 1.2.0 knows nothing of it either.
+        $stale = $this->box->paths()->storage.'/framework/cache/stale-0011223344556677';
+        File::ensureDirectoryExists($stale.'/ab');
+        file_put_contents($stale.'/ab/entry', 'expired');
 
-        // The new code's undo: its steps empty the trash before the site goes down (1.2.0 would never delete it).
+        // The new code's undo: its steps empty the trash before the site goes down (1.2.0 would never delete it), with
+        // the renamed old cache in it.
         $undo = $this->undoToSwap($this->updater($this->next));
         $this->assertFalse($this->updater($this->next)->tidyPending());
+        $this->assertDirectoryDoesNotExist($stale);
         $this->assertSame('swapped', $this->swapThroughHook($undo['token'])['step']);
 
         // 1.2.0 runs again and finishes the undo with its own code.
@@ -189,8 +199,9 @@ class UpdateBetweenVersionsTest extends TestCase
         $this->assertSame($this->withoutCompiledCaches($this->before), $this->box->snapshot(), 'every file as before the update');
         $this->assertSame(AppVersion::CURRENT, Manifest::installed($this->box->paths()->manifest())->version);
         $state = $old->state();
-        $this->assertSame([AppVersion::CURRENT, $this->next, null], [$state['installed_version'], $state['previous_version'], $state['backup_id']]);
+        $this->assertSame(['1.2.0', $this->next, null], [$state['installed_version'], $state['previous_version'], $state['backup_id']]);
         $this->assertSame([], array_values(array_diff(is_dir($this->box->paths()->trash()) ? (scandir($this->box->paths()->trash()) ?: []) : [], ['.', '..'])), 'no trash left behind');
+        $this->assertSame([], glob($this->box->paths()->storage.'/framework/cache/stale-*') ?: [], 'no old cache left behind');
         $this->assertContains('update.undone', array_column($this->auditRows(), 'action'));
     }
 

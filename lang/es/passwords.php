@@ -7,16 +7,17 @@ return [
     | Password Reset Language Lines
     |--------------------------------------------------------------------------
     |
-    | The following language lines are the default lines which match reasons
-    | that are given by the password broker for a password update attempt
-    | has failed, such as for an invalid token or invalid new password.
+    | The lines of the password broker. "user" (no account uses the address) says
+    | the same as "token" (a wrong, used or expired link), so nothing that shows
+    | the broker's answer tells whether an address has an account. Plain words,
+    | no "token" (1.2.3).
     |
     */
 
-    'reset' => 'Your password has been reset!',
-    'sent' => 'We have emailed your password reset link!',
-    'throttled' => 'Please wait before retrying.',
-    'token' => 'This password reset token is invalid.',
-    'user' => "We can't find a user with that email address.",
+    'reset' => 'Tu contraseña se cambió.',
+    'sent' => 'Si alguna cuenta usa este correo, le enviamos un enlace.',
+    'throttled' => 'Espera un poco antes de pedir otro enlace.',
+    'token' => 'Este enlace para restablecer ya no funciona. Pide uno nuevo.',
+    'user' => 'Este enlace para restablecer ya no funciona. Pide uno nuevo.',
 
 ];

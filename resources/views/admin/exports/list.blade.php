@@ -21,7 +21,10 @@
 
     <x-admin.page-header page="members.exports" :primary="false">
         <x-slot:actions>
-            <a class="ad-btn" href="{{ route('admin.users.export') }}">{{ AdminTheme::icon('download') }}{{ __('Export the member list') }}</a>
+            <form method="POST" action="{{ route('admin.users.export') }}">
+                @csrf
+                <button type="submit" class="ad-btn">{{ AdminTheme::icon('download') }}{{ __('Export the member list') }}</button>
+            </form>
         </x-slot:actions>
     </x-admin.page-header>
 
@@ -49,8 +52,8 @@
             <tr>
                 <td class="c-main"><p>@if ($export->is_completed)<a id="ad-x-{{ $export->id }}" href="{{ route('admin.exports.download', $export, false) }}">{{ $export->file }}</a>@else<b id="ad-x-{{ $export->id }}">{{ $export->file }}</b>@endif</p></td>
                 <td class="c-meta"><x-admin.status :type="$tone">{{ $state }}</x-admin.status></td>
-                <td class="hide-tab">@size($export->size)</td>
-                <td class="is-date" title="{{ $export->updated_at?->translatedFormat('j M Y, H:i') }}">{{ $export->updated_at?->diffForHumans(short: true) }}</td>
+                <td class="hide-tab"><span dir="ltr" class="text-nowrap">@size($export->size)</span></td>
+                <td class="is-date" title="{{ $export->updated_at?->translatedFormat('j M Y, H:i') }}">{{ $export->updated_at?->diffForHumans(short: \App\Support\AdminText::shortTimes()) }}</td>
                 <td class="is-actions"><button type="button" class="ad-iconbtn is-more" aria-haspopup="true" aria-labelledby="ad-l-act ad-x-{{ $export->id }}" data-id="{{ $export->id }}" data-state="{{ $export->is_completed ? 'ready' : 'waiting' }}"></button></td>
             </tr>
         @endforeach

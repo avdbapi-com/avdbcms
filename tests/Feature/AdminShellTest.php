@@ -36,9 +36,9 @@ class AdminShellTest extends TestCase
         'admin.avdb-import.runs.clean-finished.help', 'admin.avdb-import.progress', 'admin.xvid-import.progress',
         'admin.avdb-import.issues.export', 'admin.backups.download', 'admin.exports.download', 'admin.logs.download',
         'admin.languages.export',
-        // WP7's settings page script and the lazy code-box values (R/r2/notes/wp7.md).
+        // The settings page script and the lazy code-box values.
         'admin.settings.script', 'admin.settings.values',
-        // Tools > Updates' JSON for its script (F8).
+        // Tools > Updates' JSON for its script.
         'admin.updates.status',
     ];
 
@@ -57,6 +57,13 @@ class AdminShellTest extends TestCase
         foreach ($this->pageUrls($admin) as $name => $url) {
             $response = $this->actingAs($admin)->get($url);
 
+            // The old "To everyone" tab: the new admin has one form to notify members, New notification (judge R1-161).
+            if ($name === 'admin.broadcast.index') {
+                $response->assertRedirect(route('admin.notifications.index', ['new' => 1]).'#new-notification');
+
+                continue;
+            }
+
             $this->assertSame(200, $response->getStatusCode(), "{$name} ({$url})");
             $html = $response->getContent();
             $this->assertStringContainsString('class="ad-shell"', $html, "{$name} renders inside the shell");
@@ -74,7 +81,7 @@ class AdminShellTest extends TestCase
         foreach ($this->pageUrls($admin) as $name => $url) {
             $response = $this->actingAs($admin)->get($url);
 
-            // Pages that exist only in the new admin (WP7's Money pages) send an admin on the old admin to the old
+            // Pages that exist only in the new admin (the Money pages) send an admin on the old admin to the old
             // settings tab that holds the same settings.
             if (Str::startsWith($name, 'admin.money.')) {
                 $response->assertRedirect();
@@ -83,7 +90,7 @@ class AdminShellTest extends TestCase
                 continue;
             }
 
-            // Tools > Updates has no old-admin page (F8 §2): it renders in the new admin's document for everybody.
+            // Tools > Updates has no old-admin page: it renders in the new admin's document for everybody.
             if ($name === 'admin.updates.index') {
                 $this->assertSame(200, $response->getStatusCode(), $name);
                 $this->assertStringContainsString('class="ad-shell"', $response->getContent(), $name);
@@ -133,7 +140,7 @@ class AdminShellTest extends TestCase
     {
         $levels = collect(AdminNav::pages())->filter(fn (array $page) => $page['sidebar'])->countBy('level');
 
-        // 44: Tools > Updates (F8) joined the 43 of the redesign.
+        // 44: Tools > Updates joined the 43 of the redesign.
         $this->assertSame(44, $levels['basic']);
         $this->assertSame(10, $levels['advanced']);
         $this->assertSame(3, $levels['expert']);
@@ -230,7 +237,7 @@ class AdminShellTest extends TestCase
             }
         }
 
-        $this->assertSame([], $missing, 'Run gen_fa_subset.py after adding Font Awesome icons to an admin view.');
+        $this->assertSame([], $missing, 'Icons the admin views use but the admin Font Awesome subset lacks: run "python scripts/fontawesome/gen_admin_fa_subset.py" from the repository root (it needs fontTools).');
     }
 
     public function test_search_index_lists_pages_old_names_settings_and_synonyms(): void
@@ -243,13 +250,16 @@ class AdminShellTest extends TestCase
         $this->assertTrue($pages->has('tools.health'));
         $this->assertContains('Preflight', $pages['tools.health']['k']);
         $this->assertContains('Mass Broadcast', $pages['community.notify']['k']);
-        $this->assertFalse($pages->has('tools.developer'), 'developer pages only in Developer mode');
+        // 1.2.3: developer pages are found while Developer mode is off too, marked (x): they open the page that turns
+        // Developer mode on. The sidebar still hides them (test_the_menu_shows_developer_pages_only_in_developer_mode).
+        $this->assertSame(1, $pages['tools.developer']['x'] ?? null, 'developer pages are marked while Developer mode is off');
+        $this->assertArrayNotHasKey('x', $pages['tools.health']);
         $this->assertTrue(collect($index['settings'])->contains(fn (array $row) => $row['k'] === 'smtp_host'));
         $this->assertArrayHasKey('smtp', $index['synonyms']);
 
         AdminPreferences::set($admin, 'developer_mode', true);
         $developer = $this->actingAs($admin->fresh())->getJson(route('admin.shell.search-index'))->json();
-        $this->assertTrue(collect($developer['pages'])->contains(fn (array $page) => $page['id'] === 'tools.developer'));
+        $this->assertTrue(collect($developer['pages'])->contains(fn (array $page) => $page['id'] === 'tools.developer' && ! isset($page['x'])));
         $this->assertNotSame($index['v'], $developer['v']);
     }
 
@@ -351,7 +361,7 @@ class AdminShellTest extends TestCase
         $admin = User::factory()->admin()->create();
         Video::factory()->for($admin)->create();
 
-        // WP9's lists replaced the two old modals (public <interactions-area> / <user-replies>): no words, no API
+        // The new lists replaced the two old modals (public <interactions-area> / <user-replies>): no words, no API
         // address and no old-view scripts for them any more.
         foreach (['admin.videos.index', 'admin.comments.index'] as $route) {
             $this->actingAs($admin)
@@ -456,7 +466,7 @@ class AdminShellTest extends TestCase
 
         $this->assertSame('settings.email', AdminNav::page('settings.email')['id']);
         $this->assertSame('/admin/settings/email', AdminNav::page('settings.email')['url']);
-        // Until the new Settings pages exist (WP7), the menu opens the old settings tab instead of a missing page.
+        // Until the new Settings pages exist, the menu opens the old settings tab instead of a missing page.
         $this->assertStringEndsWith(Route::has('admin.settings.page') ? '/admin/settings/email' : '/admin/settings?tab=email', (string) AdminNav::url(AdminNav::page('settings.email')));
     }
 

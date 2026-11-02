@@ -19,7 +19,7 @@ use RuntimeException;
 use Tests\TestCase;
 
 /**
- * Uploading the new version over an older install (I13): the site works before the update is finished, Home shows
+ * Uploading the new version over an older install: the site works before the update is finished, Home shows
  * "Finish update", one click runs the pending migrations under a lock (idempotent, never a 500), then Home offers the
  * previous look back (revision #0, 30 days) and the new look again.
  */

@@ -17,6 +17,12 @@
         <i class="fa-solid fa-trash"></i>&nbsp;
         {{ __('Deleted') }} {{$video->deleted_at->diffForHumans()}}
     </span>
+@elseif(\App\Support\Upload18\UploadClaims::isProcessing($video))
+    {{-- A member's upload that Upload18 is still processing: the site finishes it by itself (never lose a video). --}}
+    <span class="badge bg-info text-dark" title="{{ __('You will receive a notification once the processing is complete') }}">
+        <i class="fa-solid fa-hourglass-half"></i>&nbsp;
+        {{ __('Processing on Upload18') }}
+    </span>
 @elseif($video->is_uploading)
     <span class="badge bg-secondary">
         <i class="fa-solid fa-hourglass-half"></i>&nbsp;

@@ -10,7 +10,7 @@ use Tests\Feature\Updater\Support\UpdaterScenario;
 use Tests\TestCase;
 
 /**
- * Where an update comes from is fixed in code (F8 4, 15): the repository, the tag built from the version, the asset
+ * Where an update comes from is fixed in code: the repository, the tag built from the version, the asset
  * names. Whoever can write the cache store (a shared Redis) or plan.json can at most name another version of this
  * repository: a kept answer that names another repository or a file name with "../" is never followed, and a plan
  * whose address or file name was changed is refused before anything is asked or written.

@@ -26,8 +26,17 @@ html[data-avd-hero-deco="banner_soft"][data-avd-theme] .avd-soft-img {
     html[data-avd-hero-deco="banner_soft"][data-avd-theme] .avd-banner .avd-soft-img {
         display: none;
     }
-    /* the phone values of layout-theme-b (= the mockup's phone rules), which this decoration's desktop rules out-rank */
+    /* the phone values of layout-theme-b (= the mockup's phone rules), which this decoration's desktop rules out-rank;
+       R1-151: a phone's padding, so the text keeps its place once the card takes the page gutter below */
     html[data-avd-hero-deco="banner_soft"][data-avd-theme] .avd-banner {
         grid-template-columns: 1fr;
+        padding-inline: 20px;
+    }
+}
+/* R1-151: below 576px the container has no side padding: the card stops 16px from both screen edges (it touched them,
+   its rounded corners cut by the screen), as the container keeps it from 576px. */
+@media (max-width: 575.98px) {
+    html[data-avd-hero-deco="banner_soft"][data-avd-theme] .avd-banner {
+        margin-inline: 1rem;
     }
 }

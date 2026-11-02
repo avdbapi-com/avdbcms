@@ -1,86 +1,95 @@
 @extends('layouts.default')
 
-@section('title', $playlist->title)
+@section('title', $title)
 
+@php
+    $customTotal = (int) $videos->total();
+    $customIsWatchLater = $type === \App\Enums\CustomPlaylistType::WATCH_LATER;
+    $customFirst = $videos->getCollection()->first(fn ($video) => $video->is_public || $video->is_unlisted || ($video->user && $video->user->is(Auth::user())));
+@endphp
+
+{{-- Watch later and Liked videos (member design 6.11; QA channel-6, channel-27): a compact head with the count (and
+     the running time), Play all and, in Watch later, "Remove watched" (asked first, then undone with one click); the
+     rows are part of the page. When a row leaves Watch later the head, Play all and "Remove watched" follow at once, and
+     the page shows its empty state after the last one (library/actions-script). --}}
 @section('content')
-    <div class="row justify-content-center gy-3">
-        <div class="col-md-12 col-lg-5 col-xl-4 col-xxl-4">
-            <div class="h-100 card">
-                @if($playlist->first_video)
-                    <img class="img-fluid card-img-top" src="{{$playlist->first_video->thumbnail_url}}" alt="{{$playlist->title}}" width="640" height="360" loading="eager" fetchpriority="high" decoding="async" onerror="this.onerror=null;this.src='{{ asset('images/placeholders/no-image.svg') }}';">
-                @endif
-                <div class="card-body">
-                    <h2 class="h4 my-3">{{$playlist->title}}</h2>
-                    <div class="mt-3">{{ __('by') }}
-                        @if($playlist->user)
-                            <a class="text-decoration-none fw-bold" href="{{$playlist->user->route}}">{{$playlist->user->username}}</a>
-                        @else
-                            <span class="text-muted">{{__('Deleted user')}}</span>
-                        @endif
-                    </div>
-                    <span class="badge bg-{{$playlist->status->color()}} my-3">
-                        <i class="fa-solid fa-{{$playlist->status->icon()}}"></i>&nbsp;
-                        {{__($playlist->status->name())}}
-                    </span>
-                    <div class="d-flex align-items-center gap-1 mb-2">
-                        <div class="text-sm">{{trans_choice('videos', $playlist->videos_count)}}</div>
-                        <div class="text-sm">&middot;</div>
-                        <div class="text-sm">{{ __('Created') }} {{$playlist->created_at->diffForHumans()}}</div>
-                    </div>
-                    <div class="text-sm mb-3">{{ __('Updated') }} {{$playlist->updated_at->diffForHumans()}}</div>
-                    @if($actions->count() && $playlist->videos_count)
-                        <div class="d-flex flex-wrap gap-2">
-                            @foreach($actions as $label => $route)
-                                <form action="{{$route}}" method="POST">
-                                    @csrf()
-                                    <button class="btn btn-primary btn-sm" type="submit">{{__($label)}}</button>
-                                </form>
-                            @endforeach
-                        </div>
+    {{-- the page root with the whitespace between tags collapsed to one space (it renders the same), its first rows only
+         (CustomPlaylistController::FIRST_PAGE) and links to this site as site-relative addresses: the content budget
+         (4.3; R1-069) --}}
+    @php ob_start(); @endphp
+    <div class="avd-mk mk-page mk-page--narrow mk-playlist"
+         data-rows-root
+         data-rows-url="{{ \App\Support\PageUrl::local(locale_url(route('custom-playlist.show', $type))) }}"
+         data-next-page="{{ $videos->hasMorePages() ? $videos->currentPage() + 1 : '' }}"
+         data-message-error="{{ __('That did not work. Check your connection and try again.') }}">
+        <x-mk.head :title="$title" :kicker="__('Library')" :icon="$customIsWatchLater ? 'clock' : 'thumbs-up'" :desc="$summary" data-rows-head>
+            @if($customFirst || ($customIsWatchLater && $watchedCount > 0))
+                <x-slot:actions>
+                    @if($customFirst)
+                        <a class="mk-btn mk-btn--primary" href="{{ \App\Support\PageUrl::local($customFirst->routeWithParams(['list' => $playlist->uuid])) }}" data-play-all><i class="fa-solid fa-play" aria-hidden="true"></i><span>{{ __('Play all') }}</span></a>
                     @endif
-                    <div class="mt-3">
-                        <x-expand-item max="150" color="dark">
-                            {{$playlist->description}}
-                        </x-expand-item>
-                    </div>
-                </div>
+                    @if($customIsWatchLater && $watchedCount > 0)
+                        <button type="button" class="mk-btn mk-btn--secondary" data-bs-toggle="modal" data-bs-target="#mkRemoveWatched" data-remove-watched-open><i class="fa-solid fa-broom" aria-hidden="true"></i><span>{{ __('Remove watched') }}</span></button>
+                    @endif
+                </x-slot:actions>
+            @endif
+        </x-mk.head>
+
+        @if($undo && session('success'))
+            <div class="mk-alert mk-alert--success" role="status">
+                <i class="fa-solid fa-circle-check" aria-hidden="true"></i>
+                <div class="mk-alert__body"><span>{{ session('success') }}</span></div>
+                <form method="POST" action="{{ \App\Support\PageUrl::local(route('custom-playlist.clear-watched-videos')) }}">
+                    @csrf
+                    <input type="hidden" name="undo" value="{{ $undo }}">
+                    <button type="submit" class="mk-btn mk-btn--quiet mk-btn--sm"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i><span>{{ __('Undo') }}</span></button>
+                </form>
             </div>
-        </div>
-        <div class="col-md-12 col-lg-7 col-xl-8 col-xxl-8">
-            <div class="card card-body p-0">
-                @if($playlist->videos_count)
-                    <div class="avd-playlist-video-list">
-                        <ul class="list-group list-group-flush">
-                            @foreach($playlist->videos as $key => $video)
-                                    <li class="d-flex gap-3 align-items-center list-group-item list-group-item-action px-2 px-sm-3 py-3 py-sm-3">
-                                    @if(($video->user && $video->user->is(Auth::user())) || $video->is_public)
-                                        @include('videos.card-secondary', ['video' => $video, 'playlist_video' => true])
-                                    @else
-                                        <div class="w-100 align-items-center">
-                                            <div class="col-12">
-                                                <div class="bg-secondary text-white d-flex flex-column justify-content-center align-items-center w-100 gap-2" style="height: 100px">
-                                                    <i class="fa-solid fa-lock fa-1x"></i>
-                                                    <div class="text-center text-sm">
-                                                        <div class='text-sm fw-bold'>{{ __('This video is private') }}</div>
-                                                        <div class='text-sm'>{{ __('The author updated the video status to private') }}</div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    @endif
-                                    </li>
-                                @if(\App\Support\FeedAdSlots::listAdAfter($loop->iteration, $loop->count, \App\Support\FeedAdSlots::adEvery(config('site.ad_grid_position', 6))))
-                                    <x-feed-ad-slot as="li" context="playlist_videos" class="list-group-item px-2 px-sm-3 py-3" />
-                                @endif
-                            @endforeach
-                        </ul>
-                    </div>
-                @else
-                    <div class="alert alert-info mb-0">
-                        {{ __('This playlist does not contain any videos at the moment.') }}
-                    </div>
-                @endif
+        @else
+            {{-- "refusal": a view-only demo account's Remove watched (a form) comes back here with the guard's reason --}}
+            <x-mk.flash refusal />
+        @endif
+
+        @php
+            ob_start();
+        @endphp
+        <section class="mk-panel">
+            @if($customIsWatchLater)
+                <x-mk.empty icon="clock" :title="__('Nothing saved for later')" :text="__('Save a video with the clock button on its card or under the player, and it waits here for you.')">
+                    <a class="mk-btn mk-btn--primary" href="{{ \App\Support\PageUrl::local(route('pages.home')) }}"><i class="fa-solid fa-play" aria-hidden="true"></i><span>{{ __('Find something to watch') }}</span></a>
+                </x-mk.empty>
+            @else
+                <x-mk.empty icon="thumbs-up" :title="__('No liked videos yet')" :text="__('Tap the thumbs up under a video you enjoy, and it appears here.')">
+                    <a class="mk-btn mk-btn--primary" href="{{ \App\Support\PageUrl::local(route('pages.home')) }}"><i class="fa-solid fa-play" aria-hidden="true"></i><span>{{ __('Find something to watch') }}</span></a>
+                </x-mk.empty>
+            @endif
+        </section>
+        @php
+            $customEmpty = (string) ob_get_clean();
+        @endphp
+
+        @if($customTotal > 0)
+            <ol class="mk-lrows mk-lrows--numbered" data-label-on="{{ __('Remove from Watch later') }}" data-label-off="{{ __('Save to Watch later') }}" data-rows>
+                @include('library.playlist-rows', ['videos' => $videos->getCollection(), 'playlist' => $playlist, 'context' => $type->value, 'adAfter' => \App\Support\FeedAdSlots::adEvery(config('site.ad_grid_position', 6)), 'listRows' => $customTotal, 'watchLaterIds' => $watchLaterIds, 'eagerRows' => 4])
+            </ol>
+            <div class="mk-loadmore" data-rows-more-wrap @if(!$videos->hasMorePages()) hidden @endif>
+                <button type="button" class="mk-btn mk-btn--secondary" data-rows-more><span>{{ __('Show more') }}</span></button>
             </div>
-        </div>
+            @if($customIsWatchLater)
+                {{-- shown when the last row leaves the list --}}
+                <template data-rows-empty>{!! $customEmpty !!}</template>
+            @endif
+        @else
+            {!! $customEmpty !!}
+        @endif
+
+        @if($customIsWatchLater && $watchedCount > 0)
+            <x-library.confirm id="mkRemoveWatched" :title="__('Remove watched videos?')" :confirm="$watched['confirm']" icon="broom" :form="\App\Support\PageUrl::local(route('custom-playlist.clear-watched-videos'))">
+                <p data-remove-watched-text>{{ $watched['text'] }}</p>
+            </x-library.confirm>
+        @endif
+
+        @include('library.actions-script')
     </div>
+    {!! preg_replace('/>\s+</', '> <', (string) ob_get_clean()) !!}
 @endsection

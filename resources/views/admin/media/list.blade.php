@@ -12,7 +12,7 @@
 @section('content')
     <x-admin.list-page>
     <x-admin.page-header page="content.files"
-        :description="__('The files in public storage: :folders folders and :files files here.', ['folders' => number_format(count($folders)), 'files' => number_format($files->total())])" />
+        :description="__('The files in public storage. Folders here: :folders. Files here: :files.', ['folders' => number_format(count($folders)), 'files' => number_format($files->total())])" />
 
     <nav class="ad-crumbs ad-console-block" aria-label="{{ __('Folder') }}">
         @if ($currentPath === '')
@@ -64,7 +64,7 @@
             @php $key = 'ad-file-'.substr(md5($file['path']), 0, 10); @endphp
             <tr>
                 <td class="c-main"><div class="ad-vid">@if ($file['is_image'])<span class="ad-thumb"><img src="{{ $file['url'] }}" alt="" width="96" height="54" loading="lazy" decoding="async"></span>@else<span class="ad-sym" aria-hidden="true">{{ AdminTheme::icon('file') }}</span>@endif<p><b id="{{ $key }}">{{ $file['name'] }}</b></p></div></td>
-                <td class="c-meta">{{ $file['size'] === null ? '-' : StorageController::formatBytes((int) $file['size']) }}</td>
+                <td class="c-meta"><span dir="ltr" class="text-nowrap">{{ $file['size'] === null ? '-' : StorageController::formatBytes((int) $file['size']) }}</span></td>
                 <td class="hide-tab is-date">{{ $file['modified'] ? \Illuminate\Support\Carbon::createFromTimestamp($file['modified'])->translatedFormat('j M Y, H:i') : '-' }}</td>
                 <td class="is-actions"><button type="button" class="ad-iconbtn is-more" aria-haspopup="true" aria-labelledby="ad-l-act {{ $key }}" data-id="{{ $key }}" data-url="{{ $file['url'] }}" data-path="{{ $file['path'] }}"></button></td>
             </tr>

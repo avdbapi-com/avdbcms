@@ -232,6 +232,14 @@
             animation-iteration-count: 1 !important;
         }
     }
+    /* The import options' tick boxes: labels at least 24 px tall, so each one is a target of its own (WCAG 2.5.8, R2A-058). */
+    #translateTagsCheck + .form-check-label,
+    #skipTagsCheck + .form-check-label,
+    #dryRunCheck + .form-check-label {
+        display: inline-flex;
+        align-items: center;
+        min-block-size: 24px;
+    }
 </style>
 
 <div class="xvid-page container-fluid px-3 px-lg-4 py-4">
@@ -287,7 +295,7 @@
         <div class="card-body p-3 p-md-4">
             <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 pb-3 mb-3 border-bottom border-secondary border-opacity-25">
                 <div class="d-flex align-items-center gap-2">
-                    <span class="badge bg-danger px-3 py-2 text-uppercase fw-bold"><i class="fa-solid fa-bolt me-1"></i>XVIDAPI Spec</span>
+                    <span class="badge bg-danger px-3 py-2 text-uppercase fw-bold"><i class="fa-solid fa-bolt me-1"></i>{{ __('XVIDAPI Spec') }}</span>
                     <span class="text-white fw-bold h5 mb-0">{{ __('XVIDAPI Live Ecosystem & Directory') }}</span>
                 </div>
                 <div class="d-flex gap-2 flex-wrap">
@@ -313,7 +321,7 @@
                         <small class="text-muted text-uppercase d-block fw-semibold mb-1">{{ __('Total Pages') }}</small>
                         <span class="h5 fw-black text-white mb-0">{{ ($apiSummary['available'] ?? false) ? number_format((int) $apiSummary['pages']) : __('N/A') }}</span>
                         @if($apiSummary['available'] ?? false)
-                            <small class="text-white-50 d-block">{{ __(':count videos / page', ['count' => number_format((int) $apiSummary['page_size'])]) }}</small>
+                            <small class="text-white-50 d-block">{{ trans_choice('1 video / page|:count videos / page', (int) $apiSummary['page_size'], ['count' => number_format((int) $apiSummary['page_size'])]) }}</small>
                         @endif
                     </div>
                 </div>
@@ -339,15 +347,15 @@
             <div class="mt-3 pt-3 border-top border-secondary border-opacity-25">
                 <small class="text-muted text-uppercase fw-bold d-block mb-2"><i class="fa-solid fa-layer-group me-1 text-danger"></i>{{ __('XVIDAPI Popular Catalog Categories (64 Global Genres):') }}</small>
                 <div class="d-flex flex-wrap gap-2">
-                    <span class="badge bg-dark border border-secondary px-2 py-1"><i class="fa-solid fa-glasses text-info me-1"></i>VR (Virtual Reality)</span>
-                    <span class="badge bg-dark border border-secondary px-2 py-1"><i class="fa-solid fa-tv text-warning me-1"></i>4K Ultra HD</span>
-                    <span class="badge bg-dark border border-secondary px-2 py-1"><i class="fa-solid fa-globe-asia text-danger me-1"></i>Asian & Japanese</span>
-                    <span class="badge bg-dark border border-secondary px-2 py-1"><i class="fa-solid fa-camera text-primary me-1"></i>Amateur & Real</span>
-                    <span class="badge bg-dark border border-secondary px-2 py-1"><i class="fa-solid fa-heart text-danger me-1"></i>MILF & Mature</span>
-                    <span class="badge bg-dark border border-secondary px-2 py-1"><i class="fa-solid fa-fire text-warning me-1"></i>Hardcore & Anal</span>
-                    <span class="badge bg-dark border border-secondary px-2 py-1"><i class="fa-solid fa-robot text-info me-1"></i>AI Generated</span>
-                    <span class="badge bg-dark border border-secondary px-2 py-1"><i class="fa-solid fa-user-group text-success me-1"></i>Lesbian & Bi</span>
-                    <span class="badge bg-dark border border-secondary px-2 py-1 text-muted">+56 More in selector</span>
+                    <span class="badge bg-dark border border-secondary px-2 py-1"><i class="fa-solid fa-glasses text-info me-1"></i>{{ __('VR (Virtual Reality)') }}</span>
+                    <span class="badge bg-dark border border-secondary px-2 py-1"><i class="fa-solid fa-tv text-warning me-1"></i>{{ __('4K Ultra HD') }}</span>
+                    <span class="badge bg-dark border border-secondary px-2 py-1"><i class="fa-solid fa-globe-asia text-danger me-1"></i>{{ __('Asian & Japanese') }}</span>
+                    <span class="badge bg-dark border border-secondary px-2 py-1"><i class="fa-solid fa-camera text-primary me-1"></i>{{ __('Amateur & Real') }}</span>
+                    <span class="badge bg-dark border border-secondary px-2 py-1"><i class="fa-solid fa-heart text-danger me-1"></i>{{ __('MILF & Mature') }}</span>
+                    <span class="badge bg-dark border border-secondary px-2 py-1"><i class="fa-solid fa-fire text-warning me-1"></i>{{ __('Hardcore & Anal') }}</span>
+                    <span class="badge bg-dark border border-secondary px-2 py-1"><i class="fa-solid fa-robot text-info me-1"></i>{{ __('AI Generated') }}</span>
+                    <span class="badge bg-dark border border-secondary px-2 py-1"><i class="fa-solid fa-user-group text-success me-1"></i>{{ __('Lesbian & Bi') }}</span>
+                    <span class="badge bg-dark border border-secondary px-2 py-1 text-muted">{{ __('+:count more in the list', ['count' => 56]) }}</span>
                 </div>
             </div>
         </div>
@@ -475,7 +483,7 @@
                             @endphp
                             <select id="ad-xvid-import-starter-views-mode" name="starter_views_mode" class="form-select bg-dark text-white border-secondary">
                                 @foreach($starterViewModes as $modeKey => $modeLabel)
-                                    <option value="{{ $modeKey }}" @selected($modeKey === $starterViewsMode)>{{ $modeLabel }}</option>
+                                    <option value="{{ $modeKey }}" @selected($modeKey === $starterViewsMode)>{{ __($modeLabel) }}</option>
                                 @endforeach
                             </select>
                         </div>
@@ -567,6 +575,9 @@
             </div>
         </div>
     </form>
+
+    {{-- 1.2.3: the blocked words of every import (one card for AVDBAPI and XVIDAPI, saved like a settings page). --}}
+    @include('admin.imports.blocked-words')
 
     {{-- Import Runs History & Schedules Tabs --}}
     <div class="xvid-card p-4">
@@ -830,6 +841,12 @@
 </div>
 
 <script>
+    // The alerts of this page in the admin's language (:error is the browser's own message). The list is built in a PHP
+    // block first: Blade's json directive cuts its argument at every comma.
+    @php
+        $xvidText = ['notStarted' => __('Could not start import.'), 'error' => __('Error: :error'), 'notCancelled' => __('Could not cancel: :error')];
+    @endphp
+    const xvidText = @json($xvidText);
     let activeRunId = null;
     let pollTimer = null;
     let _progressModalInstance = null;
@@ -977,10 +994,10 @@
             if (data.success && data.run_id) {
                 openProgressModal(data.run_id);
             } else {
-                alert(data.message || 'Could not start import.');
+                alert(data.message || xvidText.notStarted);
             }
         } catch (e) {
-            alert('Error: ' + e.message);
+            alert(xvidText.error.replace(':error', e.message));
         } finally {
             btn.disabled = false;
             btn.innerHTML = '<i class="fa-solid fa-play me-2"></i> {{ __("Start XVIDAPI Import") }}';
@@ -1002,7 +1019,11 @@
         if (!activeRunId) return;
 
         try {
-            const res = await fetch(`{{ url('/admin/xvid-import/runs') }}/${activeRunId}`);
+            // a background GET every 1.2 s (App\Http\Middleware\BackgroundRequest): it leaves the session as it is
+            const res = await fetch(`{{ url('/admin/xvid-import/runs') }}/${activeRunId}`, {
+                credentials: 'same-origin',
+                headers: {'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest', [@json(\App\Http\Middleware\BackgroundRequest::HEADER)]: '1'},
+            });
             const data = await res.json();
             if (!data.success || !data.run) return;
 
@@ -1063,7 +1084,7 @@
                 window.location.reload();
             }
         } catch (e) {
-            alert('Could not cancel: ' + e.message);
+            alert(xvidText.notCancelled.replace(':error', e.message));
         }
     }
 
@@ -1086,7 +1107,7 @@
             alert(data.message);
             window.location.reload();
         } catch (e) {
-            alert('Error: ' + e.message);
+            alert(xvidText.error.replace(':error', e.message));
         }
     }
 
@@ -1104,7 +1125,7 @@
             alert(data.message);
             window.location.reload();
         } catch (e) {
-            alert('Error: ' + e.message);
+            alert(xvidText.error.replace(':error', e.message));
         }
     }
 
@@ -1145,7 +1166,7 @@
                 alert(data.message);
             }
         } catch (e) {
-            alert('Error: ' + e.message);
+            alert(xvidText.error.replace(':error', e.message));
         }
     }
 

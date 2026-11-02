@@ -4,9 +4,19 @@ namespace App\Services;
 
 use App\Support\DurationParser;
 use App\Models\Setting;
+use App\Support\Upload18\Upload18Item;
+use App\Support\Upload18\Upload18Unavailable;
+use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
+/**
+ * The site's calls to the Upload18 API (V2.1). The key goes in the Authorization: Bearer header of every call, never in
+ * an address or a form field, so it cannot end up in an access log, a proxy log or a browser. Browsers never get the
+ * key: they get a short-lived upload token (mintUploadToken(), App\Support\Upload18\BrowserUploadKey).
+ */
 class Upload18Service
 {
     private string $apiKey;
@@ -19,11 +29,27 @@ class Upload18Service
     {
         $uploads = Setting::getGroup('uploads');
 
-        $this->apiKey = (string) ($uploads['upload18_api_key'] ?? config('services.upload18.api_key', ''));
+        $this->apiKey = trim((string) ($uploads['upload18_api_key'] ?? config('services.upload18.api_key', '')));
         $this->apiUrl = rtrim((string) ($uploads['upload18_api_url'] ?? config('services.upload18.api_url', 'https://upload18.org/api')), '/');
         $this->defaultCid = (string) ($uploads['upload18_default_cid'] ?? config('services.upload18.default_cid', '15'));
         $this->defaultMycid = (string) ($uploads['upload18_default_mycid'] ?? config('services.upload18.default_mycid', '0'));
         $this->defaultFid = (string) ($uploads['upload18_default_fid'] ?? config('services.upload18.default_fid', '18'));
+    }
+
+    public function hasKey(): bool
+    {
+        return $this->apiKey !== '';
+    }
+
+    /** The saved key (server side only: the browser gets an upload token instead). */
+    public function apiKey(): string
+    {
+        return $this->apiKey;
+    }
+
+    public function apiUrl(): string
+    {
+        return $this->apiUrl;
     }
 
     /**
@@ -59,10 +85,9 @@ class Upload18Service
             }
 
             try {
-                $response = Http::timeout(600)
+                $response = $this->client(600)
                     ->attach('video', $handle, basename($filePath))
                     ->post("{$this->apiUrl}/upload", [
-                        'apikey' => $this->apiKey,
                         'cid' => $cid,
                         'mycid' => $mycid,
                         'fid' => $fid,
@@ -74,7 +99,7 @@ class Upload18Service
             }
 
             if (!$response->successful()) {
-                Log::error("Upload18: HTTP error {$response->status()}", ['body' => $response->body()]);
+                Log::error("Upload18: HTTP error {$response->status()}", ['body' => mb_substr($response->body(), 0, 500)]);
                 throw new \Exception("Upload18 API error: HTTP {$response->status()}");
             }
 
@@ -112,10 +137,8 @@ class Upload18Service
      */
     public function getVideoDetail(string $vid): array
     {
-        $response = Http::timeout(30)
-            ->get("{$this->apiUrl}/getvideodetail/{$vid}", [
-                'apikey' => $this->apiKey,
-            ]);
+        $response = $this->client(30)
+            ->get("{$this->apiUrl}/getvideodetail/" . rawurlencode($vid));
 
         if (!$response->successful()) {
             throw new \Exception("Upload18 API error: HTTP {$response->status()}");
@@ -133,10 +156,10 @@ class Upload18Service
      */
     public function updateVideo(string $vid, array $data = []): array
     {
-        $response = Http::timeout(30)
-            ->post("{$this->apiUrl}/updatevideo/{$vid}", array_merge([
-                'apikey' => $this->apiKey,
-            ], $data));
+        unset($data['apikey']);
+
+        $response = $this->client(30)
+            ->post("{$this->apiUrl}/updatevideo/" . rawurlencode($vid), $data);
 
         if (!$response->successful()) {
             throw new \Exception("Upload18 API error: HTTP {$response->status()}");
@@ -153,10 +176,8 @@ class Upload18Service
      */
     public function deleteVideo(string $vid): bool
     {
-        $response = Http::timeout(30)
-            ->post("{$this->apiUrl}/deletevideo/{$vid}", [
-                'apikey' => $this->apiKey,
-            ]);
+        $response = $this->client(30)
+            ->post("{$this->apiUrl}/deletevideo/" . rawurlencode($vid));
 
         return $response->successful();
     }
@@ -168,9 +189,8 @@ class Upload18Service
      */
     public function listVideos(int $page = 1, int $perPage = 100): array
     {
-        $response = Http::timeout(30)
+        $response = $this->client(30)
             ->get("{$this->apiUrl}/myvideo", [
-                'apikey' => $this->apiKey,
                 'per_page' => $perPage,
                 'page' => $page,
             ]);
@@ -180,6 +200,191 @@ class Upload18Service
         }
 
         return $response->json() ?? [];
+    }
+
+    /**
+     * One page of the account's videos, for work that must tell "Upload18 is down" from "not in the list": an answer
+     * that is not a JSON list (an error page, an empty body as during Upload18's outage of 24 October) throws
+     * Upload18Unavailable instead of counting as an empty list.
+     *
+     * @return array{data: list<array>, total_page: int}
+     */
+    public function listVideosStrict(int $page = 1, int $perPage = 50, int $timeout = 20): array
+    {
+        try {
+            $response = $this->client($timeout)
+                ->get("{$this->apiUrl}/myvideo", [
+                    'per_page' => $perPage,
+                    'page' => $page,
+                ]);
+        } catch (Throwable $e) {
+            throw new Upload18Unavailable('Upload18 did not answer the video list ('.class_basename($e).').', 0, $e);
+        }
+
+        if (! $response->successful()) {
+            throw new Upload18Unavailable('Upload18 answered the video list with HTTP '.$response->status().'.');
+        }
+
+        $json = $this->decode($response);
+
+        if (! is_array($json) || ! array_key_exists('data', $json) || ! is_array($json['data'])) {
+            throw new Upload18Unavailable('Upload18 answered the video list without a list.');
+        }
+
+        return ['data' => array_values(array_filter($json['data'], 'is_array')), 'total_page' => max(1, (int) ($json['total_page'] ?? 1))];
+    }
+
+    /**
+     * The items of these dids among the account's newest videos (newest first, $maxPages pages of $perPage): one list
+     * call per page, stopping once every did was seen. Strict (Upload18Unavailable when Upload18 does not answer).
+     *
+     * @param  list<string>  $dids
+     * @return array<string, Upload18Item> did => item, only the dids found
+     */
+    public function findItems(array $dids, int $perPage = 50, int $maxPages = 3): array
+    {
+        $wanted = array_fill_keys(array_values(array_filter(array_map('strval', $dids), fn (string $did): bool => $did !== '')), true);
+        $found = [];
+
+        if ($wanted === []) {
+            return [];
+        }
+
+        $perPage = max(1, min(100, $perPage));
+        $maxPages = max(1, min(10, $maxPages));
+        $page = 1;
+        $totalPages = 1;
+
+        do {
+            $answer = $this->listVideosStrict($page, $perPage);
+            $totalPages = max($totalPages, $answer['total_page']);
+
+            foreach ($answer['data'] as $video) {
+                $item = Upload18Item::fromArray($video);
+
+                if ($item !== null && isset($wanted[$item->did]) && ! isset($found[$item->did])) {
+                    $found[$item->did] = $item;
+                }
+            }
+
+            $page++;
+        } while (count($found) < count($wanted) && $page <= $totalPages && $page <= $maxPages);
+
+        return $found;
+    }
+
+    /**
+     * One video by its vid (GET /getvideodetail/{vid}), for an upload no longer among the newest listed ones. Null when
+     * Upload18 does not know it or answers something that is not that video: the answer must name this did (its "id"),
+     * because a vid alone is public (every watch page shows it) and could belong to any upload of the account.
+     */
+    public function itemByVid(string $vid, string $did): ?Upload18Item
+    {
+        if ($vid === '' || preg_match('/^[A-Za-z0-9_-]{1,160}$/', $vid) !== 1) {
+            return null;
+        }
+
+        try {
+            $response = $this->client(15)->get("{$this->apiUrl}/getvideodetail/".rawurlencode($vid));
+        } catch (Throwable $e) {
+            throw new Upload18Unavailable('Upload18 did not answer the video detail ('.class_basename($e).').', 0, $e);
+        }
+
+        if ($response->status() === 404) {
+            return null;
+        }
+
+        if (! $response->successful()) {
+            throw new Upload18Unavailable('Upload18 answered the video detail with HTTP '.$response->status().'.');
+        }
+
+        $json = $this->decode($response);
+        $data = is_array($json) && is_array($json['data'] ?? null) ? $json['data'] : $json;
+
+        if (! is_array($data)) {
+            return null;
+        }
+
+        // The detail is of the vid it was asked for, and its id must be this upload's did: an answer without an id tells
+        // nothing about which upload it is.
+        if (($data['id'] ?? $data['did'] ?? null) === null) {
+            return null;
+        }
+
+        $data['vid'] = isset($data['vid']) && $data['vid'] !== '' ? $data['vid'] : $vid;
+        $item = Upload18Item::fromArray($data);
+
+        return $item !== null && $item->did === $did && $item->vid === $vid ? $item : null;
+    }
+
+    /**
+     * A short-lived upload token for one browser (POST /uploadtoken): the browser sends it in the apikey field instead
+     * of the key. Locked to the site's category, folder and server when they are set (Upload18 refuses an upload that
+     * asks for another one).
+     *
+     * @param  array{cid?: string|int|null, mycid?: string|int|null, fid?: string|int|null}  $locks
+     * @return array{token: string, upload_url: ?string, expires_at: ?int}
+     *
+     * @throws Upload18Unavailable when no token could be had (with Upload18's HTTP status and error code, never the key)
+     */
+    public function mintUploadToken(array $locks = [], int $expiresIn = 21600): array
+    {
+        if (! $this->hasKey()) {
+            throw new Upload18Unavailable('No Upload18 key is saved.');
+        }
+
+        $fields = ['expires_in' => max(60, min(86400, $expiresIn))];
+
+        foreach (['cid', 'mycid', 'fid'] as $lock) {
+            $value = trim((string) ($locks[$lock] ?? ''));
+
+            // 0 means "none" for these numbers (mycid 0 = no folder): only real numbers lock the token.
+            if ($value !== '' && ctype_digit($value) && (int) $value > 0) {
+                $fields[$lock] = $value;
+            }
+        }
+
+        try {
+            $response = $this->client(12)->asForm()->post("{$this->apiUrl}/uploadtoken", $fields);
+        } catch (Throwable $e) {
+            throw new Upload18Unavailable('Upload18 did not answer the upload token request ('.class_basename($e).').', 0, $e);
+        }
+
+        $json = $this->decode($response);
+        $code = is_array($json) ? (string) ($json['error_code'] ?? '') : '';
+
+        if (! $response->successful() || ! is_array($json) || strtolower((string) ($json['status'] ?? '')) !== 'success') {
+            throw new Upload18Unavailable('Upload18 made no upload token (HTTP '.$response->status().($code !== '' ? ', '.$code : '').').');
+        }
+
+        $token = is_string($json['upload_token'] ?? null) ? trim($json['upload_token']) : '';
+
+        if ($token === '' || strlen($token) > 4096 || preg_match('/^[A-Za-z0-9._~+\/=-]+$/', $token) !== 1) {
+            throw new Upload18Unavailable('Upload18 answered the upload token request without a usable token.');
+        }
+
+        return [
+            'token' => $token,
+            'upload_url' => $this->uploadUrl($json['upload_url'] ?? null),
+            'expires_at' => is_numeric($json['expires_at'] ?? null) ? (int) $json['expires_at'] : null,
+        ];
+    }
+
+    /**
+     * What the saved key may do (GET /keyinfo): the HTTP status and the decoded answer, read by
+     * App\Support\Upload18\KeyInfo. At most 4 seconds: a page or an upload start that asks never waits longer.
+     *
+     * @return array{status: int, json: mixed}
+     */
+    public function keyInfo(): array
+    {
+        if (! $this->hasKey()) {
+            return ['status' => 401, 'json' => null];
+        }
+
+        $response = $this->client(4)->get("{$this->apiUrl}/keyinfo");
+
+        return ['status' => $response->status(), 'json' => $this->decode($response)];
     }
 
     /**
@@ -215,8 +420,16 @@ class Upload18Service
      */
     public function statusForDid(string $did): array
     {
-        $video = $this->findVideoByDid($did, 50, 3);
+        return self::statusFromVideo($this->findVideoByDid($did, 50, 3));
+    }
 
+    /**
+     * The status answer of one listed video (null = not listed), as the upload page reads it.
+     *
+     * @return array{found: bool, ready: bool, vid: string, zt: string, duration: mixed, duration_seconds: int|null}
+     */
+    public static function statusFromVideo(?array $video): array
+    {
         if (!$video) {
             return [
                 'found' => false,
@@ -259,9 +472,8 @@ class Upload18Service
         while ($elapsed < $maxWaitSeconds) {
             Log::info("Upload18: Polling for vid (did={$did}), elapsed={$elapsed}s");
 
-            $response = Http::timeout(30)
+            $response = $this->client(30)
                 ->get("{$this->apiUrl}/myvideo", [
-                    'apikey' => $this->apiKey,
                     'per_page' => 20,
                 ]);
 
@@ -305,5 +517,49 @@ class Upload18Service
     public static function durationToSeconds(mixed $duration): ?int
     {
         return DurationParser::toSeconds($duration);
+    }
+
+    /** Every call: the key in the Authorization: Bearer header (Upload18 API V2.1), JSON answers. */
+    private function client(int $timeout): PendingRequest
+    {
+        return Http::timeout($timeout)
+            ->connectTimeout(min(10, $timeout))
+            ->acceptJson()
+            ->withToken($this->apiKey);
+    }
+
+    private function decode(Response $response): mixed
+    {
+        $body = ltrim($response->body(), "\xEF\xBB\xBF \t\r\n");
+
+        if ($body === '') {
+            return null;
+        }
+
+        try {
+            return json_decode($body, true, 64, JSON_THROW_ON_ERROR);
+        } catch (Throwable) {
+            return null;
+        }
+    }
+
+    /**
+     * The upload address of a token answer, for the member's browser: an https address (the token travels with every
+     * piece of the file), or an http one only when the site itself talks to Upload18 over http (a local test server).
+     * Anything else: null, and the browser uses {api}/upload.
+     */
+    private function uploadUrl(mixed $value): ?string
+    {
+        if (! is_string($value) || trim($value) === '' || strlen($value) > 2048) {
+            return null;
+        }
+
+        $value = trim($value);
+        $parts = parse_url($value);
+        $schemes = str_starts_with(strtolower($this->apiUrl), 'http://') ? ['https', 'http'] : ['https'];
+
+        return is_array($parts) && in_array(strtolower((string) ($parts['scheme'] ?? '')), $schemes, true) && ($parts['host'] ?? '') !== ''
+            ? $value
+            : null;
     }
 }

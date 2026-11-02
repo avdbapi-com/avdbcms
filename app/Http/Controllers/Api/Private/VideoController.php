@@ -5,34 +5,36 @@ namespace App\Http\Controllers\Api\Private;
 use App\Data\UploadSettings;
 use App\Enums\ThumbnailStatus;
 use App\Enums\VideoStatus;
-use App\Events\Video\VideoUploaded;
 use App\Helpers\Number;
 use App\Http\Requests\Video\CompleteUploadRequest;
 use App\Http\Requests\Video\FileRequest;
+use App\Http\Requests\Video\PendingUploadRequest;
 use App\Jobs\UploadToUpload18;
 use App\Models\Setting;
-use App\Models\Thumbnail;
+use App\Models\Upload18Claim;
 use App\Models\Video;
-use App\Support\MediaBinary;
+use App\Services\Upload18Service;
+use App\Support\Upload18\BrowserUploadKey;
+use App\Support\Upload18\ClaimRefused;
+use App\Support\Upload18\GeneratedThumbnails;
+use App\Support\Upload18\ServerThumbnails;
+use App\Support\Upload18\Upload18Item;
+use App\Support\Upload18\Upload18Unavailable;
+use App\Support\Upload18\UploadClaims;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
-use App\Http\Controllers\Api\Private\Traits\Upload18ServerStreamTrait;
-use App\Services\Upload18Service;
 use Illuminate\Support\Str;
-use Illuminate\Http\Response;
 use Illuminate\Validation\ValidationException;
-use Symfony\Component\Process\Process;
 
 class VideoController
 {
-    use Upload18ServerStreamTrait;
-
     /**
-     * Return Upload18 API config for direct browser upload.
+     * Return Upload18 API config for direct browser upload. The browser gets a short-lived upload token in "apikey",
+     * never the site's key (BrowserUploadKey).
      */
     public function getUploadConfig(): JsonResponse
     {
@@ -63,6 +65,8 @@ class VideoController
             'allow_server_fallback' => $allowServerFallback,
             'direct_only' => $directAllowed && ! $allowServerFallback,
             'status_url' => route('videos.upload18.status', [], false),
+            // "Never lose a video": where the browser says Upload18 has the whole file (a private pending draft).
+            'pending_url' => route('videos.upload18.pending', [], false),
             'cid' => $cid,
             'mycid' => $mycid,
             'fid' => $fid,
@@ -73,7 +77,20 @@ class VideoController
         ];
 
         if ($directAllowed) {
-            $payload['apikey'] = $apiKey;
+            $credential = app(BrowserUploadKey::class)->issue((string) $payload['upload_url'], [
+                'cid' => $cid,
+                'mycid' => $mycid,
+                'fid' => $fid,
+            ]);
+
+            if ($credential === null) {
+                // Neither an upload token nor a key that is safe in a browser (a master key, or one that can edit or
+                // delete, never reaches a browser): the upload panel shows this.
+                return response()->json(['error' => __('Upload18 could not start the upload. Try again in a minute.')], 503);
+            }
+
+            $payload['apikey'] = $credential['apikey'];
+            $payload['upload_url'] = $credential['upload_url'];
         }
 
         return response()->json($payload);
@@ -227,19 +244,44 @@ class VideoController
             return response()->json(['error' => __('Upload18 API key not configured.')], 500);
         }
 
+        $did = (string) $request->input('did');
+
         try {
-            $status = app(Upload18Service::class)->statusForDid((string) $request->input('did'));
+            $listed = $this->upload18()->findVideoByDid($did, 50, 3);
         } catch (\Throwable) {
             return response()->json(['error' => __('Video processing status is not available.')], 502);
         }
+
+        $status = Upload18Service::statusFromVideo($listed);
 
         $expectedVid = (string) $request->input('vid', '');
         if ($expectedVid !== '' && $status['vid'] !== '' && $status['vid'] !== $expectedVid) {
             return response()->json(['error' => __('Upload18 returned a different video ID.')], 409);
         }
 
+        // A did belongs to the first member who claimed it, for good (security plan S09): not only for the 30 minutes
+        // of the cache claim below. The vid of this browser's upload answer counts as its evidence.
+        $item = $listed !== null ? Upload18Item::fromArray($listed) : null;
+
+        if ($this->ownedByAnother($did, $item, ['vid' => $expectedVid])) {
+            return response()->json([
+                'message' => __('This Upload18 video is already claimed by another upload session.'),
+            ], 403);
+        }
+
+        // The vid plays the video: only for the member who holds this did, or for a request that brings it already
+        // (R1B-027, owner-approved 2026-10-27). Anybody else learns no vid and no length, and claims nothing.
+        if (! $this->mayKnowVid($did, $item, $status, $expectedVid)) {
+            return response()->json(array_merge($status, [
+                'ready' => false,
+                'vid' => '',
+                'duration' => null,
+                'duration_seconds' => null,
+            ]));
+        }
+
         if ($status['found']) {
-            $claimKey = $this->upload18ClaimKey((string) $request->input('did'));
+            $claimKey = $this->upload18ClaimKey($did);
             $claimedBy = Cache::get($claimKey);
             if ($claimedBy !== null && (int) $claimedBy !== (int) Auth::id()) {
                 return response()->json([
@@ -249,7 +291,7 @@ class VideoController
 
             Cache::add($claimKey, (int) Auth::id(), now()->addMinutes(30));
             Cache::put(
-                $this->upload18PendingKey((int) Auth::id(), (string) $request->input('did')),
+                $this->upload18PendingKey((int) Auth::id(), $did),
                 ['vid' => (string) ($status['vid'] ?? '')],
                 now()->addMinutes(30)
             );
@@ -259,9 +301,55 @@ class VideoController
     }
 
     /**
+     * "Never lose a video": the browser says Upload18 has the whole file (the single-POST answer or the last piece's
+     * answer carried did and vid). The site keeps a private pending draft for this member and this did, which it
+     * finishes by itself if the page is closed (App\Support\Upload18\UploadClaims). 201 with the draft, 200 when it was
+     * kept already, 202 when it could not be kept now (the normal finish still makes the video), 403/409 when this
+     * upload is refused (another member's video, a video Upload18 handed back instead of the file, another file).
+     */
+    public function announceUpload(PendingUploadRequest $request): JsonResponse
+    {
+        if (! $this->directUploadAllowed()) {
+            return response()->json([
+                'message' => __('Direct Upload18 uploads are restricted. Please log in to upload.'),
+            ], 403);
+        }
+
+        $data = $request->validated();
+
+        try {
+            $kept = app(UploadClaims::class)->announce(Auth::user(), [
+                'did' => (string) $data['did'],
+                'vid' => (string) ($data['vid'] ?? ''),
+                'filename' => (string) $data['filename'],
+                'size' => (int) $data['size'],
+                'duration' => isset($data['file_duration']) && (float) $data['file_duration'] > 0 ? (float) $data['file_duration'] : null,
+                'duplicate' => filter_var($data['duplicate'] ?? false, FILTER_VALIDATE_BOOLEAN),
+            ]);
+        } catch (ClaimRefused $refused) {
+            return response()->json($refused->payload(), $refused->status);
+        }
+
+        if (! $kept['saved'] || $kept['video'] === null || $kept['claim'] === null) {
+            return response()->json(['saved' => false], 202);
+        }
+
+        /** @var Upload18Claim $claim */
+        $claim = $kept['claim'];
+
+        return response()->json([
+            'saved' => true,
+            'video_id' => $kept['video']->id,
+            'state' => $claim->state,
+            'route' => route('user.videos.create', $kept['video']),
+        ], $claim->wasRecentlyCreated ? 201 : 200);
+    }
+
+    /**
      * Called by the browser after upload + polling completes.
      * The browser sends did (Upload18 ID) and vid (embed hash).
-     * No queue jobs needed — everything is already done.
+     * It finishes the pending draft the browser announced (no second video), or, for a page without one, creates the
+     * video as before. Safe to repeat ("Retry finishing").
      */
     public function completeUpload(CompleteUploadRequest $request): JsonResponse
     {
@@ -272,30 +360,55 @@ class VideoController
         }
 
         $data = $request->validated();
-        $did = $data['did'];
-        $vid = $data['vid'];
+        $did = (string) $data['did'];
+        // "Retry finishing" after the 10-minute wait may carry no vid (the upload answer had none and no status check
+        // said "ready"): the member's own kept draft is finished with the vid Upload18 lists; any other finish needs it.
+        $vid = (string) ($data['vid'] ?? '');
         $originalName = $data['filename'];
         $size = (int) $data['size'];
+        $fileDuration = isset($data['file_duration']) && (float) $data['file_duration'] > 0 ? (float) $data['file_duration'] : null;
         $user = Auth::user();
+        $claims = app(UploadClaims::class);
+
+        $claim = UploadClaims::forDid($did);
+
+        if ($claim !== null && (int) $claim->user_id !== (int) $user->id
+            && ! $claims->releaseIfBogus($claim, $claim->verified_at === null ? $claims->lookup($did) : null, ['vid' => $vid, 'size' => $size, 'duration' => $fileDuration])) {
+            if ($claim->verified_at !== null || $claim->state !== Upload18Claim::PENDING) {
+                return $this->refused(new ClaimRefused(UploadClaims::CLAIMED, 403));
+            }
+
+            // Another member's claim that nothing confirms yet, nor this file: decided by the next listing with a size.
+            return response()->json([
+                'message' => UploadClaims::message(UploadClaims::NOT_READY),
+                'code' => UploadClaims::NOT_READY,
+            ], 409);
+        }
+
+        if ($claim !== null && (int) $claim->user_id === (int) $user->id) {
+            return $this->completeClaim($claim->refresh(), $data, $vid, $size, $fileDuration);
+        }
 
         $existing = Video::query()
             ->where('user_id', $user->id)
             ->where(function ($query) use ($did, $vid) {
-                $query->where('upload18_vid', $did)
-                    ->orWhere('embed_code', $vid);
+                $query->where('upload18_vid', $did);
+
+                if ($vid !== '') {
+                    $query->orWhere('embed_code', $vid);
+                }
             })
             ->first();
 
         if ($existing) {
             Cache::forget($this->upload18PendingKey((int) $user->id, $did));
-            $images = $this->extractImagesFromPayload($data['thumbnails'] ?? []);
-            if (count($images) > 0) {
-                $readyCount = $existing->thumbnails()
-                    ->whereIn('status', [ThumbnailStatus::GENERATED, ThumbnailStatus::UPLOADED])
-                    ->count();
-                if ($readyCount === 0) {
-                    $this->replaceGeneratedThumbnails($existing, $images);
-                }
+
+            // Only a video that IS this upload (the same did) becomes the member's claim and gets the frames. A video
+            // matched by its embed code alone says nothing about the did of this request: it is answered as before
+            // 1.2.3 and nothing is recorded, so a member can never take another upload's did this way (S09).
+            if ((string) $existing->upload18_vid === $did) {
+                UploadClaims::recordExisting($existing, $did);
+                $this->attachFramesIfNone($existing, $data['thumbnails'] ?? []);
             }
 
             return response()->json([
@@ -305,33 +418,45 @@ class VideoController
 
         $pending = Cache::get($this->upload18PendingKey((int) $user->id, $did));
         $claimedBy = Cache::get($this->upload18ClaimKey($did));
-        if (($claimedBy !== null && (int) $claimedBy !== (int) $user->id)
+        if ($vid === ''
+            || ($claimedBy !== null && (int) $claimedBy !== (int) $user->id)
             || ! is_array($pending)
             || ($pending['vid'] ?? '') !== $vid) {
             return response()->json([
                 'message' => __('Upload18 status must be checked from this account before finalizing the upload.'),
+                'code' => 'status_required',
             ], 409);
         }
 
         if ($this->uploadWouldExceedStorageLimit($size)) {
             return response()->json([
                 'message' => __('Sorry ! Your available video storage is not enough for this file. Upgrade to Premium plan to increase your storage space.'),
+                'code' => 'storage',
             ], 403);
         }
 
         try {
-            $remoteStatus = app(Upload18Service::class)->statusForDid($did);
+            $listed = $this->upload18()->findVideoByDid($did, 50, 3);
         } catch (\Throwable) {
-            return response()->json([
-                'message' => __('Upload18 status is temporarily unavailable. Please retry finalizing in a moment.'),
-            ], 502);
+            return $this->refused(new ClaimRefused(UploadClaims::UNAVAILABLE, 502));
         }
 
-        if (!$remoteStatus['found'] || !$remoteStatus['ready'] || $remoteStatus['vid'] !== $vid) {
+        $remoteStatus = Upload18Service::statusFromVideo($listed);
+        $item = $listed !== null ? Upload18Item::fromArray($listed) : null;
+
+        if ($item === null || !$remoteStatus['found'] || !$remoteStatus['ready'] || $remoteStatus['vid'] !== $vid) {
             return response()->json([
                 'message' => __('Upload18 has not finished processing this video yet. Please wait and retry.'),
+                'code' => UploadClaims::NOT_READY,
                 'status' => $remoteStatus,
             ], 409);
+        }
+
+        // Never attach an item Upload18 handed back instead of this file, or one of another size or length.
+        if (($why = UploadClaims::mismatch($item, $vid, $size, $fileDuration)) !== null) {
+            UploadClaims::logRefused($why, $item, $originalName, $size);
+
+            return $this->refused(new ClaimRefused($why, 409));
         }
 
         $duration = $remoteStatus['duration_seconds']
@@ -341,45 +466,220 @@ class VideoController
         if ($duration && $duration > $maxDuration) {
             return response()->json([
                 'message' => __('The video duration exceeds the allowed limit.'),
+                'code' => UploadClaims::TOO_LONG,
             ], 422);
         }
 
-        $title = pathinfo($originalName, PATHINFO_FILENAME);
-
-        $video = Video::create([
-            'uuid' => Number::unique(),
-            'title' => $title,
-            'slug' => Str::slug($title),
-            'original_file_name' => $originalName,
-            'size' => $size,
-            'status' => VideoStatus::DRAFT,
-            'user_id' => $user->id,
-            'upload18_vid' => $did,
-            'embed_code' => $vid,
-            'duration' => $duration,
-            'uploaded_at' => now(),
-        ]);
-
-        $images = $this->extractImagesFromPayload($data['thumbnails'] ?? []);
-
-        if (count($images) > 0) {
-            $this->replaceGeneratedThumbnails($video, $images);
-        } else {
-            for ($i = 0; $i < Video::generatedThumbnailCount(); $i++) {
-                $video->thumbnails()->create([
-                    'status' => ThumbnailStatus::PENDING,
-                    'is_active' => $i === 0,
-                ]);
-            }
+        try {
+            $video = $claims->createFinished(
+                $user,
+                $did,
+                $item,
+                $originalName,
+                $size,
+                $fileDuration,
+                $duration ?: null,
+                GeneratedThumbnails::fromPayload($data['thumbnails'] ?? [])
+            );
+        } catch (ClaimRefused $refused) {
+            return $this->refused($refused);
         }
 
-        // Fire the video uploaded event (notifications, etc.)
-        VideoUploaded::dispatch($video);
         Cache::forget($this->upload18PendingKey((int) $user->id, $did));
 
         return response()->json([
             'route' => route('user.videos.create', $video),
         ]);
+    }
+
+    /**
+     * The finish of an upload this member announced: the pending draft gets its embed code now (once; the scheduler may
+     * have done it already), with the frames the browser captured.
+     */
+    private function completeClaim(Upload18Claim $claim, array $data, string $vid, int $size, ?float $fileDuration): JsonResponse
+    {
+        $user = Auth::user();
+        $did = $claim->did;
+        $video = $claim->video_id ? Video::query()->find($claim->video_id) : null;
+
+        if ($claim->state === Upload18Claim::DONE && $video !== null) {
+            Cache::forget($this->upload18PendingKey((int) $user->id, $did));
+            $this->attachFramesIfNone($video, $data['thumbnails'] ?? []);
+
+            return response()->json(['route' => route('user.videos.create', $video)]);
+        }
+
+        if ($claim->state !== Upload18Claim::PENDING) {
+            $code = (string) ($claim->error ?: 'failed');
+
+            return response()->json([
+                'message' => UploadClaims::message($code),
+                'code' => in_array($code, [UploadClaims::DUPLICATE, UploadClaims::MISMATCH, UploadClaims::VID_MISMATCH, UploadClaims::TOO_LONG], true) ? $code : 'failed',
+            ], 409);
+        }
+
+        try {
+            $listed = $this->upload18()->findVideoByDid($did, 50, 3);
+            $item = $listed !== null ? Upload18Item::fromArray($listed) : null;
+
+            // No longer among the newest 150 videos (a busy shared account): ask Upload18 for this one video by the vid
+            // of its upload answer, as the scheduler does. The answer counts only when it names this did.
+            $lookupVid = filled($claim->vid) ? (string) $claim->vid : $vid;
+
+            if ($item === null && $lookupVid !== '') {
+                $item = $this->upload18()->itemByVid($lookupVid, $did);
+            }
+        } catch (\Throwable) {
+            return $this->refused(new ClaimRefused(UploadClaims::UNAVAILABLE, 502));
+        }
+
+        $remoteStatus = $item?->status() ?? Upload18Service::statusFromVideo(null);
+
+        if ($item === null) {
+            return response()->json([
+                'message' => __('Upload18 has not finished processing this video yet. Please wait and retry.'),
+                'code' => UploadClaims::NOT_READY,
+                'status' => $remoteStatus,
+            ], 409);
+        }
+
+        $declaredVid = filled($claim->vid) ? (string) $claim->vid : $vid;
+        $claimSize = $claim->file_size ?: $size;
+        $claimDuration = $fileDuration ?? $claim->file_duration;
+        $why = UploadClaims::mismatch($item, $declaredVid, $claimSize, $claimDuration);
+
+        if ($why === null && $item->vid !== '' && $vid !== '' && ! hash_equals($item->vid, $vid)) {
+            $why = UploadClaims::VID_MISMATCH;
+        }
+
+        if ($why !== null) {
+            UploadClaims::logRefused($why, $item, (string) ($claim->file_name ?? ''), $claimSize);
+            app(UploadClaims::class)->fail($claim, $why, $claim->verified_at === null);
+
+            return $this->refused(new ClaimRefused($why, 409));
+        }
+
+        // Upload18 confirms the member's file (size, upload answer's vid, length): kept for good from now on.
+        app(UploadClaims::class)->confirm($claim, $item);
+
+        if (! $item->ready()) {
+            return response()->json([
+                'message' => __('Upload18 has not finished processing this video yet. Please wait and retry.'),
+                'code' => UploadClaims::NOT_READY,
+                'status' => $remoteStatus,
+            ], 409);
+        }
+
+        $duration = $item->durationForVideo();
+        $maxDuration = max(1, (int) (config('site.upload_max_duration') ?? 3600));
+
+        if ($duration !== null && $duration > $maxDuration) {
+            app(UploadClaims::class)->fail($claim, UploadClaims::TOO_LONG);
+
+            return response()->json([
+                'message' => __('The video duration exceeds the allowed limit.'),
+                'code' => UploadClaims::TOO_LONG,
+            ], 422);
+        }
+
+        $result = app(UploadClaims::class)->finish($claim, $item, GeneratedThumbnails::fromPayload($data['thumbnails'] ?? []));
+        $video = $result['video'];
+
+        if ($video === null) {
+            return response()->json([
+                'message' => UploadClaims::message('failed'),
+                'code' => 'failed',
+            ], 409);
+        }
+
+        if (! $result['finished']) {
+            // The scheduler or the draft's page finished it a moment ago: the browser's frames still count.
+            $this->attachFramesIfNone($video, $data['thumbnails'] ?? []);
+        }
+
+        Cache::forget($this->upload18PendingKey((int) $user->id, $did));
+
+        return response()->json(['route' => route('user.videos.create', $video)]);
+    }
+
+    /** The browser's frames on a video that has no ready thumbnail yet (a repeated finish never replaces chosen ones). */
+    private function attachFramesIfNone(Video $video, mixed $rawThumbnails): void
+    {
+        $images = GeneratedThumbnails::fromPayload($rawThumbnails);
+
+        if ($images !== [] && GeneratedThumbnails::readyCount($video) === 0) {
+            GeneratedThumbnails::replace($video, $images, true);
+            Upload18Claim::query()->where('video_id', $video->id)->update(['needs_thumbnails' => false]);
+        }
+    }
+
+    /**
+     * Another member holds this did (their claim, or an older video of theirs), unless Upload18's item shows that their
+     * unconfirmed claim is not their file ($newcomer: what this member's browser knows of the file).
+     *
+     * @param  array{vid?: ?string, size?: ?int, duration?: ?float}  $newcomer
+     */
+    private function ownedByAnother(string $did, ?Upload18Item $item, array $newcomer = []): bool
+    {
+        $claim = UploadClaims::forDid($did);
+
+        if ($claim === null || (int) $claim->user_id === (int) Auth::id()) {
+            return false;
+        }
+
+        return ! app(UploadClaims::class)->releaseIfBogus($claim, $item, $newcomer);
+    }
+
+    /**
+     * Whether the status check may give this member the vid of $did (and its length), R1B-027 (S09 residual; owner-
+     * approved 2026-10-27, server side only). Before, it answered the vid of any did among Upload18's newest items that
+     * had no claim: an upload made before 1.2.3 that never reached /complete, an announce that never finished, a
+     * released claim, a video the owner put on Upload18 directly; with the vid a member could play a video that never
+     * became a site video, and the length could stand in for the size check of /pending. Now:
+     *  - the request already brings the matching vid (the member's browser got it in Upload18's own upload answer, the
+     *    normal case): nothing new is learnt, answered as before;
+     *  - the member holds the did: a claim Upload18 confirmed, a finished upload, or a pending claim whose file the item
+     *    listed now confirms (the size of /pending, the vid of the upload answer, the length).
+     * Anybody else gets no vid until they have gone through /pending with its size check; between an update's file swap
+     * and its Finish (no claims table yet) nobody holds a did, so only the first case gets it.
+     *
+     * @param  array{found: bool, ready: bool, vid: string}  $status
+     */
+    private function mayKnowVid(string $did, ?Upload18Item $item, array $status, string $expectedVid): bool
+    {
+        if ($expectedVid !== '' && $status['vid'] !== '' && hash_equals($status['vid'], $expectedVid)) {
+            return true;
+        }
+
+        // No claims table yet (an update's files are in place, its Finish has not run): nobody holds this did.
+        if (! UploadClaims::available()) {
+            return false;
+        }
+
+        $claim = UploadClaims::forDid($did);
+
+        if ($claim === null || (int) $claim->user_id !== (int) Auth::id()) {
+            return false;
+        }
+
+        if ($claim->verified_at !== null || $claim->state === Upload18Claim::DONE) {
+            return true;
+        }
+
+        return $item !== null
+            && $claim->state === Upload18Claim::PENDING
+            && UploadClaims::mismatch($item, $claim->vid, $claim->file_size, $claim->file_duration) === null
+            && UploadClaims::confirms($item, $claim->vid, $claim->file_size, $claim->file_duration);
+    }
+
+    private function refused(ClaimRefused $refused): JsonResponse
+    {
+        return response()->json($refused->payload(), $refused->status);
+    }
+
+    private function upload18(): Upload18Service
+    {
+        return app(Upload18Service::class);
     }
 
     private function chunkCompletionKey(int $userId, string $identifier): string
@@ -427,7 +727,8 @@ class VideoController
 
     /**
      * Receive base64-encoded JPEG thumbnail frames captured by the browser.
-     * Save them as Thumbnail records for the video.
+     * Save them as Thumbnail records for the video. Only real JPEG pictures are kept, decoded and encoded again by
+     * this server (security plan S20): anything else is refused.
      */
     public function generateThumbnails(Request $request, Video $video): JsonResponse
     {
@@ -441,24 +742,16 @@ class VideoController
                 'required',
                 'string',
                 function (string $attribute, mixed $value, \Closure $fail) use ($maxThumbnailBytes): void {
-                    if ($this->estimatedDecodedThumbnailBytes((string) $value) > $maxThumbnailBytes) {
+                    if (GeneratedThumbnails::estimatedBytes((string) $value) > $maxThumbnailBytes) {
                         $fail(__('The thumbnail exceeds the configured max thumbnail size.'));
                     }
                 },
             ],
         ]);
 
-        foreach ($request->input('thumbnails') as $base64) {
-            if ($this->decodeGeneratedThumbnail((string) $base64, $maxThumbnailBytes) === null) {
-                throw ValidationException::withMessages([
-                    'thumbnails' => __('One or more thumbnails are invalid or exceed the configured max thumbnail size.'),
-                ]);
-            }
-        }
-
         $images = [];
         foreach ($request->input('thumbnails') as $base64) {
-            $imageData = $this->decodeGeneratedThumbnail((string) $base64, $maxThumbnailBytes);
+            $imageData = GeneratedThumbnails::decode((string) $base64, $maxThumbnailBytes);
 
             if ($imageData === null) {
                 throw ValidationException::withMessages([
@@ -469,7 +762,7 @@ class VideoController
             $images[] = $imageData;
         }
 
-        $generated = $this->replaceGeneratedThumbnails($video, $images);
+        $generated = GeneratedThumbnails::replace($video, $images, true);
 
         return response()->json([
             'success' => true,
@@ -495,57 +788,19 @@ class VideoController
         $count = max(1, min($uploadSettings->thumbnailCount, (int) $request->integer('count', $uploadSettings->thumbnailCount)));
         $maxThumbnailBytes = $uploadSettings->maxThumbnailBytes();
 
-        $images = [];
-
-        // Attempt stream extraction only if the server environment supports running CLI processes
-        if (MediaBinary::canRunProcesses() && MediaBinary::hasFfmpeg()) {
-            $streamData = $this->resolveUpload18Stream($video);
-
-            if (!empty($streamData['stream_url'])) {
-                $streamUrl = $streamData['stream_url'];
-                $tempDir = storage_path('app/tmp/server-thumbnails/' . $video->id . '-' . Str::uuid());
-
-                if (is_dir($tempDir) || mkdir($tempDir, 0775, true)) {
-                    try {
-                        $images = $this->captureServerThumbnailsFromSegments($video, $streamUrl, $count, $tempDir, $maxThumbnailBytes);
-
-                        if (count($images) === 0 && MediaBinary::hasFfprobe()) {
-                            $duration = $this->probeStreamDuration($streamUrl, $video);
-                            $positions = $this->thumbnailPositions($duration, $count);
-
-                            foreach ($positions as $index => $position) {
-                                $output = $tempDir . DIRECTORY_SEPARATOR . 'thumb-hls-' . ($index + 1) . '.jpg';
-
-                                if (!$this->captureServerThumbnail($streamUrl, $position, $output, $video)) {
-                                    continue;
-                                }
-
-                                $imageData = $this->readGeneratedJpeg($output, $maxThumbnailBytes);
-                                if ($imageData !== null) {
-                                    $images[] = $imageData;
-                                }
-                            }
-                        }
-                    } catch (\Throwable $e) {
-                        Log::warning('Server thumbnail capture exception for video ' . $video->id . ': ' . $e->getMessage());
-                    } finally {
-                        $this->deleteDirectory($tempDir);
-                    }
-                }
-            }
-        }
-
-        // If ffmpeg / stream capture was unavailable or yielded 0 images (e.g. Cloudflare blocked datacenter IP or proc_open disabled),
-        // generate branded 16:9 poster cards using PHP GD so thumbnails are NEVER left in stuck pending state!
-        if (count($images) === 0) {
-            $images = $this->generateFallbackCardThumbnails($video, $count, $maxThumbnailBytes);
-        }
+        $images = app(ServerThumbnails::class)->generate($video, $count, $maxThumbnailBytes);
 
         if (count($images) === 0) {
             return response()->json(['message' => __('Could not capture or generate thumbnails for this video.')], 422);
         }
 
-        $generated = $this->replaceGeneratedThumbnails($video, $images);
+        $generated = GeneratedThumbnails::replace($video, $images);
+
+        if (count($generated) === 0) {
+            return response()->json(['message' => __('Could not capture or generate thumbnails for this video.')], 422);
+        }
+
+        Upload18Claim::query()->where('video_id', $video->id)->update(['needs_thumbnails' => false]);
 
         return response()->json([
             'success' => true,
@@ -555,19 +810,51 @@ class VideoController
         ]);
     }
 
+    /**
+     * What the draft's page polls every 10 s. A draft still waiting for Upload18 is checked here too (at most once a
+     * minute, like the scheduler), so it is finished while the member looks at it even on a host whose scheduler does
+     * not run.
+     */
     public function createStatus(Video $video): JsonResponse
     {
+        $claim = UploadClaims::pendingFor($video);
+        $failedBecause = null;
+
+        if ($claim !== null && ($claim->next_check_at === null || $claim->next_check_at->lte(now()))) {
+            $claims = app(UploadClaims::class);
+
+            try {
+                $item = $this->upload18()->findItems([$claim->did], 50, 3)[$claim->did] ?? null;
+
+                // No longer among the newest listed videos: one detail call by the upload answer's vid (once a minute
+                // at most, like the scheduler).
+                if ($item === null && filled($claim->vid)) {
+                    $item = $this->upload18()->itemByVid((string) $claim->vid, (string) $claim->did);
+                }
+
+                $claims->settle($claim, $item, $failedBecause);
+            } catch (Upload18Unavailable) {
+                $claims->waitForUpload18($claim);
+            } catch (\Throwable $e) {
+                report($e);
+            }
+
+            $video->refresh();
+        }
+
         $video->loadMissing('thumbnails');
 
         $readyThumbnailCount = $video->thumbnails
             ->whereIn('status', [ThumbnailStatus::GENERATED, ThumbnailStatus::UPLOADED])
             ->count();
 
-        return response()->json([
+        $answer = [
             'id' => $video->id,
             'status' => $video->status?->value,
             'is_draft' => (bool) $video->is_draft,
             'is_uploading' => (bool) $video->is_uploading,
+            'is_failed' => (bool) $video->is_failed,
+            'upload18_pending' => UploadClaims::isProcessing($video),
             'upload18_vid' => $video->upload18_vid,
             'has_embed_code' => filled($video->embed_code),
             'embed_url' => $video->embed_url,
@@ -576,343 +863,15 @@ class VideoController
             'pending_thumbnail_count' => $video->thumbnails
                 ->where('status', ThumbnailStatus::PENDING)
                 ->count(),
-        ]);
-    }
-
-    private function captureServerThumbnailsFromSegments(Video $video, string $streamUrl, int $count, string $tempDir, int $maxThumbnailBytes): array
-    {
-        $manifest = $this->fetchUpload18StreamBody($video, $streamUrl);
-        if ($manifest === null || !str_contains($manifest, '#EXTM3U')) {
-            return [];
-        }
-
-        $segmentUrls = $this->collectHlsSegmentUrls($video, $streamUrl, $manifest);
-
-        $images = [];
-        $positions = [0.75, 1.5, 2.25, 3.25, 4.5, 6.0];
-
-        foreach ($segmentUrls as $segmentIndex => $segmentUrl) {
-            if (count($images) >= $count) {
-                break;
-            }
-
-            $segmentBody = $this->fetchUpload18StreamBody($video, $segmentUrl);
-            if ($segmentBody === null || strlen($segmentBody) < 1000) {
-                continue;
-            }
-
-            $segmentPath = $tempDir . DIRECTORY_SEPARATOR . 'segment-' . ($segmentIndex + 1) . '.ts';
-            file_put_contents($segmentPath, $segmentBody);
-
-            $remaining = $count - count($images);
-            $seriesPattern = $tempDir . DIRECTORY_SEPARATOR . 'thumb-segment-' . ($segmentIndex + 1) . '-%02d.jpg';
-            if ($this->captureServerThumbnailSeries($segmentPath, $remaining, $seriesPattern)) {
-                $seriesFiles = glob($tempDir . DIRECTORY_SEPARATOR . 'thumb-segment-' . ($segmentIndex + 1) . '-*.jpg') ?: [];
-                sort($seriesFiles);
-
-                foreach ($seriesFiles as $seriesFile) {
-                    if (count($images) >= $count) {
-                        break 2;
-                    }
-
-                    $imageData = $this->readGeneratedJpeg($seriesFile, $maxThumbnailBytes);
-                    if ($imageData !== null) {
-                        $images[] = $imageData;
-                    }
-                }
-            }
-
-            foreach ($positions as $positionIndex => $position) {
-                if (count($images) >= $count) {
-                    break 2;
-                }
-
-                $output = $tempDir . DIRECTORY_SEPARATOR . 'thumb-segment-' . ($segmentIndex + 1) . '-' . ($positionIndex + 1) . '.jpg';
-                if (!$this->captureServerThumbnail($segmentPath, $position, $output)) {
-                    continue;
-                }
-
-                $imageData = $this->readGeneratedJpeg($output, $maxThumbnailBytes);
-                if ($imageData !== null) {
-                    $images[] = $imageData;
-                }
-            }
-        }
-
-        return $images;
-    }
-
-    private function collectHlsSegmentUrls(Video $video, string $playlistUrl, string $manifest, int $depth = 0): array
-    {
-        if ($depth > 2) {
-            return [];
-        }
-
-        $segments = [];
-        $variants = [];
-        $urlBase = substr($playlistUrl, 0, strrpos($playlistUrl, '/') + 1);
-        $previousLine = '';
-
-        foreach (preg_split('/\r?\n/', $manifest) as $rawLine) {
-            $line = trim($rawLine);
-            if ($line === '') {
-                continue;
-            }
-
-            if (str_starts_with($line, '#')) {
-                $previousLine = $line;
-                continue;
-            }
-
-            $absoluteUrl = $this->absoluteStreamUrl($line, $urlBase);
-            $path = strtolower(parse_url($absoluteUrl, PHP_URL_PATH) ?? '');
-
-            if (str_contains($path, '.m3u8') || str_contains(strtolower($line), 'm3u8') || str_starts_with($previousLine, '#EXT-X-STREAM-INF')) {
-                $variants[] = $absoluteUrl;
-            } else {
-                $segments[] = $absoluteUrl;
-            }
-
-            $previousLine = $line;
-        }
-
-        if (count($segments) > 0) {
-            return $segments;
-        }
-
-        foreach (array_slice($variants, 0, 3) as $variantUrl) {
-            $variantManifest = $this->fetchUpload18StreamBody($video, $variantUrl);
-            if ($variantManifest === null || !str_contains($variantManifest, '#EXTM3U')) {
-                continue;
-            }
-
-            $segments = $this->collectHlsSegmentUrls($video, $variantUrl, $variantManifest, $depth + 1);
-            if (count($segments) > 0) {
-                return $segments;
-            }
-        }
-
-        return [];
-    }
-
-    private function captureServerThumbnailSeries(string $input, int $count, string $outputPattern): bool
-    {
-        if (!MediaBinary::canRunProcesses() || !MediaBinary::hasFfmpeg() || $count <= 0) {
-            return false;
-        }
-
-        $process = new Process([
-            $this->ffmpegBinary(),
-            '-y',
-            '-hide_banner',
-            '-loglevel', 'error',
-            '-i', $input,
-            '-vf', 'fps=1,scale=640:-2',
-            '-frames:v', (string) $count,
-            '-an',
-            '-q:v', '3',
-            $outputPattern,
-        ]);
-        $process->setTimeout(120);
-
-        try {
-            $process->run();
-        } catch (\Throwable) {
-            return false;
-        }
-
-        return $process->isSuccessful() && count(glob(str_replace('%02d', '*', $outputPattern)) ?: []) > 0;
-    }
-
-    private function readGeneratedJpeg(string $path, int $maxThumbnailBytes): ?string
-    {
-        $imageData = @file_get_contents($path);
-
-        if (!is_string($imageData) || $imageData === '' || strlen($imageData) > $maxThumbnailBytes || !str_starts_with($imageData, "\xff\xd8")) {
-            return null;
-        }
-
-        return $imageData;
-    }
-
-    private function replaceGeneratedThumbnails(Video $video, array $images): array
-    {
-        $generated = [];
-        $isFirst = true;
-
-        $video->thumbnails()
-            ->where(function ($q) {
-                $q->where('status', ThumbnailStatus::GENERATED)
-                  ->orWhere('status', ThumbnailStatus::PENDING);
-            })
-            ->where('video_id', $video->id)
-            ->each(function (Thumbnail $thumbnail) {
-                if ($thumbnail->file) {
-                    Storage::disk('local')->delete(Video::THUMBNAIL_FOLDER . '/' . $thumbnail->file);
-                }
-
-                $thumbnail->delete();
-            });
-
-        foreach ($images as $imageData) {
-            $filename = Str::uuid() . '.jpg';
-            Storage::disk('local')->put(Video::THUMBNAIL_FOLDER . '/' . $filename, $imageData);
-
-            $thumbnail = $video->thumbnails()->create([
-                'file' => $filename,
-                'status' => ThumbnailStatus::GENERATED,
-                'is_active' => $isFirst,
-            ]);
-
-            if ($isFirst) {
-                $video->thumbnails()
-                    ->where('id', '!=', $thumbnail->id)
-                    ->update(['is_active' => false]);
-            }
-
-            $generated[] = [
-                'id' => $thumbnail->id,
-                'url' => $thumbnail->url,
-                'status' => $thumbnail->status->value,
-                'is_active' => (bool) $thumbnail->is_active,
-            ];
-
-            $isFirst = false;
-        }
-
-        return $generated;
-    }
-
-    private function probeStreamDuration(string $streamUrl, ?Video $video = null): ?float
-    {
-        if (!MediaBinary::canRunProcesses() || !MediaBinary::hasFfprobe()) {
-            return null;
-        }
-
-        $command = [
-            $this->ffprobeBinary(),
-            '-v', 'error',
         ];
 
-        if (str_starts_with($streamUrl, 'http://') || str_starts_with($streamUrl, 'https://')) {
-            array_push($command,
-                '-user_agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            );
-
-            if ($video) {
-                array_push($command, '-headers', $this->upload18FfmpegHeaders($video));
-            }
+        // This check failed the draft (Upload18 never finished it, or its video is not the member's file): the page says
+        // why and stops asking. Its next check is refused (a failed video cannot be edited).
+        if ($video->is_failed) {
+            $answer['message'] = UploadClaims::message($failedBecause ?? 'failed');
         }
 
-        array_push($command,
-            '-show_entries', 'format=duration',
-            '-of', 'default=noprint_wrappers=1:nokey=1',
-            $streamUrl,
-        );
-
-        $process = new Process($command);
-        $process->setTimeout(75);
-        try {
-            $process->run();
-        } catch (\Throwable) {
-            return null;
-        }
-
-        if (!$process->isSuccessful()) {
-            return null;
-        }
-
-        $duration = (float) trim($process->getOutput());
-
-        return $duration > 0 ? $duration : null;
-    }
-
-    private function thumbnailPositions(?float $duration, int $count): array
-    {
-        if ($duration === null || $duration <= 1) {
-            return array_slice([0.75, 1.5, 2.25, 3.0, 4.0], 0, $count);
-        }
-
-        $positions = [];
-        $safeDuration = max(1.0, $duration - 0.5);
-
-        for ($i = 1; $i <= $count; $i++) {
-            $positions[] = max(0.5, min($safeDuration, $duration * ($i / ($count + 1))));
-        }
-
-        return $positions;
-    }
-
-    private function captureServerThumbnail(string $streamUrl, float $position, string $output, ?Video $video = null): bool
-    {
-        if (!MediaBinary::canRunProcesses() || !MediaBinary::hasFfmpeg()) {
-            return false;
-        }
-
-        $command = [
-            $this->ffmpegBinary(),
-            '-y',
-            '-hide_banner',
-            '-loglevel', 'error',
-        ];
-
-        if (str_starts_with($streamUrl, 'http://') || str_starts_with($streamUrl, 'https://')) {
-            $command[] = '-user_agent';
-            $command[] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
-
-            if ($video) {
-                $command[] = '-headers';
-                $command[] = $this->upload18FfmpegHeaders($video);
-            }
-        }
-
-        array_push($command,
-            '-ss', number_format($position, 3, '.', ''),
-            '-i', $streamUrl,
-            '-frames:v', '1',
-            '-an',
-            '-vf', 'scale=640:-2',
-            '-q:v', '3',
-            $output,
-        );
-
-        $process = new Process($command);
-        $process->setTimeout(120);
-        try {
-            $process->run();
-        } catch (\Throwable) {
-            return false;
-        }
-
-        return $process->isSuccessful() && is_file($output) && filesize($output) > 1024;
-    }
-
-    private function ffmpegBinary(): string
-    {
-        return MediaBinary::ffmpeg();
-    }
-
-    private function ffprobeBinary(): string
-    {
-        return MediaBinary::ffprobe();
-    }
-
-    private function deleteDirectory(string $path): void
-    {
-        if (!is_dir($path)) {
-            return;
-        }
-
-        $items = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($path, \FilesystemIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST
-        );
-
-        foreach ($items as $item) {
-            $item->isDir() ? @rmdir($item->getPathname()) : @unlink($item->getPathname());
-        }
-
-        @rmdir($path);
+        return response()->json($answer);
     }
 
     public function delete(Video $video): Response
@@ -942,162 +901,5 @@ class VideoController
         }
 
         return ((int) $user->uploaded_videos_size + $incomingBytes) > (int) $maxStorage;
-    }
-
-    private function decodeGeneratedThumbnail(string $payload, int $maxDecodedBytes): ?string
-    {
-        $base64 = $this->normalizeBase64Thumbnail($payload);
-
-        if ($base64 === '' || $this->estimatedDecodedThumbnailBytes($base64) > $maxDecodedBytes) {
-            return null;
-        }
-
-        $decoded = base64_decode($base64, true);
-
-        if ($decoded === false || $decoded === '' || strlen($decoded) > $maxDecodedBytes) {
-            return null;
-        }
-
-        if (!str_starts_with($decoded, "\xff\xd8")) {
-            return null;
-        }
-
-        return $decoded;
-    }
-
-    private function estimatedDecodedThumbnailBytes(string $payload): int
-    {
-        $base64 = $this->normalizeBase64Thumbnail($payload);
-
-        if ($base64 === '') {
-            return 0;
-        }
-
-        $padding = substr_count(substr($base64, -2), '=');
-
-        return max(0, (int) floor((strlen($base64) * 3) / 4) - $padding);
-    }
-
-    private function normalizeBase64Thumbnail(string $payload): string
-    {
-        $base64 = preg_replace('/^data:image\/[A-Za-z0-9.+-]+;base64,/i', '', trim($payload)) ?? '';
-
-        return preg_replace('/\s+/', '', $base64) ?? '';
-    }
-
-    private function extractImagesFromPayload(mixed $rawThumbnails): array
-    {
-        if (!is_array($rawThumbnails) || empty($rawThumbnails)) {
-            return [];
-        }
-
-        $uploadSettings = UploadSettings::fromConfig();
-        $maxThumbnailBytes = $uploadSettings->maxThumbnailBytes();
-        $images = [];
-
-        foreach ($rawThumbnails as $base64) {
-            $imageData = $this->decodeGeneratedThumbnail((string) $base64, $maxThumbnailBytes);
-            if ($imageData !== null) {
-                $images[] = $imageData;
-            }
-        }
-
-        return $images;
-    }
-
-    private function generateFallbackCardThumbnails(Video $video, int $count, int $maxThumbnailBytes): array
-    {
-        if (!function_exists('imagecreatetruecolor') || !function_exists('imagejpeg')) {
-            return [];
-        }
-
-        $themes = [
-            [
-                'bg_top' => [28, 12, 20],
-                'bg_bot' => [12, 8, 14],
-                'accent' => [239, 68, 68],
-            ],
-            [
-                'bg_top' => [16, 20, 40],
-                'bg_bot' => [8, 10, 20],
-                'accent' => [99, 102, 241],
-            ],
-            [
-                'bg_top' => [12, 26, 34],
-                'bg_bot' => [6, 14, 20],
-                'accent' => [14, 165, 233],
-            ],
-            [
-                'bg_top' => [24, 20, 12],
-                'bg_bot' => [12, 10, 6],
-                'accent' => [234, 179, 8],
-            ],
-            [
-                'bg_top' => [14, 26, 18],
-                'bg_bot' => [6, 14, 10],
-                'accent' => [34, 197, 94],
-            ],
-        ];
-
-        $width = 640;
-        $height = 360;
-        $images = [];
-        $title = $video->title ?: 'Video';
-
-        for ($i = 0; $i < $count; $i++) {
-            $theme = $themes[$i % count($themes)];
-            $im = @imagecreatetruecolor($width, $height);
-            if (!$im) {
-                continue;
-            }
-
-            // Vertical subtle gradient
-            for ($y = 0; $y < $height; $y++) {
-                $ratio = $y / $height;
-                $r = (int) ($theme['bg_top'][0] + ($theme['bg_bot'][0] - $theme['bg_top'][0]) * $ratio);
-                $g = (int) ($theme['bg_top'][1] + ($theme['bg_bot'][1] - $theme['bg_top'][1]) * $ratio);
-                $b = (int) ($theme['bg_top'][2] + ($theme['bg_bot'][2] - $theme['bg_top'][2]) * $ratio);
-                $color = imagecolorallocate($im, $r, $g, $b);
-                imageline($im, 0, $y, $width, $y, $color);
-            }
-
-            // Ambient glow circle in center
-            $glowColor = imagecolorallocatealpha($im, $theme['accent'][0], $theme['accent'][1], $theme['accent'][2], 100);
-            imagefilledellipse($im, (int) ($width / 2), (int) ($height / 2), 150, 150, $glowColor);
-
-            // Center button circle
-            $buttonColor = imagecolorallocatealpha($im, $theme['accent'][0], $theme['accent'][1], $theme['accent'][2], 25);
-            imagefilledellipse($im, (int) ($width / 2), (int) ($height / 2), 76, 76, $buttonColor);
-
-            // Center play triangle
-            $white = imagecolorallocate($im, 255, 255, 255);
-            $cx = (int) ($width / 2);
-            $cy = (int) ($height / 2);
-            $points = [
-                $cx - 10, $cy - 16,
-                $cx - 10, $cy + 16,
-                $cx + 16, $cy,
-            ];
-            imagefilledpolygon($im, $points, 3, $white);
-
-            // Clean bottom title label
-            $safeTitle = mb_strimwidth($title, 0, 46, '...');
-            $textColor = imagecolorallocate($im, 220, 225, 235);
-            $font = 4;
-            $textWidth = imagefontwidth($font) * strlen($safeTitle);
-            $tx = max(20, (int) (($width - $textWidth) / 2));
-            imagestring($im, $font, $tx, $height - 36, $safeTitle, $textColor);
-
-            ob_start();
-            imagejpeg($im, null, 85);
-            $data = ob_get_clean();
-            imagedestroy($im);
-
-            if (is_string($data) && strlen($data) > 100 && strlen($data) <= $maxThumbnailBytes && str_starts_with($data, "\xff\xd8")) {
-                $images[] = $data;
-            }
-        }
-
-        return $images;
     }
 }

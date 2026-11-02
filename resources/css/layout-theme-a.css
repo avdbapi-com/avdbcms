@@ -1,5 +1,5 @@
 /*
- * Theme CSS, part A. Served as a cached build file (perf plan step 24, App\Support\ThemeCss).
+ * Theme CSS, part A. Served as a cached build file (App\Support\ThemeCss).
  *
  * Theme v2: every colour, surface, border, radius, shadow and font below reads the theme tokens
  * (theme_spec token_contract) that the active theme's token file defines on html[data-bs-theme]
@@ -331,7 +331,7 @@ html[data-avd-header-style="transparent_overlay"] .avd-header {
         box-shadow: 0 1px 0 var(--avd-border);
     }
 }
-/* Two-row bar (megabar, masthead): WP5's second row of section links. */
+/* Two-row bar (megabar, masthead): the second row of section links. */
 html[data-avd-header-style="full_megabar"] .avd-header {
     flex-direction: column;
     align-items: stretch;
@@ -460,6 +460,18 @@ html[data-avd-header-deco="crest"] .avd-brand-mark i {
     opacity: 1;
     font-weight: 750;
 }
+/* R1-064: the header's links are 24px targets at least (12px tall in Imperial Salon's 12px/1 type, 21px in Cinema Night).
+   Zero specificity: any larger size the header's own rules give them wins. */
+:where(.avd-hnav a) {
+    display: inline-flex;
+    align-items: center;
+    min-block-size: 24px;
+}
+/* The crest's brand mark is 22px wide, and on phones it is all the brand link shows (header.scss lets the link shrink to
+   its content with min-width: 0): the link keeps a 24px target. The other looks' marks are 30px and wider. */
+html[data-avd-header-deco="crest"] .avd-brand {
+    min-inline-size: 24px;
+}
 html[data-avd-header-deco="crest"] .avd-hnav {
     font: 600 12px/1 var(--avd-font-body);
     letter-spacing: .2em;
@@ -576,12 +588,47 @@ html[data-avd-theme][data-avd-sidebar-style][data-avd-back-office] {
     html[data-avd-sidebar-style="rail"] .show_sidebar .avd-sidebar-section .nav {
         flex-wrap: nowrap;
     }
+    /* Rail labels take two lines before they cut (watch-19: "Subscripti...", "Discover c..."), and a subscribed
+       channel stacks its avatar over its name inside the rail (its name was clipped without an ellipsis and its avatar
+       ran past the screen edge). They break between words only, with a hyphen where the page's language allows it; a
+       single word wider than the rail gets a smaller size until it fits (resources/js/layout/core.ts, data-avd-rail-fit;
+       the line height stays, so nothing moves), and only a word that does not fit at 8.5px breaks where it must. */
     html[data-avd-sidebar-style="rail"] .show_sidebar .avd-sidebar-link .text-sm {
+        display: -webkit-box;
         font-size: 10.5px;
+        line-height: 12.6px;
         max-width: 100%;
         overflow: hidden;
-        text-overflow: ellipsis;
+        overflow-wrap: normal;
+        word-break: normal;
+        -webkit-hyphens: auto;
+        hyphens: auto;
+        white-space: normal;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+    }
+    html[data-avd-sidebar-style="rail"] .show_sidebar .avd-sidebar-link .text-sm[data-avd-rail-fit="break"] {
+        overflow-wrap: anywhere;
+    }
+    /* An entry with a long name (the Premium link: "<site name> Premium") shows its short rail label; the full name stays
+       its accessible name and its tooltip. */
+    html[data-avd-sidebar-style="rail"] .show_sidebar .avd-sidebar-link .avd-sidebar-label-full {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
         white-space: nowrap;
+    }
+    html[data-avd-sidebar-style="rail"] .show_sidebar .avd-sidebar-link > span.d-flex {
+        flex-direction: column;
+        align-items: center;
+        gap: 6px !important;
+        max-width: 100%;
+        min-width: 0;
+    }
+    html[data-avd-sidebar-style="rail"] .show_sidebar .avd-sidebar-link > span.d-flex .text-sm {
+        text-overflow: ellipsis;
     }
     html[data-avd-sidebar-style="rail"] .show_sidebar .avd-sidebar-link.menu-selected::after {
         top: 14px;
@@ -627,6 +674,10 @@ html[data-avd-theme][data-avd-sidebar-style][data-avd-back-office] {
     html[data-avd-sidebar-style="hidden"] body.has-sidebar .avd-header .avd-sidebar-toggle {
         display: inline-flex;
     }
+}
+/* The short rail label of a long entry (the Premium link) shows on the icon rail only (above). */
+html .avd-sidebar-link .avd-sidebar-label-rail {
+    display: none;
 }
 /* Start menu (Vaporwave): a bevelled panel with a vertical title strip. */
 html[data-avd-sidebar-style="startmenu"] .avd-sidebar-body {
@@ -745,7 +796,7 @@ html[data-avd-chip-style="clipped_outline"] .avd-tag {
     font-size: 12.5px;
 }
 
-/* Section heads (base in video.scss): the theme's section style (data-avd-section-style). WP5 markup:
+/* Section heads (base in video.scss): the theme's section style (data-avd-section-style). Markup:
    [.avd-sec-ico] h2 [.avd-sec-rule] [.avd-page-kicker] .avd-discovery-link inside .avd-discovery-head. */
 .avd-sec-rule {
     flex: 1;
@@ -1237,6 +1288,25 @@ html[data-avd-category-card-style="minimal_flat"] .avd-category-card:hover {
     border-color: var(--avd-info-fill) !important;
     color: var(--avd-on-info) !important;
 }
+/* perf-20: the status buttons keep their fitted fills (the !important bridge above), so a hover changed no property
+   and only the pointer magnet answered it (perf-1). A veil of the label colour over the fill marks the hover, like the
+   member kit's buttons: colour only, no geometry. */
+@media (hover: hover) and (pointer: fine) {
+    .btn-success:not(:disabled):not(.disabled):hover,
+    .btn-warning:not(:disabled):not(.disabled):hover,
+    .btn-danger:not(:disabled):not(.disabled):hover,
+    .btn-info:not(:disabled):not(.disabled):hover {
+        box-shadow: inset 0 0 0 100vmax rgba(var(--avd-shade-rgb, 0, 0, 0), 0.14);
+    }
+    @supports (color: color-mix(in srgb, red, blue)) {
+        .btn-success:not(:disabled):not(.disabled):hover,
+        .btn-warning:not(:disabled):not(.disabled):hover,
+        .btn-danger:not(:disabled):not(.disabled):hover,
+        .btn-info:not(:disabled):not(.disabled):hover {
+            box-shadow: inset 0 0 0 100vmax color-mix(in srgb, currentColor 12%, transparent);
+        }
+    }
+}
 .btn-outline-primary {
     border-color: var(--avd-brand-fill) !important;
     color: var(--avd-brand-ink) !important;
@@ -1356,19 +1426,15 @@ html[data-avd-scroll-active="1"][data-avd-tier] .avd-header {
     contain-intrinsic-size: auto 190px auto 118px;
 }
 .avd-rail-nav-btn {
-    transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease !important;
+    transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease, color 120ms ease !important;
     cursor: pointer;
 }
 .avd-rail-nav-btn:hover {
     background: var(--avd-surface-3) !important;
     border-color: var(--avd-border-strong) !important;
-    transform: scale(1.1);
 }
 .avd-rail-nav-btn:hover i {
     color: var(--avd-text) !important;
-}
-.avd-rail-nav-btn:active {
-    transform: scale(0.92);
 }
 .avd-rail-nav-btn:focus-visible {
     outline: 3px solid var(--avd-focus);
@@ -1417,25 +1483,34 @@ button, input, select, textarea, .btn, .nav-link, .badge {
 [data-avd-tilt-3d="on"] .avd-short-card {
     transition: transform 0.15s ease-out, box-shadow 0.25s ease;
 }
-/* Quick Action Toolbar on Video Cards */
+/* Corner places on a card's picture (the quality and NEW badges, the quick actions, a status chip), logical so Arabic
+   mirrors them (Bootstrap's start-0 / end-0 are physical in this build: in Arabic the quick actions of the watch page's
+   related cards sat on the player's side, where the player's ambient glow kept repainting under them). */
+.avd-at-start {
+    inset-inline-start: 0;
+}
+.avd-at-end {
+    inset-inline-end: 0;
+}
+/* Quick Action Toolbar on Video Cards: it fades in with the card's hover (it used to slide 3px too), and its buttons
+   change colour and shadow only (they grew 14% under the pointer). */
 .avd-thumb-actions {
-    transition: opacity 0.22s ease, transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
-    transform: translateY(-3px);
+    transition: opacity 120ms ease;
     z-index: 10;
 }
 .avd-thumb:hover .avd-thumb-actions,
-.avd-video-card:hover .avd-thumb-actions {
+.avd-video-card:hover .avd-thumb-actions,
+.avd-thumb:focus-within .avd-thumb-actions,
+.avd-video-card:focus-within .avd-thumb-actions {
     opacity: 1 !important;
-    transform: translateY(0) !important;
 }
 .avd-thumb-actions .btn {
-    transition: transform 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+    transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
 }
 .avd-thumb-actions .btn:hover {
     background: var(--avd-brand-fill) !important;
     border-color: var(--avd-brand-fill) !important;
     color: var(--avd-on-brand) !important;
-    transform: scale(1.14);
     box-shadow: 0 4px 14px var(--avd-glow) !important;
 }
 /* 4K UHD & High-Res badge (colours: the bridge's warning fill) */
@@ -1569,50 +1644,16 @@ html[data-avd-perf="lite"][data-avd-surface-noise="on"] body.avd-app::after {
     content: none;
 }
 
-/* Liquid Glow Button Shimmer & Micro-Tactile Physics */
+/* Liquid shimmer ("Shine on main buttons", button_liquid_shimmer_enabled; member design 4.2, OD-M16): the setting
+   keeps a STATIC sheen on the main buttons, drawn in layout-theme-b.css ("Liquid shimmer"). The 0.65 s streak that
+   swept this ::after on every hover, the second 1.25 s endless sweep and the press scale are gone: no button moves,
+   sweeps or loops on hover. */
 [data-avd-liquid-shimmer="on"] .btn-primary,
 [data-avd-liquid-shimmer="on"] .btn-danger,
 [data-avd-liquid-shimmer="on"] .avd-btn-shimmer,
 [data-avd-liquid-shimmer="on"] .avd-play-btn {
     position: relative;
     overflow: hidden;
-    transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s ease;
-}
-/* The streak sweeps with transform (compositor) instead of `left` (layout + paint
-   per frame). translateX(430%) of the 50%-wide streak = the old 215% left travel.
-   right/bottom auto: motion.scss gives this ::after inset:-1px, which over-constrains
-   the box; in RTL that used to pin the streak to right:-1px so it never swept. */
-[data-avd-liquid-shimmer="on"] .btn-primary::after,
-[data-avd-liquid-shimmer="on"] .btn-danger::after,
-[data-avd-liquid-shimmer="on"] .avd-btn-shimmer::after,
-[data-avd-liquid-shimmer="on"] .avd-play-btn::after {
-    content: "";
-    position: absolute;
-    top: -50%;
-    bottom: auto;
-    inset-inline-start: -75%;
-    inset-inline-end: auto;
-    width: 50%;
-    height: 200%;
-    background: linear-gradient(90deg, transparent, rgba(var(--avd-glint-rgb), 0.38), transparent);
-    transform: translateX(0) rotate(35deg);
-    pointer-events: none;
-    transition: transform 0.65s ease;
-}
-[data-avd-liquid-shimmer="on"] .btn-primary:hover::after,
-[data-avd-liquid-shimmer="on"] .btn-danger:hover::after,
-[data-avd-liquid-shimmer="on"] .avd-btn-shimmer:hover::after,
-[data-avd-liquid-shimmer="on"] .avd-play-btn:hover::after {
-    transform: translateX(430%) rotate(35deg);
-}
-[dir="rtl"][data-avd-liquid-shimmer="on"] .btn-primary:hover::after,
-[dir="rtl"][data-avd-liquid-shimmer="on"] .btn-danger:hover::after,
-[dir="rtl"][data-avd-liquid-shimmer="on"] .avd-btn-shimmer:hover::after,
-[dir="rtl"][data-avd-liquid-shimmer="on"] .avd-play-btn:hover::after {
-    transform: translateX(-430%) rotate(35deg);
-}
-[data-avd-liquid-shimmer="on"] .btn:active {
-    transform: translateY(1.5px) scale(0.985) !important;
 }
 
 /* Reactive Video Player Ambilight Halo Glow (the ::after halo itself is defined once,
@@ -2004,10 +2045,29 @@ html[data-avd-back-to-top-style="floating_pill"] .back-to-top {
     align-items: center !important;
     gap: 8px !important;
 }
+/* The pill's label is the translated text the layout prints in data-label ("Top" was a fixed English word in every
+   language). It is plain text in the flow: no glow layer, no blur. */
 html[data-avd-back-to-top-style="floating_pill"] .back-to-top::after {
-    content: "Top";
+    content: attr(data-label);
+    position: static;
     font-size: 0.8rem;
     font-weight: 700;
+    line-height: 1;
+    white-space: nowrap;
+}
+/* On phones the floating pill keeps its icon only (40px): with its label it covered the duration badge and the quick
+   actions of the cards in the end column (channel-36). Its name stays "Back to top". Here, after the pill's own rules
+   (same weight), so it wins: in responsive.scss the pill's width:auto and label above overrode it. */
+@media (max-width: 767.98px) {
+    html[data-avd-back-to-top-style="floating_pill"] .back-to-top {
+        width: 40px !important;
+        padding: 0 !important;
+        gap: 0 !important;
+        justify-content: center !important;
+    }
+    html[data-avd-back-to-top-style="floating_pill"] .back-to-top::after {
+        content: none;
+    }
 }
 html[data-avd-back-to-top-style="round_icon"] .back-to-top {
     width: 44px !important;
@@ -2094,14 +2154,21 @@ html[data-avd-cinema-diffusion="on"] .avd-player-wrap::before {
     opacity: 0.85;
 }
 
-/* Mobile Touch & Safe Area Ergonomics */
+/* Mobile Touch & Safe Area Ergonomics. The phone bottom bar is z 1030 (member design 4.4, watch-20): over the ad
+   strip (1028) and the member bars, under every sheet backdrop (1040), which dims it while a menu or sheet is open. */
 .avd-mobile-bottom-nav {
     background: var(--avd-surface-solid);
     border-top: 1px solid var(--avd-border);
-    z-index: 1040;
+    z-index: 1030;
     box-shadow: 0 -8px 24px rgba(var(--avd-shade-rgb), 0.35);
     padding-bottom: env(safe-area-inset-bottom, 0px);
     touch-action: manipulation;
+}
+/* watch-31: the bar is the 68px of member design 4.4 (it was 75px: py-2 around 58px items), so the ad strip sits
+   its 8px above it and --avd-bottom-chrome is the room it really takes. */
+:root .avd-mobile-bottom-nav > div {
+    min-height: 67px;
+    padding-block: 0 !important;
 }
 .avd-mob-nav-item {
     display: flex;
@@ -2122,7 +2189,12 @@ html[data-avd-cinema-diffusion="on"] .avd-player-wrap::before {
     touch-action: manipulation;
 }
 .avd-mob-nav-item i { font-size: 1.15rem; }
-.avd-mob-nav-item.active, .avd-mob-nav-item:hover { color: var(--avd-brand-ink); }
+.avd-mob-nav-item.active, .avd-mob-nav-item[aria-current="page"] { color: var(--avd-text); }
+.avd-mob-nav-item.active i, .avd-mob-nav-item[aria-current="page"] i { color: var(--avd-brand-ink); }
+@media (hover: hover) and (pointer: fine) {
+    .avd-mob-nav-item:hover { color: var(--avd-brand-ink); }
+}
+.avd-mob-nav-item:focus-visible { outline-offset: -2px; }
 .avd-mob-special .avd-mob-fab {
     width: 42px;
     height: 42px;
@@ -2134,28 +2206,30 @@ html[data-avd-cinema-diffusion="on"] .avd-player-wrap::before {
     color: var(--avd-btn-text);
     box-shadow: 0 0 0 4px var(--avd-surface-solid);
     margin-top: -14px;
-    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    transition: box-shadow 120ms ease, opacity 120ms ease;
 }
-.avd-mob-special .avd-mob-fab:active {
-    transform: scale(0.92);
+.avd-mob-special:active .avd-mob-fab {
+    opacity: 0.86;
 }
 .avd-mob-special .avd-mob-fab i { font-size: 1.1rem; }
 
 @media (max-width: 767.98px) {
+    /* The page keeps exactly the room of what is fixed on its bottom edge (--avd-bottom-chrome, resources/sass/member/
+       _shared.scss: the 68px bar, plus 8px and the measured ad strip), so the last row of a list is never under them. */
     body.avd-app.has-bottom-nav {
-        padding-bottom: calc(68px + env(safe-area-inset-bottom, 0px)) !important;
+        padding-bottom: var(--avd-bottom-chrome, calc(68px + env(safe-area-inset-bottom, 0px))) !important;
     }
     body.avd-app.has-bottom-nav.has-mobile-ad {
-        padding-bottom: calc(142px + env(safe-area-inset-bottom, 0px)) !important;
+        padding-bottom: var(--avd-bottom-chrome, calc(142px + env(safe-area-inset-bottom, 0px))) !important;
     }
     body.has-bottom-nav .ad-slot-mobile {
-        bottom: calc(68px + env(safe-area-inset-bottom, 0px) + 0.5rem) !important;
-        z-index: 1030 !important;
+        bottom: calc(68px + env(safe-area-inset-bottom, 0px) + 8px) !important;
+        z-index: 1028 !important;
         width: auto !important;
         max-width: calc(100vw - 1rem) !important;
     }
     .avd-mobile-bottom-nav {
-        z-index: 1040 !important;
+        z-index: 1030 !important;
     }
     input, select, textarea {
         font-size: 16px !important; /* Prevents iOS Safari from auto-zooming viewport */

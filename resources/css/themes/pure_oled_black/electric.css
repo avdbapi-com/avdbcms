@@ -15,7 +15,7 @@ html[data-bs-theme="dark"][data-avd-flavor="electric"] {
   --avd-accent-fill: #93c5fd;
   --avd-brand-gradient: linear-gradient(135deg, #1d6bff 0%, #1e3a8a 100%);
   --avd-focus: #4482f7;
-  --avd-btn-bg: #1d6bff;
+  --avd-btn-bg: #1c6afe;
   --avd-badge-bg: #1d6bff;
   --avd-new-bg: #93c5fd;
   --avd-kicker-color: #4482f7;
@@ -48,7 +48,7 @@ html[data-bs-theme="light"][data-avd-flavor="electric"] {
   --avd-on-accent: #141414;
   --avd-brand-gradient: linear-gradient(135deg, #1d6bff 0%, #1e3a8a 100%);
   --avd-focus: #0b5cf0;
-  --avd-btn-bg: #1d6bff;
+  --avd-btn-bg: #1c6afe;
   --avd-badge-bg: #1d6bff;
   --avd-new-bg: #93c5fd;
   --avd-new-text: #141414;

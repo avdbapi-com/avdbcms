@@ -30,7 +30,9 @@
     <template id="ad-language-menu">
         <a href="{{ route('admin.languages.edit', ['locale' => '__CODE__'], false) }}">{{ AdminTheme::icon('pencil') }}{{ __('Edit translations') }}</a>
         <a href="{{ route('admin.languages.edit-meta', ['language' => '__ID__'], false) }}">{{ AdminTheme::icon('sliders') }}{{ __('Language settings') }}</a>
-        <a href="{{ route('admin.languages.export', ['locale' => '__CODE__'], false) }}" data-ad-if="file">{{ AdminTheme::icon('download') }}{{ __('Download the JSON file') }}</a>
+        @unless (\App\Http\Middleware\ViewOnlyDemo::hides('admin.languages.export'))
+            <a href="{{ route('admin.languages.export', ['locale' => '__CODE__'], false) }}" data-ad-if="file">{{ AdminTheme::icon('download') }}{{ __('Download the JSON file') }}</a>
+        @endunless
         <hr>
         <button type="submit" form="ad-language-default" formaction="{{ route('admin.languages.set-default', ['language' => '__ID__'], false) }}" data-ad-when="active" data-ad-expect="default">{{ AdminTheme::icon('star') }}{{ __('Make default') }}</button>
         <button type="submit" form="ad-language-toggle" formaction="{{ route('admin.languages.toggle-active', ['language' => '__ID__'], false) }}" data-ad-when="active" data-ad-expect="inactive" data-ad-done="{{ __('Language turned off') }}" data-ad-undo-url="{{ route('admin.languages.toggle-active', ['language' => '__ID__'], false) }}">{{ AdminTheme::icon('eye-off') }}{{ __('Turn off') }}</button>
@@ -94,4 +96,13 @@
         </form>
     </section>
     {!! preg_replace('/\n\s+/', "\n", (string) ob_get_clean()) !!}
+
+    {{-- The settings cards of this page in config/admin_settings.php (settings.languages), saved like every settings page (one save
+         bar). Outside the compacted list markup above, so a text box keeps its line breaks. --}}
+    @php($settingsForm = app(\App\Http\Controllers\Admin\SettingsPageController::class)->form(request(), 'settings.languages'))
+    @if ($settingsForm['cards'] !== [] || $settingsForm['advancedCards'] !== [] || $settingsForm['developerOnly'] !== [])
+        <div class="ad-page-settings" id="page-settings" style="margin-top:40px">
+            @include('admin.settings.partials.form', $settingsForm)
+        </div>
+    @endif
 @endsection

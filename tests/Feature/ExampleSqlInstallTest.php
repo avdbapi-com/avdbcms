@@ -111,6 +111,39 @@ class ExampleSqlInstallTest extends TestCase
         ], $this->premiumComparison());
     }
 
+    public function test_a_new_site_signs_in_its_owner_and_no_bundled_account(): void
+    {
+        $pdo = $this->createDatabase();
+
+        // "Import SQL backup", the migrations, then the owner's account from the wizard (Installer::installDatabaseAndSite())
+        $installer = app(Installer::class);
+        (new ReflectionMethod($installer, 'importSqlBackup'))->invoke($installer, $pdo, database_path('install/example.sql'));
+        $this->migrate();
+        $bundled = $this->db()->table('users')->orderBy('id')->get(['id', 'username', 'email', 'is_admin'])->all();
+        config(['database.default' => self::CONNECTION, 'site.captcha_provider' => 'none', 'site.login_rate_limit' => 1000]);
+        (new ReflectionMethod($installer, 'configureAdmin'))->invoke($installer, ['username' => 'site_owner', 'email' => 'owner@example.org', 'password' => 'Owner-pass-2026!']);
+
+        // the bundled admin row became the owner's account, and the owner signs in with the wizard's password
+        $owner = $this->db()->table('users')->where('username', 'site_owner')->first();
+        $this->assertNotNull($owner);
+        $this->assertSame((int) collect($bundled)->firstWhere('is_admin', 1)->id, (int) $owner->id);
+        $this->post(route('login.perform'), ['username' => 'site_owner', 'password' => 'Owner-pass-2026!'])->assertRedirect();
+        $this->assertAuthenticated();
+        $this->assertSame((int) $owner->id, (int) auth()->id());
+        auth()->logout();
+        $this->app['auth']->forgetGuards();
+
+        // no bundled account opens with a password people try (the admin row's old name included)
+        foreach ($bundled as $account) {
+            foreach ([$account->username, $account->email] as $name) {
+                foreach (['password', 'admin', 'demo', '12345678', 'Demo@2026'] as $password) {
+                    $this->post(route('login.perform'), ['username' => $name, 'password' => $password]);
+                    $this->assertGuest();
+                }
+            }
+        }
+    }
+
     private function createDatabase(): PDO
     {
         $host = (string) getenv('AVD_TEST_MYSQL_HOST');

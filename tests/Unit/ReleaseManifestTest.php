@@ -232,6 +232,85 @@ class ReleaseManifestTest extends TestCase
         $this->assertStringContainsString('a folder a release does not have', $out);
     }
 
+    public function test_scripts_get_lf_line_endings_and_nothing_else_changes(): void
+    {
+        // R1B-022: the packaged artisan had CRLF on all its lines, so "./artisan" on Linux failed with
+        // "/usr/bin/env: 'php\r': No such file or directory". The project's own artisan (CRLF in a Windows tree) goes
+        // through the same command as the build's staging copy.
+        $artisan = (string) file_get_contents(base_path('artisan'));
+        $files = [
+            'artisan' => $artisan,
+            'vendor/bin/carbon' => "#!/usr/bin/env php\r\n<?php\r\ninclude __DIR__.'/../nesbot/carbon/bin/carbon';\r\n",
+            'vendor/symfony/intl/Resources/bin/compile' => "#!/usr/bin/env bash\r\nset -e\r\n",
+            'docker/run.sh' => "set -e\r\necho ok\r\n",
+            'lone-cr.sh' => "#!/bin/sh\r\necho a\rb\r\n",
+            // never touched: Windows files need their CRLF, PHP reads either, a binary is never rewritten
+            'vendor/bin/carbon.bat' => "@ECHO OFF\r\nphp \"%~dp0carbon\" %*\r\n",
+            'app/Kept.php' => "<?php\r\n// CRLF stays in PHP\r\n",
+            'bin/linux-x64/ffmpeg' => "#!\x00\x01binary\r\nbytes\r\n",
+            'already.sh' => "#!/bin/sh\necho lf\n",
+        ];
+        $stage = $this->stage('1.2.3', $files);
+
+        [$code, $out] = $this->tool('scripts', '--stage=' . $stage);
+
+        $this->assertSame(0, $code, $out);
+        $this->assertStringContainsString('given LF line endings (CRLF fails on Linux)', $out);
+        $this->assertSame(str_replace("\r\n", "\n", $artisan), File::get($stage . '/artisan'));
+        $this->assertStringStartsWith("#!/usr/bin/env php\n", File::get($stage . '/artisan'));
+        $this->assertStringNotContainsString("\r", File::get($stage . '/artisan'));
+        $this->assertSame("#!/usr/bin/env php\n<?php\ninclude __DIR__.'/../nesbot/carbon/bin/carbon';\n", File::get($stage . '/vendor/bin/carbon'));
+        $this->assertSame("#!/usr/bin/env bash\nset -e\n", File::get($stage . '/vendor/symfony/intl/Resources/bin/compile'));
+        $this->assertSame("set -e\necho ok\n", File::get($stage . '/docker/run.sh'), 'a shell file without a #! line too');
+        $this->assertSame("#!/bin/sh\necho a\rb\n", File::get($stage . '/lone-cr.sh'), 'only CR LF pairs become LF');
+        foreach (['vendor/bin/carbon.bat', 'app/Kept.php', 'bin/linux-x64/ffmpeg', 'already.sh'] as $path) {
+            $this->assertSame($files[$path], File::get($stage . '/' . $path), $path . ' keeps its bytes');
+            $this->assertStringNotContainsString($path, $out);
+        }
+        foreach (['vendor/bin/carbon', 'vendor/symfony/intl/Resources/bin/compile', 'docker/run.sh', 'lone-cr.sh'] as $path) {
+            $this->assertStringContainsString($path, $out);
+        }
+
+        // Run again (a -FromStaging build of the same folder): nothing left to do.
+        $this->assertSame([0, 'Line endings: every script has LF line endings'], $this->tool('scripts', '--stage=' . $stage));
+        $this->assertSame(2, $this->tool('scripts')[0], 'the stage is required');
+    }
+
+    public function test_verify_refuses_a_zip_whose_scripts_have_crlf_line_endings(): void
+    {
+        $this->requireZip();
+        $stage = $this->stage('1.2.3', ['index.php' => "<?php\n", 'artisan' => "#!/usr/bin/env php\r\n<?php\r\necho 1;\r\n"]);
+        $this->assertSame(0, $this->tool('manifest', '--stage=' . $stage)[0]);
+
+        [$code, $out] = $this->tool('verify', '--stage=' . $stage, '--zip=' . $this->zip($stage, 'crlf.zip', false), '--kind=update');
+
+        $this->assertSame(1, $code, $out);
+        $this->assertStringContainsString("crlf.zip: scripts with CRLF line endings (on Linux they fail with /usr/bin/env: 'php\\r'): artisan.", $out);
+
+        // The build's order: the scripts first, then the manifest and the zips, which verify takes.
+        $this->assertSame(0, $this->tool('scripts', '--stage=' . $stage)[0]);
+        $this->assertSame(0, $this->tool('manifest', '--stage=' . $stage)[0]);
+        [$code, $out] = $this->tool('verify', '--stage=' . $stage, '--zip=' . $this->zip($stage, 'lf.zip', false), '--kind=update');
+        $this->assertSame(0, $code, $out);
+        $this->assertSame(hash('sha256', "#!/usr/bin/env php\n<?php\necho 1;\n"), Manifest::parse(File::get($stage . '/avdbcms-manifest.json'))->files['artisan'],
+            'the manifest hashes the LF copy the zip carries');
+    }
+
+    public function test_the_release_build_gives_the_scripts_lf_line_endings_before_the_manifest(): void
+    {
+        $script = (string) file_get_contents(base_path('scripts/build-community-release.ps1'));
+        $start = strpos($script, 'function Invoke-ReleasePackaging');
+        $this->assertNotFalse($start, 'the packaging step of the build');
+        $body = substr($script, (int) $start);
+
+        $scripts = strpos($body, "Invoke-ReleaseTool @('scripts', \"--stage=\$Stage\")");
+        $manifest = strpos($body, "\$manifestArgs = @('manifest'");
+
+        $this->assertNotFalse($scripts, 'the build runs release-manifest.php scripts on the stage (also with -FromStaging)');
+        $this->assertNotFalse($manifest);
+        $this->assertLessThan($manifest, $scripts, 'before the manifest hashes the files');
+    }
+
     public function test_the_checksum_file_must_be_the_exact_sha256sum_line_of_its_zip(): void
     {
         $stage = $this->stage('1.2.3', ['index.php' => "<?php\n"]);

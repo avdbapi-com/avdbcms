@@ -51,7 +51,7 @@
                 <td class="c-main"><p><a href="{{ route('search.index', ['q' => $search->query], false) }}" target="_blank" rel="noopener">{{ \Illuminate\Support\Str::limit((string) $search->query, 90) }}</a></p></td>
                 <td class="c-meta"><x-admin.status :type="(int) $search->max_results > 0 ? 'ok' : 'warn'">{{ (int) $search->max_results > 0 ? trans_choice('1 result|:count results', (int) $search->max_results, ['count' => number_format((int) $search->max_results)]) : __('Nothing found') }}</x-admin.status><small class="ad-phone-only">{{ trans_choice('Searched once|Searched :count times', (int) $search->count, ['count' => number_format((int) $search->count)]) }}</small></td>
                 <td class="is-num">{{ number_format((int) $search->count) }}</td>
-                <td class="is-date" title="{{ $last->translatedFormat('j M Y, H:i') }}">{{ $last->diffForHumans(short: true) }}</td>
+                <td class="is-date" title="{{ $last->translatedFormat('j M Y, H:i') }}">{{ $last->diffForHumans(short: \App\Support\AdminText::shortTimes()) }}</td>
             </tr>
         @endforeach
     </x-admin.table>

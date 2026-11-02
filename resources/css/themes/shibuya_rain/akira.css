@@ -79,8 +79,8 @@ html[data-bs-theme="light"][data-avd-flavor="akira"] {
   --avd-sidebar-active-bar: #c51935;
   --avd-chip-border: rgba(255,145,0,0.35);
   --avd-chip-active-bg: #e9163e;
-  --avd-btn-bg: #e9163e;
-  --avd-play-bg: #e9163e;
+  --avd-btn-bg: #e7113c;
+  --avd-play-bg: #e7113c;
   --avd-card-border: 1px solid rgba(255,145,0,0.22);
   --avd-card-hover-border: 1px solid rgba(255,145,0,0.7);
   --avd-card-hover-shadow: 0 0 0 1px rgba(255,145,0,0.35), 0 0 24px rgba(255,145,0,0.22);

@@ -13,7 +13,8 @@
         <button @click="open=!open" class="text-primary text-sm bg-transparent d-block mt-1 ps-0" x-text="open ? '{{ __('Show less') }}' : '{{ __('Read more') }}'"></button>
     </div>
 @else
-    <small {{ $attributes->class(['text-muted' => !$attributes->has('color'), 'text-'.$attributes->get('color') => $attributes->has('color')])}} class="d-block mt-1">
+    {{-- QA channel-35: one class attribute (the short text printed a second one, which browsers ignore) --}}
+    <small {{ $attributes->class(['d-block mt-1', 'text-muted' => !$attributes->has('color'), 'text-'.$attributes->get('color') => $attributes->has('color')])}}>
         {{$slot}}
     </small>
 @endif

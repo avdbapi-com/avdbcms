@@ -1,14 +1,16 @@
 {{--
-    Tools > Updates (F8): the AVDBCMS version of this site and when it was last updated; the newest release on GitHub,
+    Tools > Updates: the AVDBCMS version of this site and when it was last updated; the newest release on GitHub,
     from the kept check (when nothing is kept yet, the section asks after the page appears: data-ad-defer with
     admin.updates.status?check=1); "Update to X.Y.Z" with its confirm dialog (password, the database backup); the
-    progress of a running update; the result of the last one; the file backups with "Undo this update"; and why a
-    one-click update cannot run here, with the manual way. Its script (resources/admin/updates/updates.ts) walks the
-    steps of the update and reads its addresses and texts from #ad-updates-boot.
+    progress of a running update; the result of the last one; the file backups with "Undo this update"; why a
+    one-click update cannot run here, with the manual way; and language files with texts this version corrected
+    ("Correct the texts", after an upload by hand). Its script (resources/admin/updates/updates.ts) walks the steps of
+    the update and reads its addresses and texts from #ad-updates-boot.
 --}}
 @use('App\Support\AdminNav')
 @use('App\Support\AdminTheme')
 @use('App\Support\AppVersion')
+@use('App\Support\Updater\Updater')
 @use('Illuminate\Support\Carbon')
 @extends('admin.updates.layout')
 
@@ -23,7 +25,8 @@
         $tz = (string) config('app.timezone');
         $when = fn (?int $time): string => $time ? Carbon::createFromTimestamp($time)->setTimezone($tz)->translatedFormat('j M Y, H:i') : '—';
         $ago = fn (?int $time): string => $time ? Carbon::createFromTimestamp($time)->diffForHumans() : '—';
-        $mb = fn (?int $bytes): string => number_format(max(0, (int) $bytes) / 1048576, 1).' MB';
+        // Sizes as Tools > Backups writes them: "35.3 KB" under 1 MB, then "68 MB", "1.5 GB" (never "0.0 MB").
+        $size = fn (?int $bytes): string => Updater::size($bytes);
         $checkState = $check['state'] ?? null;
         $checking = $check === null && $problem === null;
         $version = $release['version'] ?? null;
@@ -125,7 +128,10 @@
 
         {{-- Another administrator's update, or one nobody moved for 30 minutes. --}}
         @if ($plan !== null && $plan['stalled'])
-            <x-admin.callout type="warn" class="ad-console-block" :title="__('An update to :version stopped :time. Continue it or cancel it first.', ['version' => $plan['version'], 'time' => $ago($plan['step_at'])])" role="status">
+            {{-- "or cancel it" only while Cancel is offered: before the swap (judge R3-032). --}}
+            <x-admin.callout type="warn" class="ad-console-block" :title="$plan['cancellable']
+                ? __('An update to :version stopped :time. Continue it or cancel it first.', ['version' => $plan['version'], 'time' => $ago($plan['step_at'])])
+                : __('An update to :version stopped :time. Continue it first.', ['version' => $plan['version'], 'time' => $ago($plan['step_at'])])" role="status">
                 {{ $plan['label'] }}
                 @if ($ops)
                     <x-slot:actions>
@@ -148,6 +154,31 @@
                     <button type="button" class="ad-btn sm" data-ad-updates-watch>{{ __('Show progress') }}</button>
                 </x-slot:actions>
             </x-admin.callout>
+        @endif
+
+        {{-- Language files the owner changed still have texts exactly as an older version shipped them, which this version
+             corrected (after an upload by hand without Finish update, e.g. a release without a database change, or a Finish
+             that found the update lock taken): one click corrects them, as Finish update does (Updater::pendingTexts()). --}}
+        @if ($pendingTexts !== [])
+            <div class="ad-callout ad-console-block" role="status" data-ad-updates-texts>
+                {{ AdminTheme::icon('globe') }}
+                <div class="ad-callout-body">
+                    <h3>{{ __('Your language files have texts to correct') }}</h3>
+                    <p>{{ __('These language files still have texts exactly as an older version wrote them. This version corrected those texts or no longer uses them. Your own texts stay as they are.') }}</p>
+                    <ul class="ad-upd-files">
+                        @foreach ($pendingTexts as $file)
+                            <li><code>{{ $file['path'] }}</code>@if ($file['name']) <span>{{ $file['name'] }}</span>@endif <span class="ad-muted">{{ trans_choice('1 text to correct|:count texts to correct', $file['count'], ['count' => number_format($file['count'])]) }}</span></li>
+                        @endforeach
+                    </ul>
+                    <div class="ad-callout-actions">
+                        <form method="POST" action="{{ route('admin.update.finish') }}" data-ad-busy="{{ __('Correcting the texts...') }}">
+                            @csrf
+                            <input type="hidden" name="only" value="texts">
+                            <button type="submit" class="ad-btn is-primary sm">{{ __('Correct the texts') }}</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
         @endif
 
         {{-- The progress of a running update or undo (the script shows it when one starts on this page). --}}
@@ -173,7 +204,7 @@
                         @csrf
                         <button type="submit" class="ad-btn is-primary sm">{{ __('Continue') }}</button>
                     </form>
-                    {{-- Another administrator's update can only be watched until it stalls (F8 §14). --}}
+                    {{-- Another administrator's update can only be watched until it stalls. --}}
                     <form method="POST" action="{{ route('admin.updates.cancel') }}" data-ad-updates-cancel @foreach ($cancelConfirm as $attribute => $value) {{ $attribute }}="{{ $value }}" @endforeach @unless (($plan['cancellable'] ?? false) && $running) hidden @endunless>
                         @csrf
                         <button type="submit" class="ad-btn is-ghost sm">{{ $cancelConfirm['data-ad-confirm-label'] }}</button>
@@ -232,12 +263,26 @@
                             @endif
                         </div>
                     @endif
-                    @if ($report['merged'] !== [])
+                    @if ($result['languages'] !== [])
+                        {{-- Language files the owner had changed: the new texts the update added, the texts Finish gave the corrected wording of this version (they were still exactly as an older version had them), the owner's own texts kept. --}}
                         <div>
-                            <h3 class="ad-h3">{{ __('These language files had texts you changed. Your texts stay; the new texts were added.') }}</h3>
+                            <h3 class="ad-h3">{{ $report['merged'] !== [] ? __('These language files had texts you changed. Your texts stay; the new texts were added.') : __('These language files had texts you changed. Your texts stay.') }}</h3>
+                            @if (collect($result['languages'])->sum('updated') > 0)
+                                <p class="ad-small ad-muted">{{ __('Texts you never changed now have the corrected wording of this version.') }}</p>
+                            @endif
                             <ul class="ad-upd-files">
-                                @foreach ($report['merged'] as $file)
-                                    <li><code>{{ $file['path'] }}</code> <span class="ad-muted">{{ trans_choice('1 new text added|:count new texts added', $file['added'], ['count' => number_format($file['added'])]) }}</span></li>
+                                @foreach ($result['languages'] as $file)
+                                    @php
+                                        // "kept": the owner's own wording of texts this version corrects (every text of the owner stays; judge R3-028).
+                                        $notes = array_filter([
+                                            $file['added'] > 0 ? trans_choice('1 new text added|:count new texts added', $file['added'], ['count' => number_format($file['added'])]) : null,
+                                            $file['updated'] > 0 ? trans_choice('1 text corrected|:count texts corrected', $file['updated'], ['count' => number_format($file['updated'])]) : null,
+                                            $file['kept'] > 0 ? trans_choice('your own wording kept for 1 text this version corrects|your own wording kept for :count texts this version corrects', $file['kept'], ['count' => number_format($file['kept'])]) : null,
+                                            ($file['removed'] ?? 0) > 0 ? trans_choice('1 text this version no longer uses removed|:count texts this version no longer uses removed', $file['removed'], ['count' => number_format($file['removed'])]) : null,
+                                            $file['failed'] ? __('Could not be saved, so its texts stay as they were.') : null,
+                                        ]);
+                                    @endphp
+                                    <li><code>{{ $file['path'] }}</code>@if ($file['name']) <span>{{ $file['name'] }}</span>@endif <span class="ad-muted">{{ implode(' · ', $notes) }}</span></li>
                                 @endforeach
                             </ul>
                         </div>
@@ -354,7 +399,7 @@
                                     <p>{{ __('This is what happens:') }}</p>
                                     <ol class="ad-upd-what">
                                         <li>{{ ! empty($release['zip']['size'])
-                                            ? __('AVDBCMS downloads the update from GitHub (:size) and checks that it arrived complete.', ['size' => $mb((int) $release['zip']['size'])])
+                                            ? \App\Support\AdminText::html(__('AVDBCMS downloads the update from GitHub (:size) and checks that it arrived complete.'), [':size' => '<bdi dir="ltr" class="text-nowrap">'.e($size((int) $release['zip']['size'])).'</bdi>'])
                                             : __('AVDBCMS downloads the update from GitHub and checks that it arrived complete.') }}</li>
                                         <li data-ad-updates-dump>{{ __('A backup of your database is made first. It appears on the Backups page.') }}</li>
                                         <li>{{ __('The files that changed are replaced. Visitors see a short "being updated" page meanwhile, usually for less than a minute. The old files are kept, so you can undo the update.') }}</li>
@@ -397,13 +442,13 @@
                 {{-- After an undo the list is empty because the undo used the backup, not because there never was one. --}}
                 <div class="ad-panel-b"><p class="ad-muted">{{ $undoneLast ? __('No update backups. The undo used the last one to put your files back.') : __('No update backups yet.') }}</p></div>
             @else
-                <ul class="ad-list">
+                <ul class="ad-list ad-upd-backups">
                     @foreach ($backups as $backup)
                         <li>
                             <span class="ad-sym" aria-hidden="true">{{ AdminTheme::icon('archive') }}</span>
                             <span class="ad-li-text">
                                 <b id="ad-upd-bk-{{ $loop->index }}">AVDBCMS {{ $backup['from'] }} {{ AdminTheme::icon('arrow-right', 'sm flip-rtl') }} {{ $backup['to'] }}</b>
-                                <span>{{ $when((int) $backup['created_at']) }} · {{ $mb((int) $backup['size']) }}@if (! empty($backup['database_backup'])) · {{ __('Database backup: :name', ['name' => $backup['database_backup']]) }}@endif</span>
+                                <span>{{ $when((int) $backup['created_at']) }} · <span dir="ltr" class="text-nowrap">{{ $size((int) $backup['size']) }}</span>@if (! empty($backup['database_backup'])) · {{ __('Database backup: :name', ['name' => $backup['database_backup']]) }}@endif</span>
                             </span>
                             @if ($ops)
                                 @if ($undoable !== null && $backup['id'] === $undoable['id'])
@@ -434,7 +479,13 @@
                             <p>{{ ! empty($undoable['database_backup'])
                                 ? __("Your files go back to AVDBCMS :version. The database stays as it is now. If the old version shows errors, restore the database backup :name with your hosting panel's database tool.", ['version' => $undoable['from'], 'name' => $undoable['database_backup']])
                                 : __('Your files go back to AVDBCMS :version. The database stays as it is now.', ['version' => $undoable['from']]) }}</p>
+                            {{-- What Finish removed or replaced outside the swap (the old dump, the Docker files, unused pictures, example.sql) is in the update backup too (App\Support\Updater\FinishFiles, judge R3-029). --}}
+                            <p data-ad-updates-undo-exact>{{ __('Your files come back exactly as they were before the update, also the ones it removed or replaced when it finished.') }}</p>
                             <p>{{ __('Files you changed after the update stay as they are. Visitors see a short "being updated" page meanwhile.') }}</p>
+                            @if (version_compare((string) $undoable['from'], '1.2.2', '<'))
+                                {{-- 1.2.2 deleted three development seeders for safety (migration 2026_10_24_120100_remove_shipped_development_seeders): outside the update backup, so Undo never brings them back. --}}
+                                <p data-ad-updates-undo-seeders>{{ __('Three development files that AVDBCMS 1.2.2 removed for safety (in :folder) stay removed. Your site does not need them to run.', ['folder' => 'database/seeders/']) }}</p>
+                            @endif
                             <div class="ad-upd-password">
                                 <label for="ad-upd-undo-password">{{ __('Your password') }}</label>
                                 <input class="ad-input" type="password" id="ad-upd-undo-password" name="password" autocomplete="current-password" required>

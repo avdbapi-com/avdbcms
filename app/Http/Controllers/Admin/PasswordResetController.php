@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Support\AuditDetails;
 use App\Support\AdminCache;
 use App\Support\AdminPagination;
 use App\Support\AdminPreferences;
@@ -63,13 +64,23 @@ class PasswordResetController
 
     public function destroy(string $email): RedirectResponse
     {
-        DB::table('password_reset_tokens')->where('email', $email)->delete();
-        return redirect()->route('admin.password-resets.index')->withSuccess('Token deleted.');
+        // Tools > Logs > Admin actions (R3-019): the member the request was for, never the email address.
+        if (DB::table('password_reset_tokens')->where('email', $email)->delete() > 0) {
+            $member = DB::table('users')->where('email', $email)->first(['id', 'username']);
+            AuditLogController::log('security.password_reset.deleted', $member !== null ? AuditDetails::member($member) : null);
+        }
+
+        return redirect()->route('admin.password-resets.index')->withSuccess(__('Password reset deleted'));
     }
 
     public function clear(): RedirectResponse
     {
-        DB::table('password_reset_tokens')->delete();
-        return redirect()->route('admin.password-resets.index')->withSuccess('All reset tokens cleared.');
+        $count = DB::table('password_reset_tokens')->delete();
+
+        if ($count > 0) {
+            AuditLogController::log('security.password_resets.cleared', (string) $count);
+        }
+
+        return redirect()->route('admin.password-resets.index')->withSuccess(__('All password resets deleted'));
     }
 }

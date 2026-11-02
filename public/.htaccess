@@ -7,6 +7,18 @@
 
     RewriteEngine On
 
+    # The upload folders (storage/ = the public disk, uploads/ = the legacy folder updates keep) serve pictures and
+    # never run a script: .php, .php3 ... .php8, .phar, .phtml, .pht, .phps, also as x.php.jpg or x.php/extra.
+    RewriteRule ^(storage|uploads)/(.*/)?[^/]*\.ph(p[0-9]*|ar|tml|t|ps)(\.|/|$) - [F,NC]
+
+    # Dotfiles (.env, .git, .user.ini ...) are never handed out; ACME challenges (.well-known/) still work.
+    RewriteRule (^|/)\.(?!well-known(/|$)) - [F]
+
+    # A database dump, a log or a backup copy that lands in public/ is never handed out (only an existing file: the
+    # site's own addresses that end like that, an admin's download of a backup or a log, still reach index.php).
+    RewriteCond %{REQUEST_FILENAME} -f
+    RewriteRule (\.(sql|sqlite3?|db|dump|log|bak|backup|old|orig|save|swp|gz|tgz|tar)|~)$ - [F,NC]
+
     # Handle Authorization Header
     RewriteCond %{HTTP:Authorization} .
     RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]

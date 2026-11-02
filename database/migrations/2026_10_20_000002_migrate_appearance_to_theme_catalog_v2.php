@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Theme catalogue v2 upgrade of the stored appearance settings (redesign migration plan, critique B3).
+ * Theme catalogue v2 upgrade of the stored appearance settings.
  *
  * Snapshot first (revision #0, restorable for 30 days), then classify the site against frozen copies of every value
  * the OLD code used when nothing was stored (never against the new defaults):
@@ -25,7 +25,7 @@ use Illuminate\Support\Facades\Schema;
  * one). Idempotent through appearance_schema_version. Only the appearance group is written.
  *
  * The frozen blocks below are written by `python scripts/themes/build_catalog.py --frozen` from
- * spec/data/factory_sources.json and the theme spec's master upgrade table; do not edit them by hand.
+ * the redesign's factory sources and the theme spec's master upgrade table; do not edit them by hand.
  */
 return new class extends Migration
 {
@@ -401,7 +401,7 @@ JSON;
     }
 
     /**
-     * The look's v2 settings: WP3's MasterExperienceCatalog when it carries apply_settings, else the frozen copy.
+     * The look's v2 settings: MasterExperienceCatalog when it carries apply_settings, else the frozen copy.
      *
      * @return array<string, string>
      */

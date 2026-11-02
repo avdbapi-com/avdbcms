@@ -69,8 +69,9 @@ html[data-avd-hero-deco="billboard_fade"][data-avd-theme] .avd-bb .avd-scrim {
         top: 12px;
         bottom: auto;
     }
+    /* R1-151: the track bleeds exactly the container's side padding (1rem from 576px, none below: see the next block) */
     html[data-avd-hero-deco="billboard_fade"][data-avd-theme] .avd-bb-track {
-        margin: -12px -12px 0;
+        margin: -12px -1rem 0;
     }
     html[data-avd-hero-deco="billboard_fade"][data-avd-theme] .avd-bb {
         height: 330px;
@@ -79,5 +80,13 @@ html[data-avd-hero-deco="billboard_fade"][data-avd-theme] .avd-bb .avd-scrim {
        this decoration's desktop size; keyed with two attributes, the desktop size would win here) */
     html[data-avd-hero-deco="billboard_fade"][data-avd-theme] .avd-bb .avd-htitle {
         font-size: 26px;
+    }
+}
+/* R1-151: below 576px the container has no side padding: the photo runs edge to edge without bleeding (it ran 12px
+   past both screen edges, its text 4px from the edge), and it skips the phone gutter the rounded billboards take. */
+@media (max-width: 575.98px) {
+    html[data-avd-hero-deco="billboard_fade"][data-avd-theme] .avd-hero--billboard,
+    html[data-avd-hero-deco="billboard_fade"][data-avd-theme] .avd-bb-track {
+        margin-inline: 0;
     }
 }

@@ -489,11 +489,12 @@
             <a href="https://avdbapi.com/index.php/label/help.html" target="_blank" rel="noopener" class="btn btn-sm btn-outline-info">
                 <i class="fa-solid fa-book-open me-1"></i> {{ __('API Documentation') }}
             </a>
-            <a href="https://t.me/+jj6McO-iYfA0MTM1" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary" style="color: #38bdf8; border-color: #0284c7;">
-                <i class="fa-brands fa-telegram me-1"></i> {{ __('Telegram Group') }}
+            {{-- The AVDBAPI Telegram group and personal support (App\Support\TelegramLinks). --}}
+            <a href="{{ \App\Support\TelegramLinks::GROUP_URL }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary" style="color: #38bdf8; border-color: #0284c7;">
+                <i class="fa-brands fa-telegram me-1"></i> {{ __('Telegram group') }}
             </a>
-            <a href="https://t.me/avdbapi_support" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary" style="color: #38bdf8; border-color: #0284c7;">
-                <i class="fa-brands fa-telegram me-1"></i> {{ __('Telegram Support') }}
+            <a href="{{ \App\Support\TelegramLinks::SUPPORT_URL }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary" style="color: #38bdf8; border-color: #0284c7;">
+                <i class="fa-brands fa-telegram me-1"></i> {{ __('Telegram support') }}
             </a>
         </div>
     </div>
@@ -528,18 +529,18 @@
         <div class="card-body p-3 p-md-4">
             <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 pb-3 mb-3 border-bottom border-secondary border-opacity-25">
                 <div class="d-flex align-items-center gap-2">
-                    <span class="badge bg-primary px-3 py-2 text-uppercase fw-bold"><i class="fa-solid fa-bolt me-1"></i>AVDBAPI Spec</span>
+                    <span class="badge bg-primary px-3 py-2 text-uppercase fw-bold flex-shrink-0"><i class="fa-solid fa-bolt me-1"></i>{{ __('AVDBAPI Spec') }}</span>
                     <span class="text-white fw-bold h5 mb-0">{{ __('AVDBAPI Live Ecosystem & Directory') }}</span>
                 </div>
                 <div class="d-flex gap-2 flex-wrap">
                     <a href="https://avdbapi.com/index.php/label/help.html" target="_blank" rel="noopener" class="btn btn-sm btn-outline-light">
                         <i class="fa-solid fa-file-lines me-1 text-info"></i>{{ __('Help Docs') }}
                     </a>
-                    <a href="https://t.me/+jj6McO-iYfA0MTM1" target="_blank" rel="noopener" class="btn btn-sm btn-outline-light">
-                        <i class="fa-brands fa-telegram me-1 text-primary"></i>{{ __('Telegram Group') }}
+                    <a href="{{ \App\Support\TelegramLinks::GROUP_URL }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-light">
+                        <i class="fa-brands fa-telegram me-1 text-primary"></i>{{ __('Telegram group') }}
                     </a>
-                    <a href="https://t.me/avdbapi_support" target="_blank" rel="noopener" class="btn btn-sm btn-outline-light">
-                        <i class="fa-brands fa-telegram me-1 text-primary"></i>{{ __('Telegram Support') }}
+                    <a href="{{ \App\Support\TelegramLinks::SUPPORT_URL }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-light">
+                        <i class="fa-brands fa-telegram me-1 text-primary"></i>{{ __('Telegram support') }}
                     </a>
                     <a href="https://avdbapi.com/api.php/provide/vod/?ac=list" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary">
                         <i class="fa-solid fa-code me-1"></i>{{ __('Raw JSON Feed') }}
@@ -568,7 +569,7 @@
                         <small class="text-muted text-uppercase d-block fw-semibold mb-1">{{ __('Total Pages') }}</small>
                         <span class="h5 fw-black text-white mb-0">{{ $apiChecking ? __('Checking...') : (($apiSummary['available'] ?? false) ? number_format((int) $apiSummary['pages']) : __('N/A')) }}</span>
                         @if($apiSummary['available'] ?? false)
-                            <small class="text-white-50 d-block">{{ __(':count videos / page', ['count' => number_format((int) $apiSummary['page_size'])]) }}</small>
+                            <small class="text-white-50 d-block">{{ trans_choice('1 video / page|:count videos / page', (int) $apiSummary['page_size'], ['count' => number_format((int) $apiSummary['page_size'])]) }}</small>
                         @endif
                     </div>
                 </div>
@@ -605,13 +606,13 @@
             <div class="mt-3 pt-3 border-top border-secondary border-opacity-25">
                     <small class="text-muted text-uppercase fw-bold d-block mb-2"><i class="fa-solid fa-layer-group me-1 text-primary"></i>{{ __('AVDBAPI Available Categories (7 Main Genres):') }}</small>
                 <div class="d-flex flex-wrap gap-2">
-                    <span class="badge bg-dark border border-secondary px-2 py-1"><i class="fa-solid fa-lock text-warning me-1"></i>ID 1: Censored</span>
-                    <span class="badge bg-dark border border-secondary px-2 py-1"><i class="fa-solid fa-lock-open text-success me-1"></i>ID 2: Uncensored</span>
-                    <span class="badge bg-dark border border-secondary px-2 py-1"><i class="fa-solid fa-droplet text-danger me-1"></i>ID 3: Uncensored Leaked</span>
-                    <span class="badge bg-dark border border-secondary px-2 py-1"><i class="fa-solid fa-user text-info me-1"></i>ID 4: Amateur</span>
-                    <span class="badge bg-dark border border-secondary px-2 py-1"><i class="fa-solid fa-flag text-danger me-1"></i>ID 5: Chinese AV</span>
-                    <span class="badge bg-dark border border-secondary px-2 py-1"><i class="fa-solid fa-wand-magic-sparkles text-primary me-1"></i>ID 6: Hentai</span>
-                    <span class="badge bg-dark border border-secondary px-2 py-1"><i class="fa-solid fa-closed-captioning text-info me-1"></i>ID 7: English Subtitle</span>
+                    <span class="badge bg-dark border border-secondary px-2 py-1"><i class="fa-solid fa-lock text-warning me-1"></i>ID 1: {{ __('Censored') }}</span>
+                    <span class="badge bg-dark border border-secondary px-2 py-1"><i class="fa-solid fa-lock-open text-success me-1"></i>ID 2: {{ __('Uncensored') }}</span>
+                    <span class="badge bg-dark border border-secondary px-2 py-1"><i class="fa-solid fa-droplet text-danger me-1"></i>ID 3: {{ __('Uncensored Leaked') }}</span>
+                    <span class="badge bg-dark border border-secondary px-2 py-1"><i class="fa-solid fa-user text-info me-1"></i>ID 4: {{ __('Amateur') }}</span>
+                    <span class="badge bg-dark border border-secondary px-2 py-1"><i class="fa-solid fa-flag text-danger me-1"></i>ID 5: {{ __('Chinese AV') }}</span>
+                    <span class="badge bg-dark border border-secondary px-2 py-1"><i class="fa-solid fa-wand-magic-sparkles text-primary me-1"></i>ID 6: {{ __('Hentai') }}</span>
+                    <span class="badge bg-dark border border-secondary px-2 py-1"><i class="fa-solid fa-closed-captioning text-info me-1"></i>ID 7: {{ __('English Subtitle') }}</span>
                 </div>
             </div>
         </div>
@@ -863,8 +864,8 @@
                     <div>
                         <label class="form-label fw-bold">{{__('View range')}}</label>
                         <div class="d-flex gap-2">
-                            <input type="number" class="form-control" id="starterViewsMin" value="{{ (int) ($starterViewDefaults['min'] ?? 25) }}" min="0" max="1000000000" placeholder="Min">
-                            <input type="number" class="form-control" id="starterViewsMax" value="{{ (int) ($starterViewDefaults['max'] ?? 5000) }}" min="0" max="1000000000" placeholder="Max">
+                            <input type="number" class="form-control" id="starterViewsMin" value="{{ (int) ($starterViewDefaults['min'] ?? 25) }}" min="0" max="1000000000" placeholder="{{ __('Min') }}">
+                            <input type="number" class="form-control" id="starterViewsMax" value="{{ (int) ($starterViewDefaults['max'] ?? 5000) }}" min="0" max="1000000000" placeholder="{{ __('Max') }}">
                         </div>
                         <small class="text-muted">{{__('Natural mode keeps most videos low and a small number high.')}}</small>
                     </div>
@@ -928,7 +929,7 @@
                          saved; nothing fills them in later - 1.2.1 promised a "background backfill"). --}}
                     <small class="text-warning d-block mb-2"><i class="fa-solid fa-triangle-exclamation me-1"></i><strong>{{__('Fast mode')}}</strong> - {{__('Each video is imported with its title in all of these languages, fetched from AVDB during the import.')}}</small>
                     <small class="text-muted d-block mb-2">{{__('Where AVDB sends the English title for a language, pages in that language show it in English. A video without a title in one of these languages is skipped. Nothing is fetched later in the background.')}}</small>
-                    <small class="text-muted d-block mt-1"><strong>{{__('Languages:')}}</strong> JA, ZH, KO, VI, TH, MS, ID, FR, DE, ES, PT, RU, AR, HI, TL, TR</small>
+                    <small class="text-muted d-block mt-1"><strong>{{__('Languages:')}}</strong>{{ \App\Support\LabelGap::admin() }}JA, ZH, KO, VI, TH, MS, ID, FR, DE, ES, PT, RU, AR, HI, TL, TR</small>
                     <div class="form-check form-switch mt-3">
                         <input class="form-check-input" type="checkbox" id="verifyFullLangs" onchange="toggleFullLangsMode()">
                         <label class="form-check-label fw-bold" for="verifyFullLangs">{{__('Verify and save exact translations before import')}}</label>
@@ -938,7 +939,7 @@
                 <div id="fullLocalesWrapper" class="avdb-field-grid mb-4" style="display:none">
                     <div class="avdb-field-span">
                         <label for="requiredLocales" class="form-label fw-bold">{{__('Required Translation Locales')}}</label>
-                        <input type="text" class="form-control" id="requiredLocales" maxlength="120" placeholder="Blank = all 16. Example: ja,zh,ko,vi,th">
+                        <input type="text" class="form-control" id="requiredLocales" maxlength="120" placeholder="{{ __('Empty = all 16. Example: ja,zh,ko,vi,th') }}">
                         <small class="text-muted">{{__('Leave blank for all supported locales, or enter comma-separated locale codes.')}}</small>
                     </div>
                 </div>
@@ -948,23 +949,23 @@
                     <div class="avdb-field-span">
                         <label for="apiLang" class="form-label fw-bold">{{__('Fetch content in')}}</label>
                         <select class="form-select" id="apiLang">
-                            <option value="en" selected>English (Default)</option>
-                            <option value="ja">日本語 (Japanese)</option>
-                            <option value="zh">中文 (Chinese)</option>
-                            <option value="ko">한국어 (Korean)</option>
-                            <option value="vi">Tiếng Việt (Vietnamese)</option>
-                            <option value="th">ไทย (Thai)</option>
-                            <option value="ms">Bahasa Melayu (Malay)</option>
+                            <option value="en" selected>English ({{ __('Default') }})</option>
+                            <option value="ja">日本語 ({{ __('Japanese') }})</option>
+                            <option value="zh">中文 ({{ __('Chinese') }})</option>
+                            <option value="ko">한국어 ({{ __('Korean') }})</option>
+                            <option value="vi">Tiếng Việt ({{ __('Vietnamese') }})</option>
+                            <option value="th">ไทย ({{ __('Thai') }})</option>
+                            <option value="ms">Bahasa Melayu ({{ __('Malay') }})</option>
                             <option value="id">Bahasa Indonesia</option>
-                            <option value="fr">Français (French)</option>
-                            <option value="de">Deutsch (German)</option>
-                            <option value="es">Español (Spanish)</option>
-                            <option value="pt">Português (Portuguese)</option>
-                            <option value="ru">Русский (Russian)</option>
-                            <option value="ar">العربية (Arabic)</option>
-                            <option value="hi">हिन्दी (Hindi)</option>
-                            <option value="tl">Filipino (Tagalog)</option>
-                            <option value="tr">Türkçe (Turkish)</option>
+                            <option value="fr">Français ({{ __('French') }})</option>
+                            <option value="de">Deutsch ({{ __('German') }})</option>
+                            <option value="es">Español ({{ __('Spanish') }})</option>
+                            <option value="pt">Português ({{ __('Portuguese') }})</option>
+                            <option value="ru">Русский ({{ __('Russian') }})</option>
+                            <option value="ar">العربية ({{ __('Arabic') }})</option>
+                            <option value="hi">हिन्दी ({{ __('Hindi') }})</option>
+                            <option value="tl">Filipino ({{ __('Tagalog') }})</option>
+                            <option value="tr">Türkçe ({{ __('Turkish') }})</option>
                         </select>
                         <small class="text-muted"><i class="fa-solid fa-circle-info me-1"></i>{{__('Pick ONE language for all imported content (title, description, country, type_name). Uses API URL prefix e.g. /vi/api.php/...')}}</small>
                     </div>
@@ -1127,6 +1128,9 @@
                     </section>
                 </div>
             </div>
+
+            {{-- 1.2.3: the blocked words of every import (one card for AVDBAPI and XVIDAPI, saved like a settings page). --}}
+            @include('admin.imports.blocked-words')
         </div>
 
         {{-- ═══════ Right column – Logs & Progress ═══════ --}}
@@ -1185,7 +1189,7 @@
                     </div>
                     <div class="avdb-switch-card flex-fill text-center">
                         <div>
-                            <div class="fw-black text-primary" id="resultCurrent">Idle</div>
+                            <div class="fw-black text-primary" id="resultCurrent">{{ __('Idle') }}</div>
                             <div class="small text-muted">{{__('Current')}}</div>
                         </div>
                     </div>
@@ -1197,13 +1201,13 @@
                     </div>
                     <div class="avdb-switch-card flex-fill text-center">
                         <div>
-                            <div class="fw-black text-primary" id="resultRate">0/min</div>
+                            <div class="fw-black text-primary" id="resultRate">{{ __(':rate/min', ['rate' => 0]) }}</div>
                             <div class="small text-muted">{{__('Rate')}}</div>
                         </div>
                     </div>
                     <div class="avdb-switch-card flex-fill text-center">
                         <div>
-                            <div class="fw-black text-primary" id="resultEta">Calculating</div>
+                            <div class="fw-black text-primary" id="resultEta">{{ __('Calculating') }}</div>
                             <div class="small text-muted">{{__('ETA')}}</div>
                         </div>
                     </div>
@@ -1224,7 +1228,7 @@
                 <div class="avdb-section-title mt-3">
                     <i class="fa-solid fa-terminal text-primary"></i>{{__('Activity Log')}}
                 </div>
-                <div class="avdb-log-box" id="logBox">Awaiting import command...</div>
+                <div class="avdb-log-box" id="logBox">{{ __('Awaiting import command...') }}</div>
             </div>
 
             <div class="avdb-panel p-3 p-md-4 mb-4">
@@ -1244,14 +1248,14 @@
                             <div class="small">
                                 {{__('AVDB cron schedules only run when Laravel schedule:run is called every minute.')}}
                                 @if($avdbCronHealth['last_seen_at'])
-                                    {{__('Last scheduler activity')}}: {{ $avdbCronHealth['last_seen_at']->diffForHumans() }}.
+                                    {{ \App\Support\AdminText::labelled(__('Last scheduler activity'), $avdbCronHealth['last_seen_at']->diffForHumans()) }}.
                                 @else
                                     {{__('No scheduler log activity has been detected yet.')}}
                                 @endif
                             </div>
                             @if($avdbCronHealth['overdue_count'] > 0)
                                 <div class="small fw-bold text-danger">
-                                    {{__('Overdue AVDB schedules')}}: #{{ implode(', #', $avdbCronHealth['overdue_ids']) }}
+                                    {{ \App\Support\AdminText::labelled(__('Overdue AVDB schedules'), \App\Support\AdminText::list(array_map(fn ($id): string => '#'.$id, (array) $avdbCronHealth['overdue_ids']))) }}
                                 </div>
                             @endif
                         </div>
@@ -1269,10 +1273,21 @@
                     @if($cronNeedsAttention)
                         <details class="small mt-2">
                             <summary class="fw-bold cursor-pointer">{{__('Permanent scheduler command')}}</summary>
-                            <div class="mt-2">{{__('Linux/macOS/BSD cron line')}}</div>
-                            <pre class="bg-dark text-light p-2 rounded small mb-2" style="white-space:pre-wrap" tabindex="0">{{ $avdbCronHealth['unix_cron_command'] }}</pre>
-                            <div>{{__('Windows local/testing alternative')}}</div>
-                            <pre class="bg-dark text-light p-2 rounded small mb-0" style="white-space:pre-wrap" tabindex="0">{{ $avdbCronHealth['windows_task_command'] }}</pre>
+                            {{-- The installer's own line, as Tools > Scheduled tasks shows it: with its lock (a second line
+                                 without it ran the scheduler twice every minute); on Windows the Task Scheduler command (AD-X1). --}}
+                            <div class="mt-2">{{ $avdbCronHealth['windows'] ? __("Create this site's task in the Windows Task Scheduler with this command (once, in a Command Prompt):") : __('Cron line (every minute):') }}</div>
+                            <pre class="bg-dark text-light p-2 rounded small mb-2" dir="ltr" style="white-space:pre-wrap; word-break:break-all;" tabindex="0">{{ $avdbCronHealth['scheduler_line'] }}</pre>
+                            @if (! empty($avdbCronHealth['scheduler_command']))
+                                {{-- A hosting panel's cron job takes the command alone, as Tools > Scheduled tasks shows it: the
+                                     panel has fields of its own for "every minute", and its shell read the "* * * * *" of the
+                                     line above as file names (AD-V1). --}}
+                                <div>{{ __('Command for a cron job in your hosting panel (every minute):') }}</div>
+                                <pre class="bg-dark text-light p-2 rounded small mb-2" dir="ltr" style="white-space:pre-wrap; word-break:break-all;" tabindex="0">{{ $avdbCronHealth['scheduler_command'] }}</pre>
+                            @endif
+                            @if (! empty($avdbCronHealth['scheduler_panel_line']))
+                                <div>{{ __('If your panel runs cron jobs as root, use this command instead:') }}</div>
+                                <pre class="bg-dark text-light p-2 rounded small mb-0" dir="ltr" style="white-space:pre-wrap; word-break:break-all;" tabindex="0">{{ $avdbCronHealth['scheduler_panel_line'] }}</pre>
+                            @endif
                         </details>
                     @endif
                 </div>
@@ -1303,7 +1318,7 @@
                                     {{-- A paused schedule has no next run (the ready-made one kept its creation time: "2 weeks ago"). --}}
                                     <div>@if (! $schedule->enabled){{ __('Paused') }}@elseif ($schedule->next_run_at){{ $schedule->next_run_at->diffForHumans() }}@else{{ __('Due now') }}@endif</div>
                                     @if($schedule->last_run_id)
-                                        <div class="text-muted">{{__('Last')}}: #{{ $schedule->last_run_id }}</div>
+                                        <div class="text-muted">{{ \App\Support\AdminText::labelled(__('Last'), '#'.$schedule->last_run_id) }}</div>
                                     @endif
                                 </td>
                                 <td class="text-end">
@@ -1381,8 +1396,8 @@
                                         <div class="text-muted small">{{ (int) $run->progress }}%</div>
                                     </td>
                                     <td>
-                                        <div>{{__('Imported')}}: {{ number_format((int) $run->imported) }}</div>
-                                        <div class="text-muted">{{__('Failed')}}: {{ number_format((int) $run->failed) }} / {{__('No Full Lang')}}: {{ number_format((int) $run->lang_skipped) }}</div>
+                                        <div>{{ \App\Support\AdminText::labelled(__('Imported'), \App\Support\LocalNumber::format((int) $run->imported)) }}</div>
+                                        <div class="text-muted">{{ \App\Support\AdminText::labelled(__('Failed'), \App\Support\LocalNumber::format((int) $run->failed)) }} / {{ \App\Support\AdminText::labelled(__('No Full Lang'), \App\Support\LocalNumber::format((int) $run->lang_skipped)) }}</div>
                                     </td>
                                     <td class="text-end">
                                         <button type="button" class="btn btn-sm btn-outline-primary mb-1" onclick="loadRun({{ $run->id }}, true)">
@@ -1439,39 +1454,39 @@
                 <table class="table table-sm table-borderless mb-3" style="font-size:0.82rem">
                     <thead><tr><th>{{__('Cat')}}</th><th>{{__('Name')}}</th><th class="text-end">{{__('Videos')}}</th></tr></thead>
                     <tbody>
-                        <tr><td>1</td><td>Censored</td><td class="text-end">{{ __('N/A') }}</td></tr>
-                        <tr><td>2</td><td>Uncensored</td><td class="text-end">{{ __('N/A') }}</td></tr>
-                        <tr><td>3</td><td>Uncensored Leaked</td><td class="text-end">{{ __('N/A') }}</td></tr>
-                        <tr><td>4</td><td>Amateur</td><td class="text-end">{{ __('N/A') }}</td></tr>
-                        <tr><td>5</td><td>Chinese AV</td><td class="text-end">{{ __('N/A') }}</td></tr>
-                        <tr><td>6</td><td>Hentai</td><td class="text-end">{{ __('N/A') }}</td></tr>
-                        <tr><td>7</td><td>English Subtitle</td><td class="text-end">{{ __('N/A') }}</td></tr>
+                        <tr><td>1</td><td>{{ __('Censored') }}</td><td class="text-end">{{ __('N/A') }}</td></tr>
+                        <tr><td>2</td><td>{{ __('Uncensored') }}</td><td class="text-end">{{ __('N/A') }}</td></tr>
+                        <tr><td>3</td><td>{{ __('Uncensored Leaked') }}</td><td class="text-end">{{ __('N/A') }}</td></tr>
+                        <tr><td>4</td><td>{{ __('Amateur') }}</td><td class="text-end">{{ __('N/A') }}</td></tr>
+                        <tr><td>5</td><td>{{ __('Chinese AV') }}</td><td class="text-end">{{ __('N/A') }}</td></tr>
+                        <tr><td>6</td><td>{{ __('Hentai') }}</td><td class="text-end">{{ __('N/A') }}</td></tr>
+                        <tr><td>7</td><td>{{ __('English Subtitle') }}</td><td class="text-end">{{ __('N/A') }}</td></tr>
                     </tbody>
                 </table>
                 <div class="avdb-section-title mt-2" style="font-size:0.85rem">
                     <i class="fa-solid fa-circle-question text-primary"></i>{{__('Quick Help')}}
                 </div>
                 <div class="small" style="line-height:1.8">
-                    <div><strong>Endpoint:</strong> AVDBCMS imports from standard <code>provide</code> only: <code>/api.php/provide/vod</code>. You can override the URL in the form. Use <code>{locale}</code> in custom translated endpoints if needed. <code>provide1</code> is for bulk feeds and is not used here.</div>
-                    <div><strong>Page Size:</strong> accepts 1-1000. Larger pages reduce page requests; use 100-300 on very small VPS if memory is tight.</div>
-                    <div><strong>Content Language:</strong> API translates 4 fields per video: <code>title</code>, <code>description</code>, <code>country</code>, <code>type_name</code>. Other fields (actor, director, movie_code) stay the same.</div>
-                    <div><strong>Title Source:</strong> Leave <code>movie_code</code> title mode off for full API names, or enable it to use short codes like <code>BOKD-197</code> as the displayed title.</div>
-                    <div><strong>Full 16-Lang:</strong> checks all 16 locales in ID batches. Only imports if ALL have unique translations. Saves to <code>video_translations</code> table.</div>
-                    <div><strong>Filters:</strong> supports API docs params <code>wd</code>, <code>code</code>, <code>actor</code>, <code>director</code>, <code>writer</code>, <code>category</code>, <code>h</code>, <code>year</code>, and <code>sort_direction</code>.</div>
-                    <div><strong>Import dates:</strong> every run gets a fresh random timeline. <code>Newest first</code> spreads AVDB order from new to old; <code>Oldest first</code> spreads old to new. Exact timestamps are unique. AVDB release dates stay saved as metadata.</div>
-                    <div><strong>Visibility:</strong> "Everyone" = <code>language=NULL</code> → visible to all site locales. "Fixed locale" pins imported videos to one locale.</div>
-                    <div><strong>Thumbnails:</strong> "Remote" uses upload18 CDN posters. "Download" saves JPGs locally (~50KB each).</div>
-                    <div><strong>Duplicates:</strong> Videos are matched by <code>avdb_id</code>. Re-importing the same pages will skip existing videos.</div>
+                    <div><strong>{{ rtrim(\App\Support\AdminText::labelled(__('Endpoint'), '')) }}</strong>{{ \App\Support\LabelGap::admin() }}{!! __('AVDBCMS imports from the standard list <code>/api.php/provide/vod</code>. You can change the address in the form; in a translated address, <code>{locale}</code> stands for the language. The bulk feed <code>provide1</code> is not used here.') !!}</div>
+                    <div><strong>{{ rtrim(\App\Support\AdminText::labelled(__('Page Size'), '')) }}</strong>{{ \App\Support\LabelGap::admin() }}{!! __('1 to 1000 videos per page. Bigger pages need fewer requests; on a very small server, use 100 to 300 if memory runs short.') !!}</div>
+                    <div><strong>{{ rtrim(\App\Support\AdminText::labelled(__('Content Language'), '')) }}</strong>{{ \App\Support\LabelGap::admin() }}{!! __('AVDBAPI translates four fields of each video: <code>title</code>, <code>description</code>, <code>country</code> and <code>type_name</code>. The actors, the director and the movie code stay as they are.') !!}</div>
+                    <div><strong>{{ rtrim(\App\Support\AdminText::labelled(__('Title Source'), '')) }}</strong>{{ \App\Support\LabelGap::admin() }}{!! __('With the <code>movie_code</code> title off, videos keep their full names; with it on, a short code such as <code>BOKD-197</code> is the title.') !!}</div>
+                    <div><strong>{{ rtrim(\App\Support\AdminText::labelled(__('Full 16-Lang'), '')) }}</strong>{{ \App\Support\LabelGap::admin() }}{!! __('Checks the 16 languages in batches of videos and imports a video only when every language has its own title. The titles are saved in the <code>video_translations</code> table.') !!}</div>
+                    <div><strong>{{ rtrim(\App\Support\AdminText::labelled(__('Filters'), '')) }}</strong>{{ \App\Support\LabelGap::admin() }}{!! __('The filters of the AVDBAPI documentation work here: <code>wd</code>, <code>code</code>, <code>actor</code>, <code>director</code>, <code>writer</code>, <code>category</code>, <code>h</code>, <code>year</code> and <code>sort_direction</code>.') !!}</div>
+                    <div><strong>{{ rtrim(\App\Support\AdminText::labelled(__('Import dates'), '')) }}</strong>{{ \App\Support\LabelGap::admin() }}{!! __('Each run spreads its videos over a new random timeline: Newest first from new to old, Oldest first from old to new. No two videos get the same time, and the AVDB release date is kept too.') !!}</div>
+                    <div><strong>{{ rtrim(\App\Support\AdminText::labelled(__('Visibility'), '')) }}</strong>{{ \App\Support\LabelGap::admin() }}{!! __('Everyone: the videos show in every language of your site (<code>language=NULL</code>). Fixed locale: the imported videos show in one language only.') !!}</div>
+                    <div><strong>{{ rtrim(\App\Support\AdminText::labelled(__('Thumbnails'), '')) }}</strong>{{ \App\Support\LabelGap::admin() }}{!! __('Remote shows the posters from the Upload18 CDN; Download saves each poster on your server (about 50 KB each).') !!}</div>
+                    <div><strong>{{ rtrim(\App\Support\AdminText::labelled(__('Duplicates'), '')) }}</strong>{{ \App\Support\LabelGap::admin() }}{!! __('Videos are matched by their AVDB number (<code>avdb_id</code>): importing the same pages again skips the videos you have.') !!}</div>
                 </div>
-                <div class="d-flex gap-2 mt-3">
+                <div class="d-flex flex-wrap gap-2 mt-3">
                     <a href="https://avdbapi.com/index.php/label/help.html" target="_blank" rel="noopener" class="btn btn-sm btn-outline-info flex-grow-1">
                         <i class="fa-solid fa-arrow-up-right-from-square me-1"></i>{{__('API Documentation')}}
                     </a>
-                    <a href="https://t.me/+jj6McO-iYfA0MTM1" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary flex-grow-1" style="color: #38bdf8; border-color: #0284c7;">
-                        <i class="fa-brands fa-telegram me-1"></i>{{__('Telegram Group')}}
+                    <a href="{{ \App\Support\TelegramLinks::GROUP_URL }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary flex-grow-1" style="color: #38bdf8; border-color: #0284c7;">
+                        <i class="fa-brands fa-telegram me-1"></i>{{__('Telegram group')}}
                     </a>
-                    <a href="https://t.me/avdbapi_support" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary flex-grow-1" style="color: #38bdf8; border-color: #0284c7;">
-                        <i class="fa-brands fa-telegram me-1"></i>{{__('Telegram Support')}}
+                    <a href="{{ \App\Support\TelegramLinks::SUPPORT_URL }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary flex-grow-1" style="color: #38bdf8; border-color: #0284c7;">
+                        <i class="fa-brands fa-telegram me-1"></i>{{__('Telegram support')}}
                     </a>
                 </div>
             </div>
@@ -1560,6 +1575,105 @@
     const latestRun = @json($latestRunPayload);
     const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
     const logBox = document.getElementById('logBox');
+    // The counted texts of this script, in the admin's language. As labels ("Categories: 6.") they read right for any
+    // number in every language, so the page needs no plural rules of its own (it also opens in the old admin layout).
+    // The list is built in a PHP block first, because Blade's json directive cuts its argument at every comma.
+    @php
+        $avdbCountedText = [
+            'connected' => __('Connected. Videos available: :count.'),
+            'directIds' => __('Direct ID mode. AVDB IDs: :count, fetched up to 100 at a time. The category and page settings are not used.'),
+            'estimate' => __('Categories: :categories. Pages per category: :pages. API pages in all: :total. Videos to scan: up to :videos.'),
+            'starting' => __('Starting the import. Categories: :categories. Start page: :from. Pages per category: :pages. API pages in all: :total.'),
+        ];
+        // The script's other texts (status words, the log's lines), filled with tt() like countedText.
+        $avdbText = [
+            'runAccepted' => __('Import run #:id was accepted. This page will refresh shortly.'),
+            'jobAccepted' => __('The import job was accepted. This page will refresh shortly.'),
+            'durationRunning' => __('Duration sync is running.'),
+            'durationLastBatch' => __('Last batch resolved :resolved. Missing :before -> :after.'),
+            'durationLastBatchTimed' => __('Last batch resolved :resolved in :time. Missing :before -> :after.'),
+            'durationSmallBatches' => __('Runs in small browser-safe batches, so the page does not lock up.'),
+            'durationBatchWaiting' => __('Running duration batch :batch... waiting for the server.'),
+            'durationBatchStill' => __('Batch :batch is still running (:elapsed). Total time :total.'),
+            'durationBackground' => __('Background duration sync is running. This page is only watching progress.'),
+            'durationBackgroundDone' => __('Duration sync completed in the background.'),
+            'durationBackgroundWaiting' => __('Background sync is still running or waiting. Refresh later, or run browser-safe batches if counts do not move.'),
+            'durationStopWatching' => __('Stopped watching duration sync. The background worker may still be running.'),
+            'durationStarting' => __('Starting duration sync without reloading the page...'),
+            'durationStarted' => __('Duration sync started.'),
+            'durationNothing' => __('No AVDB videos need duration sync.'),
+            'durationBatchRunning' => __('Running duration batch :batch...'),
+            'durationBatchFinished' => __('Duration batch :batch finished.'),
+            'durationBatchLine' => __('Duration batch :batch: resolved :resolved; missing :missing.'),
+            'durationDone' => __('Duration sync completed. Refresh the page to see all duration badges.'),
+            'durationNoProgress' => __('Duration sync stopped because the latest batch did not resolve more videos. Remaining videos may need retry later or may not expose duration.'),
+            'durationStopped' => __('Duration sync stopped after the current batch.'),
+            'durationPaused' => __('Duration sync paused after many batches. Run it again to continue.'),
+            'durationFailed' => __('Duration sync failed: :error'),
+            'requestFailed' => __('Request failed with HTTP :status'),
+            'sessionChanged' => __('Session expired or CSRF token changed. Refresh the admin page and try again.'),
+            'sessionExpired' => __('Admin session expired. Log in again and retry the import.'),
+            'htmlInsteadOfJson' => __('Request returned HTML instead of JSON (HTTP :status).'),
+            'htmlInsteadOfJsonRefresh' => __('Request returned HTML instead of JSON (HTTP :status). Refresh the page and try again.'),
+            'testing' => __('Testing...'),
+            'autoTesting' => __('Auto testing API connection...'),
+            'testingConnection' => __('Testing API connection...'),
+            'connected' => __('Connected'),
+            'failed' => __('Failed'),
+            'error' => __('Error'),
+            'networkError' => __('Network error: :error'),
+            'testConnection' => __('Test Connection'),
+            'cronNeedsSelection' => __('Please select at least one category or enter AVDB IDs before adding cron.'),
+            'saving' => __('Saving...'),
+            'savingCron' => __('Saving AVDB cron schedule...'),
+            'cronNotSaved' => __('Could not save cron schedule.'),
+            'cronSaveFailed' => __('Cron save failed: :error'),
+            'needIds' => __('Paste at least one AVDB numeric ID or detail URL before starting direct import.'),
+            'needCategory' => __('Please select at least one category.'),
+            'starting' => __('Starting'),
+            'requestSubmitted' => __('Import request submitted. This page will refresh automatically in 5 seconds.'),
+            'directStart' => __('Starting direct import for AVDB IDs: :ids'),
+            'directFastStart' => __('Starting fast direct import for AVDB IDs: :ids (full-language validation disabled)'),
+            'runQueued' => __('Import run #:id queued.'),
+            'runAddedToQueue' => __('Import run #:id was added to the queue.'),
+            'importQueuedWaiting' => __('Import queued, waiting for progress...'),
+            'jobAddedToQueue' => __('Import job was added to the queue.'),
+            'importFailed' => __('Import failed: :error'),
+            'unknownError' => __('Unknown error'),
+            'importRequestFailed' => __('Import request failed: :error'),
+            'runNotLoaded' => __('Could not load import run #:id.'),
+            'runLoadFailed' => __('Run load failed: :error'),
+            'runStatus' => __('Run :status.'),
+            'progressFailed' => __('Progress check failed: :error'),
+            'catPage' => __('Cat :category / Page :page'),
+            'item' => __('Item :item'),
+            'idle' => __('Idle'),
+            'stopRequested' => __('Stop requested.'),
+            'stopFailed' => __('Stop request failed: :error'),
+            'cleaning' => __('Cleaning all AVDB videos...'),
+            'cleanFailed' => __('Clean failed.'),
+            'cleanFailedWith' => __('Clean failed: :error'),
+            'durationWillStop' => __('Duration sync will stop after the current batch finishes.'),
+            'calculating' => __('Calculating'),
+            'rateZero' => __(':rate/min', ['rate' => 0]),
+        ];
+    @endphp
+    const countedText = @json($avdbCountedText);
+    const avdbText = @json($avdbText);
+    // One of the texts above with its :names filled in (fillText(), below).
+    const tt = (key, values = {}) => fillText(avdbText[key] || key, values);
+    // A text for innerHTML (the buttons keep their icon): its characters as text.
+    const escapeText = (value) => String(value).replace(/[&<>"']/g, (c) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'})[c]);
+
+    // Fills the :name placeholders of a text in one pass, the longest name first, like Laravel (a filled-in value is never
+    // read again). The names are this script's own words (letters only).
+    function fillText(line, values) {
+        const names = Object.keys(values).sort((a, b) => b.length - a.length);
+        if (!names.length) return line;
+        return String(line).replace(new RegExp(':(' + names.join('|') + ')', 'g'), (match, name) => String(values[name]));
+    }
+
+    const formatCount = (value) => new Intl.NumberFormat().format(Number(value) || 0);
 
     function log(msg, type = 'info') {
         const now = new Date().toLocaleTimeString();
@@ -1587,8 +1701,8 @@
         }
 
         text.textContent = message || (runId
-            ? `Import run #${runId} was accepted. This page will refresh shortly.`
-            : 'The import job was accepted. This page will refresh shortly.');
+            ? tt('runAccepted', {id: runId})
+            : tt('jobAccepted'));
         count.textContent = String(seconds);
         countText.textContent = String(seconds);
         modal.classList.add('is-visible');
@@ -1655,7 +1769,7 @@
         }
 
         const progress = Math.max(0, Math.min(100, Number(stats.progress || 0)));
-        if (text) text.textContent = message || 'Duration sync is running.';
+        if (text) text.textContent = message || tt('durationRunning');
         if (fill) fill.style.width = `${progress}%`;
         if (synced) synced.textContent = formatDurationNumber(stats.synced);
         if (missing) missing.textContent = formatDurationNumber(stats.missing);
@@ -1666,10 +1780,12 @@
             const batchResolved = parseInt(batch.resolved, 10) || 0;
             const before = parseInt(batch.missing_before, 10);
             const after = parseInt(batch.missing_after, 10);
-            const elapsed = batch.elapsed_ms ? ` in ${formatDurationElapsed(batch.elapsed_ms)}` : '';
+            const numbers = {resolved: formatDurationNumber(batchResolved), before: formatDurationNumber(before), after: formatDurationNumber(after)};
             batchText.textContent = Number.isFinite(before) && Number.isFinite(after)
-                ? `Last batch resolved ${formatDurationNumber(batchResolved)}${elapsed}. Missing ${formatDurationNumber(before)} -> ${formatDurationNumber(after)}.`
-                : 'Runs in small browser-safe batches, so the page does not lock up.';
+                ? (batch.elapsed_ms
+                    ? tt('durationLastBatchTimed', {...numbers, time: formatDurationElapsed(batch.elapsed_ms)})
+                    : tt('durationLastBatch', numbers))
+                : tt('durationSmallBatches');
         }
     }
 
@@ -1684,9 +1800,9 @@
         durationSyncBatchTimer = setInterval(() => {
             const elapsed = Date.now() - startedAt;
             const totalElapsed = durationSyncStartedAt > 0 ? Date.now() - durationSyncStartedAt : elapsed;
-            updateDurationSyncModal(stats, `Running duration batch ${batchIndex}... waiting for server response.`, { batch_index: batchIndex });
+            updateDurationSyncModal(stats, tt('durationBatchWaiting', {batch: batchIndex}), { batch_index: batchIndex });
             if (batchText) {
-                batchText.textContent = `Batch ${formatDurationNumber(batchIndex)} is still running (${formatDurationElapsed(elapsed)}). Total elapsed ${formatDurationElapsed(totalElapsed)}.`;
+                batchText.textContent = tt('durationBatchStill', {batch: formatDurationNumber(batchIndex), elapsed: formatDurationElapsed(elapsed), total: formatDurationElapsed(totalElapsed)});
             }
         }, 1000);
     }
@@ -1722,10 +1838,10 @@
             const stats = data.stats || {};
             const missing = parseInt(stats.missing, 10) || 0;
 
-            updateDurationSyncModal(stats, 'Background duration sync is running. This page is only watching progress.');
+            updateDurationSyncModal(stats, tt('durationBackground'));
 
             if (missing < 1) {
-                finishDurationSync('Duration sync completed in the background.', 'success');
+                finishDurationSync(tt('durationBackgroundDone'), 'success');
                 return;
             }
 
@@ -1733,12 +1849,12 @@
             previousMissing = missing;
 
             if (unchangedPolls >= 6) {
-                finishDurationSync('Background sync is still running or waiting. Refresh later, or run browser-safe batches if counts do not move.', 'warning');
+                finishDurationSync(tt('durationBackgroundWaiting'), 'warning');
                 return;
             }
         }
 
-        finishDurationSync('Stopped watching duration sync. The background worker may still be running.', 'warning');
+        finishDurationSync(tt('durationStopWatching'), 'warning');
     }
 
     async function startDurationSync() {
@@ -1755,7 +1871,7 @@
             button.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i>{{__('Syncing...')}}';
         }
 
-        updateDurationSyncModal({}, 'Starting duration sync without reloading the page...');
+        updateDurationSyncModal({}, tt('durationStarting'));
 
         try {
             const start = await apiJson('{{ route("admin.cron.duration.runner.start") }}', {
@@ -1764,10 +1880,10 @@
                 body: JSON.stringify({ limit: 10000, chunk: 100 })
             });
 
-            updateDurationSyncModal(start.stats || {}, start.message || 'Duration sync started.');
+            updateDurationSyncModal(start.stats || {}, start.message || tt('durationStarted'));
 
             if (start.done) {
-                finishDurationSync(start.message || 'No AVDB videos need duration sync.', 'success');
+                finishDurationSync(start.message || tt('durationNothing'), 'success');
                 return;
             }
 
@@ -1781,7 +1897,7 @@
             let idleBatches = 0;
 
             for (let batchIndex = 1; batchIndex <= 200 && !durationSyncStopRequested; batchIndex++) {
-                updateDurationSyncModal(start.stats || {}, `Running duration batch ${batchIndex}...`, { batch_index: batchIndex });
+                updateDurationSyncModal(start.stats || {}, tt('durationBatchRunning', {batch: batchIndex}), { batch_index: batchIndex });
                 startDurationBatchHeartbeat(batchIndex, start.stats || {});
                 let data;
                 try {
@@ -1798,27 +1914,27 @@
                 batch.batch_index = batchIndex;
                 const resolved = parseInt(batch.resolved, 10) || 0;
                 durationSyncResolvedTotal += resolved;
-                updateDurationSyncModal(data.stats || {}, data.message || `Duration batch ${batchIndex} finished.`, batch);
-                log(`Duration batch ${batchIndex}: resolved ${formatDurationNumber(resolved)}; missing ${formatDurationNumber((data.stats || {}).missing)}.`, resolved > 0 ? 'success' : 'warning');
+                updateDurationSyncModal(data.stats || {}, data.message || tt('durationBatchFinished', {batch: batchIndex}), batch);
+                log(tt('durationBatchLine', {batch: batchIndex, resolved: formatDurationNumber(resolved), missing: formatDurationNumber((data.stats || {}).missing)}), resolved > 0 ? 'success' : 'warning');
 
                 if (data.done) {
-                    finishDurationSync('Duration sync completed. Refresh the page to see all duration badges.', 'success');
+                    finishDurationSync(tt('durationDone'), 'success');
                     return;
                 }
 
                 idleBatches = resolved > 0 ? 0 : idleBatches + 1;
                 if (!data.continue || idleBatches >= 2) {
-                    finishDurationSync('Duration sync stopped because the latest batch did not resolve more videos. Remaining videos may need retry later or may not expose duration.', 'warning');
+                    finishDurationSync(tt('durationNoProgress'), 'warning');
                     return;
                 }
 
                 await new Promise(resolve => setTimeout(resolve, 250));
             }
 
-            finishDurationSync(durationSyncStopRequested ? 'Duration sync stopped after the current batch.' : 'Duration sync paused after many batches. Run it again to continue.', 'warning');
+            finishDurationSync(durationSyncStopRequested ? tt('durationStopped') : tt('durationPaused'), 'warning');
         } catch (e) {
-            finishDurationSync('Duration sync failed: ' + e.message, 'error');
-            updateDurationSyncModal({}, 'Duration sync failed: ' + e.message);
+            finishDurationSync(tt('durationFailed', {error: e.message}), 'error');
+            updateDurationSyncModal({}, tt('durationFailed', {error: e.message}));
         }
     }
 
@@ -1828,6 +1944,12 @@
             'X-Requested-With': 'XMLHttpRequest',
             ...(options.headers || {}),
         };
+
+        // The progress polls and other reads are background GETs (App\Http\Middleware\BackgroundRequest): every
+        // 1.5 s they would otherwise use up a one-time message of another page and write the session.
+        if (String(options.method || 'GET').toUpperCase() === 'GET') {
+            headers[@json(\App\Http\Middleware\BackgroundRequest::HEADER)] = '1';
+        }
 
         const res = await fetch(url, {
             credentials: 'same-origin',
@@ -1853,7 +1975,7 @@
             if (isJson) {
                 const message = payload.message
                     || Object.values(payload.errors || {}).flat().join(' ')
-                    || `Request failed with HTTP ${res.status}`;
+                    || tt('requestFailed', {status: res.status});
                 throw new Error(message);
             }
 
@@ -1864,10 +1986,10 @@
 
             throw new Error(
                 isExpired
-                    ? 'Session expired or CSRF token changed. Refresh the admin page and try again.'
+                    ? tt('sessionChanged')
                     : isLogin
-                        ? 'Admin session expired. Log in again and retry the import.'
-                        : `Request returned HTML instead of JSON (HTTP ${res.status}${title ? `: ${title}` : ''}).`
+                        ? tt('sessionExpired')
+                        : tt('htmlInsteadOfJson', {status: res.status + (title ? `: ${title}` : '')})
             );
         }
 
@@ -1879,10 +2001,10 @@
 
             throw new Error(
                 isExpired
-                    ? 'Session expired or CSRF token changed. Refresh the admin page and try again.'
+                    ? tt('sessionChanged')
                     : isLogin
-                        ? 'Admin session expired. Log in again and retry the import.'
-                        : `Request returned HTML instead of JSON (HTTP ${res.status}${title ? `: ${title}` : ''}). Refresh the page and try again.`
+                        ? tt('sessionExpired')
+                        : tt('htmlInsteadOfJsonRefresh', {status: res.status + (title ? `: ${title}` : '')})
             );
         }
 
@@ -1925,11 +2047,11 @@
 
         if (btn) {
             btn.disabled = true;
-            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i>Testing...';
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i>' + escapeText(tt('testing'));
         }
         dot.className = 'avdb-connection-dot';
-        status.textContent = 'Testing...';
-        log(automatic ? 'Auto testing API connection...' : 'Testing API connection...');
+        status.textContent = tt('testing');
+        log(automatic ? tt('autoTesting') : tt('testingConnection'));
 
         try {
             const data = await apiJson('{{ route("admin.avdb-import.test") }}', {
@@ -1942,8 +2064,8 @@
 
             if (data.success) {
                 dot.className = 'avdb-connection-dot connected';
-                status.textContent = 'Connected';
-                log(`Connected! ${data.total_videos} videos available.`, 'success');
+                status.textContent = tt('connected');
+                log(fillText(countedText.connected, {count: formatCount(data.total_videos)}), 'success');
 
                 // Update category counts
                 if (data.category_counts) {
@@ -1954,18 +2076,18 @@
                 }
             } else {
                 dot.className = 'avdb-connection-dot failed';
-                status.textContent = 'Failed';
+                status.textContent = tt('failed');
                 log(data.message, 'error');
             }
         } catch (e) {
             dot.className = 'avdb-connection-dot failed';
-            status.textContent = 'Error';
-            log('Network error: ' + e.message, 'error');
+            status.textContent = tt('error');
+            log(tt('networkError', {error: e.message}), 'error');
         } finally {
             connectionTestRunning = false;
             if (btn) {
                 btn.disabled = false;
-                btn.innerHTML = '<i class="fa-solid fa-satellite-dish me-1"></i>Test Connection';
+                btn.innerHTML = '<i class="fa-solid fa-satellite-dish me-1"></i>' + escapeText(tt('testConnection'));
             }
         }
     }
@@ -2057,7 +2179,7 @@
         const ids = normalizeDirectIdsInput(document.getElementById('specificIds').value);
         if (ids) {
             const count = ids.split(',').filter(Boolean).length;
-            estimate.textContent = `Direct ID mode: ${count} AVDB ID(s), fetched in batches of up to 100. Category/page settings are ignored.`;
+            estimate.textContent = fillText(countedText.directIds, {count: formatCount(count)});
             return;
         }
 
@@ -2066,7 +2188,12 @@
         const pageSize = Math.max(1, Math.min(1000, parseInt(document.getElementById('pageSize').value, 10) || 1000));
         const totalApiPages = categories.length * pages;
         const maxVideos = totalApiPages * pageSize;
-        estimate.textContent = `${categories.length} categor${categories.length === 1 ? 'y' : 'ies'} x ${pages} page(s) = ${totalApiPages} API page(s), up to ${new Intl.NumberFormat().format(maxVideos)} videos scanned.`;
+        estimate.textContent = fillText(countedText.estimate, {
+            categories: formatCount(categories.length),
+            pages: formatCount(pages),
+            total: formatCount(totalApiPages),
+            videos: formatCount(maxVideos),
+        });
     }
 
     function scheduleFrequencyChanged() {
@@ -2086,7 +2213,7 @@
 
         const categories = selectedCategoryIds();
         if (categories.length === 0 && !ids) {
-            log('Please select at least one category or enter AVDB IDs before adding cron.', 'warning');
+            log(tt('cronNeedsSelection'), 'warning');
             return null;
         }
 
@@ -2164,8 +2291,8 @@
 
         const btn = document.getElementById('btnSaveSchedule');
         btn.disabled = true;
-        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i>Saving...';
-        log('Saving AVDB cron schedule...');
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i>' + escapeText(tt('saving'));
+        log(tt('savingCron'));
 
         try {
             const data = await apiJson('{{ route("admin.avdb-import.schedules.store") }}', {
@@ -2181,10 +2308,10 @@
                 log(data.message, 'success');
                 window.setTimeout(() => window.location.reload(), 700);
             } else {
-                log(data.message || 'Could not save cron schedule.', 'error');
+                log(data.message || tt('cronNotSaved'), 'error');
             }
         } catch (e) {
-            log('Cron save failed: ' + e.message, 'error');
+            log(tt('cronSaveFailed', {error: e.message}), 'error');
         } finally {
             btn.disabled = false;
             btn.innerHTML = '<i class="fa-solid fa-calendar-plus me-1"></i>{{__('Add Current Settings to Cron')}}';
@@ -2202,12 +2329,12 @@
 
         const categories = selectedCategoryIds();
         if (mode === 'direct' && !ids) {
-            log('Paste at least one AVDB numeric ID or detail URL before starting direct import.', 'warning');
+            log(tt('needIds'), 'warning');
             return;
         }
 
         if (categories.length === 0 && !ids) {
-            log('Please select at least one category.', 'warning');
+            log(tt('needCategory'), 'warning');
             return;
         }
 
@@ -2229,13 +2356,13 @@
         document.getElementById('resultLangSkipCard').style.display = 'none';
         document.getElementById('resultPages').textContent = '0 / 0';
         document.getElementById('resultElapsed').textContent = '0s';
-        document.getElementById('resultCurrent').textContent = 'Starting';
+        document.getElementById('resultCurrent').textContent = tt('starting');
         document.getElementById('resultItems').textContent = '0 / 0';
-        document.getElementById('resultRate').textContent = '0/min';
-        document.getElementById('resultEta').textContent = 'Calculating';
+        document.getElementById('resultRate').textContent = tt('rateZero');
+        document.getElementById('resultEta').textContent = tt('calculating');
         updateIssueExportLinks(null);
         scrollToImportProgress();
-        showImportQueuedModal(null, 'Import request submitted. This page will refresh automatically in 5 seconds.', true);
+        showImportQueuedModal(null, tt('requestSubmitted'), true);
 
         const pageSizeInput = document.getElementById('pageSize');
         const pageSize = Math.max(1, Math.min(1000, parseInt(pageSizeInput.value, 10) || 1000));
@@ -2258,8 +2385,13 @@
         const starterViewsSpreadDays = boundedNumber('starterViewsSpreadDays', 90, 1, 3650);
 
         log(ids
-            ? `Starting ${directFastMode ? 'fast ' : ''}direct import for AVDB IDs: ${ids}${directFastMode ? ' (full-language validation disabled)' : ''}`
-            : `Starting import: ${categories.length} categories x ${numPages} page(s) = ${categories.length * numPages} API page(s), pages ${startPage}-${startPage + numPages - 1}`
+            ? tt(directFastMode ? 'directFastStart' : 'directStart', {ids})
+            : fillText(countedText.starting, {
+                categories: formatCount(categories.length),
+                from: formatCount(startPage),
+                pages: formatCount(numPages),
+                total: formatCount(categories.length * numPages),
+            })
         );
 
         try {
@@ -2310,28 +2442,28 @@
             const startedRunId = data.run?.id || data.run_id;
             if (startedRunId) {
                 currentRunId = startedRunId;
-                log(data.message || `Import run #${startedRunId} queued.`, data.success ? 'success' : 'warning');
+                log(data.message || tt('runQueued', {id: startedRunId}), data.success ? 'success' : 'warning');
                 if (data.run) {
                     applyRun(data.run);
                     syncImportButtons(data.run);
                 }
                 startPolling();
-                showImportQueuedModal(startedRunId, data.message || `Import run #${startedRunId} was added to the queue.`, true);
+                showImportQueuedModal(startedRunId, data.message || tt('runAddedToQueue', {id: startedRunId}), true);
             } else if (data.success) {
-                log(data.message || 'Import queued, waiting for progress...', 'success');
+                log(data.message || tt('importQueuedWaiting'), 'success');
                 importing = true;
                 syncImportButtons({ status: 'queued' });
-                showImportQueuedModal(null, data.message || 'Import job was added to the queue.', true);
+                showImportQueuedModal(null, data.message || tt('jobAddedToQueue'), true);
             } else {
                 hideImportQueuedModal();
-                log('Import failed: ' + (data.message || 'Unknown error'), 'error');
+                log(tt('importFailed', {error: data.message || tt('unknownError')}), 'error');
                 importing = false;
                 document.getElementById('btnStartImport').style.display = '';
                 document.getElementById('btnStopImport').style.display = 'none';
             }
         } catch (e) {
             hideImportQueuedModal();
-            log('Import request failed: ' + e.message, 'error');
+            log(tt('importRequestFailed', {error: e.message}), 'error');
             importing = false;
             document.getElementById('btnStartImport').style.display = '';
             document.getElementById('btnStopImport').style.display = 'none';
@@ -2350,7 +2482,7 @@
         try {
             const data = await apiJson(`{{ url('/admin/avdb-import/runs') }}/${runId}`);
             if (!data.success || !data.run) {
-                log(`Could not load import run #${runId}.`, 'warning');
+                log(tt('runNotLoaded', {id: runId}), 'warning');
                 return;
             }
 
@@ -2363,7 +2495,7 @@
             }
             if (shouldScroll) scrollToImportProgress();
         } catch (e) {
-            log('Run load failed: ' + e.message, 'warning');
+            log(tt('runLoadFailed', {error: e.message}), 'warning');
         }
     }
 
@@ -2382,12 +2514,12 @@
                 importing = false;
                 syncImportButtons(data.run);
                 refreshStats();
-                log(data.run.message || `Run ${data.run.status}.`, data.run.status === 'completed' ? 'success' : 'warning');
+                log(data.run.message || tt('runStatus', {status: data.run.status}), data.run.status === 'completed' ? 'success' : 'warning');
             } else {
                 syncImportButtons(data.run);
             }
         } catch (e) {
-            log('Progress check failed: ' + e.message, 'warning');
+            log(tt('progressFailed', {error: e.message}), 'warning');
         }
     }
 
@@ -2406,11 +2538,11 @@
         document.getElementById('resultPages').textContent = run.pages_label || `${run.completed_pages || 0} / ${run.total_pages || 0}`;
         document.getElementById('resultElapsed').textContent = run.elapsed_label || '0s';
         document.getElementById('resultCurrent').textContent = run.current_category
-            ? `Cat ${run.current_category} / Page ${run.current_page || '-'}`
-            : (run.current_page ? `Item ${run.current_page}` : (run.status || 'Idle'));
+            ? tt('catPage', {category: run.current_category, page: run.current_page || '-'})
+            : (run.current_page ? tt('item', {item: run.current_page}) : (run.status || tt('idle')));
         document.getElementById('resultItems').textContent = run.items_label || `${run.processed_items || 0} / ${run.estimated_items || 0}`;
-        document.getElementById('resultRate').textContent = run.rate_label || 'Calculating';
-        document.getElementById('resultEta').textContent = run.eta_label || 'Calculating';
+        document.getElementById('resultRate').textContent = run.rate_label || tt('calculating');
+        document.getElementById('resultEta').textContent = run.eta_label || tt('calculating');
 
         if ((run.lang_skipped || 0) > 0) {
             document.getElementById('resultLangSkipCard').style.display = '';
@@ -2478,9 +2610,9 @@
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken }
             });
             if (data.run) applyRun(data.run);
-            log(data.message || 'Stop requested.', 'warning');
+            log(data.message || tt('stopRequested'), 'warning');
         } catch (e) {
-            log('Stop request failed: ' + e.message, 'error');
+            log(tt('stopFailed', {error: e.message}), 'error');
         }
     }
 
@@ -2495,7 +2627,7 @@
     async function cleanAllVideos() {
         if (!confirm('{{ __("This will permanently delete ALL AVDB imported videos, their tags, and thumbnails. Are you sure?") }}')) return;
 
-        log('Cleaning all AVDB videos...');
+        log(tt('cleaning'));
         try {
             const data = await apiJson('{{ route("admin.avdb-import.clean") }}', {
                 method: 'POST',
@@ -2505,10 +2637,10 @@
                 log(data.message, 'success');
                 refreshStats();
             } else {
-                log('Clean failed.', 'error');
+                log(tt('cleanFailed'), 'error');
             }
         } catch (e) {
-            log('Clean failed: ' + e.message, 'error');
+            log(tt('cleanFailedWith', {error: e.message}), 'error');
         }
     }
 
@@ -2525,7 +2657,7 @@
     document.getElementById('btnSyncDurations')?.addEventListener('click', startDurationSync);
     document.getElementById('avdbDurationStop')?.addEventListener('click', () => {
         durationSyncStopRequested = true;
-        log('Duration sync will stop after the current batch finishes.', 'warning');
+        log(tt('durationWillStop'), 'warning');
     });
     document.getElementById('avdbDurationRefresh')?.addEventListener('click', () => window.location.reload());
     toggleFullLangsMode();

@@ -2,14 +2,20 @@
 
 namespace App\Notifications\Video;
 
+use App\Notifications\Support\MemberMail;
 use App\Models\User;
 use App\Models\Video;
+use App\Notifications\Support\BellNotification;
+use App\Notifications\Support\NotificationText;
+use App\Notifications\Support\Realtime;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 use Illuminate\Support\Facades\Lang;
 
 class VideoBanned extends Notification
 {
+    use BellNotification;
+
     private Video $video;
 
     public function __construct(Video $video)
@@ -18,14 +24,14 @@ class VideoBanned extends Notification
     }
 
     /**
-     * Get the notification's channels.
+     * Get the notification's channels: an e-mail and the bell (pushed live when the site has a live broadcaster).
      *
      * @param User $notifiable
      * @return array|string
      */
     public function via(User $notifiable): array|string
     {
-        return ['mail', 'database', 'broadcast'];
+        return Realtime::channels(['mail', 'database']);
     }
 
     /**
@@ -48,26 +54,28 @@ class VideoBanned extends Notification
     protected function buildMailMessage(User $notifiable) : MailMessage
     {
         return (new MailMessage)
-            ->subject(Lang::get('Your video was suspended'))
-            ->markdown('mails.video.ban', [
+            ->subject(MemberMail::videoBan($notifiable, $this->video)['subject'])
+            ->view(['mails.video.ban', 'mails.text.video.ban'], [
                 'notifiable' => $notifiable,
                 'video' => $this->video,
             ]);
     }
 
     /**
-     * Get the array representation of the notification.
+     * The bell's data: "Your video was suspended: <title>" (translated when shown) and the member's videos.
      *
      * @param  User $notifiable
      * @return array
      */
     public function toArray(User $notifiable) : array
     {
-        return [
-            'message' => 'You video ' .$this->video->title. ' was banned',
+        return NotificationText::data('video_suspended', [
+            'title' => $this->video->title,
+        ], [
+            'video_id' => (int) $this->video->getKey(),
             'url' => route('user.videos.index'),
             'created_at' => now(),
-            'is_read' => false
-        ];
+            'is_read' => false,
+        ]);
     }
 }

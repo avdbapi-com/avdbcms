@@ -48,12 +48,12 @@ html[data-bs-theme="dark"] {
   --avd-info-fill: #38bdf8;
   --avd-on-info: #1b1e23;
   --avd-border-input: #6e7176;
-  --avd-font-display: 'Lexend', system-ui, 'Segoe UI', Roboto, sans-serif;
-  --avd-font-body: 'Lexend', system-ui, 'Segoe UI', Roboto, sans-serif;
-  --avd-font-label: 'Lexend', system-ui, 'Segoe UI', Roboto, sans-serif;
-  --avd-font-title: 'Lexend', system-ui, 'Segoe UI', Roboto, sans-serif;
-  --avd-font-kicker: 'Lexend', system-ui, 'Segoe UI', Roboto, sans-serif;
-  --avd-font-meta: 'Lexend', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --avd-font-display: 'Lexend', 'Lexend Fallback', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --avd-font-body: 'Lexend', 'Lexend Fallback', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --avd-font-label: 'Lexend', 'Lexend Fallback', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --avd-font-title: 'Lexend', 'Lexend Fallback', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --avd-font-kicker: 'Lexend', 'Lexend Fallback', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --avd-font-meta: 'Lexend', 'Lexend Fallback', system-ui, 'Segoe UI', Roboto, sans-serif;
   --avd-display-weight: 600;
   --avd-display-case: none;
   --avd-display-tracking: -0.02em;
@@ -252,12 +252,12 @@ html[data-bs-theme="light"] {
   --avd-info-fill: #0369a1;
   --avd-on-info: #ffffff;
   --avd-border-input: #8c8c8b;
-  --avd-font-display: 'Lexend', system-ui, 'Segoe UI', Roboto, sans-serif;
-  --avd-font-body: 'Lexend', system-ui, 'Segoe UI', Roboto, sans-serif;
-  --avd-font-label: 'Lexend', system-ui, 'Segoe UI', Roboto, sans-serif;
-  --avd-font-title: 'Lexend', system-ui, 'Segoe UI', Roboto, sans-serif;
-  --avd-font-kicker: 'Lexend', system-ui, 'Segoe UI', Roboto, sans-serif;
-  --avd-font-meta: 'Lexend', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --avd-font-display: 'Lexend', 'Lexend Fallback', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --avd-font-body: 'Lexend', 'Lexend Fallback', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --avd-font-label: 'Lexend', 'Lexend Fallback', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --avd-font-title: 'Lexend', 'Lexend Fallback', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --avd-font-kicker: 'Lexend', 'Lexend Fallback', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --avd-font-meta: 'Lexend', 'Lexend Fallback', system-ui, 'Segoe UI', Roboto, sans-serif;
   --avd-display-weight: 600;
   --avd-display-case: none;
   --avd-display-tracking: -0.02em;
@@ -437,8 +437,17 @@ html[data-avd-hero-deco="banner_soft"][data-avd-theme] .avd-soft-img {
     html[data-avd-hero-deco="banner_soft"][data-avd-theme] .avd-banner .avd-soft-img {
         display: none;
     }
-    /* the phone values of layout-theme-b (= the mockup's phone rules), which this decoration's desktop rules out-rank */
+    /* the phone values of layout-theme-b (= the mockup's phone rules), which this decoration's desktop rules out-rank;
+       R1-151: a phone's padding, so the text keeps its place once the card takes the page gutter below */
     html[data-avd-hero-deco="banner_soft"][data-avd-theme] .avd-banner {
         grid-template-columns: 1fr;
+        padding-inline: 20px;
+    }
+}
+/* R1-151: below 576px the container has no side padding: the card stops 16px from both screen edges (it touched them,
+   its rounded corners cut by the screen), as the container keeps it from 576px. */
+@media (max-width: 575.98px) {
+    html[data-avd-hero-deco="banner_soft"][data-avd-theme] .avd-banner {
+        margin-inline: 1rem;
     }
 }

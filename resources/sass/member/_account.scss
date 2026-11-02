@@ -1,0 +1,863 @@
+/* Member account pages (member design 6.9, 6.16, 6.17, 6.18): Account settings, the crop dialog, the Premium page and its welcome
+   sheet. Started from the design kit's "Account settings and Premium" part. Every
+   selector starts with :root or html (the specificity floor, 5.13); tokens only, logical
+   properties (Arabic mirrors), calm states (colour, background, border colour, shadow, opacity), no :has() needed. */
+
+/* ---------------------------------------------------------------------------------------------------------------------
+   Account settings: the section column (from 992px) or the sticky strip (phones and tablets)
+   ------------------------------------------------------------------------------------------------------------------ */
+
+:root .mk-settings {
+    display: grid;
+    gap: var(--mk-gap);
+    min-inline-size: 0;
+}
+
+:root .mk-settings__nav {
+    min-inline-size: 0;
+}
+
+/* the strip's items keep their width (a shrunk item let the last one end under the screen edge) */
+:root .mk-settings .mk-subnav > li {
+    flex: none;
+}
+
+:root .mk-settings .mk-subnav {
+    scroll-padding-inline: .5rem;
+}
+
+@media (max-width: 991.98px) {
+    /* Phones and tablets: the section strip sticks under the site header (at the top while "Header stays visible" is
+       off: --mk-sticky-top is 0 then). */
+
+    /* edge to edge: the strip takes back the page container's own side padding (Bootstrap's gutter, 12px) */
+    :root .mk-settings__nav {
+        position: sticky;
+        inset-block-start: var(--mk-sticky-top, 64px);
+        z-index: 4;
+        margin-inline: calc(var(--bs-gutter-x, 1.5rem) * -.5);
+        padding: .5rem calc(var(--bs-gutter-x, 1.5rem) * .5);
+        border-block-end: 1px solid var(--avd-divider, var(--avd-border));
+        background: var(--avd-bg);
+    }
+}
+
+@media (min-width: 992px) {
+    /* revision 3: the section column grows with the admin's "Text size" (15rem: 240px at 16px, 300px at 20px), and its
+       links may wrap there ("Sign-in and security" ran 259px in 236px at 20px) */
+    :root .mk-settings {
+        grid-template-columns: 15rem minmax(0, 1fr);
+        align-items: start;
+    }
+
+    :root .mk-settings .mk-subnav a {
+        white-space: normal;
+    }
+
+    :root .mk-settings__nav {
+        position: sticky;
+        inset-block-start: calc(var(--mk-sticky-top, 64px) + 16px);
+    }
+}
+
+/* R1-118: the Shorts Feed look's page backdrop ("sparkles": layout-theme-a.css paints it on body::before) scatters small
+   stars over the page, and on member pages the text sits on the page itself: a star stood between the words of the
+   Account settings section column. Member pages draw the look's backdrop without the stars (the mockups show none):
+   the same glows and colours, from the look's own colours (App\Support\ThemeTokens, backdrop "sparkles"). */
+html[data-avd-member][data-avd-backdrop="sparkles"][data-bs-theme] {
+    --avd-page-backdrop: radial-gradient(900px 600px at 20% -10%, rgba(var(--avd-brand-rgb), var(--mk-sparkles-glow, .18)), transparent 65%),
+        radial-gradient(800px 600px at 100% 100%, rgba(var(--avd-brand-2-rgb), .12), transparent 65%),
+        linear-gradient(180deg, var(--avd-bg-2), var(--avd-bg));
+}
+
+html[data-avd-member][data-avd-backdrop="sparkles"][data-bs-theme="light"] {
+    --mk-sparkles-glow: .14;
+}
+
+:root .mk-settings__content {
+    display: grid;
+    gap: var(--mk-gap);
+    min-inline-size: 0;
+}
+
+/* A section's form holds its panels and its save bar: the same rhythm as the content column. */
+:root .mk-settings__form {
+    display: grid;
+    gap: var(--mk-gap);
+    min-inline-size: 0;
+}
+
+/* A panel's head action (Preview channel, Sign out all other devices, See all): never wraps, sits at the end of the
+   title line (account-19: "Preview" broke into "Pre / vie / w"). */
+:root .mk-panel__action {
+    flex: none;
+    order: 1;
+}
+
+:root .mk-panel__head > .mk-panel__sub {
+    order: 2;
+}
+
+:root .mk-panel__note {
+    margin: 0;
+    padding: 0 var(--mk-pad) var(--mk-pad);
+}
+
+:root .mk-alert__list {
+    margin: .25rem 0 0;
+    padding-inline-start: 1.1rem;
+}
+
+/* ---------------------------------------------------------------------------------------------------------------------
+   Profile: picture, name, badge, joined; the address preview; e-mail and phone states
+   ------------------------------------------------------------------------------------------------------------------ */
+
+:root .mk-avatar-edit {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 1rem 1.25rem;
+}
+
+:root .mk-avatar-edit > .mk-avatar {
+    flex: none;
+    object-fit: cover;
+}
+
+:root .mk-avatar-edit__text {
+    display: grid;
+    flex: 1 1 14rem;
+    justify-items: start;
+    gap: .35rem;
+    min-inline-size: 0;
+}
+
+:root .mk-avatar-edit__name {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .35rem .5rem;
+    min-inline-size: 0;
+}
+
+:root .mk-avatar-edit__name > strong {
+    min-inline-size: 0;
+    overflow-wrap: anywhere;
+    color: var(--avd-text);
+    font-size: 1.05rem;
+}
+
+:root .mk-avatar-edit__meta {
+    font-size: .8125rem;
+}
+
+:root .mk-avatar-edit__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+}
+
+/* The account badge (the same in the account panel and the studio menu): its own colours, kit size, never
+   stretched to the column (account-49). */
+:root .avd-mk .mk-account-badge {
+    flex: none;
+    align-self: center;
+    justify-self: start;
+    inline-size: auto;
+    max-inline-size: 100%;
+    font-size: .75rem;
+    line-height: 1.6;
+    white-space: nowrap;
+}
+
+:root .mk-verified {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    color: var(--avd-success);
+    font-size: .8125rem;
+    font-weight: 700;
+}
+
+:root .mk-help--url {
+    overflow-wrap: anywhere;
+}
+
+:root .mk-phone-readonly {
+    margin: 0;
+    color: var(--avd-text);
+    font-variant-numeric: tabular-nums;
+}
+
+/* A file chooser that looks like a button: a <label> around <image-upload>, whose real (transparent) file input covers
+   the button's inside; a click or a tap anywhere on the button, its border included, opens the file dialog (the label
+   hands it to its input), so the whole button is the target; its keyboard focus shows on the button. */
+:root .mk-file {
+    position: relative;
+    overflow: hidden;
+    cursor: pointer;
+}
+
+:root .mk-file > image-upload {
+    position: absolute;
+    inset: 0;
+    display: block;
+}
+
+:root .mk-file > image-upload input[type="file"] {
+    position: absolute;
+    inset: 0;
+    inline-size: 100%;
+    block-size: 100%;
+    margin: 0;
+    padding: 0;
+    opacity: 0;
+    cursor: pointer;
+    font-size: 1rem;
+}
+
+:root .mk-file:focus-within {
+    outline: 2px solid var(--avd-focus);
+    outline-offset: 2px;
+}
+
+@media (pointer: coarse) {
+    /* the file input covers the button: on a touch screen the button (and so the input) is a 44px target */
+    :root .mk-file {
+        min-block-size: 44px;
+    }
+}
+
+/* The Theme choice (Light / Dark / Device) never cuts its words: the kit's three equal segments cut a word longer than a
+   third with "…" ("Dispositivo", "Устройство", "Maliwanag" at every width; 15 of 17 languages at 320px, English "Device"
+   too). Here a segment is at least as wide as its word (at most the row) and the three share the rest; three that do not
+   fit in one row wrap, the last one on a row of its own (320px Russian, the largest text sizes). The label is the visual
+   box, as in the kit's radio form: the segment has no padding of its own, the label .25rem. */
+:root .avd-profile-settings .mk-seg--block {
+    display: flex;
+    flex-wrap: wrap;
+}
+
+:root .avd-profile-settings .mk-seg--block > .mk-seg__item {
+    flex: 1 1 0;
+    min-inline-size: fit-content;
+    padding-inline: 0;
+}
+
+:root .avd-profile-settings .mk-seg--block .mk-seg__label {
+    padding-inline: .25rem;
+}
+
+/* ---------------------------------------------------------------------------------------------------------------------
+   Channel: banner 16:5, swatches, collapsible groups, own colour
+   ------------------------------------------------------------------------------------------------------------------ */
+
+:root .mk-swatches {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+}
+
+:root .mk-swatch {
+    position: relative;
+    display: grid;
+    justify-items: center;
+    gap: .3rem;
+    inline-size: 4.5rem;
+    /* 1.2.3 round 3 (R3-054): wider than 4.5rem when a word of its label is (German "Sonnenaufgang"): words stay whole */
+    min-inline-size: min-content;
+    cursor: pointer;
+}
+
+:root .mk-swatch input {
+    position: absolute;
+    inset-block-start: 0;
+    inset-inline-start: 50%;
+    inline-size: 1px;
+    block-size: 1px;
+    opacity: 0;
+}
+
+:root .mk-swatch__chip {
+    inline-size: 2.5rem;
+    block-size: 2.5rem;
+    border-radius: 50%;
+    box-shadow: inset 0 0 0 1px rgba(var(--avd-shade-rgb, 0, 0, 0), .25), 0 0 0 1px var(--avd-border);
+}
+
+:root .mk-swatch input:checked + .mk-swatch__chip {
+    box-shadow: 0 0 0 2px var(--avd-bg), 0 0 0 4px var(--avd-brand-ink);
+}
+
+:root .mk-swatch input:focus-visible + .mk-swatch__chip {
+    outline: 2px solid var(--avd-focus);
+    outline-offset: 4px;
+}
+
+:root .mk-swatch__label {
+    color: var(--avd-muted);
+    font-size: .75rem;
+    line-height: 1.25;
+    text-align: center;
+    /* a label wraps between its words (or where the language hyphenates); a word longer than the whole row breaks there */
+    overflow-wrap: break-word;
+    hyphens: auto;
+}
+
+@media (pointer: coarse) {
+    /* a 44px target around each 40px chip */
+    :root .mk-swatch {
+        min-block-size: 44px;
+    }
+}
+
+:root .mk-banner-edit {
+    position: relative;
+    overflow: hidden;
+    aspect-ratio: 16 / 5;
+    border-radius: var(--mk-r-inner);
+    background: var(--avd-surface-3, var(--avd-surface-2));
+}
+
+:root .mk-banner-edit > img {
+    display: block;
+    inline-size: 100%;
+    block-size: 100%;
+    object-fit: cover;
+}
+
+:root .mk-banner-edit__empty {
+    display: grid;
+    place-content: center;
+    justify-items: center;
+    gap: .35rem;
+    block-size: 100%;
+    padding: .75rem 1rem 3.25rem;
+    color: var(--avd-muted);
+    font-size: .8125rem;
+    text-align: center;
+}
+
+:root .mk-banner-edit__empty > i {
+    font-size: 1.35rem;
+}
+
+:root .mk-banner-edit__actions {
+    position: absolute;
+    inset-inline-end: .5rem;
+    inset-block-end: .5rem;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: .4rem;
+    max-inline-size: calc(100% - 1rem);
+}
+
+/* over the picture: a solid fill keeps them readable on any banner */
+@media (min-width: 576px) {
+    :root .mk-banner-edit__actions .mk-btn {
+        background: var(--avd-surface-solid);
+        color: var(--avd-text);
+    }
+}
+
+/* Phones: a 16:5 box is about 92px tall, too short for the empty-state line and the buttons (44px each, and two rows
+   in the looks with uppercase buttons). The picture or the empty state keeps the 16:5 box, the buttons go under it,
+   in the flow, as the kit draws them, and wrap as they need. */
+@media (max-width: 575.98px) {
+    :root .mk-banner-edit {
+        display: grid;
+        gap: .5rem;
+        overflow: visible;
+        aspect-ratio: auto;
+        border-radius: 0;
+        background: none;
+    }
+
+    :root .mk-banner-edit > img,
+    :root .mk-banner-edit__empty {
+        aspect-ratio: 16 / 5;
+        block-size: auto;
+        overflow: hidden;
+        border-radius: var(--mk-r-inner);
+        background: var(--avd-surface-3, var(--avd-surface-2));
+    }
+
+    :root .mk-banner-edit__empty {
+        padding: .5rem .75rem;
+    }
+
+    :root .mk-banner-edit__actions {
+        position: static;
+        justify-content: flex-start;
+        max-inline-size: none;
+    }
+}
+
+:root .mk-groups {
+    display: grid;
+    gap: .5rem;
+}
+
+:root .mk-group-block {
+    border: 1px solid var(--avd-border);
+    border-radius: var(--mk-r-inner);
+    background: var(--avd-bg);
+}
+
+:root .mk-group-block > summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: .25rem 1rem;
+    min-block-size: 48px;
+    padding: .75rem 1rem;
+    border-radius: inherit;
+    color: var(--avd-text);
+    font-weight: 650;
+    cursor: pointer;
+    list-style-position: inside;
+}
+
+:root .mk-group-block > summary:focus-visible {
+    outline: 2px solid var(--avd-focus);
+    outline-offset: -2px;
+}
+
+:root .mk-group-block > summary .mk-muted {
+    min-inline-size: 0;
+    font-size: .8125rem;
+    font-weight: 500;
+}
+
+:root .mk-group-block > .mk-form {
+    padding: .25rem 1rem 1rem;
+}
+
+/* a closed Channel look group loads when it is opened the first time: "Loading...", or why it did not load */
+:root .mk-group-block > .mk-group-block__status {
+    margin: 0;
+    padding: .75rem 1rem 1rem;
+}
+
+:root .mk-group-block[open] > summary {
+    border-block-end: 1px solid var(--avd-divider, var(--avd-border));
+    border-end-start-radius: 0;
+    border-end-end-radius: 0;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    :root .mk-group-block > summary:hover {
+        background: var(--mk-hover);
+    }
+}
+
+:root .mk-field--inline {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .75rem;
+}
+
+:root .mk-color {
+    inline-size: 3.25rem;
+    block-size: var(--mk-ctl-h, 40px);
+    padding: .2rem;
+    border: 1px solid var(--avd-border-input);
+    border-radius: var(--mk-r-field);
+    background: var(--avd-bg);
+    cursor: pointer;
+}
+
+:root .mk-color:focus-visible {
+    outline: 2px solid var(--avd-focus);
+    outline-offset: 2px;
+}
+
+/* ---------------------------------------------------------------------------------------------------------------------
+   Sign-in and security: the strength line, services, devices
+   ------------------------------------------------------------------------------------------------------------------ */
+
+:root .mk-strength-line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .5rem;
+    min-block-size: 1.25rem;
+}
+
+:root .mk-provider {
+    display: grid;
+    place-items: center;
+    inline-size: 2.1rem;
+    block-size: 2.1rem;
+    border-radius: var(--mk-r-field);
+    background: var(--avd-surface-2);
+    font-size: 1.1rem;
+}
+
+:root .mk-provider svg {
+    inline-size: 1.15rem;
+    block-size: 1.15rem;
+}
+
+/* The service's own mark (the one place a brand colour is allowed in member CSS: 1.1, provider marks). */
+:root .mk-provider__facebook {
+    color: #1877f2;
+}
+
+:root .avd-profile-settings .mk-attn__icon {
+    display: grid;
+    flex: none;
+    place-items: center;
+    inline-size: 2.1rem;
+    block-size: 2.1rem;
+    border-radius: var(--mk-r-field);
+    background: rgba(var(--mk-tone-rgb, var(--avd-info-rgb)), .12);
+    color: var(--mk-tone, var(--avd-info));
+}
+
+:root .avd-profile-settings .mk-attn__icon--muted {
+    --mk-tone: var(--avd-muted);
+    --mk-tone-rgb: var(--avd-shade-rgb, 0, 0, 0);
+}
+
+:root .mk-item__meta {
+    font-size: .8125rem;
+}
+
+:root .mk-item__title .mk-badge {
+    margin-inline-start: .35rem;
+    vertical-align: middle;
+}
+
+/* ---------------------------------------------------------------------------------------------------------------------
+   Premium and invoices (Account settings): the plan card and the invoice rows
+   ------------------------------------------------------------------------------------------------------------------ */
+
+:root .mk-plan {
+    display: grid;
+    gap: .6rem;
+    padding: 1rem;
+    border: 1px solid var(--avd-border);
+    border-radius: var(--mk-r-inner);
+    background: var(--avd-bg);
+}
+
+:root .mk-plan p {
+    margin: 0;
+    color: var(--avd-text);
+}
+
+:root .mk-plan .mk-help {
+    color: var(--avd-muted);
+}
+
+:root .mk-plan__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .5rem;
+}
+
+/* a payment problem: a warning bar on the start edge (a tone in the bar, the text stays the text colour) */
+:root .mk-plan--past_due {
+    box-shadow: inset 3px 0 0 var(--avd-warning);
+}
+
+:root[dir="rtl"] .mk-plan--past_due {
+    box-shadow: inset -3px 0 0 var(--avd-warning);
+}
+
+:root .avd-profile-settings .mk-amount {
+    min-inline-size: 4.5rem;
+    margin-inline-end: .5rem;
+    color: var(--avd-text);
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    text-align: end;
+}
+
+:root .avd-profile-settings .mk-item--invoice {
+    align-items: center;
+}
+
+/* ---------------------------------------------------------------------------------------------------------------------
+   Delete account
+   ------------------------------------------------------------------------------------------------------------------ */
+
+:root .mk-delete-body {
+    display: grid;
+    gap: 1rem;
+}
+
+/* ---------------------------------------------------------------------------------------------------------------------
+   The crop dialog (users/partials/crop.blade.php): the real crop tool (Cropper.js) in a 16:10 frame; the round preview
+   of a profile picture (account-52); the "loading" cover until the tool is ready (account-10)
+   ------------------------------------------------------------------------------------------------------------------ */
+
+:root .mk-crop {
+    position: relative;
+    overflow: hidden;
+    aspect-ratio: 16 / 10;
+    max-block-size: 52dvh;
+    inline-size: 100%;
+    border-radius: var(--mk-r-inner);
+    background: #000;
+}
+
+:root .mk-crop > img {
+    display: block;
+    max-inline-size: 100%;
+}
+
+:root .mk-crop--round .cropper-view-box,
+:root .mk-crop--round .cropper-face {
+    border-radius: 50%;
+}
+
+:root .mk-crop .cropper-view-box {
+    outline-color: rgba(255, 255, 255, .85);
+}
+
+:root .mk-crop__loading {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    background: rgba(0, 0, 0, .35);
+    color: #fff;
+    font-size: 1.25rem;
+}
+
+:root .mk-crop__loading[hidden] {
+    display: none;
+}
+
+:root .mk-crop__zoom {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    color: var(--avd-muted);
+}
+
+:root .mk-crop__zoom .mk-range {
+    flex: 1 1 auto;
+    min-inline-size: 0;
+}
+
+:root .mk-crop-dialog .mk-sheet__foot .mk-spinner[hidden] {
+    display: none;
+}
+
+/* R1-120: on phones the two buttons keep their words on one line ("Use this picture" broke in two at 390 next to an
+   equal Cancel): each takes the width its words need and they share the rest; when both do not fit (a long language),
+   "Use this picture" goes on a line of its own, full width. The same for the sheets of Account settings (R2A-039:
+   "Delete my account" and "Sign out other devices" broke onto 2-3 lines, 54px tall at 360px). */
+@media (max-width: 575.98px) {
+    :root .mk-crop-dialog .mk-sheet__foot > .mk-btn,
+    :root .avd-profile-settings .mk-dialog .mk-sheet__foot > .mk-btn {
+        flex: 1 1 auto;
+        white-space: nowrap;
+    }
+}
+
+/* ---------------------------------------------------------------------------------------------------------------------
+   The Premium page /premium: plan cards, the trial timeline, Free and Premium (a table from 640px, stacked rows on
+   phones: account-5), the welcome sheet
+   ------------------------------------------------------------------------------------------------------------------ */
+
+:root .mk-plans-area {
+    display: grid;
+    gap: .75rem;
+    min-inline-size: 0;
+}
+
+:root .mk-plans {
+    display: grid;
+    /* revision 3: two plan cards side by side only when each gets 20rem (a card's price row and badge at a large
+       "Text size" ran out of a 340px card at 768px) */
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+    gap: var(--mk-gap);
+}
+
+:root .mk-plans__note {
+    margin: 0;
+}
+
+:root .mk-plan-card {
+    display: grid;
+    gap: .75rem;
+    align-content: start;
+    min-inline-size: 0;
+    padding: 1.25rem;
+    border: var(--mk-panel-border);
+    border-radius: var(--mk-r-panel);
+    background: var(--avd-surface-1);
+}
+
+:root .mk-plan-card.is-chosen {
+    box-shadow: inset 0 0 0 2px var(--avd-brand-ink);
+}
+
+:root .mk-plan-card.is-disabled {
+    opacity: .85;
+}
+
+:root .mk-plan-card > p {
+    margin: 0;
+}
+
+:root .mk-plan-card__top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: .5rem;
+}
+
+:root .mk-plan-card__price {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: .4rem;
+}
+
+:root .mk-plan-card__actions {
+    display: grid;
+    gap: .5rem;
+}
+
+:root .mk-features li {
+    align-items: flex-start;
+}
+
+:root .mk-facts--ok li i {
+    margin-block-start: .2rem;
+    color: var(--avd-success);
+}
+
+:root .mk-features li > span {
+    min-inline-size: 0;
+}
+
+:root .mk-features .mk-feature__title {
+    color: var(--avd-text);
+    font-size: .9375rem;
+    font-weight: 650;
+}
+
+:root .mk-timeline {
+    display: grid;
+    gap: .75rem;
+    margin: 0;
+    padding: .25rem var(--mk-pad) var(--mk-pad);
+    list-style: none;
+}
+
+:root .mk-timeline li {
+    display: grid;
+    grid-template-columns: minmax(5.5rem, max-content) minmax(0, 1fr);
+    gap: .25rem .75rem;
+    padding-inline-start: .85rem;
+    border-inline-start: 2px solid var(--avd-border);
+}
+
+:root .mk-timeline li:first-child {
+    border-inline-start-color: var(--avd-brand-ink);
+}
+
+@media (max-width: 575.98px) {
+    :root .mk-timeline li {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+:root .mk-compare {
+    padding: 0 var(--mk-pad) var(--mk-pad);
+}
+
+:root .mk-compare__table {
+    display: none;
+    inline-size: 100%;
+    border-collapse: collapse;
+}
+
+:root .mk-compare__table th,
+:root .mk-compare__table td {
+    padding: .65rem .5rem;
+    border-block-end: 1px solid var(--avd-divider, var(--avd-border));
+    color: var(--avd-text);
+    text-align: start;
+}
+
+:root .mk-compare__table thead th {
+    color: var(--avd-muted);
+    font-size: .8125rem;
+}
+
+:root .mk-compare__table tbody td:first-child {
+    font-weight: 650;
+}
+
+:root .mk-compare__table td i,
+:root .mk-compare__row i {
+    color: var(--avd-muted);
+}
+
+:root .mk-compare__cards {
+    display: grid;
+    gap: .5rem;
+}
+
+/* A stacked row (phones): what is compared, then the two plans side by side, each as its name over its value. A value
+   is never split over two lines while it fits the row (R2A-026: "Premium plan ✓ No" / "ads" read as "no"; "500" /
+   "MB"): a plan's cell is as wide as its name and its value on one line, but never wider than the row (fit-content),
+   and when the two do not fit side by side the second takes a line of its own (the longest value of the 18 languages,
+   Vietnamese "✓ Không có quảng cáo", is 164px, a cell 147px at 360px). A plan name the owner wrote longer than the row
+   wraps inside its full-width cell ("max-content" had made every cell wider than the panel, cut at the screen's edge);
+   only a single word longer than the row breaks ("anywhere"). */
+:root .mk-compare__row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .25rem .75rem;
+    padding: .6rem 0;
+    border-block-end: 1px solid var(--avd-divider, var(--avd-border));
+    color: var(--avd-text);
+}
+
+:root .mk-compare__row > span:not(.mk-compare__what) {
+    flex: 1 1 0;
+    min-inline-size: fit-content;
+    overflow-wrap: anywhere;
+}
+
+:root .mk-compare__row > span:not(.mk-compare__what) > .mk-muted:first-child {
+    display: block;
+}
+
+:root .mk-compare__what {
+    flex: 1 1 100%;
+    color: var(--avd-text);
+    font-weight: 650;
+}
+
+@media (min-width: 640px) {
+    :root .mk-compare__table {
+        display: table;
+    }
+
+    :root .mk-compare__cards {
+        display: none;
+    }
+}
+
+:root .mk-welcome {
+    padding-block: .5rem;
+}
+
+:root .mk-welcome .mk-help a {
+    color: var(--avd-text);
+    text-decoration: underline;
+}

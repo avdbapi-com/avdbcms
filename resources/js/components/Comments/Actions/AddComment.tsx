@@ -7,6 +7,7 @@ import {InfiniteData, useQueryClient} from "@tanstack/react-query";
 import { CommentType, CommentDataSchema, CommentData, Paginator} from "@/types";
 import {useRef} from "preact/hooks";
 import {produce} from 'immer'
+import {signInUrl} from '@/components/Comments/signInUrl';
 
 type Props = {
     video_id: string,
@@ -78,7 +79,8 @@ export const AddComment = memo(({video_id, placeholder = 'Add a comment...', lab
                     </form> :
                     <div className={'alert alert-primary d-flex justify-content-between align-items-center flex-wrap gap-1'}>
                         <span>{t('Sign in to write a comment')}</span>
-                        <a href={'/login'} className={'btn btn-primary btn-sm'}>
+                        {/* R1-062: back to this page, in its language (the other sign-in prompts of the page do the same) */}
+                        <a href={signInUrl()} className={'btn btn-primary btn-sm'}>
                             {t('Sign in')}
                         </a>
                     </div>

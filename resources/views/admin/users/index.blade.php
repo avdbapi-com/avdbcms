@@ -8,10 +8,16 @@
     <div x-data="{user: {}}">
         <div class="d-flex justify-content-between align-items-center my-3">
             <h2>{{__('Users')}}</h2>
-            <a class="btn btn-outline-success" href="{{route('admin.users.export', request()->query())}}">
-                <i class="fa-solid fa-file-export"></i>
-                Export
-            </a>
+            {{-- A view-only demo account is not offered a closed page (ViewOnlyDemo::hides()): no export. --}}
+            @unless(\App\Http\Middleware\ViewOnlyDemo::hides('admin.users.export'))
+            <form method="POST" action="{{ route('admin.users.export', request()->query()) }}" class="d-inline">
+                @csrf
+                <button type="submit" class="btn btn-outline-success">
+                    <i class="fa-solid fa-file-export"></i>
+                    Export
+                </button>
+            </form>
+            @endunless
         </div>
         <hr>
         {!! form(FormBuilder::create(UserFiltersForm::class)) !!}
@@ -82,7 +88,7 @@
                         </td>
                         <td class="align-middle">
                             @if($user->subscribers_count)
-                                <div class="badge bg-primary">{{$user->subscribers_count}} subscribers</div>
+                                <div class="badge bg-primary">{{ trans_choice('1 subscriber|:count subscribers', (int) $user->subscribers_count, ['count' => number_format((int) $user->subscribers_count)]) }}</div>
                             @else
                                 <div class="badge bg-secondary">{{__('No subscribers')}}</div>
                             @endif
@@ -142,10 +148,13 @@
                                 <a class="btn btn-sm btn-primary" href="{{route('admin.users.edit', $user)}}" title="{{__('Edit user')}}">
                                     <i class="fa-solid fa-edit"></i>
                                 </a>
-                                @if(!$user->is_admin && config('admin.operational_tools_enabled', false))
-                                    <a target="_blank" class="btn btn-sm btn-secondary" href="{{route('admin.impersonate', $user)}}" title="{{__('Impersonate user')}}">
-                                        <i class="fa-solid fa-user-ninja"></i>
-                                    </a>
+                                @if(!$user->is_admin && config('admin.operational_tools_enabled', false) && ! \App\Http\Middleware\ViewOnlyDemo::hides('admin.impersonate'))
+                                    <form method="POST" action="{{ route('admin.impersonate', $user) }}" target="_blank" class="d-inline">
+                                        @csrf
+                                        <button type="submit" class="btn btn-sm btn-secondary" title="{{__('Impersonate user')}}">
+                                            <i class="fa-solid fa-user-ninja"></i>
+                                        </button>
+                                    </form>
                                 @endif
                                 @if(!$user->hasVerifiedEmail())
                                     <form method="POST" action="{{route('admin.users.confirm', $user)}}" title="{{__('Verify user')}}">

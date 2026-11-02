@@ -10,8 +10,7 @@
 </div>
 <hr>
 <div class="alert alert-info py-2">
-    <strong>{{__('Storage mode')}}:</strong>
-    {{ \Illuminate\Support\Str::headline($viewLogMode ?? 'authenticated') }}.
+    <strong>{{ rtrim(\App\Support\AdminText::labelled(__('Storage mode'), '')) }}</strong>{{ \App\Support\LabelGap::admin() }}{{ \Illuminate\Support\Str::headline($viewLogMode ?? 'authenticated') }}.
     {{__('Public totals come from the video counter. Recent rows below are raw history only and may be empty in counter-only mode.')}}
 </div>
 
@@ -56,14 +55,15 @@
                     <tbody>
                     @forelse($views as $view)
                     <tr>
-                        <td><small>{{ Str::limit($view->video_title ?? 'Deleted', 30) }}</small></td>
-                        <td><small>{{ $view->username ?? 'Guest' }}</small></td>
+                        <td><small>{{ Str::limit($view->video_title ?? __('Deleted video'), 30) }}</small></td>
+                        <td><small>{{ $view->username ?? __('Guest') }}</small></td>
                         <td><small class="text-muted">{{ $view->ip }}</small></td>
                         <td><small>{{ \Carbon\Carbon::parse($view->view_at)->diffForHumans() }}</small></td>
                         <td>
+                            {{-- A 24 x 24 px target with a name (it was a 19 x 19 px "✕" in every row, R3-076). --}}
                             <form method="POST" action="{{ route('admin.views.delete', $view->id) }}" class="d-inline">
                                 @csrf @method('DELETE')
-                                <button class="btn btn-xs btn-outline-danger py-0 px-1" style="font-size:11px">✕</button>
+                                <button type="submit" class="btn btn-outline-danger" style="display:inline-flex;align-items:center;justify-content:center;min-width:24px;min-height:24px;padding:0 6px;font-size:12px;line-height:1" title="{{ __('Delete') }}" aria-label="{{ __('Delete') }}"><span aria-hidden="true">✕</span></button>
                             </form>
                         </td>
                     </tr>

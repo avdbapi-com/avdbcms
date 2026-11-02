@@ -152,10 +152,10 @@ html[data-bs-theme="light"][data-avd-flavor="nord"] {
   --avd-chip-text: #4c566a;
   --avd-chip-active-text: #2e3440;
   --avd-chip-active-shadow: inset 0 2px 0 #496b95;
-  --avd-btn-bg: #5578a3;
+  --avd-btn-bg: #5477a2;
   --avd-btn2-bg: #e5e9f0;
   --avd-btn2-text: #2e3440;
-  --avd-play-bg: #5578a3;
+  --avd-play-bg: #5477a2;
   --avd-badge-bg: #5578a3;
   --avd-new-bg: #4f7a3a;
   --avd-icon-color: #4c566a;

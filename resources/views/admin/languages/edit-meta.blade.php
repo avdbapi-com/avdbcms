@@ -132,7 +132,7 @@
                             <div class="text-muted small">{{__('This language will be served at the bare URL (no prefix).')}}</div>
                         </div>
                         <form method="POST" action="{{ route('admin.languages.set-default', $language) }}"
-                              onsubmit='return confirm({!! json_encode(__('Set :label as the default language? The current default will lose its Default status.', ['label' => $language->label])) !!})'>
+                              onsubmit='return confirm({!! json_encode(__('Set :label as the default language? The current default will lose its Default status.', ['label' => $language->label]), JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_TAG | JSON_HEX_AMP) !!})'>
                             @csrf
                             <button type="submit" class="btn btn-warning btn-sm">
                                 <i class="fa-solid fa-star me-1"></i> {{ __('Set as Default') }}
@@ -146,7 +146,7 @@
                             <div class="text-muted small">{{__('Removes from DB. Translation JSON file is kept.')}}</div>
                         </div>
                         <form method="POST" action="{{ route('admin.languages.destroy', $language) }}"
-                              onsubmit='return confirm({!! json_encode(__('Delete :label? This cannot be undone.', ['label' => $language->label])) !!})'>
+                              onsubmit='return confirm({!! json_encode(__('Delete :label? This cannot be undone.', ['label' => $language->label]), JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_TAG | JSON_HEX_AMP) !!})'>
                             @csrf
                             @method('DELETE')
                             <button type="submit" class="btn btn-danger btn-sm">

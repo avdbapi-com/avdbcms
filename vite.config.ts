@@ -5,7 +5,7 @@ import { defineConfig, transformWithEsbuild, type Plugin } from 'vite';
 import laravel from 'laravel-vite-plugin';
 import preact from '@preact/preset-vite';
 
-// Perf plan step 24: the layout's former inline theme CSS (see resources/views/components/layout.blade.php
+// The layout's former inline theme CSS (see resources/views/components/layout.blade.php
 // and App\Support\ThemeCss). Each file is its own entry so the layout can keep the old cascade order.
 const themeCssInputs = {
     'layout-theme-a': 'resources/css/layout-theme-a.css',
@@ -36,7 +36,7 @@ const themeTokenInputs: Record<string, string> = Object.fromEntries(
         .sort(([a], [b]) => a.localeCompare(b)),
 );
 
-// The admin shell's own document (WP6: resources/admin/admin.ts + admin.scss). Added only once the files
+// The admin shell's own document (resources/admin/admin.ts + admin.scss). Added only once the files
 // exist, so a checkout without them still builds.
 const adminInputs: Record<string, string> = Object.fromEntries(
     [
@@ -213,9 +213,30 @@ export default defineConfig({
         rollupOptions: {
             input: {
                 main: 'resources/js/app.ts',
+                // The member CSS entry (member design 5.13): its own file, printed by the layout for signed-in
+                // visitors and on member routes only, never on the admin's pages.
+                member: 'resources/sass/member.scss',
+                // The script of the member channel, library and playlist pages (their actions, the channel's tabs,
+                // History): one cached file, printed as a classic script by resources/views/library/pages-script.blade.php
+                // instead of 14 to 31 KB of inline script in each page (member design 4.3).
+                'member-pages': 'resources/js/member/library-pages.js',
+                // The studio's scripts (the member bars, the studio parts, My videos' and the video form's components):
+                // one cached file, printed as a classic script by resources/views/users/partials/studio-script-tag.blade.php
+                // instead of 2 to 15 KB of inline script in each studio page (1.2.3 round 1b, R1R-01; member design 4.3).
+                'studio-pages': 'resources/js/member/studio-pages.js',
                 ...themeCssInputs,
                 ...themeTokenInputs,
                 ...adminInputs,
+                // The sign-in pages' part of the member kit (R1-070): out of the member entry, printed by the layout
+                // after it on the sign-in, contact, error and account pages only. (The build reads this list; the
+                // laravel() input below is used only when it is missing.)
+                'auth-pages': 'resources/sass/auth-pages.scss',
+                // The channel page's own rules (1.2.3 round 3, R1-070 = R2R-10): out of the member entry, linked by
+                // users/show.blade.php after it, on the channel page only.
+                'channel-page': 'resources/sass/channel-page.scss',
+                // The "Today's design" sheet's rules (round 1 review): out of the main CSS, loaded by the layout without
+                // holding the first paint, only where the sheet is.
+                'daily-sheet': 'resources/sass/daily-sheet.scss',
             },
             output: {
                 manualChunks(id) {
@@ -240,7 +261,7 @@ export default defineConfig({
     },
     plugins: [
         laravel({
-            input: ['resources/js/app.ts', ...Object.values(themeCssInputs), ...Object.values(themeTokenInputs), ...Object.values(adminInputs)],
+            input: ['resources/js/app.ts', 'resources/sass/member.scss', 'resources/js/member/library-pages.js', 'resources/js/member/studio-pages.js', ...Object.values(themeCssInputs), ...Object.values(themeTokenInputs), ...Object.values(adminInputs)],
             refresh: true,
         }),
         preact(),

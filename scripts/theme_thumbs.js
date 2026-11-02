@@ -9,7 +9,7 @@
 //
 // Release step: run it against a seeded install of the FINAL build, then commit the pictures.
 //   PWPATH=<path to playwright> PLAYWRIGHT_BROWSERS_PATH=<browsers> ADMIN_EMAIL=<admin> ADMIN_PW_FILE=<file with the password> \
-//   node scripts/theme_thumbs.js --base http://127.0.0.1:8118 [--only themes,looks,fonts] [--themes tokyo_neon,broadsheet] [--quality 0.62]
+//   node scripts/theme_thumbs.js --base http://127.0.0.1:8000 [--only themes,looks,fonts] [--themes tokyo_neon,broadsheet] [--quality 0.62]
 // Looks and fonts need the admin login (the draft preview and the pairing list are admin-only); without it only the
 // themes are rendered. The password is read from the file and never printed. Looks are drawn through that admin's
 // own draft, so they show the signed-in header, and the script stops when the admin has unpublished changes

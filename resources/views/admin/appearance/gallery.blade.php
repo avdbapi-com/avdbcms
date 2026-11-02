@@ -12,7 +12,7 @@
 @endpush
 
 @section('content')
-    <x-admin.page-header page="appearance.themes" :title="$tab === 'looks' ? __('Complete looks') : __('All themes')" :description="__(':count items. Open Themes to preview one on your site.', ['count' => $total])" />
+    <x-admin.page-header page="appearance.themes" :title="$tab === 'looks' ? __('Complete looks') : __('All themes')" :description="trans_choice('1 item. Open Themes to preview it on your site.|:count items. Open Themes to preview one on your site.', $total, ['count' => number_format($total)])" />
 
     @if ($tab === 'themes')
         <form class="ad-gallery-search ad-appearance-filter" method="GET" action="{{ route('admin.appearance.gallery') }}">

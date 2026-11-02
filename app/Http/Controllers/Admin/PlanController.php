@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 use App\Models\Plan;
 use App\Support\AdminPreferences;
+use App\Support\AuditDetails;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -54,11 +55,14 @@ class PlanController
             'paypal_plan_id' => ['nullable', 'string', 'max:255', 'regex:/^P-[A-Z0-9]+$/i'],
         ]);
 
-        Plan::create($validated);
+        $plan = Plan::create($validated);
+
+        // Tools > Logs > Admin actions (R3-019): the plan by its name and number, never a price or a key.
+        AuditLogController::log('plan.created', AuditDetails::titled($plan, 'name'));
 
         return redirect()
             ->route('admin.plans.index')
-            ->withSuccess('Plan created successfully.');
+            ->withSuccess(__('Plan created'));
     }
 
     public function edit (Plan $plan) : View {
@@ -77,17 +81,26 @@ class PlanController
 
         $plan->update($validated);
 
+        // Which fields changed, never their values (the price, the Stripe and PayPal ids); none changed: nothing written.
+        $changed = array_values(array_intersect_key(['name' => 'name', 'price' => 'price', 'duration' => 'billing', 'stripe_id' => 'stripe', 'paypal_plan_id' => 'paypal'], $plan->getChanges()));
+
+        if ($changed !== []) {
+            AuditLogController::log('plan.updated', AuditDetails::titled($plan, 'name').': '.implode(', ', $changed));
+        }
+
         return redirect()
             ->route('admin.plans.index')
-            ->withSuccess('Plan updated successfully.');
+            ->withSuccess(__('Changes saved.'));
     }
 
     public function destroy (Plan $plan) : RedirectResponse {
 
+        $name = AuditDetails::titled($plan, 'name');
         $plan->delete();
+        AuditLogController::log('plan.deleted', $name);
 
         return redirect()
             ->route('admin.plans.index')
-            ->withSuccess('Plan deleted successfully.');
+            ->withSuccess(__('Plan deleted'));
     }
 }

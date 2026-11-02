@@ -72,7 +72,7 @@
                 <td class="is-check"><input type="checkbox" name="ids[]" value="{{ $device->id }}" form="ad-devices-bulk" aria-labelledby="ad-l-sel ad-d-{{ $device->id }}"></td>
                 <td class="c-main"><p><b id="ad-d-{{ $device->id }}">{{ $device->user?->username ?? __('Deleted member') }}</b><small>{{ $device->user?->email }}</small></p></td>
                 <td class="c-meta">{{ $device->name }} <x-admin.status :type="$ended ? 'off' : 'ok'">{{ $ended ? __('Ended') : __('Signed in') }}</x-admin.status></td>
-                <td class="is-date">{{ $device->last_used_at?->diffForHumans(short: true) ?? __('Never') }}</td>
+                <td class="is-date">{{ $device->last_used_at?->diffForHumans(short: \App\Support\AdminText::shortTimes()) ?? __('Never') }}</td>
                 <td class="hide-tab is-date">{{ $device->expires_at?->translatedFormat('j M Y') ?? __('Never') }}</td>
                 <td class="is-actions"><button type="button" class="ad-iconbtn is-more" aria-haspopup="true" aria-labelledby="ad-l-act ad-d-{{ $device->id }}" data-id="{{ $device->id }}" @if ($device->user) data-user="{{ $device->user->id }}" @endif></button></td>
             </tr>

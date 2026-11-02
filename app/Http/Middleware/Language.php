@@ -84,6 +84,15 @@ class Language
                 $qs     = $request->getQueryString();
                 $newUrl = '/' . $locale . ($path === '/' ? '' : $path) . ($qs ? '?' . $qs : '');
 
+                // QA account-4: this hop keeps the one-time messages and the old input. A page that answered with
+                // back()->with('success', ...) to a URL without the language prefix lost its message here: the hop
+                // used it up, and the /<locale> page it lands on showed nothing.
+                try {
+                    if ($request->hasSession()) {
+                        $request->session()->reflash();
+                    }
+                } catch (\Throwable) {}
+
                 return redirect($newUrl, 302);
             }
 
@@ -133,10 +142,10 @@ class Language
     private function localeFromReferer(Request $request): ?string
     {
         $referer = (string) $request->headers->get('referer', '');
-        $path = (string) parse_url($referer, PHP_URL_PATH);
-        $segments = array_values(array_filter(explode('/', trim($path, '/'))));
 
-        return $segments[0] ?? null;
+        // The page's language as every link of the site reads it: after the folder of a site installed in one and after
+        // /index.php (R2R-05: /site/fr/... and /index.php/fr/... gave "site" and "index.php").
+        return $referer !== '' ? locale_path_parts($referer)['locale'] : null;
     }
 
     private function localeFromSession(Request $request): ?string

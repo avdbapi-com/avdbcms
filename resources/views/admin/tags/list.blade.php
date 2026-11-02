@@ -86,12 +86,12 @@
         @foreach ($tags as $tag)
             @php($used = (int) $tag->usage_count)
             <tr>
-                <td class="c-main"><p class="ad-tag-name"><b id="ad-t-{{ $tag->id }}">{{ $tag->name }}</b> <code class="hide-phone">{{ $tag->slug }}</code></p>
+                <td class="c-main"><p class="ad-tag-name"><b id="ad-t-{{ $tag->id }}">{{ $tag->name }}</b> <code class="hide-phone">{{ $tag->slug }}</code></p>@if (\App\Support\ContentSafety::hides($tag->name))<p class="ad-small ad-muted">{{ __('Hidden from visitors: its name uses a word that is always blocked.') }}</p>@endif
                     <details class="ad-rename"><summary>{{ __('Rename') }}<span class="ad-vh"> {{ $tag->name }}</span></summary><form method="POST" action="{{ route('admin.tags.update', $tag->id, false) }}" class="ad-filter">@csrf @method('PUT')<input class="ad-input" type="text" name="name" value="{{ $tag->name }}" maxlength="100" required aria-label="{{ __('New name for :name', ['name' => $tag->name]) }}"><button type="submit" class="ad-btn sm">{{ __('Save') }}</button></form></details></td>
                 <td class="c-meta is-num"><span class="ad-phone-only">{{ trans_choice('1 video|:count videos', $used, ['count' => number_format($used)]) }}</span><span class="hide-phone">{{ number_format($used) }}</span></td>
                 <td class="hide-tab is-num">{{ $tag->id }}</td>
                 <td class="hide-tab is-date">{{ \Illuminate\Support\Carbon::parse($tag->created_at)->translatedFormat('j M Y') }}</td>
-                <td class="is-actions"><button type="button" class="ad-iconbtn is-more" aria-haspopup="true" aria-labelledby="ad-l-act ad-t-{{ $tag->id }}" data-id="{{ $tag->id }}" data-q="{{ rawurlencode($tag->name) }}"@if ($used > 0) data-used="1"@endif></button></td>
+                <td class="is-actions"><button type="button" class="ad-iconbtn is-more" aria-haspopup="true" aria-labelledby="ad-l-act ad-t-{{ $tag->id }}" data-id="{{ $tag->id }}" data-q="{{ rawurlencode($tag->name) }}"@if ($used > 0 && ! \App\Support\ContentSafety::hides($tag->name)) data-used="1"@endif></button></td>
             </tr>
         @endforeach
     </x-admin.table>

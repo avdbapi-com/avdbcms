@@ -21,10 +21,16 @@ use App\Services\ViewHistoryRetentionService;
 use App\Services\YoutubeService;
 use App\Support\AppearanceSettings;
 use App\Support\ChannelCustomizationSettings;
+use App\Support\ConsoleSiteSettings;
 use App\Support\CorsConfig;
 use App\Support\HomeWidgetVideoSettings;
+use App\Support\LaravelSchedulerCron;
 use App\Support\PremiumPageSettings;
+use App\Support\SiteSettingsSource;
+use App\Support\TelegramLinks;
+use Illuminate\Console\Events\CommandStarting;
 use Illuminate\Contracts\Debug\ExceptionHandler;
+use Illuminate\Queue\Events\JobProcessing;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\View;
@@ -41,6 +47,10 @@ class AppServiceProvider extends ServiceProvider
 
         $this->app->singleton(YoutubeService::class, fn() => new YoutubeService(config('services.youtube.api_key')));
         $this->app->singleton(BrevoService::class, fn() => new BrevoService(config('services.brevo.api_key')));
+
+        // Cashier's own /stripe/webhook and /stripe/payment/{id} are unused (the site's webhook is route('stripe_webhook'),
+        // checked by App\Http\Middleware\VerifyStripeWebhookSignature); its webhook accepted unsigned events without a secret.
+        Cashier::ignoreRoutes();
 
         $this->registerHostSafeQueueWorker();
     }
@@ -108,8 +118,39 @@ class AppServiceProvider extends ServiceProvider
             $this->app->register(\Barryvdh\LaravelIdeHelper\IdeHelperServiceProvider::class);
         }
 
+        if ($this->app->runningInConsole() && ! $this->app->runningUnitTests()) {
+            $this->listenInConsole($this->consoleSettings());
+        }
+
         $this->applyDbSettings();
         $this->resolveAppearanceFormValues();
+    }
+
+    /**
+     * The admin's settings for a console process (judge R1R-06): applied through applySettings() when the process's
+     * command does the site's work, again before each queued job when the admin changed them (App\Support\ConsoleSiteSettings).
+     */
+    public function consoleSettings(): ConsoleSiteSettings
+    {
+        return new ConsoleSiteSettings($this->app, fn (SiteSettingsSource $source) => $this->applySettings($source));
+    }
+
+    /**
+     * A console process (never the test process, whose requests count the queries of a web request): the settings when
+     * its command starts and before each job; the system cron's runs of the scheduler are stamped (LaravelSchedulerCron).
+     */
+    public function listenInConsole(ConsoleSiteSettings $settings): void
+    {
+        $this->app->instance(ConsoleSiteSettings::class, $settings);
+        $events = $this->app['events'];
+        // Listeners that return nothing: a listener's false would stop the other listeners of the event.
+        $events->listen(CommandStarting::class, static function (CommandStarting $event) use ($settings): void {
+            $settings->commandStarting((string) $event->command);
+        });
+        $events->listen(JobProcessing::class, static function () use ($settings): void {
+            $settings->beforeJob();
+        });
+        LaravelSchedulerCron::listen($events);
     }
 
     /**
@@ -135,13 +176,44 @@ class AppServiceProvider extends ServiceProvider
     protected function applyDbSettings(): void
     {
         if ($this->app->runningInConsole()) {
+            // A console process applies the settings below when its command starts, if that command does the site's
+            // work (App\Support\ConsoleSiteSettings, registered in boot(): the scheduler and its tasks, the queue
+            // worker). site_default_locale() still reads the site's language where none was applied (judge R1-051).
+            // The test process is a console process that also handles requests: it reads that language here, at the
+            // start, so a test request counts the queries a web request makes (the settings below set it before any
+            // request).
+            if ($this->app->runningUnitTests()) {
+                site_default_locale();
+            }
+
+            return;
+        }
+
+        $this->applySettings(SiteSettingsSource::web());
+    }
+
+    /**
+     * Every admin setting into the running application: the one code path of web requests (applyDbSettings(), the
+     * cached reads of SiteSettingsSource::web()) and of the console processes that do the site's work
+     * (ConsoleSiteSettings, the read-only SiteSettingsSource::console()).
+     *
+     * Each group of settings is applied on its own (judge R3-001): a group that fails (a row an older release's database
+     * does not have yet, between the files of an update and its Finish; a value edited by hand) is written to the log
+     * and the groups after it are still applied, the security settings and the admin's time zone above all. Only a
+     * database that cannot be read at all (a fresh install, migrations not run) leaves every setting at its default.
+     * The failures are written after the last group, in the admin's time zone like every later line (review UP-RV-01).
+     */
+    public function applySettings(SiteSettingsSource $source): void
+    {
+        try {
+            // Single query/cache-read loads ALL settings at once
+            $all = $source->all();
+        } catch (\Throwable) {
+            // Silently fail if DB not ready (fresh install, migrations not run)
             return;
         }
 
         try {
-            // Single query/cache-read loads ALL settings at once
-            $all = Setting::getAllGrouped();
-
             $general      = $all['general']      ?? [];
             $uploads      = $all['uploads']       ?? [];
             $comments     = $all['comments']      ?? [];
@@ -163,7 +235,12 @@ class AppServiceProvider extends ServiceProvider
             $hasValue = static fn (array $settings, string $key): bool => array_key_exists($key, $settings)
                 && $settings[$key] !== null
                 && $settings[$key] !== '';
+        } catch (\Throwable) {
+            // Not settings this code can read (a cache entry written by another release): every default stays.
+            return;
+        }
 
+        try {
             // ── GENERAL ───────────────────────────────────────────────────────
             if (!empty($general['site_name'])) {
                 Config::set('app.name', $general['site_name']);
@@ -194,8 +271,14 @@ class AppServiceProvider extends ServiceProvider
             Config::set('site.show_trending',               ($general['show_trending']               ?? '1') === '1');
             Config::set('site.show_history',                ($general['show_history']                ?? '1') === '1');
             Config::set('site.allow_shorts',                ($general['allow_shorts']                ?? '1') === '1');
+            // Appearance > Themes > "Let visitors try the looks" (App\Support\VisitorChoices), off by default.
+            Config::set('site.visitor_look_picker_enabled', ($general['visitor_look_picker_enabled'] ?? '0') === '1');
             Config::set('site.email_verification_required', ($users['email_verification_required'] ?? $general['email_verification_required'] ?? '0') === '1');
+        } catch (\Throwable $e) {
+            $this->settingsGroupFailed('general', $e);
+        }
 
+        try {
             // â”€â”€ EMAIL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             $mailMailer = (string) ($email['mail_mailer'] ?? config('mail.default', 'smtp'));
             if (array_key_exists($mailMailer, config('mail.mailers', []))) {
@@ -208,8 +291,10 @@ class AppServiceProvider extends ServiceProvider
             Config::set('mail.mailers.smtp.encryption', ($email['smtp_encryption'] ?? config('mail.mailers.smtp.encryption')) ?: null);
             Config::set('mail.from.address', $email['mail_from_address'] ?? config('mail.from.address'));
             Config::set('mail.from.name', $email['mail_from_name'] ?? config('mail.from.name'));
-            Config::set('mail.support_mail', $email['support_email'] ?? config('mail.support_mail'));
-            Config::set('mail.server_mail', $email['server_email'] ?? config('mail.server_mail'));
+            // An empty Support / Alerts e-mail or the example address the package shipped: .env's, else the contact e-mail
+            // (round 3 R3-006: failed jobs and scheduled tasks were mailed to noreply@example.com).
+            Config::set('mail.support_mail', \App\Support\SiteMailAddress::resolve($email['support_email'] ?? null, 'SUPPORT_EMAIL', $general['contact_email'] ?? null));
+            Config::set('mail.server_mail', \App\Support\SiteMailAddress::resolve($email['server_email'] ?? null, 'SERVER_EMAIL', $general['contact_email'] ?? null));
 
             $this->applyDiscoveryFeatureSettings($discovery, 'smart_discovery_rail', SmartDiscoveryRailService::settingsDefaults());
             $this->applyDiscoveryFeatureSettings($discovery, 'creator_spotlight', AdaptiveCreatorSpotlightService::settingsDefaults());
@@ -224,7 +309,11 @@ class AppServiceProvider extends ServiceProvider
             Config::set('site.playback_progress_signal_enabled', ($discovery['playback_progress_signal_enabled'] ?? $playbackProgressDefaults['enabled']) === '1');
             Config::set('site.playback_progress_signal_min_duration_seconds', (int) ($discovery['playback_progress_signal_min_duration_seconds'] ?? $playbackProgressDefaults['min_duration_seconds']));
             Config::set('site.playback_progress_signal_retention_days', (int) ($discovery['playback_progress_signal_retention_days'] ?? $playbackProgressDefaults['retention_days']));
+        } catch (\Throwable $e) {
+            $this->settingsGroupFailed('email', $e);
+        }
 
+        try {
             // ── UPLOADS ───────────────────────────────────────────────────────
             $uploadSettings = UploadSettings::fromSettingsArray($uploads);
             Config::set('site.upload_max_duration',      (int)($uploads['upload_max_duration']     ?? 3600));
@@ -246,7 +335,11 @@ class AppServiceProvider extends ServiceProvider
             Config::set('services.upload18.default_cid',   $uploads['upload18_default_cid']   ?? config('services.upload18.default_cid', '15'));
             Config::set('services.upload18.default_fid',   $uploads['upload18_default_fid']   ?? config('services.upload18.default_fid', '18'));
             Config::set('services.upload18.default_mycid', $uploads['upload18_default_mycid'] ?? config('services.upload18.default_mycid', '0'));
+        } catch (\Throwable $e) {
+            $this->settingsGroupFailed('uploads', $e);
+        }
 
+        try {
             // ── COMMENTS ─────────────────────────────────────────────────────
             Config::set('site.comments_enabled',           ($comments['comments_enabled']           ?? '1') === '1');
             Config::set('site.allow_replies',              ($comments['allow_replies']              ?? '1') === '1');
@@ -261,7 +354,11 @@ class AppServiceProvider extends ServiceProvider
             Config::set('site.view_history_retention_days', (int) ($comments['view_history_retention_days'] ?? $viewHistoryDefaults['retention_days']));
             Config::set('site.per_page_replies',           (int)($comments['per_page_replies']      ?? 10));
             Config::set('site.comment_preview_length',     (int)($comments['comment_preview_length']?? 500));
+        } catch (\Throwable $e) {
+            $this->settingsGroupFailed('comments', $e);
+        }
 
+        try {
             // ── USERS ────────────────────────────────────────────────────────
             Config::set('site.max_videos_per_user',    (int)($users['max_videos_per_user']    ?? 0));
             Config::set('site.max_playlists_per_user', (int)($users['max_playlists_per_user'] ?? 50));
@@ -300,31 +397,24 @@ class AppServiceProvider extends ServiceProvider
             foreach (ChannelCustomizationSettings::textKeys() as $key) {
                 Config::set('site.' . $key, ChannelCustomizationSettings::text($users, $key));
             }
+        } catch (\Throwable $e) {
+            $this->settingsGroupFailed('users', $e);
+        }
 
+        try {
             // ── MONETIZATION ──────────────────────────────────────────────────
             Config::set('site.premium_enabled',      ($monetization['premium_enabled']      ?? '1') === '1');
             Config::set('site.stripe_enabled',       ($monetization['stripe_enabled']       ?? '1') === '1');
             Config::set('site.paypal_enabled',       ($monetization['paypal_enabled']       ?? '1') === '1');
             Config::set('site.ads_enabled',          ($monetization['ads_enabled']          ?? '0') === '1');
             Config::set('site.ads_hide_for_premium', ($monetization['ads_hide_for_premium'] ?? '1') === '1');
+            // Money > Ads > "Demo site: ads are off until a visitor turns them on" (App\Support\VisitorChoices), off by default.
+            Config::set('site.demo_ads_switch_enabled', ($monetization['demo_ads_switch_enabled'] ?? '0') === '1');
             Config::set('site.show_premium_badge',   ($monetization['show_premium_badge']   ?? '1') === '1');
             Config::set('site.ad_onclick_enabled',   ($monetization['ad_onclick_enabled']   ?? '0') === '1');
             Config::set('site.ad_code_header',       $monetization['ad_code_header']   ?? '');
-            $gridAdContexts = [
-                'smart_discovery',
-                'creator_spotlight',
-                'trending_actors',
-                'new_videos',
-                'trend_page',
-                'category_page',
-                'subscriptions',
-                'channel_videos',
-                'search_results',
-                'playlist_videos',
-                'watch_related',
-                'channel_home_featured',
-                'channel_home_latest',
-            ];
+            // Every list with a list ad of its own (Money > Ads > Different ads per list): App\Support\ListAdContexts.
+            $gridAdContexts = \App\Support\ListAdContexts::SETTINGS;
             foreach ($gridAdContexts as $adContext) {
                 $settingKey = 'ad_code_grid_' . $adContext;
                 Config::set('site.' . $settingKey, $monetization[$settingKey] ?? '');
@@ -339,16 +429,28 @@ class AppServiceProvider extends ServiceProvider
             Config::set('site.ad_preroll_click_url', $monetization['ad_preroll_click_url'] ?? '');
             Config::set('site.ad_grid_position',     (int)($monetization['ad_grid_position']   ?? 6));
             Config::set('site.ad_grid_max_per_feed', max(0, min(20, (int)($monetization['ad_grid_max_per_feed'] ?? 1))));
-            Config::set('site.ad_grid_layout',        in_array($monetization['ad_grid_layout'] ?? 'grid_card', ['grid_card', 'wide_row'], true) ? $monetization['ad_grid_layout'] : 'grid_card');
+            // The value is read once: a row the database does not have yet (an older release's database between the files
+            // of an update and its Finish, which adds ad_grid_layout_home_feed) is its default, never a missing key.
+            $gridLayout = $monetization['ad_grid_layout'] ?? 'grid_card';
+            Config::set('site.ad_grid_layout',        in_array($gridLayout, ['grid_card', 'wide_row'], true) ? $gridLayout : 'grid_card');
             foreach ($gridAdContexts as $adContext) {
                 $settingKey = 'ad_grid_layout_' . $adContext;
-                Config::set('site.' . $settingKey, in_array($monetization[$settingKey] ?? 'inherit', ['inherit', 'grid_card', 'wide_row'], true) ? $monetization[$settingKey] : 'inherit');
+                $gridLayout = $monetization[$settingKey] ?? 'inherit';
+                Config::set('site.' . $settingKey, in_array($gridLayout, ['inherit', 'grid_card', 'wide_row'], true) ? $gridLayout : 'inherit');
             }
             Config::set('site.ad_preroll_enabled',   ($monetization['ad_preroll_enabled'] ?? '0') === '1');
+        } catch (\Throwable $e) {
+            $this->settingsGroupFailed('monetization', $e);
+        }
 
+        try {
             // ── APPEARANCE ────────────────────────────────────────────────────
             AppearanceSettings::applyToConfig($appearance);
+        } catch (\Throwable $e) {
+            $this->settingsGroupFailed('appearance', $e);
+        }
 
+        try {
             // ── SEO ───────────────────────────────────────────────────────────
             Config::set('site.meta_title_template',     $seo['meta_title_template']     ?? '{title} | {site_name}');
             Config::set('site.default_meta_description',$seo['default_meta_description'] ?? '');
@@ -391,7 +493,11 @@ class AppServiceProvider extends ServiceProvider
             Config::set('site.sitemap_enabled',         ($seo['sitemap_enabled']        ?? '1') === '1');
             Config::set('site.robots_noindex',          ($seo['robots_noindex']         ?? '0') === '1');
             Config::set('site.robots_txt_custom',       $seo['robots_txt']              ?? '');
+        } catch (\Throwable $e) {
+            $this->settingsGroupFailed('seo', $e);
+        }
 
+        try {
             // ── PAGES CONTENT ─────────────────────────────────────────────────
             Config::set('site.terms_content',   $pages['terms_content']   ?? '');
             Config::set('site.privacy_content', $pages['privacy_content'] ?? '');
@@ -405,7 +511,11 @@ class AppServiceProvider extends ServiceProvider
             foreach (PremiumPageSettings::textKeys() as $key) {
                 Config::set('site.' . $key, PremiumPageSettings::text($pages, $key));
             }
+        } catch (\Throwable $e) {
+            $this->settingsGroupFailed('pages', $e);
+        }
 
+        try {
             // ── LOCALIZATION ──────────────────────────────────────────────────
             if (!empty($localization['default_locale'])) {
                 Config::set('app.locale',           $localization['default_locale']);
@@ -416,28 +526,29 @@ class AppServiceProvider extends ServiceProvider
                 // Ensure site.default_locale is always set even if admin hasn't configured it
                 Config::set('site.default_locale', config('app.locale', 'en'));
             }
-            if (!empty($localization['timezone'])) {
+            // A zone PHP does not know (a database edited by hand) is left out: it would stop every setting after it, and
+            // the scheduler of a console process would not start at all.
+            if (!empty($localization['timezone']) && @date_default_timezone_set((string) $localization['timezone'])) {
                 Config::set('app.timezone', $localization['timezone']);
-                date_default_timezone_set($localization['timezone']);
             }
             Config::set('site.date_format',         $localization['date_format']         ?? 'M d, Y');
             Config::set('site.allow_language_switch',($localization['allow_language_switch'] ?? '1') === '1');
             Config::set('site.rtl_support',         ($localization['rtl_support']         ?? '0') === '1');
             Config::set('site.show_relative_dates', ($localization['show_relative_dates']  ?? '1') === '1');
+        } catch (\Throwable $e) {
+            $this->settingsGroupFailed('localization', $e);
+        }
 
+        try {
             // ── LANGUAGES FROM DATABASE ────────────────────────────────────────
             // Load active languages from the `languages` table (if it exists) and
             // overwrite config('languages') so all existing code gets live DB data.
-            // Falls back to config/languages.php if the table doesn't exist yet.
-            // Schema::hasTable is cached to avoid a DB introspection query on every request.
+            // Falls back to config/languages.php if the table doesn't exist yet
+            // (SiteSettingsSource::languages(): null).
             try {
-                $hasLangTable = Cache::rememberForever('schema.has_languages_table', function () {
-                    return \Illuminate\Support\Facades\Schema::hasTable('languages');
-                });
+                $dbLanguages = $source->languages();
 
-                if ($hasLangTable) {
-                    $dbLanguages = \App\Models\Language::getAllCached();
-
+                if ($dbLanguages !== null) {
                     if ($dbLanguages->isNotEmpty()) {
                         $langArray = [];
                         foreach ($dbLanguages as $lang) {
@@ -461,7 +572,11 @@ class AppServiceProvider extends ServiceProvider
             } catch (\Throwable) {
                 // Table may not exist (fresh install) — silently fall back to config file
             }
+        } catch (\Throwable $e) {
+            $this->settingsGroupFailed('languages', $e);
+        }
 
+        try {
             // ── NOTIFICATIONS ─────────────────────────────────────────────────
             $notificationBroadcastSettings = NotificationBroadcastSettings::fromSettingsArray($notifications);
             Config::set('site.notify_new_user',         ($notifications['notify_new_user']     ?? '1') === '1');
@@ -476,7 +591,11 @@ class AppServiceProvider extends ServiceProvider
             Config::set('site.push_comment_reply',      ($notifications['push_comment_reply']  ?? '1') === '1');
             Config::set('site.push_video_processed',    ($notifications['push_video_processed'] ?? '1') === '1');
             Config::set('site.broadcast_notification_chunk_size', $notificationBroadcastSettings->chunkSize);
+        } catch (\Throwable $e) {
+            $this->settingsGroupFailed('notifications', $e);
+        }
 
+        try {
             // ── PLAN LIMITS (override config/plans.php) ───────────────────────
             if ($hasValue($planlimits, 'free_max_uploads')) {
                 Config::set('plans.free.max_uploads',        (int)$planlimits['free_max_uploads']);
@@ -502,7 +621,11 @@ class AppServiceProvider extends ServiceProvider
             if ($hasValue($planlimits, 'trial_email_reminder')) {
                 Config::set('plans.trial_period.email_reminder', (int)$planlimits['trial_email_reminder']);
             }
+        } catch (\Throwable $e) {
+            $this->settingsGroupFailed('planlimits', $e);
+        }
 
+        try {
             // ── CORS / API ────────────────────────────────────────────────────
             Config::set('site.api_enabled',          ($api['api_enabled']          ?? '1') === '1');
             Config::set('site.api_registration',     ($api['api_registration']     ?? '0') === '1');
@@ -518,7 +641,11 @@ class AppServiceProvider extends ServiceProvider
             Config::set('site.embed_enabled',        ($api['embed_enabled']        ?? '1') === '1');
             Config::set('site.embed_allowed_domains',$api['embed_allowed_domains'] ?? '');
             CorsConfig::applyFromSettings($api);
+        } catch (\Throwable $e) {
+            $this->settingsGroupFailed('api', $e);
+        }
 
+        try {
             // ── CDN ───────────────────────────────────────────────────────────
             Config::set('site.cdn_enabled',      ($cdn['cdn_enabled']      ?? '0') === '1');
             Config::set('site.cdn_force_https',  ($cdn['cdn_force_https']  ?? '1') === '1');
@@ -537,10 +664,15 @@ class AppServiceProvider extends ServiceProvider
             Config::set('site.cf_email',         $cdn['cf_email']         ?? '');
             Config::set('site.cf_auto_purge',    ($cdn['cf_auto_purge']   ?? '0') === '1');
             Config::set('site.cf_dev_mode',      ($cdn['cf_dev_mode']     ?? '0') === '1');
-            // Trusted proxy
-            Config::set('site.trusted_proxies',  $cdn['trusted_proxies']  ?? '*');
+            // Trusted proxy: not set (every install) means this machine, private networks and Cloudflare
+            // (App\Http\Middleware\TrustProxies); '*' only when the owner wrote it.
+            Config::set('site.trusted_proxies',  $cdn['trusted_proxies']  ?? '');
             Config::set('site.trusted_headers',  $cdn['trusted_headers']  ?? 'all');
+        } catch (\Throwable $e) {
+            $this->settingsGroupFailed('cdn', $e);
+        }
 
+        try {
             // ── SOCIAL LINKS ──────────────────────────────────────────────────
             // Form saves as: social_facebook, social_twitter, etc.
             Config::set('site.social_facebook',  $sociallinks['social_facebook']  ?? '');
@@ -549,7 +681,9 @@ class AppServiceProvider extends ServiceProvider
             Config::set('site.social_youtube',   $sociallinks['social_youtube']   ?? '');
             Config::set('site.social_tiktok',    $sociallinks['social_tiktok']    ?? '');
             Config::set('site.social_discord',   $sociallinks['social_discord']   ?? '');
-            Config::set('site.social_telegram',  array_key_exists('social_telegram', $sociallinks) ? $sociallinks['social_telegram'] : 'https://t.me/+jj6McO-iYfA0MTM1');
+            // The AVDBAPI Telegram group while nothing is stored; the retired public group of 1.2.2 and earlier (from
+            // a restored backup) links the new group (App\Support\TelegramLinks).
+            Config::set('site.social_telegram',  array_key_exists('social_telegram', $sociallinks) ? TelegramLinks::current($sociallinks['social_telegram']) : TelegramLinks::GROUP_URL);
             Config::set('site.social_reddit',    $sociallinks['social_reddit']    ?? '');
             Config::set('site.social_github',    $sociallinks['social_github']    ?? '');
             Config::set('site.social_linkedin',  $sociallinks['social_linkedin']  ?? '');
@@ -564,9 +698,13 @@ class AppServiceProvider extends ServiceProvider
             Config::set('site.social_appstore',   $sociallinks['social_appstore']  ?? '');
             Config::set('site.social_playstore',  $sociallinks['social_playstore'] ?? '');
             Config::set('site.social_rss',        $sociallinks['social_rss']       ?? '');
+        } catch (\Throwable $e) {
+            $this->settingsGroupFailed('sociallinks', $e);
+        }
 
+        try {
             // ── WEBHOOKS ──────────────────────────────────────────────────────
-            $webhooks = Setting::getGroup('webhooks');
+            $webhooks = $source->group('webhooks');
             Config::set('site.webhooks_enabled',       ($webhooks['webhooks_enabled']       ?? '0') === '1');
             Config::set('site.webhook_retry_failed',   ($webhooks['webhook_retry_failed']   ?? '1') === '1');
             Config::set('site.webhook_log_payloads',   ($webhooks['webhook_log_payloads']   ?? '0') === '1');
@@ -583,7 +721,11 @@ class AppServiceProvider extends ServiceProvider
             Config::set('site.webhook_url_video_processed', $webhooks['webhook_url_video_processed'] ?? '');
             Config::set('site.webhook_url_user_banned',     $webhooks['webhook_url_user_banned']     ?? '');
             Config::set('site.webhook_url_contact',         $webhooks['webhook_url_contact']         ?? '');
+        } catch (\Throwable $e) {
+            $this->settingsGroupFailed('webhooks', $e);
+        }
 
+        try {
             // ── SECURITY ──────────────────────────────────────────────────────
             Config::set('site.force_https',          ($security['force_https']           ?? '0') === '1');
             Config::set('site.two_factor_enabled',   ($security['two_factor_enabled']    ?? '0') === '1');
@@ -618,9 +760,13 @@ class AppServiceProvider extends ServiceProvider
             Config::set('site.failed_login_lockout',  (int)($security['failed_login_lockout'] ?? 15));
             Config::set('site.max_failed_logins',     (int)($security['max_failed_logins']    ?? 5));
             Config::set('site.csp_directives',        $security['csp_directives']         ?? '');
+        } catch (\Throwable $e) {
+            $this->settingsGroupFailed('security', $e);
+        }
 
+        try {
             // ── MAINTENANCE (dedicated group) ─────────────────────────────
-            $maintenance = Setting::getGroup('maintenance');
+            $maintenance = $source->group('maintenance');
             $maintenanceOn = array_key_exists('maintenance_mode_enabled', $maintenance)
                 ? ($maintenance['maintenance_mode_enabled'] ?? '0') === '1'
                 : false;
@@ -638,7 +784,11 @@ class AppServiceProvider extends ServiceProvider
             Config::set('site.auto_backup_enabled',        ($maintenance['auto_backup_enabled']        ?? '0') === '1');
             Config::set('site.backup_schedule',            $maintenance['backup_schedule']             ?? 'daily');
             Config::set('site.backup_keep_count',          (int)($maintenance['backup_keep_count']     ?? 7));
+        } catch (\Throwable $e) {
+            $this->settingsGroupFailed('maintenance', $e);
+        }
 
+        try {
             // ── VALIDATION (override config/validation.php) ───────────────────
             if (!empty($validation['user_username_min'])) {
                 Config::set('validation.user.username.min', (int)$validation['user_username_min']);
@@ -685,7 +835,110 @@ class AppServiceProvider extends ServiceProvider
             }
 
         } catch (\Throwable $e) {
-            // Silently fail if DB not ready (fresh install, migrations not run)
+            $this->settingsGroupFailed('validation', $e);
+        }
+
+        // Only now, after the localization group: the lines carry the admin's time zone (review UP-RV-01).
+        $this->logInTheAppliedZone();
+        $this->logFailedSettingsGroups();
+    }
+
+    /** The settings groups a process that may not write the cache has logged as failed (settingsGroupFailed()). */
+    private static array $settingsGroupsLogged = [];
+
+    /** @var array<string, \Throwable> the groups of the running applySettings() that could not be applied */
+    private array $failedSettingsGroups = [];
+
+    /**
+     * A group of settings that could not be applied (applySettings()): its settings keep their defaults, the other
+     * groups are applied. Written to the log after the last group (logFailedSettingsGroups()): a line written here, before
+     * the localization group, would carry config/app.php's time zone, and so would every later line of the request
+     * (Monolog gives a logger the zone PHP has when the logger is made).
+     */
+    private function settingsGroupFailed(string $group, \Throwable $e): void
+    {
+        $this->failedSettingsGroups[$group] = $e;
+    }
+
+    /**
+     * Loggers this process made before the settings were applied write in the time zone applied now (Monolog keeps the
+     * zone a logger was made with): a long-running worker applies the admin's changed settings before its next job
+     * (App\Support\ConsoleSiteSettings). A web request has made none at this point.
+     */
+    private function logInTheAppliedZone(): void
+    {
+        try {
+            if (! $this->app->resolved('log')) {
+                return;
+            }
+
+            $manager = $this->app->make('log');
+            $channels = $manager instanceof \Illuminate\Log\LogManager ? $manager->getChannels() : [];
+            $zone = null;
+
+            foreach (is_array($channels) ? $channels : [] as $channel) {
+                $logger = $channel instanceof \Illuminate\Log\Logger ? $channel->getLogger() : $channel;
+
+                if ($logger instanceof \Monolog\Logger) {
+                    $zone ??= new \DateTimeZone(date_default_timezone_get());
+
+                    if ($logger->getTimezone()->getName() !== $zone->getName()) {
+                        $logger->setTimezone($zone);
+                    }
+                }
+            }
+        } catch (\Throwable) {
+            // The lines keep the zone they had; the settings are applied.
+        }
+    }
+
+    /** The groups the running applySettings() could not apply, each written once (logSettingsGroupFailure()). */
+    private function logFailedSettingsGroups(): void
+    {
+        $failed = $this->failedSettingsGroups;
+        $this->failedSettingsGroups = [];
+
+        foreach ($failed as $group => $e) {
+            $this->logSettingsGroupFailure((string) $group, $e);
+        }
+    }
+
+    /**
+     * One log line per group and reason every ten minutes, so a row that fails on every request never fills the log;
+     * where the cache cannot be asked, the line is written anyway. A console process applies the settings without
+     * writing the cache (SafeCache::readOnly(): a cron job may run as another system user, root, and the web could not
+     * replace a cache file of root's): it skips what the web has logged in the last ten minutes and logs a group once
+     * per process. An error: the group's settings are at their defaults (the security ones among them), and an installed
+     * site keeps errors only (the installer writes LOG_LEVEL=error).
+     */
+    private function logSettingsGroupFailure(string $group, \Throwable $e): void
+    {
+        $message = 'AVDBCMS settings: the '.$group.' settings could not be applied, so they keep their defaults (the other settings were applied). '
+            .class_basename($e).': '.$e->getMessage();
+        $key = 'avdbcms:settings-group-failed:'.$group.':'.md5($message);
+
+        try {
+            if (\App\Support\SafeCache::readingOnly()) {
+                if (isset(self::$settingsGroupsLogged[$key])) {
+                    return;
+                }
+
+                self::$settingsGroupsLogged[$key] = true;
+
+                if (Cache::has($key)) {
+                    return;
+                }
+            } elseif (! Cache::add($key, time(), 600)) {
+                return;
+            }
+        } catch (\Throwable) {
+            // No cache to ask: written below.
+        }
+
+        try {
+            \Illuminate\Support\Facades\Log::error($message, ['file' => str_replace('\\', '/', $e->getFile()), 'line' => $e->getLine()]);
+        } catch (\Throwable) {
+            // A log that cannot be written must not stop the request either.
         }
     }
 

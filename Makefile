@@ -49,6 +49,9 @@ install: ## Install application
 	docker exec -it php_container php artisan db:create avdbcms_test
 	docker exec -it php_container php artisan migrate
 	docker exec -it php_container php artisan db:seed
+	# The site is installed now: the web installer stays closed (the copied .env.example says APP_INSTALLED=false).
+	# -i.bak works with GNU sed (Linux) and BSD sed (macOS); the .bak copy holds the keys, so it goes at once.
+	sed -i.bak 's/^APP_INSTALLED=.*/APP_INSTALLED=true/' .env && rm -f .env.bak
 	docker exec -it php_container php artisan scout:sync-index-settings
 	docker exec -it php_container php artisan log-viewer:publish
 	docker exec -it php_container mkdir -p storage/app/private/{videos,spams,thumbnails}

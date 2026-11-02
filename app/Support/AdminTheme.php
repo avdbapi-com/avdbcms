@@ -13,7 +13,7 @@ use Throwable;
  * The admin never follows the public theme, except for the accent: the published site colour, or neutral
  * blue when the site colour sits in the red zone of Delete/danger (a pink or red site would make "Save" look
  * like "Delete"). Rules and reference values: admin_design_spec.json tokens.accent and
- * spec/data/color_engine_golden.json (admin_accent_cases).
+ * tests/Fixtures/color_engine_golden.json (admin_accent_cases).
  */
 final class AdminTheme
 {
@@ -77,7 +77,7 @@ final class AdminTheme
         ['surface' => $surface, 'canvas' => $canvas] = self::SURFACES[$mode];
         $tokens = null;
 
-        // ONE colour engine: WP1's App\Support\Color\Contrast when it is installed.
+        // ONE colour engine: App\Support\Color\Contrast when it is installed.
         $engine = 'App\\Support\\Color\\Contrast';
 
         if (class_exists($engine) && method_exists($engine, 'adminAccent')) {
@@ -288,7 +288,7 @@ final class AdminTheme
     }
 
     // ------------------------------------------------------------------------------------------------
-    // Port of contrast_engine.admin_accent + colorlib (spec/theme/scripts), used until WP1's
+    // Port of the redesign's reference admin accent rule (and its colour maths), used until
     // App\Support\Color\Contrast is installed. Same steps, same rounding (half to even).
 
     private static function adminAccent(string $primary, string $mode, string $surface, string $canvas, bool $useSiteColour): array

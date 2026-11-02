@@ -18,7 +18,7 @@ use Tests\TestCase;
  *
  *  - this Finish takes the plan, the work folder and state.json exactly as 1.2.1 left them: the update completes, every
  *    admin-log row once, the work folder leaves in one rename;
- *  - a swap of 1.2.1 that reported OPcache "stale" is cleared again by this Finish before it completes (H7);
+ *  - a swap of 1.2.1 that reported OPcache "stale" is cleared again by this Finish before it completes;
  *  - an Undo prepared by this version (its hook, which can stand by after its token ran out) is finished by 1.2.1:
  *    every file back byte for byte.
  */

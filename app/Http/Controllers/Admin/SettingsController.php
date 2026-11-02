@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Support\OutboundUrl;
 use App\Data\NotificationBroadcastSettings;
 use App\Data\UploadSettings;
 use App\Enums\VideoStatus;
@@ -30,6 +31,7 @@ use App\Support\AdminIpLock;
 use App\Support\AppearanceApplier;
 use App\Support\AppearanceSettings;
 use App\Support\AdminCache;
+use App\Support\AuditDetails;
 use App\Support\SettingsRevision;
 use App\Support\ThemeCatalog;
 use App\Support\MasterExperienceCatalog;
@@ -39,6 +41,7 @@ use App\Support\FooterSettings;
 use App\Support\HomeWidgetVideoSettings;
 use App\Support\NavigationSettings;
 use App\Support\PremiumPageSettings;
+use App\Support\RobotsTxt;
 use App\Support\RuntimeEnv;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Query\Builder as QueryBuilder;
@@ -206,14 +209,14 @@ class SettingsController
     {
         return redirect()
             ->route('admin.env-editor.index')
-            ->withSuccess('Environment values are managed in Env Editor. Site Settings only saves runtime database settings.');
+            ->withSuccess(__('The .env file is changed in Tools > Developer zone. This page saves the settings of the database only.'));
     }
 
     public function update(Request $request): RedirectResponse
     {
         return redirect()
             ->route('admin.settings.index')
-            ->withSuccess('Choose a settings tab and save that group.');
+            ->withSuccess(__('Choose a settings tab and save that group.'));
     }
 
     public function updateGroup(Request $request, string $group): JsonResponse|RedirectResponse
@@ -221,7 +224,7 @@ class SettingsController
         $schema = $this->settingsSchema();
 
         if (!isset($schema[$group])) {
-            $message = 'This settings group is not editable.';
+            $message = __('This settings group is not editable.');
 
             if ($request->wantsJson() || $request->ajax() || $request->expectsJson()) {
                 return response()->json([
@@ -258,6 +261,10 @@ class SettingsController
                 : AppearanceSettings::defaults())['theme_preset'] ?? '')
             : '';
 
+        $storedBefore = Setting::getGroup($group);
+        $changedKeys = [];
+        $written = [];
+
         foreach ($fields as $key => $field) {
             // Settings added after the old settings page are written only when the request sends them, so old
             // clients (that page, fleet scripts) keep writing exactly the keys they wrote before.
@@ -269,7 +276,25 @@ class SettingsController
                 ? $request->input($key, false)
                 : ($validated[$key] ?? '');
 
-            $this->storeSetting($group, $key, $this->normalizeSettingValue($group, $key, $field, $value));
+            // R1-039: Coral picked over the untouched installer "coral" (the field shows it as the look's colour) is the
+            // owner's choice, although the stored value stays the same
+            if ($group === 'users' && $key === 'channel_default_accent') {
+                ChannelCustomizationSettings::keepAccentPick($value);
+            }
+
+            $normalized = $this->normalizeSettingValue($group, $key, $field, $value);
+
+            if ((string) ($storedBefore[$key] ?? '') !== (string) ($normalized ?? '')) {
+                $changedKeys[] = $key;
+            }
+
+            $written[$key] = $normalized;
+            $this->storeSetting($group, $key, $normalized);
+        }
+
+        // Tools > Logs > Admin actions (R2A-020): which settings changed, never a value (passwords and keys neither).
+        if ($changedKeys !== []) {
+            AuditLogController::log('settings.saved', AuditDetails::names($changedKeys));
         }
 
         if ($group === 'appearance') {
@@ -292,24 +317,31 @@ class SettingsController
 
         $this->flushSettingsCaches();
 
+        // The site's robots.txt says the robots settings (round 4, R3M-02): written when this save changed one of them; one
+        // that cannot be written leaves a warning.
+        $warnings = $group === 'seo' && RobotsTxt::changes($storedBefore, $written) ? $this->writeRobotsTxt() : [];
+
         if ($request->wantsJson() || $request->ajax() || $request->expectsJson()) {
+            // The same bytes as before when there is nothing to say (fleet scripts call this endpoint:
+            // AdminSettingsLegacyEndpointPinTest); "warnings" only with the robots.txt messages.
             return response()->json([
                 'ok' => true,
                 'success' => true,
-                'message' => ucfirst($group) . ' settings saved in real-time.',
+                'message' => trim(__(':group settings saved in real-time.', ['group' => ucfirst($group)]).' '.implode(' ', $warnings)),
                 'group' => $group,
                 'timestamp' => now()->toIso8601String(),
                 'formatted_time' => now()->format('H:i:s'),
+                ...($warnings !== [] ? ['warnings' => $warnings] : []),
             ]);
         }
 
         return redirect()
             ->route('admin.settings.index', ['tab' => $group])
-            ->withSuccess(ucfirst($group) . ' settings updated successfully.');
+            ->withSuccess(trim(__(':group settings updated successfully.', ['group' => ucfirst($group)]).' '.implode(' ', $warnings)));
     }
 
     /**
-     * PUT /admin/settings/save (interface I7): saves the fields of one admin page, which may belong to several
+     * PUT /admin/settings/save: saves the fields of one admin page, which may belong to several
      * settings groups, in one transaction. SettingsSaveRequest has validated every listed key with the same rules
      * as the group save; values are cast and stored exactly as updateGroup() stores them.
      */
@@ -372,7 +404,7 @@ class SettingsController
             $writes['appearance']['mobile_bottom_dock_enabled'] = $bottomBar;
         }
 
-        // Theme and look settings go to AppearanceApplier (interface I5); everything else is written here.
+        // Theme and look settings go to AppearanceApplier; everything else is written here.
         $looks = array_intersect_key($writes['appearance'] ?? [], array_flip($this->appearanceLookKeys()));
         $plain = $writes;
         if ($looks !== []) {
@@ -384,6 +416,7 @@ class SettingsController
 
         $before = [];
         $lookRevision = null;
+        $storedBefore = Setting::getAllGrouped();
 
         DB::transaction(function () use ($plain, $looks, $request, &$before, &$lookRevision): void {
             foreach ($plain as $group => $values) {
@@ -402,8 +435,27 @@ class SettingsController
 
         $this->flushSettingsCaches();
 
+        // Tools > Logs > Admin actions (R2A-020): which settings changed, never a value (passwords and keys neither).
+        $changedKeys = [];
+
+        foreach ($writes as $group => $groupValues) {
+            foreach ($groupValues as $key => $value) {
+                if ((string) ($storedBefore[$group][$key] ?? '') !== (string) ($value ?? '')) {
+                    $changedKeys[] = $key;
+                }
+            }
+        }
+
+        if ($changedKeys !== []) {
+            AuditLogController::log('settings.saved', AuditDetails::names(array_values(array_unique($changedKeys))));
+        }
+
         $revision = $this->recordSaveRevision($before, $plain, $request) ?? $lookRevision;
         $message = $writes === [] ? __('Nothing to save.') : __('Changes saved.');
+        // Settings > Google & sharing: the site's robots.txt says Custom robots.txt, Sitemap and "Hide the whole site from
+        // Google" (round 4, R3M-02): written when this save changed one of them (an edit of another SEO setting leaves it
+        // alone); one that cannot be written leaves the settings saved and a warning that stays on the page.
+        $warnings = RobotsTxt::changes($storedBefore['seo'] ?? [], $writes['seo'] ?? []) ? $this->writeRobotsTxt() : [];
 
         if ($request->expectsJson()) {
             // The stored values (after clean-up) of everything but passwords and keys, so the page shows them.
@@ -427,10 +479,11 @@ class SettingsController
                 'values' => (object) $values,
                 'revision' => $revision,
                 'notes' => $notes,
+                'warnings' => $warnings,
             ]);
         }
 
-        return redirect()->back()->withSuccess(trim($message.' '.implode(' ', $notes)));
+        return redirect()->back()->withSuccess(trim($message.' '.implode(' ', [...$notes, ...$warnings])));
     }
 
     /**
@@ -499,13 +552,14 @@ class SettingsController
 
         if (!isset($presets[$presetKey])) {
             if ($request->wantsJson()) {
-                return response()->json(['ok' => false, 'message' => 'Invalid theme preset specified.'], 422);
+                return response()->json(['ok' => false, 'message' => __('This theme does not exist.')], 422);
             }
-            return back()->withErrors(['theme_preset' => 'Invalid theme preset specified.']);
+            return back()->withErrors(['theme_preset' => __('This theme does not exist.')]);
         }
 
         $preset = $presets[$presetKey];
         $this->applyAppearancePreset($presetKey, true);
+        AuditLogController::log('appearance.theme_applied', (string) $preset['label']);
 
         try {
             Setting::clearCache();
@@ -517,13 +571,13 @@ class SettingsController
                 'ok' => true,
                 'preset_key' => $presetKey,
                 'preset' => $preset,
-                'message' => "Theme '{$preset['label']}' applied successfully across the entire site!",
+                'message' => __('Theme ":theme" applied.', ['theme' => __((string) $preset['label'])]),
             ]);
         }
 
         return redirect()
             ->route('admin.settings.index', ['tab' => 'appearance'])
-            ->withSuccess("Theme '{$preset['label']}' applied successfully!");
+            ->withSuccess(__('Theme ":theme" applied.', ['theme' => __((string) $preset['label'])]));
     }
 
     public function applyMasterExperience(Request $request): JsonResponse|RedirectResponse
@@ -539,9 +593,9 @@ class SettingsController
 
         if (!$exp) {
             if ($request->wantsJson()) {
-                return response()->json(['ok' => false, 'message' => 'Invalid Master Experience preset specified.'], 422);
+                return response()->json(['ok' => false, 'message' => __('This look does not exist.')], 422);
             }
-            return back()->withErrors(['experience_key' => 'Invalid Master Experience specified.']);
+            return back()->withErrors(['experience_key' => __('This look does not exist.')]);
         }
 
         Setting::set('daily_design_auto_enabled', '0', 'appearance');
@@ -572,6 +626,8 @@ class SettingsController
             }
         }
 
+        AuditLogController::log('appearance.look_applied', (string) $exp['label']);
+
         try {
             Setting::clearCache();
             AdminCache::bumpVersion();
@@ -582,19 +638,19 @@ class SettingsController
                 'ok' => true,
                 'experience_key' => $canonicalKey,
                 'experience' => $exp,
-                'message' => "Master Experience '{$exp['label']}' applied successfully across the entire site!",
+                'message' => __('Look ":look" applied.', ['look' => __((string) $exp['label'])]),
             ]);
         }
 
         return redirect()
             ->route('admin.settings.index', ['tab' => 'appearance'])
-            ->withSuccess("Master Experience '{$exp['label']}' applied successfully!");
+            ->withSuccess(__('Look ":look" applied.', ['look' => __((string) $exp['label'])]));
     }
 
     public function resetDefaultTheme(Request $request): JsonResponse|RedirectResponse
     {
         if (class_exists(AppearanceApplier::class) || app()->bound(AppearanceApplier::class)) {
-            // Interface I5: only the theme and look keys go back to the factory look (logo, texts, menus, ads and
+            // Only the theme and look keys go back to the factory look (logo, texts, menus, ads and
             // custom code stay), and the previous state is kept as a revision that can be restored.
             app(AppearanceApplier::class)->resetToFactory($request->user()?->getKey());
         } else {
@@ -608,6 +664,8 @@ class SettingsController
             Setting::set('daily_design_auto_enabled', '0', 'appearance');
         }
 
+        AuditLogController::log('appearance.reset');
+
         try {
             Setting::clearCache();
             AdminCache::bumpVersion();
@@ -616,14 +674,14 @@ class SettingsController
         if ($request->wantsJson()) {
             return response()->json([
                 'ok' => true,
-                'message' => 'Theme and appearance settings successfully reset to factory defaults!',
+                'message' => __('Theme and appearance settings are back to their defaults.'),
                 'redirect' => route('admin.settings.index', ['tab' => 'appearance']),
             ]);
         }
 
         return redirect()
             ->route('admin.settings.index', ['tab' => 'appearance'])
-            ->withSuccess('Theme and appearance settings successfully reset to factory defaults!');
+            ->withSuccess(__('Theme and appearance settings are back to their defaults.'));
     }
 
     /**
@@ -725,6 +783,25 @@ class SettingsController
         } catch (\Throwable $e) {}
     }
 
+    /**
+     * Writes the site's robots.txt with the SEO settings just saved (App\Support\RobotsTxt: web servers serve that file
+     * before the site's own /robots.txt). Never fails the save: a file that cannot be written gives the administrator's
+     * warning (what crawlers still read and what to do); a robots.txt the owner wrote by hand is kept next to it first,
+     * and the notice says where.
+     *
+     * @return list<string> the messages to show (none when the file was simply written)
+     */
+    private function writeRobotsTxt(): array
+    {
+        try {
+            return RobotsTxt::messages(RobotsTxt::refresh());
+        } catch (\Throwable $e) {
+            report($e);
+
+            return [RobotsTxt::warning(['public/robots.txt'])];
+        }
+    }
+
     public function clearCache(Request $request, ?string $type = null): JsonResponse|RedirectResponse
     {
         $messages = [];
@@ -734,20 +811,20 @@ class SettingsController
             switch ($type) {
                 case 'config':
                     Artisan::call('config:clear');
-                    $messages[] = 'Configuration cache successfully cleared.';
+                    $messages[] = __('Configuration cache successfully cleared.');
                     break;
                 case 'route':
                     Artisan::call('route:clear');
-                    $messages[] = 'Route cache successfully cleared.';
+                    $messages[] = __('Route cache successfully cleared.');
                     break;
                 case 'view':
                     Artisan::call('view:clear');
-                    $messages[] = 'Compiled Blade views cache successfully cleared.';
+                    $messages[] = __('Compiled Blade views cache successfully cleared.');
                     break;
                 case 'data':
                 case 'application':
                     Artisan::call('cache:clear');
-                    $messages[] = 'Application data cache successfully cleared.';
+                    $messages[] = __('Application data cache successfully cleared.');
                     break;
                 case 'all':
                 default:
@@ -755,11 +832,13 @@ class SettingsController
                     Artisan::call('config:clear');
                     Artisan::call('view:clear');
                     Artisan::call('route:clear');
-                    $messages[] = 'All system caches (application, config, views, and routes) cleared successfully!';
+                    $messages[] = __('All system caches (application, config, views, and routes) cleared successfully!');
                     break;
             }
 
             $successMsg = implode(' ', $messages);
+            // Tools > Logs > Admin actions (R3-019): which cache was cleared (an unknown type clears them all).
+            AuditLogController::log(SystemController::cacheAction(in_array($type, ['config', 'route', 'view', 'data', 'application'], true) ? $type : 'all'));
 
             if ($request->expectsJson() || $request->ajax() || $request->wantsJson()) {
                 return response()->json([
@@ -777,7 +856,7 @@ class SettingsController
             if ($request->expectsJson() || $request->ajax() || $request->wantsJson()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Cache clearing failed: ' . $e->getMessage(),
+                    'message' => __('The cache could not be cleared: :error', ['error' => $e->getMessage()]),
                 ], 500);
             }
 
@@ -818,7 +897,7 @@ class SettingsController
                 }
             );
 
-            $msg = "Test email successfully dispatched to {$recipient} via [{$mailer}]!";
+            $msg = __('Test email sent to :to through :mailer.', ['to' => $recipient, 'mailer' => $mailer]);
 
             if ($request->expectsJson() || $request->ajax()) {
                 return response()->json([
@@ -857,10 +936,17 @@ class SettingsController
 
         $url = $validated['url'];
 
+        // Only an address on the internet: never this server, its private network or a cloud metadata address.
+        if (! OutboundUrl::isPublic($url)) {
+            return response()->json(['success' => false, 'message' => OutboundUrl::refusal()], 422);
+        }
+
+        $options = OutboundUrl::options($url);
+
         try {
-            $response = Http::timeout(8)->head($url);
+            $response = Http::timeout(8)->withOptions($options)->head($url);
             if ($response->failed() && in_array($response->status(), [405, 403], true)) {
-                $response = Http::timeout(8)->withHeaders(['Range' => 'bytes=0-1024'])->get($url);
+                $response = Http::timeout(8)->withOptions($options)->withHeaders(['Range' => 'bytes=0-1024'])->get($url);
             }
 
             $contentType = $response->header('Content-Type') ?? 'unknown';
@@ -874,13 +960,13 @@ class SettingsController
                 'size' => $sizeFormatted,
                 'url' => $url,
                 'message' => $response->successful()
-                    ? "Media stream reachable! Status: {$response->status()} ({$contentType}, {$sizeFormatted})"
-                    : "Media server returned HTTP {$response->status()}",
+                    ? __('The media address answers: status :status (:type, :size).', ['status' => $response->status(), 'type' => $contentType, 'size' => $sizeFormatted])
+                    : __('The media server answered with HTTP :status.', ['status' => $response->status()]),
             ]);
         } catch (\Throwable $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to reach media server: ' . $e->getMessage(),
+                'message' => __('The media server did not answer: :error', ['error' => $e->getMessage()]),
             ], 422);
         }
     }
@@ -984,16 +1070,17 @@ class SettingsController
     {
         try {
             $bytes = disk_free_space(base_path());
-            return round($bytes / 1024 / 1024 / 1024, 2) . ' GB free';
+            // the card's label says "Disk Free": the size only (it carried an English "free" in every language)
+            return round($bytes / 1024 / 1024 / 1024, 2) . ' GB';
         } catch (\Exception $e) {
-            return 'N/A';
+            return __('N/A');
         }
     }
 
     private function getLatestLogError(): string
     {
         try {
-            $path = storage_path('logs/laravel.log');
+            $path = (string) config('logging.channels.single.path', storage_path('logs/laravel.log'));
 
             if (!is_file($path)) {
                 return 'No Laravel log file';
@@ -1044,7 +1131,7 @@ class SettingsController
                 $first = strtolower(strtok(trim((string) $value, '/'), '/'));
 
                 if (in_array($first, $reserved, true)) {
-                    $fail('The video URL prefix conflicts with an existing route.');
+                    $fail(__('Another part of the site already uses this word in its addresses. Choose another one.'));
                 }
             },
         ];
@@ -1057,14 +1144,14 @@ class SettingsController
                 $value = (string) $value;
 
                 if (!str_contains($value, '{uuid}') && !str_contains($value, '{id}')) {
-                    $fail('The video URL pattern must include {uuid} or {id}.');
+                    $fail(__('Video addresses must contain {uuid} or {id}.'));
                 }
 
                 preg_match_all('/\{([a-z_]+)\}/', $value, $matches);
                 $unknown = array_diff($matches[1] ?? [], SeoService::VIDEO_PATTERN_TOKENS);
 
                 if ($unknown) {
-                    $fail('The video URL pattern contains unsupported tokens: ' . implode(', ', $unknown) . '.');
+                    $fail(__('The site does not know these placeholders: :tokens.', ['tokens' => \App\Support\AdminText::list(array_map(static fn (string $token): string => '{'.$token.'}', array_values($unknown)))]));
                 }
             },
         ];
@@ -1146,6 +1233,9 @@ class SettingsController
                 'allow_embedding' => ['rules' => $bool, 'type' => 'bool'],
                 'show_trending' => ['rules' => $bool, 'type' => 'bool'],
                 'show_history' => ['rules' => $bool, 'type' => 'bool'],
+                // 1.2.3: Appearance > Themes > "Let visitors try the looks" (App\Support\VisitorChoices). Written only when a
+                // request sends it, so the old settings page and other clients of this group save never turn it off.
+                'visitor_look_picker_enabled' => ['rules' => $bool, 'type' => 'bool', 'only_when_sent' => true],
             ],
             'uploads' => [
                 'upload_max_duration' => ['rules' => $intRange(1, 86400)],
@@ -1163,6 +1253,9 @@ class SettingsController
                 'upload18_chunk_size_mb' => ['rules' => $intRange(UploadSettings::MIN_CHUNK_SIZE_MB, UploadSettings::MAX_CHUNK_SIZE_MB)],
                 'upload18_thumbnail_count' => ['rules' => $intRange(UploadSettings::MIN_THUMBNAIL_COUNT, UploadSettings::MAX_THUMBNAIL_COUNT)],
                 'max_thumbnail_size' => ['rules' => $intRange(UploadSettings::MIN_MAX_THUMBNAIL_SIZE_KB, UploadSettings::MAX_MAX_THUMBNAIL_SIZE_KB)],
+                // 1.2.3: Content > Import > Blocked words (App\Support\ContentSafety), one word or phrase per line; empty
+                // = no words of the owner's (the fixed list still applies). Written only when a request sends it.
+                'import_blocked_words' => ['rules' => ['sometimes', 'nullable', 'string', 'max:20000', new \App\Rules\BlockedWordsList()], 'only_when_sent' => true],
             ],
             'notifications' => [
                 'broadcast_notification_chunk_size' => ['rules' => $intRange(NotificationBroadcastSettings::MIN_CHUNK_SIZE, NotificationBroadcastSettings::MAX_CHUNK_SIZE)],
@@ -1240,9 +1333,23 @@ class SettingsController
                 'premium_enabled' => ['rules' => $bool, 'type' => 'bool'],
                 'stripe_enabled' => ['rules' => $bool, 'type' => 'bool'],
                 'paypal_enabled' => ['rules' => $bool, 'type' => 'bool'],
+                // Money > Payment setup > Invoices (member design 6.24, App\Services\InvoiceService): written only when
+                // a request sends them, so an old client of this group save never empties them. Empty = the site name
+                // only, no address, no tax line.
+                'invoice_seller_name' => ['rules' => ['sometimes', 'nullable', 'string', 'max:120'], 'only_when_sent' => true],
+                'invoice_seller_address' => ['rules' => ['sometimes', 'nullable', 'string', 'max:600'], 'only_when_sent' => true],
+                'invoice_seller_tax_id' => ['rules' => ['sometimes', 'nullable', 'string', 'max:60'], 'only_when_sent' => true],
+                'invoice_tax_label' => ['rules' => ['sometimes', 'nullable', 'string', 'max:40'], 'only_when_sent' => true],
+                'invoice_tax_rate' => ['rules' => ['sometimes', 'nullable', 'numeric', 'min:0', 'max:100'], 'only_when_sent' => true],
+                // R3X-01: no admin page shows this switch any more (nothing ever read it). The legacy PUT
+                // /admin/settings/update/monetization still writes it for old clients and fleet scripts, byte for byte as
+                // before (AdminSettingsLegacyEndpointPinTest).
                 'show_premium_badge' => ['rules' => $bool, 'type' => 'bool'],
                 'ads_enabled' => ['rules' => $bool, 'type' => 'bool'],
                 'ads_hide_for_premium' => ['rules' => $bool, 'type' => 'bool'],
+                // 1.2.3: Money > Ads > "Demo site: ads are off until a visitor turns them on" (App\Support\VisitorChoices).
+                // Written only when a request sends it, so old clients of this group save never turn it off.
+                'demo_ads_switch_enabled' => ['rules' => $bool, 'type' => 'bool', 'only_when_sent' => true],
                 'ad_preroll_enabled' => ['rules' => $bool, 'type' => 'bool'],
                 'ad_onclick_enabled' => ['rules' => $bool, 'type' => 'bool'],
                 'ad_preroll_duration' => ['rules' => $intRange(1, 60)],
@@ -1255,6 +1362,9 @@ class SettingsController
                 'ad_grid_layout_creator_spotlight' => ['rules' => ['required', Rule::in(['inherit', 'grid_card', 'wide_row'])]],
                 'ad_grid_layout_trending_actors' => ['rules' => ['required', Rule::in(['inherit', 'grid_card', 'wide_row'])]],
                 'ad_grid_layout_new_videos' => ['rules' => ['required', Rule::in(['inherit', 'grid_card', 'wide_row'])]],
+                // The homepage feed (App\Support\ListAdContexts), added after the old settings page: written only when
+                // a request sends it, so old clients of this group save never reset it.
+                'ad_grid_layout_home_feed' => ['rules' => ['sometimes', 'required', Rule::in(['inherit', 'grid_card', 'wide_row'])], 'only_when_sent' => true],
                 'ad_grid_layout_trend_page' => ['rules' => ['required', Rule::in(['inherit', 'grid_card', 'wide_row'])]],
                 'ad_grid_layout_category_page' => ['rules' => ['required', Rule::in(['inherit', 'grid_card', 'wide_row'])]],
                 'ad_grid_layout_subscriptions' => ['rules' => ['required', Rule::in(['inherit', 'grid_card', 'wide_row'])]],
@@ -1269,6 +1379,7 @@ class SettingsController
                 'ad_code_grid_creator_spotlight' => ['rules' => ['nullable', 'string', 'max:30000']],
                 'ad_code_grid_trending_actors' => ['rules' => ['nullable', 'string', 'max:30000']],
                 'ad_code_grid_new_videos' => ['rules' => ['nullable', 'string', 'max:30000']],
+                'ad_code_grid_home_feed' => ['rules' => ['sometimes', 'nullable', 'string', 'max:30000'], 'only_when_sent' => true],
                 'ad_code_grid_trend_page' => ['rules' => ['nullable', 'string', 'max:30000']],
                 'ad_code_grid_category_page' => ['rules' => ['nullable', 'string', 'max:30000']],
                 'ad_code_grid_subscriptions' => ['rules' => ['nullable', 'string', 'max:30000']],
@@ -1457,6 +1568,9 @@ class SettingsController
                 'csp_directives' => ['rules' => ['nullable', 'string', 'max:5000']],
                 'admin_ip_whitelist' => ['rules' => ['nullable', 'string', 'max:5000']],
                 'global_ip_blacklist' => ['rules' => ['nullable', 'string', 'max:5000']],
+                // 1.2.3: the strong-password rule (site.require_strong_password) gets its switch on Settings >
+                // Members & comments. Added after the old settings page: written only when a request sends it.
+                'require_strong_password' => ['rules' => $bool, 'type' => 'bool', 'only_when_sent' => true],
             ],
             'localization' => [
                 'default_locale' => ['rules' => ['required', 'string', Rule::in($localeCodes)]],
@@ -1508,6 +1622,9 @@ class SettingsController
                 'embed_allowed_domains' => ['rules' => ['nullable', 'string', 'max:2000']],
                 'cors_max_age' => ['rules' => ['required', 'integer', 'min:0', 'max:86400']],
                 'cors_supports_credentials' => ['rules' => $bool, 'type' => 'bool'],
+                // 1.2.3: sign-ups through the API (site.api_registration) get their switch on Settings >
+                // Members & comments. Added after the old settings page: written only when a request sends it.
+                'api_registration' => ['rules' => $bool, 'type' => 'bool', 'only_when_sent' => true],
             ],
             'sociallinks' => [
                 'social_facebook' => ['rules' => ['nullable', 'url', 'max:255']],
@@ -1561,7 +1678,7 @@ class SettingsController
     }
 
     /**
-     * Theme and look settings (interface I5): AppearanceApplier is their only writer once it is installed, because
+     * Theme and look settings: AppearanceApplier is their only writer once it is installed, because
      * it applies the colour-style rule and keeps a revision of its own. Empty before the theme catalogue v2.
      *
      * @return list<string>
@@ -1574,7 +1691,7 @@ class SettingsController
     }
 
     /**
-     * Keep what a save replaced as one revision (interface I6): rows nested by group, [group => [key => value]],
+     * Keep what a save replaced as one revision: rows nested by group, [group => [key => value]],
      * named after every group the save wrote ("email,general"), so the history shows the whole save and a restore
      * puts back exactly those keys (null = the key was not stored). Passwords and keys are recorded as masked.
      */

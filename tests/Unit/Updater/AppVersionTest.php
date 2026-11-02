@@ -10,7 +10,7 @@ use Tests\Feature\Updater\Support\UpdaterSandbox;
 use Tests\TestCase;
 
 /**
- * The version of the code and release tags (F8 3, 18): only plain "vX.Y.Z" tags count, numbers compare as numbers,
+ * The version of the code and release tags: only plain "vX.Y.Z" tags count, numbers compare as numbers,
  * and the GitHub addresses are constants of the code.
  */
 class AppVersionTest extends TestCase

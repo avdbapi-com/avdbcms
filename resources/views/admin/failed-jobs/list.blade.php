@@ -89,7 +89,7 @@
                 <td class="is-check"><input type="checkbox" name="ids[]" value="{{ $job->uuid }}" form="ad-failed-bulk" aria-labelledby="ad-l-sel ad-job-{{ $job->id }}"></td>
                 <td class="c-main"><p><b id="ad-job-{{ $job->id }}">{{ $jobName($job->payload_head) }}</b><small>{{ $error }}</small></p></td>
                 <td class="hide-tab">{{ $job->queue }} <small>{{ $job->connection }}</small></td>
-                <td class="c-meta is-date" title="{{ $failed->translatedFormat('j M Y, H:i') }}">{{ $failed->diffForHumans(short: true) }}</td>
+                <td class="c-meta is-date" title="{{ $failed->translatedFormat('j M Y, H:i') }}">{{ $failed->diffForHumans(short: \App\Support\AdminText::shortTimes()) }}</td>
                 <td class="is-actions"><button type="button" class="ad-iconbtn is-more" aria-haspopup="true" aria-labelledby="ad-l-act ad-job-{{ $job->id }}" data-id="{{ $job->uuid }}"></button></td>
             </tr>
         @endforeach

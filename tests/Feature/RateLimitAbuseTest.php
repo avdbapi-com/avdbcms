@@ -130,7 +130,7 @@ class RateLimitAbuseTest extends TestCase
         $retryAfter = (int) $response->headers->get('Retry-After');
 
         $this->assertGreaterThan(0, $retryAfter);
-        $this->assertSame(__('Too many attempts !'), $response->json('message'));
+        $this->assertSame(\App\Providers\RouteServiceProvider::waitMessage($retryAfter), $response->json('message'));
         $this->assertNotSame('throttle.general', $response->json('message'));
     }
 

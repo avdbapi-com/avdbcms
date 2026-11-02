@@ -6,7 +6,7 @@
     $categoriesList = $categories ?? collect();
     if ($categoriesList->isEmpty()) {
         try {
-            $categoriesList = \Illuminate\Support\Facades\Cache::remember('categories_chips_all', 3600, fn() => \App\Models\Category::query()->where('in_menu', true)->ordered()->get());
+            $categoriesList = \Illuminate\Support\Facades\Cache::remember('categories_chips_all', 3600, fn() => \App\Support\ContentSafety::visibleCategories(\App\Models\Category::query()->where('in_menu', true)->ordered()->get()));
         } catch (\Throwable) {
             $categoriesList = collect();
         }

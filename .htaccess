@@ -17,6 +17,17 @@
     # Prevent loop once request is rewritten to public/
     RewriteRule ^public/ - [L]
 
+    # The upload folders serve pictures and never run a script (.php, .php3 ... .php8, .phar, .phtml, .pht, .phps,
+    # also as x.php.jpg or x.php/extra), before anything below forwards them into public/.
+    RewriteRule ^(storage|uploads)/(.*/)?[^/]*\.ph(p[0-9]*|ar|tml|t|ps)(\.|/|$) - [F,NC]
+
+    # A real folder of the project (storage/logs, storage/app/backups, app, tests ...) is never served and never
+    # redirected: refused at once (403). Apache would otherwise add a slash to the folder's name and public/index.php
+    # take it off again, for ever ("too many redirects"). [F] rather than a 404 status: LiteSpeed and OpenLiteSpeed
+    # read these files too, and every Apache-compatible engine knows [F].
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^(?!public$). - [F,L]
+
     # Public-disk files (Storage::url() => /storage/...). They live in
     # storage/app/public and are reached through the public/storage symlink made
     # by `php artisan storage:link`. If that symlink is missing (PHP symlink() is

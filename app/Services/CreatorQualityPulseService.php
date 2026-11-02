@@ -5,9 +5,9 @@ namespace App\Services;
 use App\Models\User;
 use App\Models\Video;
 use App\Support\BoundedConfig;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 
 class CreatorQualityPulseService
 {
@@ -32,18 +32,31 @@ class CreatorQualityPulseService
         ];
     }
 
-    public function videosFor(User $creator): Collection
+    /** The admin's "Creator tips box" size (creator_quality_pulse_limit), clamped to its range. */
+    public function limit(): int
     {
-        if (! config('site.creator_quality_pulse_enabled', self::DEFAULT_ENABLED)) {
-            return collect();
-        }
-
-        $limit = BoundedConfig::integer(
+        return BoundedConfig::integer(
             'site.creator_quality_pulse_limit',
             self::DEFAULT_LIMIT,
             self::MIN_LIMIT,
             self::MAX_LIMIT
         );
+    }
+
+    /**
+     * The creator's recent videos, most watched first: the admin's limit of them, or $candidates (at most three times
+     * the largest limit) when the caller picks among more (the studio dashboard lists the videos that have something to
+     * fix, up to the admin's limit: member design 6.2). $withRelations loads each video's active thumbnail, creator
+     * and category; the studio dashboard reads none of them (its tips print studio links and the member's own titles)
+     * and passes false: one query for the videos (1.2.3 round 1, R1-074).
+     */
+    public function videosFor(User $creator, ?int $candidates = null, bool $withRelations = true): Collection
+    {
+        if (! config('site.creator_quality_pulse_enabled', self::DEFAULT_ENABLED)) {
+            return collect();
+        }
+
+        $limit = $candidates === null ? $this->limit() : max(self::MIN_LIMIT, min(self::MAX_LIMIT * 3, $candidates));
         $lookbackDays = BoundedConfig::integer(
             'site.creator_quality_pulse_lookback_days',
             self::DEFAULT_LOOKBACK_DAYS,
@@ -61,14 +74,20 @@ class CreatorQualityPulseService
                 $query->where('published_at', '>=', $since)
                     ->orWhere('uploaded_at', '>=', $since);
             })
-            ->with([
-                'thumbnail',
-                'user:id,username',
-                'category:id,title',
-            ])
+            ->when(
+                $withRelations,
+                fn ($query) => $query->with([
+                    'thumbnail',
+                    'user:id,username',
+                    'category:id,title',
+                ]),
+                fn ($query) => $query->without('thumbnail'),
+            )
             ->withCount([
                 'comments as creator_quality_comments_count' => fn ($query) => $query->where('created_at', '>=', $since),
                 'thumbnail as creator_quality_thumbnail_count',
+                // the dashboard's tips (member design 6.2) suggest a playlist for a video in none of them
+                'playlists as creator_quality_playlists_count',
             ]);
 
         if ($useDailyStats) {
@@ -95,7 +114,8 @@ class CreatorQualityPulseService
             ->map(function (Video $video): Video {
                 $views = min(50, max(0, (int) $video->creator_quality_views_count));
                 $comments = min(10, max(0, (int) $video->creator_quality_comments_count));
-                $thumbnailBonus = (int) $video->creator_quality_thumbnail_count > 0 ? 20 : 0;
+                // studio-30: a poster picture counts as a thumbnail (imported videos show their poster on every card)
+                $thumbnailBonus = ((int) $video->creator_quality_thumbnail_count > 0 || filled($video->poster_url)) ? 20 : 0;
 
                 $video->setAttribute('creator_quality_score', min(100, ($views * 2) + ($comments * 10) + $thumbnailBonus));
                 $video->setAttribute('creator_quality_thumbnail_ready', $thumbnailBonus > 0);
@@ -106,9 +126,14 @@ class CreatorQualityPulseService
 
     private function shouldUseDailyStats(mixed $since): bool
     {
-        return Schema::hasTable('video_view_daily_stats')
-            && DB::table('video_view_daily_stats')
+        // Every install has the table (2026_05_05 migration): ask for rows directly instead of looking the table up
+        // in the schema on every dashboard view; a database without it still falls back to the raw view rows.
+        try {
+            return DB::table('video_view_daily_stats')
                 ->where('view_date', '>=', $since->toDateString())
                 ->exists();
+        } catch (QueryException) {
+            return false;
+        }
     }
 }

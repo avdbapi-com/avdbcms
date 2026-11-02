@@ -33,7 +33,7 @@ class FreshInstallImportIdleTest extends TestCase
         $this->assertNotNull($schedule);
         $this->assertFalse($schedule->is_active);
         $this->assertSame('hourly', $schedule->fresh()->frequency);
-        $this->assertSame('Hourly at :30', $schedule->scheduleLabel());
+        $this->assertSame('Every hour, at minute 30', $schedule->scheduleLabel());
         $this->assertTrue($schedule->skip_if_active);
         $this->assertSame('2026-09-23 11:30:00', $schedule->calculateNextRunAt(\Carbon\Carbon::parse('2026-09-23 11:10:00'))->format('Y-m-d H:i:s'));
         $this->assertIdle();
@@ -100,7 +100,7 @@ class FreshInstallImportIdleTest extends TestCase
         $this->assertTrue($schedule->is_active);
         $this->assertSame('interval', $schedule->frequency);
         $this->assertSame(15, $schedule->interval_minutes);
-        $this->assertSame('Every 15 min', $schedule->scheduleLabel());
+        $this->assertSame('Every 15 minutes', $schedule->scheduleLabel());
         $this->assertNull(XvidImportController::ensureDefaultScheduleExists());
         $this->assertTrue($schedule->fresh()->is_active);
         $this->assertIdle();

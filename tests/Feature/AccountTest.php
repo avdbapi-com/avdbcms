@@ -54,6 +54,15 @@ class AccountTest extends TestCase
             }
         });
 
+        // A member reads a plain sentence; how to fix the mail setup is for administrators (round 1: R1-131).
+        $this->fromRoute('user.edit')
+            ->post(route('verification.send.update'))
+            ->assertRedirectToRoute('user.edit')
+            ->assertSessionHas('error', __('We could not send the e-mail right now. Try again in a few minutes. If it keeps failing, contact us.'));
+
+        $this->user->forceFill(['is_admin' => true])->save();
+        $this->actingAs($this->user->fresh());
+        $this->travel(61)->seconds(); // past the button's own limit of one a minute
         $this->fromRoute('user.edit')
             ->post(route('verification.send.update'))
             ->assertRedirectToRoute('user.edit')

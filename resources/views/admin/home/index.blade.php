@@ -14,14 +14,25 @@
 @section('content')
     @php
         $waiting = array_keys(array_filter($probes, fn ($probe) => $probe === null));
+        $waitingProbes = collect($waiting)->map(fn ($probe) => route('admin.status.probe', ['probe' => $probe]))->implode(' ');
         $found = array_filter($probes, fn ($probe) => $probe !== null && in_array($probe['status'], ['warn', 'danger'], true));
         $needCount = count($needs) + count($found);
+        // The header's "N things need you" and the panel's count come from the same copy of the page: when status
+        // probes answer after the page appears, both are filled in again (data-ad-defer, modules/list-probes.ts).
+        $headerText = new \Illuminate\Support\HtmlString(
+            e(trans_choice(':site had 1 view this week.|:site had :count views this week.', (int) $metrics['views']['week'], ['site' => $siteName, 'count' => number_format((int) $metrics['views']['week'])]))
+            .' <span data-ad-defer="home-needs-count"'.($waiting !== [] ? ' data-ad-defer-probes="'.e($waitingProbes).'"' : '').'>'
+            .($needCount > 0 ? e(trans_choice('1 thing needs you.|:count things need you.', $needCount, ['count' => $needCount])) : '')
+            .'</span>'
+        );
         $doneSteps = count(array_filter($steps, fn ($step) => $step['done']));
         // $steps: [] when every step is done; $stepsHidden: the administrator hid the list ("Hide this list").
         $metric = fn (array $m): ?string => $m['before'] > 0
             ? (($m['week'] >= $m['before'] ? '+' : '-').abs((int) round(($m['week'] - $m['before']) / $m['before'] * 100)).'%')
             : null;
         $disk = $probes['disk'] ?? null;
+        // A view-only demo account is not offered the closed import tools (ViewOnlyDemo::hides()).
+        $importsHidden = \App\Http\Middleware\ViewOnlyDemo::hides('admin.avdb-import.index');
         $statusLine = array_filter([
             config('site.robots_noindex', false) ? __('Hidden from Google.') : __('Visible on Google.'),
             config('site.maintenance_mode', false) ? __('Maintenance mode is on.') : __('Maintenance off.'),
@@ -42,11 +53,25 @@
                 </form>
             </x-slot:actions>
         </x-admin.callout>
+    @elseif (($update['texts'] ?? []) !== [])
+        {{-- After an upload by hand without a database change: the texts this version corrected (as on Tools > Updates). --}}
+        <x-admin.callout class="ad-home-update" icon="globe" :title="__('Your language files have texts to correct')" role="status">
+            {{ __('These language files still have texts exactly as an older version wrote them. This version corrected those texts or no longer uses them. Your own texts stay as they are.') }}
+            {{ \App\Support\AdminText::groups(collect($update['texts'])->map(fn (int $count, string $locale): string => \App\Support\AdminText::labelled((string) (config('languages.'.$locale.'.label') ?: $locale), trans_choice('1 text to correct|:count texts to correct', $count, ['count' => number_format($count)])))->all()) }}
+            <x-slot:actions>
+                <form method="POST" action="{{ route('admin.update.finish') }}" data-ad-busy="{{ __('Correcting the texts...') }}">
+                    @csrf
+                    <input type="hidden" name="only" value="texts">
+                    <input type="hidden" name="from" value="home">
+                    <button type="submit" class="ad-btn is-primary sm">{{ __('Correct the texts') }}</button>
+                </form>
+            </x-slot:actions>
+        </x-admin.callout>
     @elseif ($update['look'] === 'moved')
         <x-admin.callout class="ad-home-update" :title="__('Your look moved to the new theme collection')" icon="palette" role="status">
             {{ __('Not what you expected? You can restore your previous look until :date.', ['date' => \Illuminate\Support\Carbon::parse($update['snapshot']['expires_at'])->translatedFormat('j F Y')]) }}
             <x-slot:actions>
-                {{-- Compare (migration plan step 10): the design history lists the update next to the look before it. --}}
+                {{-- Compare: the design history lists the update next to the look before it. --}}
                 <a class="ad-btn is-ghost sm" href="{{ route('admin.appearance.history') }}">{{ __('See changes') }}</a>
                 <form method="POST" action="{{ route('admin.update.restore-look') }}"
                       data-ad-confirm="{{ __('Restore your previous look?') }}"
@@ -101,11 +126,14 @@
     <x-admin.page-header
         page="home.overview"
         :title="config('site.maintenance_mode', false) ? __('Your site is in maintenance mode') : __('Your site is live')"
-        :description="trim(__(':site had :views views this week.', ['site' => $siteName, 'views' => number_format($metrics['views']['week'])]).' '.($needCount > 0 ? trans_choice('1 thing needs you.|:count things need you.', $needCount, ['count' => $needCount]) : ''))"
+        :description="$headerText"
     >
         <x-slot:actions>
             <a class="ad-btn" href="{{ locale_url(route('pages.home')) }}" target="_blank" rel="noopener">{{ AdminTheme::icon('external') }}{{ __('View site') }}</a>
-            <a class="ad-btn is-primary" href="{{ route('admin.avdb-import.index') }}">{{ AdminTheme::icon('cloud-down') }}{{ __('Import videos') }}</a>
+            {{-- A view-only demo account is not offered a closed page (ViewOnlyDemo::hides()): no import tools. --}}
+            @unless ($importsHidden)
+                <a class="ad-btn is-primary" href="{{ route('admin.avdb-import.index') }}">{{ AdminTheme::icon('cloud-down') }}{{ __('Import videos') }}</a>
+            @endunless
         </x-slot:actions>
     </x-admin.page-header>
 
@@ -136,7 +164,7 @@
         @endif
 
         <section class="ad-panel" aria-labelledby="ad-home-needs" data-ad-defer="home-needs"
-                 @if ($waiting !== []) data-ad-defer-probes="{{ collect($waiting)->map(fn ($probe) => route('admin.status.probe', ['probe' => $probe]))->implode(' ') }}" @endif>
+                 @if ($waiting !== []) data-ad-defer-probes="{{ $waitingProbes }}" @endif>
             <div class="ad-panel-h">
                 <h2 id="ad-home-needs" class="ad-home-grow">{{ __('Needs you') }}</h2>
                 @if ($needCount > 0)
@@ -147,7 +175,9 @@
                 @foreach ($needs as $need)
                     <li>
                         <span class="ad-sym is-{{ $need['tone'] }}" aria-hidden="true">{{ AdminTheme::icon($need['icon']) }}</span>
-                        <span class="ad-li-text"><b>{{ $need['title'] }}</b>@if ($need['text'])<span>{{ $need['text'] }}</span>@endif</span>
+                        {{-- A notice the administrator may hide (AdminController::NOTICES): its button under the text, the form
+                             after the list. --}}
+                        <span class="ad-li-text"><b>{{ $need['title'] }}</b>@if ($need['text'])<span>{{ $need['text'] }}</span>@endif @if (! empty($need['dismiss']))<br><button type="submit" form="ad-hide-{{ $need['dismiss'] }}" class="ad-linkbtn ad-small ad-muted">{{ __('Hide this notice') }}</button>@endif</span>
                         @if ($need['action'][1])
                             <a class="ad-btn sm" href="{{ $need['action'][1] }}">{{ $need['action'][0] }}</a>
                         @endif
@@ -174,6 +204,14 @@
                     </li>
                 @endif
             </ul>
+            @foreach ($needs as $need)
+                @if (! empty($need['dismiss']))
+                    <form id="ad-hide-{{ $need['dismiss'] }}" method="POST" action="{{ route('admin.home.dismiss') }}" hidden>
+                        @csrf
+                        <input type="hidden" name="notice" value="{{ $need['dismiss'] }}">
+                    </form>
+                @endif
+            @endforeach
             <div class="ad-panel-f ad-small ad-muted">
                 {{ AdminTheme::icon('check-circle', 'sm') }}<span>{{ implode(' ', $statusLine) }}</span>
                 @if ($steps !== [] && $stepsHidden)
@@ -199,11 +237,12 @@
         ['label' => __('New members'), 'value' => number_format($metrics['members']['week']), 'delta' => $metrics['members']['today'] > 0 ? __('+:count today', ['count' => $metrics['members']['today']]) : null, 'url' => route('admin.users.index'), 'spark' => $metrics['members']['points']],
         ['label' => __('Comments'), 'value' => number_format($metrics['comments']['week']), 'delta' => $metric($metrics['comments']), 'down' => $metrics['comments']['week'] < $metrics['comments']['before'], 'url' => route('admin.comments.index'), 'spark' => $metrics['comments']['points']],
         $metrics['earnings']['enabled']
-            ? ['label' => __('Earnings'), 'value' => number_format($metrics['earnings']['week'], 2).' '.$metrics['earnings']['currency'], 'url' => route('admin.transactions.index')]
+            ? ['label' => __('Earnings'), 'value' => \App\Support\PremiumAvailability::money($metrics['earnings']['week'], 2), 'url' => route('admin.transactions.index')]
             : ['label' => __('Earnings'), 'value' => __('Premium is off'), 'delta' => __('Set up payments'), 'down' => true, 'url' => ($setup = \App\Support\AdminNav::page('money.setup')) !== null ? \App\Support\AdminNav::url($setup) : route('admin.plans.index')],
     ]" />
 
-    <div class="ad-grid2 ad-home-bottom">
+    <div @class(['ad-grid2' => ! $importsHidden, 'ad-home-bottom'])>
+        @unless ($importsHidden)
         <section class="ad-panel" aria-labelledby="ad-home-imports">
             <div class="ad-panel-h">
                 <h2 id="ad-home-imports" class="ad-home-grow">{{ __('Recent imports') }}</h2>
@@ -231,7 +270,7 @@
                                     @if ($run['status'] === 'failed' && (int) $run['total_pages'] > 0)
                                         {{ __('Stopped at page :page of :pages', ['page' => (int) $run['completed_pages'] + 1, 'pages' => (int) $run['total_pages']]) }}
                                     @else
-                                        {{ trans_choice('1 new video|:count new videos', (int) $run['imported'], ['count' => number_format((int) $run['imported'])]) }}, {{ trans_choice('1 failed|:count failed', (int) $run['failed'], ['count' => (int) $run['failed']]) }}
+                                        {{ \App\Support\AdminText::list([trans_choice('1 new video|:count new videos', (int) $run['imported'], ['count' => number_format((int) $run['imported'])]), trans_choice('1 failed|:count failed', (int) $run['failed'], ['count' => (int) $run['failed']])]) }}
                                     @endif
                                 </span>
                             </span>
@@ -242,6 +281,7 @@
                 </ul>
             @endif
         </section>
+        @endunless
 
         <section class="ad-panel" aria-labelledby="ad-home-comments" data-ad-list="home-comments" data-ad-failed="{{ __('That did not work. Reload the page and try again.') }}">
             <div class="ad-panel-h">

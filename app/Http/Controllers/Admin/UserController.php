@@ -2,16 +2,20 @@
 
 namespace App\Http\Controllers\Admin;
 
-use App\Enums\VideoStatus;
 use App\Events\UserBanned;
 use App\Exports\UsersExport;
 use App\Http\Middleware\ViewOnlyDemo;
+use App\Models\Comment;
 use App\Models\User;
+use App\Models\Video;
 use App\Notifications\Account\DeleteAccount;
 use App\Services\ExportService;
 use App\Support\AdminCache;
 use App\Support\AdminPagination;
 use App\Support\AdminPreferences;
+use App\Support\AuditDetails;
+use App\Support\EngagementCounters;
+use App\Support\VideoBans;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -131,6 +135,9 @@ class UserController
             'country' => $validated['country'] ?? $user->country,
             'is_admin' => $request->has('is_admin'),
         ]);
+        // Tools > Logs > Admin actions (R2A-020): which fields the admin changed, never their values. (is_admin is not
+        // mass-assignable, User::$guarded: the role changes only through toggleAdmin() and the bulk action, both logged.)
+        $changed = array_values(array_intersect(['username', 'email', 'description', 'country'], array_keys($user->getChanges())));
 
         if ($request->filled('password')) {
             // The User model hashes the password it is given (User::password()). Hashing it here as well stored a hash
@@ -138,11 +145,16 @@ class UserController
             $user->update([
                 'password' => (string) $validated['password'],
             ]);
+            $changed[] = 'password';
+        }
+
+        if ($changed !== []) {
+            AuditLogController::log('member.updated', AuditDetails::member($user).': '.implode(', ', $changed));
         }
 
         return redirect()
             ->route('admin.users.edit', $user)
-            ->withSuccess('User updated successfully.');
+            ->withSuccess(__('Changes saved.'));
     }
 
     public function ban (User $user, Request $request) : RedirectResponse {
@@ -151,22 +163,28 @@ class UserController
             'banned_at' => now()
         ]);
 
+        // 1.2.3 round 3 (KS-F2): the optional external search hears of the videos banned with the member
+        \App\Support\VideoSearchIndex::watch();
+
         if ($request->has('ban_videos')){
-            $user->videos()->update([
-                'banned_at' => now(),
-                'status' => VideoStatus::BANNED
-            ]);
+            // each video keeps its status for Unban (App\Support\VideoBans)
+            $banned = Video::query()->where('user_id', $user->id)->where('status', '!=', \App\Enums\VideoStatus::BANNED->value)->pluck('id')->all();
+            VideoBans::ban(Video::query()->where('user_id', $user->id));
+            \App\Support\VideoSearchIndex::follow($banned);
         }
 
         if ($request->has('ban_comments')){
-            $user->comments()->update([
-                'banned_at' => now(),
-            ]);
+            // the videos they were on get their comment counts again
+            EngagementCounters::hideComments(Comment::query()->where('user_id', $user->id));
         }
 
         UserBanned::dispatch($user);
 
-        return redirect()->to(url()->previous())->withSuccess('User banned successfully.');
+        // Always a change: the route's policy (UserPolicy::ban) refuses a member who is blocked already.
+        $with = array_values(array_filter([$request->has('ban_videos') ? 'videos' : null, $request->has('ban_comments') ? 'comments' : null]));
+        AuditLogController::log('member.blocked', AuditDetails::member($user).($with !== [] ? ', with their '.implode(' and ', $with) : ''));
+
+        return redirect()->to(url()->previous())->withSuccess(\App\Support\VideoSearchIndex::answer(__('Member blocked')));
     }
 
     public function unban (User $user) : RedirectResponse {
@@ -175,7 +193,12 @@ class UserController
             'banned_at' => null
         ]);
 
-        return redirect()->to(url()->previous())->withSuccess('User unbanned successfully.');
+        // a member who was not blocked: nothing changed, nothing is written (judge R2CD-RV-03)
+        if ($user->wasChanged('banned_at')) {
+            AuditLogController::log('member.unblocked', AuditDetails::member($user));
+        }
+
+        return redirect()->to(url()->previous())->withSuccess(__('Member unblocked'));
     }
 
     public function toggleAdmin (User $user) : RedirectResponse {
@@ -190,9 +213,9 @@ class UserController
             'is_admin' => !$user->is_admin
         ])->save();
 
-        $status = $user->is_admin ? 'promoted to admin' : 'removed from admin';
+        AuditLogController::log($user->is_admin ? 'member.admin.granted' : 'member.admin.removed', AuditDetails::member($user));
 
-        return redirect()->to(url()->previous())->withSuccess("User {$status} successfully.");
+        return redirect()->to(url()->previous())->withSuccess($user->is_admin ? __('Now an administrator') : __('No longer an administrator'));
     }
 
     /**
@@ -220,8 +243,12 @@ class UserController
 
         $on = $request->boolean('view_only');
 
-        // A plain update: no model events (a member with a Stripe id would be sent to Stripe for an admin flag).
-        User::query()->whereKey($user->getKey())->toBase()->update([ViewOnlyDemo::COLUMN => $on]);
+        // Already so (a second click, a reloaded form): nothing changes and nothing is written (judge R2CD-RV-03).
+        if ((bool) $user->getAttribute(ViewOnlyDemo::COLUMN) !== $on) {
+            // A plain update: no model events (a member with a Stripe id would be sent to Stripe for an admin flag).
+            User::query()->whereKey($user->getKey())->toBase()->update([ViewOnlyDemo::COLUMN => $on]);
+            AuditLogController::log($on ? 'member.view_only.on' : 'member.view_only.off', AuditDetails::member($user));
+        }
 
         return redirect()->to(url()->previous())->withSuccess($on
             ? __('This account is now view-only: it can look at everything, but nothing it does is saved.')
@@ -229,34 +256,48 @@ class UserController
     }
 
     public function confirm (User $user) : RedirectResponse {
-        $user->markEmailAsVerified();
-        return redirect()->to(url()->previous())->withSuccess('User email confirmed.');
+        if ($user->markEmailAsVerified()) {
+            AuditLogController::log('member.email_confirmed', AuditDetails::member($user));
+        }
+
+        return redirect()->to(url()->previous())->withSuccess(__('Email marked as confirmed'));
     }
 
     public function unverify (User $user) : RedirectResponse {
         $user->update(['email_verified_at' => null]);
-        return redirect()->to(url()->previous())->withSuccess('Email verification revoked.');
+
+        if ($user->wasChanged('email_verified_at')) {
+            AuditLogController::log('member.email_unconfirmed', AuditDetails::member($user));
+        }
+
+        return redirect()->to(url()->previous())->withSuccess(__('Email marked as not confirmed'));
     }
 
     public function delete (User $user) : RedirectResponse {
 
         $user->notify(new DeleteAccount());
+        $name = AuditDetails::member($user);
 
         // forceDelete triggers UserObserver.forceDeleting which handles full cascade:
         // videos, comments, playlists, interactions, subscriptions, notifications,
         // views, activity, reports, favorites, tokens, premium, transactions,
         // searches, avatar/banner files
         $user->forceDelete();
+        AuditLogController::log('member.deleted', $name);
 
-        return redirect()->route('admin.users.index')->withSuccess('User deleted permanently.');
+        return redirect()->route('admin.users.index')->withSuccess(__('Member deleted'));
     }
 
     public function export (Request $request, ExportService $exportService): RedirectResponse {
 
         $exportService->generate(UsersExport::class, $request->query());
 
+        // Tools > Logs > Admin actions (R3-019): an export of members' details; the names of its filters, never a value.
+        $filters = array_keys(array_filter($request->query(), static fn ($value): bool => $value !== null && $value !== '' && $value !== []));
+        AuditLogController::log('members.exported', $filters !== [] ? implode(', ', array_map('strval', $filters)) : null);
+
         return redirect()
             ->route('admin.users.index', $request->query())
-            ->withSuccess('Your export has been queued. you will receive a notification when it is completed.');
+            ->withSuccess(__('The export has started. A notification tells you when it is ready.'));
     }
 }

@@ -56,7 +56,8 @@ class Export implements ShouldQueue
     public function handle() : void
     {
         $class = new $this->exportType($this->filters);
-        $fileName = $class->fileName.'-'.Carbon::now()->timestamp.'.csv';
+        // A random part: the members list must not be found by its time if a server ever serves storage/ (S03).
+        $fileName = $class->fileName.'-'.Carbon::now()->timestamp.'-'.bin2hex(random_bytes(6)).'.csv';
 
         $path = ExportModel::EXPORT_FOLDER .DIRECTORY_SEPARATOR. $fileName;
 

@@ -14,14 +14,13 @@ use Tests\Support\CreatesAdminSettingsSchema;
 use Tests\TestCase;
 
 /**
- * The Daily Design rule against the redesign's reference implementation (spec/theme/scripts/daily_rule.py)
- * and its golden year (spec/theme/work/daily_2026.json).
+ * The Daily Design rule against the redesign's reference implementation and its golden year.
  */
 class DailyDesignRuleTest extends TestCase
 {
     use CreatesAdminSettingsSchema;
 
-    // daily_2026.json, base theme tokyo_neon: per scope the days per theme, the 12 most used looks, the
+    // The golden year 2026, base theme tokyo_neon: per scope the days per theme, the 12 most used looks, the
     // holidays (date => [holiday, theme, colour style]) and the first 14 days.
     private const GOLDEN_2026 = [
             'palette_only' => [
@@ -84,7 +83,7 @@ class DailyDesignRuleTest extends TestCase
             ],
     ];
 
-    // daily_rule.py's whole years: md5 of one "Y-m-d theme/flavor holiday" line per day ('-' without a
+    // The reference rule's whole years: md5 of one "Y-m-d theme/flavor holiday" line per day ('-' without a
     // holiday) joined by "\n"; "all 32 themes" is the md5 of the 32 palette_only digests in catalogue order.
     private const REFERENCE_DIGESTS = [
         '2026 full' => '0773d78b2a03ede55c099cd2008b8858',

@@ -34,6 +34,8 @@ class SendTrialsEnd extends Command
             ->whereNull('ends_at')
             ->where('stripe_status', StripeSubscription::STATUS_TRIALING)
             ->whereDate('trial_ends_at', '=', now()->addDays(config('plans.trial_period.email_reminder')))
+            // A member who deleted the account (until the queue removes it for good) gets no mail, and the others still do.
+            ->whereHas('user')
             ->get();
 
         foreach ($subscriptions as $subscription) {

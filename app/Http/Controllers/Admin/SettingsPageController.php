@@ -10,6 +10,10 @@ use App\Services\CaptchaService;
 use App\Services\ViewHistoryRetentionService;
 use App\Support\AdminIpLock;
 use App\Support\AdminPreferences;
+use App\Support\AdminSettingsCatalog;
+use App\Support\AdminSettingsSearch;
+use App\Support\ChannelCustomizationSettings;
+use App\Support\ConfigFiles;
 use App\Support\PremiumPageSettings;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
@@ -57,7 +61,8 @@ class SettingsPageController
         'money.premium_page' => 'pages',
     ];
 
-    private const SEARCH_LIMIT = 30;
+    /** Results the settings search lists at once; "N more" says how many more match (a longer query narrows them). */
+    private const SEARCH_LIMIT = 60;
 
     private const SCRIPT = __DIR__.'/../../../../resources/views/admin/settings/page.js';
 
@@ -184,22 +189,25 @@ class SettingsPageController
 
     public function hub(Request $request): View|JsonResponse
     {
-        $query = is_string($request->query('q')) ? trim($request->query('q')) : '';
-        $results = $query === '' ? [] : $this->search($query, $request->user());
+        $query = is_string($request->query('q')) ? trim(mb_substr($request->query('q'), 0, 200)) : '';
+        $all = $query === '' ? [] : self::searchSettings($query, $request->user(), PHP_INT_MAX);
+        $results = array_slice($all, 0, self::SEARCH_LIMIT);
+        $more = count($all) - count($results);
 
         // The live search asks for the results list alone (it sends X-Requested-With, so check this first).
         if ($request->boolean('partial')) {
-            return view('admin.settings.partials.hub-results', ['query' => $query, 'results' => $results]);
+            return view('admin.settings.partials.hub-results', ['query' => $query, 'results' => $results, 'more' => $more]);
         }
 
         if ($request->expectsJson()) {
-            return response()->json(['query' => $query, 'results' => $results]);
+            return response()->json(['query' => $query, 'results' => $results, 'more' => $more]);
         }
 
         return view('admin.settings.hub', [
             'topics' => config('admin_settings.hub', []),
             'query' => $query,
             'results' => $results,
+            'more' => $more,
         ]);
     }
 
@@ -214,6 +222,23 @@ class SettingsPageController
                 'extrasBottom' => ['admin.settings.extras.email-test'],
                 'mailer' => (string) config('mail.default', 'smtp'),
             ];
+        }
+
+        if ($page === 'seo' && ! \App\Http\Middleware\ViewOnlyDemo::isViewOnlyUser($request->user())) {
+            // Opening Settings > Google & sharing brings the site's own robots.txt up to date with its settings (round 4,
+            // R3M-02): a site updated from 1.2.2 serves the shipped file until then, and a save writes it only when it
+            // changes a robots setting. A robots.txt the owner wrote by hand stays as it is; one the site may not write
+            // is said on the page (what to do, then open the page again).
+            try {
+                $failed = \App\Support\RobotsTxt::refresh(null, true)['failed'];
+            } catch (\Throwable $e) {
+                report($e);
+                $failed = ['public/robots.txt'];
+            }
+
+            if ($failed !== []) {
+                $data = ['extrasTop' => ['admin.settings.extras.robots-status'], 'robotsWarning' => \App\Support\RobotsTxt::warning($failed)];
+            }
         }
 
         return $this->render($request, self::PAGES[$page], $data);
@@ -242,8 +267,13 @@ class SettingsPageController
      * plans, Languages, Info pages, ...) render it the same way:
      *     @include('admin.settings.partials.form', app(SettingsPageController::class)->form(request(), 'money.plans'))
      *
-     * @return array{pageId: string, cards: list<array>, advancedCards: list<array>, hiddenExpert: int, developer: bool,
-     *               saveUrl: string, clientIp: string, config: array}
+     * While Developer mode is off, the developer settings of the page are not editable here; developerOnly lists them
+     * by card (label and help only, never a value), so the page can say they appear in Developer mode, with a one-click
+     * switch, and a search link to one of them (#key) still finds its row.
+     *
+     * @return array{pageId: string, cards: list<array>, advancedCards: list<array>, hiddenExpert: int,
+     *               developerOnly: list<array{id: string, title: string, fields: list<array{key: string, label: string, help: string}>}>,
+     *               developer: bool, saveUrl: string, clientIp: string, config: array}
      */
     public function form(Request $request, string $pageId): array
     {
@@ -259,6 +289,7 @@ class SettingsPageController
         $context = ['ip' => AdminIpLock::clientIp($request)];
         $cards = [];
         $hiddenExpert = 0;
+        $developerOnly = [];
 
         foreach ($page['cards'] as $cardId => $card) {
             $fields = [];
@@ -266,12 +297,16 @@ class SettingsPageController
             foreach ($card['fields'] as $key) {
                 $setting = config("admin_settings.settings.{$key}");
 
-                if (! is_array($setting) || $setting['level'] === 'hidden') {
+                // A value of the .env file with a form of its own (Money > Payment setup's keys) is only listed for the
+                // searches: this form never draws or saves it.
+                if (! is_array($setting) || $setting['level'] === 'hidden' || ! empty($setting['env'])) {
                     continue;
                 }
 
                 if ($setting['level'] === 'expert' && ! $developer) {
                     $hiddenExpert++;
+                    $developerOnly[$cardId] ??= ['id' => (string) $cardId, 'title' => $card['title'], 'fields' => []];
+                    $developerOnly[$cardId]['fields'][] = ['key' => $key, 'label' => $setting['label'], 'help' => $setting['help']];
 
                     continue;
                 }
@@ -295,11 +330,15 @@ class SettingsPageController
             ];
         }
 
+        // A settings page whose cards are all advanced (Settings > Advanced) shows them at once, unfolded (R1-156).
+        $unfold = AdminSettingsCatalog::unfoldsAdvanced($pageId);
+
         return [
             'pageId' => $pageId,
-            'cards' => array_values(array_filter($cards, fn (array $c): bool => $c['level'] === 'basic')),
-            'advancedCards' => array_values(array_filter($cards, fn (array $c): bool => $c['level'] !== 'basic')),
+            'cards' => array_values(array_filter($cards, fn (array $c): bool => $unfold || $c['level'] === 'basic')),
+            'advancedCards' => $unfold ? [] : array_values(array_filter($cards, fn (array $c): bool => $c['level'] !== 'basic')),
             'hiddenExpert' => $hiddenExpert,
+            'developerOnly' => array_values($developerOnly),
             'developer' => $developer,
             'saveUrl' => route('admin.settings.save'),
             'clientIp' => $context['ip'],
@@ -308,6 +347,8 @@ class SettingsPageController
                 'reveal' => route('admin.settings.maintenance.reveal'),
                 'values' => route('admin.settings.values'),
                 'upload' => route('admin.settings.upload'),
+                // the long values arrive after the page as a background GET (it leaves the session as it is)
+                'background' => \App\Http\Middleware\BackgroundRequest::HEADER,
             ],
         ];
     }
@@ -462,8 +503,8 @@ class SettingsPageController
     private static function scriptTexts(): array
     {
         return [
-            'one' => __('1 unsaved change'),
-            'many' => __(':count unsaved changes'),
+            // the save bar's count: the whole plural line, the page script picks the form (window.adminPlural)
+            'changes' => __('1 unsaved change|:count unsaved changes'),
             'saving' => __('Saving...'),
             'save' => __('Save changes'),
             'saved' => __('Changes saved.'),
@@ -493,6 +534,20 @@ class SettingsPageController
         $writeOnly = self::isWriteOnly($key);
         $default = $this->defaultValue($setting);
         $value = array_key_exists($key, $stored) && $stored[$key] !== null ? (string) $stored[$key] : $default;
+
+        // the default accent of creator channels shows what channels use: the untouched "coral" of a site installed
+        // before 1.2.3 is the look's colour (a page posted whole then keeps that, instead of turning it into a choice)
+        if ($key === 'channel_default_accent') {
+            $value = ChannelCustomizationSettings::adminAccentValue($value);
+        }
+
+        // the Support / Alerts e-mail: while it is empty or still a sample address of the package, the site uses .env's
+        // address, else the contact e-mail (round 3 R3-006): the field and its default show that address, never one the
+        // site does not use (IN-RV-03); nothing stored changes until the admin saves another
+        if (isset(\App\Support\SiteMailAddress::ENV_KEYS[$key])) {
+            $default = \App\Support\SiteMailAddress::fallback($key, $stored['contact_email'] ?? null) ?? $default;
+            $value = \App\Support\SiteMailAddress::shownValue($key, $value, $stored['contact_email'] ?? null);
+        }
 
         if ($setting['type'] === 'bool') {
             $value = filter_var($value, FILTER_VALIDATE_BOOLEAN) ? '1' : '0';
@@ -545,8 +600,10 @@ class SettingsPageController
     {
         $default = $setting['default'] ?? null;
 
+        // the configuration files' value, not the admin's (R2A-055: config() holds the saved value at this point, so the
+        // Site name's 'Default: ... Reset' showed the saved name and Reset changed nothing)
         if (is_array($default) && isset($default['config'])) {
-            $default = config($default['config'], $default['fallback'] ?? null);
+            $default = ConfigFiles::value($default['config'], $default['fallback'] ?? null);
         } elseif (is_array($default) && isset($default['translate'])) {
             $default = __($default['translate']);
         }
@@ -568,14 +625,18 @@ class SettingsPageController
             $key === 'captcha_provider' => CaptchaService::providers(),
             $key === 'default_locale' => array_map(fn (array $language): string => (string) ($language['label'] ?? ''), (array) config('languages', [])),
             $key === 'timezone' => array_combine(\DateTimeZone::listIdentifiers(), \DateTimeZone::listIdentifiers()),
+            // today in each format, as the site shows dates: in the admin's language (R2A-055: English month names)
             $key === 'date_format' => collect(['M d, Y', 'd/m/Y', 'Y-m-d', 'd.m.Y', 'm/d/Y'])
-                ->mapWithKeys(fn (string $format): array => [$format => now()->format($format)])
+                ->mapWithKeys(fn (string $format): array => [$format => now()->locale(app()->getLocale())->translatedFormat($format)])
                 ->all(),
             in_array($key, PremiumPageSettings::iconKeys(), true) => PremiumPageSettings::iconOptions(),
             $key === 'twitter_card_type' => ['summary' => 'Small picture', 'summary_large_image' => 'Large picture', 'player' => 'Video player'],
             $key === 'robots_max_image_preview' => ['none' => 'None', 'standard' => 'Standard', 'large' => 'Large'],
             $key === 'schema_organization_type' => ['Organization' => 'Organization', 'WebSite' => 'Website'],
             $key === 'ad_grid_layout' => ['grid_card' => 'Card in the grid', 'wide_row' => 'Full-width row'],
+            // the creator channel defaults (Appearance > Channels): the names channels use, 'Look colour' and 'Custom
+            // color' for the accent (R2A-006: 'Look' and the generic 'Custom' made from the rule's values)
+            str_starts_with($key, 'channel_default_') && isset(ChannelCustomizationSettings::options()[substr($key, 16)]) => ChannelCustomizationSettings::options()[substr($key, 16)],
             str_starts_with($key, 'ad_grid_layout_') => ['inherit' => 'Same as above', 'grid_card' => 'Card', 'wide_row' => 'Full-width row'],
             default => $setting['options'] ?? [],
         };
@@ -623,64 +684,156 @@ class SettingsPageController
     }
 
     /**
-     * Settings whose label, help, old name, card or page match every word of the query (translated text too),
-     * plus the search synonyms of the spec ("smtp", "adsense", "dark mode" ...).
+     * Settings that match the query by the rule both admin searches share (App\Support\AdminSettingsSearch: every word
+     * in the setting's key, label, old name, help, card or page, English or translated, or a search word such as
+     * "smtp" or "api key" made for it or its page): every setting at every level, so Ctrl+K's "See all N settings"
+     * opens exactly these N. An exact key comes first, then an exact label, an exact old name, a label that starts with
+     * the query, an exact help text, then the settings whose label, card or help holds the query; equal scores keep the
+     * catalogue's page and card order. A developer setting while Developer mode is off carries the note "Developer
+     * mode" and opens its page, which says how to see it; a hidden one carries its hint (shown instead of its help) and
+     * opens the setting or page part that replaced it. Settings whose page cannot be opened on this site are left out.
+     * "where" names the fold that holds the setting on its page: "Advanced" (an advanced card) or "More options".
      *
-     * @return list<array{label: string, where: string, help: string, url: string}>
+     * @return list<array{key: string, label: string, where: string, help: string, url: string, note: ?string, developer: bool, hidden: bool}>
      */
-    private function search(string $query, ?User $user): array
+    public static function searchSettings(string $query, ?User $user, int $limit = self::SEARCH_LIMIT): array
     {
-        $developer = class_exists(AdminPreferences::class) && AdminPreferences::developerMode($user);
-        $words = array_values(array_filter(preg_split('/\s+/u', mb_strtolower($query)) ?: []));
-        $pages = config('admin_settings.pages', []);
-        $boost = [];
+        $developer = AdminSettingsSearch::developer($user);
+        $folded = AdminSettingsSearch::fold($query);
+        $words = AdminSettingsSearch::words($folded);
 
-        foreach (config('admin_settings.synonyms', []) as $term => $targets) {
-            if (str_contains(mb_strtolower($query), $term)) {
-                foreach ($targets as $target) {
-                    $boost[$target] = true;
-                }
-            }
+        if ($words === []) {
+            return [];
         }
 
+        $targets = AdminSettingsSearch::targets($words);
+        // A search word that is the whole query names the setting the owner means ("premium", "smtp"): first.
+        $exact = AdminSettingsSearch::exactTargets($folded);
         $scored = [];
+        $position = 0;
 
-        foreach (config('admin_settings.settings', []) as $key => $setting) {
-            if ($setting['level'] === 'hidden' || ($setting['level'] === 'expert' && ! $developer)) {
+        foreach (AdminSettingsSearch::entries() as $entry) {
+            $position++;
+
+            if (! AdminSettingsSearch::matches($entry, $words, $targets)) {
                 continue;
             }
 
-            $page = $pages[$setting['page']] ?? null;
-            $card = $page['cards'][$setting['card']]['title'] ?? '';
-            $label = mb_strtolower($setting['label'].' '.__($setting['label']));
-            $text = mb_strtolower(implode(' ', [
-                $label, $setting['help'], __($setting['help']), $setting['old'][1] ?? '', __($card), $card,
-                __($page['label'] ?? ''), $page['label'] ?? '', str_replace('_', ' ', $key),
-            ]));
+            $key = $entry['key'];
+            $setting = $entry['setting'];
+            $score = 0;
 
-            $score = isset($boost[$key]) || isset($boost[$setting['page']]) ? 5 : 0;
-
-            if ($score === 0) {
+            // A key typed as it is comes first; a key that is a plain word ("theme") is no key search.
+            if ($entry['keyText'] === $folded && str_contains($key, '_')) {
+                $score = 1000;
+            } elseif (in_array($folded, $entry['labels'], true)) {
+                $score = 500;
+            } elseif (in_array($folded, $entry['olds'], true)) {
+                $score = 400;
+            } elseif (self::startsWithAny($entry['labels'], $folded)) {
+                $score = 300;
+            } elseif (in_array($folded, $entry['helps'], true)) {
+                $score = 250;
+            } elseif (AdminSettingsSearch::wordsMatch($entry, $words)) {
                 foreach ($words as $word) {
-                    if (! str_contains($text, $word)) {
-                        continue 2;
-                    }
+                    $score += self::containsAny($entry['labels'], $word) ? 3 : 1;
+                }
 
-                    $score += str_contains($label, $word) ? 3 : 1;
+                if (in_array($folded, $entry['cards'], true)) {
+                    // The card's own name: its settings first (in Chinese or Japanese a card's name is also part of many
+                    // labels, which put them out of sight). lib/search.ts settingRank() has the same rule.
+                    $score += 110;
+                } elseif (self::containsAny(array_merge($entry['labels'], $entry['olds']), $folded)) {
+                    $score += 100;
+                } elseif (self::containsAny($entry['cards'], $folded)) {
+                    $score += 70;
+                } elseif (self::containsAny($entry['helps'], $folded)) {
+                    $score += 50;
                 }
             }
 
-            $scored[] = [$score, [
-                'label' => __($setting['label']),
-                'where' => trim(__($page['label'] ?? '').' > '.__($card), ' >'),
-                'help' => __($setting['help']),
-                'url' => ($page['url'] ?? '/admin/settings').'#'.$key,
+            if (isset($exact[$key])) {
+                $score += 600;
+            } elseif (isset($targets[$key])) {
+                $score += 150;
+            } elseif (isset($targets[(string) $setting['page']])) {
+                $score += 20;
+            }
+
+            if (($url = AdminSettingsSearch::url($key)) === null) {
+                continue;
+            }
+
+            $locked = ! $developer && AdminSettingsCatalog::needsDeveloperMode($key);
+            $hidden = $setting['level'] === 'hidden';
+            // A little lower: developer settings while Developer mode is off, and hidden ones.
+            $score -= $locked ? 2 : ($hidden ? 5 : 0);
+
+            $scored[] = [$score, $position, [
+                'key' => $key,
+                'label' => AdminSettingsSearch::translate((string) $setting['label']),
+                'where' => self::searchWhere($entry, $developer),
+                'help' => AdminSettingsSearch::translate((string) $setting['help']),
+                'url' => $url,
+                'note' => $hidden ? AdminSettingsCatalog::hint($key) : ($locked ? __('Developer mode') : null),
+                'developer' => $locked,
+                'hidden' => $hidden,
             ]];
         }
 
-        // Stable: equal scores keep the page and card order of the catalogue.
-        usort($scored, fn (array $a, array $b): int => $b[0] <=> $a[0]);
+        usort($scored, fn (array $a, array $b): int => [$b[0], $a[1]] <=> [$a[0], $b[1]]);
 
-        return array_map(fn (array $row): array => $row[1], array_slice($scored, 0, self::SEARCH_LIMIT));
+        return array_map(fn (array $row): array => $row[2], array_slice($scored, 0, max(1, $limit)));
+    }
+
+    /**
+     * Where a search result lives on its page: "Page > Card", with the fold that holds it ("Page > Advanced > Card" for
+     * an advanced card, "Page > Card > More options" for an advanced setting of an everyday card). While Developer mode
+     * is off a developer setting has no fold (its page lists it under "Settings for developers").
+     */
+    private static function searchWhere(array $entry, bool $developer): string
+    {
+        $setting = $entry['setting'];
+        $page = $entry['page'];
+        $card = $page['cards'][$setting['card']] ?? null;
+        $parts = [AdminSettingsSearch::translate((string) ($page['label'] ?? ''))];
+        $locked = ! $developer && AdminSettingsCatalog::needsDeveloperMode($entry['key']);
+        $fold = $locked || $setting['level'] === 'hidden' || ! empty($setting['link']) || ! empty($setting['see']) ? null : AdminSettingsCatalog::fold($entry['key']);
+
+        if ($fold === 'advanced') {
+            $parts[] = __('Advanced');
+        }
+
+        $parts[] = AdminSettingsSearch::translate((string) ($card['title'] ?? ''));
+
+        if ($fold === 'more') {
+            $parts[] = __('More options');
+        }
+
+        return implode(' > ', array_filter($parts, fn (string $part): bool => $part !== ''));
+    }
+
+    /** @param list<string> $haystacks */
+    private static function startsWithAny(array $haystacks, string $needle): bool
+    {
+        foreach ($haystacks as $haystack) {
+            if ($haystack !== '' && str_starts_with($haystack, $needle)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /** @param list<string> $haystacks */
+    private static function containsAny(array $haystacks, string $needle): bool
+    {
+        foreach ($haystacks as $haystack) {
+            if ($haystack !== '' && str_contains($haystack, $needle)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

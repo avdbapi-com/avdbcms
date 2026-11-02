@@ -3,10 +3,10 @@
 namespace App\Support\Color;
 
 /**
- * The ONE colour engine of the product (redesign critique M10). The theme token build
+ * The ONE colour engine of the product. The theme token build
  * (App\Support\ThemeTokens, `php artisan avd:themes:build`), the owner's custom colours and the
  * admin accent all call these rules, so the same input gives the same fill and label everywhere.
- * Port of the redesign's contrast_engine.py + colorlib.fit_contrast; golden vectors in
+ * Port of the redesign's reference colour engine (contrast rules and contrast fitting); golden vectors in
  * tests/Unit/ColorContrastGoldenTest.php.
  *
  * - labelFill(): the button / badge / active-chip pair. Keeps the preferred label by moving the
@@ -192,7 +192,7 @@ final class Contrast
     }
 
     /**
-     * Status colours fitted to a palette (critique M2): '<kind>' is the text ink (>= 4.5:1 on every background),
+     * Status colours fitted to a palette: '<kind>' is the text ink (>= 4.5:1 on every background),
      * '<kind>-fill' the badge / button fill with '<kind>-on' as its label (>= 4.5:1).
      *
      * @return array<string, string>

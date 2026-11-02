@@ -6,7 +6,7 @@ use InvalidArgumentException;
 
 /**
  * Colour maths for the theme engine: parsing, sRGB <-> OKLab / OKLCH, alpha compositing and
- * WCAG relative luminance. A line-for-line port of the redesign's colorlib.py, which produced
+ * WCAG relative luminance. A line-for-line port of the redesign's reference colour library, which produced
  * the golden vectors (tests/Unit/ColorContrastGoldenTest.php): the operation order follows the
  * Python code and rounding is Python's round-half-even, so both give the same hex values.
  */

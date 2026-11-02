@@ -4,6 +4,7 @@ namespace App\Support;
 
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
+use Throwable;
 
 /**
  * The one writer of look keys: themes, Complete looks, the factory reset, publishes and restores. Every call writes
@@ -152,18 +153,30 @@ final class AppearanceApplier
     }
 
     /**
-     * Undo a revision of the appearance settings (SettingsRevision::restore() says which ones can be restored).
+     * Undo a revision of the appearance settings (SettingsRevision::restore() says which ones can be restored). A
+     * revision from before 1.2.3 can hold the retired AVDBAPI Telegram group (the footer's Support links of 1.2.2, the
+     * upgrade snapshot behind "Restore my previous look"): the restored rows get the new group and personal support
+     * right after (keepNewTelegramLinks()).
      *
      * @return array{changed: array<int, string>, revision: ?int}|null
      */
     public static function restoreRevision(int $revisionId, ?int $userId = null): ?array
     {
-        return SettingsRevision::restore($revisionId, $userId ?? self::userId());
+        $result = SettingsRevision::restore($revisionId, $userId ?? self::userId());
+
+        if ($result !== null) {
+            self::keepNewTelegramLinks();
+        }
+
+        return $result;
     }
 
     /**
      * Run the theme catalogue v2 upgrade of the stored appearance now (the data migration's own code), e.g. after
      * "Restore my previous look". Null when the settings are already upgraded or the revisions table is missing.
+     * The upgrade classifies against a frozen copy of the old defaults, which still links the retired AVDBAPI Telegram
+     * group (it writes that copy for Support links a site never stored, since their default changed in 1.2.3): the
+     * upgraded rows get the new group and personal support right after (keepNewTelegramLinks()).
      *
      * @return array{class: string, theme: string, flavor: string, snapshot: ?int, revision: ?int}|null
      */
@@ -175,7 +188,13 @@ final class AppearanceApplier
             return null;
         }
 
-        return (require $path)->run($userId ?? self::userId());
+        $result = (require $path)->run($userId ?? self::userId());
+
+        if ($result !== null) {
+            self::keepNewTelegramLinks();
+        }
+
+        return $result;
     }
 
     /**
@@ -250,6 +269,24 @@ final class AppearanceApplier
         SettingsRevision::flushSettingsCache();
 
         return $result;
+    }
+
+    /**
+     * Stored settings that link the retired AVDBAPI Telegram group get the new group again (the work of migration
+     * 2026_10_26_200000_new_telegram_links, TelegramLinks::fixStoredSettings(): the 1.2.2 Support links become Contact,
+     * Telegram group, Telegram support, Terms of Service; any other old address becomes the new group's). Nothing is
+     * written when no row holds the old group. A failure is reported and leaves the restore or upgrade as it is (the
+     * footer still links the new group for the old address).
+     */
+    private static function keepNewTelegramLinks(): void
+    {
+        try {
+            if (TelegramLinks::fixStoredSettings() !== []) {
+                SettingsRevision::flushSettingsCache();
+            }
+        } catch (Throwable $e) {
+            report($e);
+        }
     }
 
     private static function userId(): ?int

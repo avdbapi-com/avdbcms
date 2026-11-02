@@ -48,7 +48,7 @@ class DatabaseBackup
         }
 
         $useGz = self::gzipAvailable();
-        $filename = $prefix.date('Y-m-d_His').($useGz ? '.sql.gz' : '.sql');
+        $filename = $prefix.date('Y-m-d_His').'_'.self::randomPart().($useGz ? '.sql.gz' : '.sql');
         $fullPath = $directory.DIRECTORY_SEPARATOR.$filename;
 
         // 1. mysqldump / mariadb-dump first when the host allows processes and the binary exists.
@@ -108,7 +108,7 @@ class DatabaseBackup
         }
 
         $useGz = self::gzipAvailable();
-        $name = $prefix.date('Y-m-d_His').($useGz ? '.sql.gz' : '.sql');
+        $name = $prefix.date('Y-m-d_His').'_'.self::randomPart().($useGz ? '.sql.gz' : '.sql');
         $file = $directory.DIRECTORY_SEPARATOR.$name;
         $tables = $this->tables();
         $handle = $this->open($file, $useGz, false);
@@ -231,6 +231,51 @@ class DatabaseBackup
         }
 
         return $newest;
+    }
+
+    /**
+     * A backup's name as pages show it: without its random part ("backup_2026-10-25_143000.sql.gz" for
+     * "backup_2026-10-25_143000_<12 hex>.sql.gz"). The file in Tools > Backups starts with the same date and time.
+     * The random part keeps the name from being guessed if a server ever serves storage/ (security plan S03); pages
+     * that more than administrators see (Tools > Updates, the update's log and backup.json) only ever name this.
+     */
+    public static function shownName(string $name): string
+    {
+        return (string) preg_replace('/_[0-9a-f]{12}(?=\.sql(?:\.gz)?$)/', '', $name);
+    }
+
+    /**
+     * The file a name without its random part stands for, as Tools > Backups lists it: the newest backup in $directory
+     * (storage/app/backups) whose shownName() is $shown. Null when there is none (deleted since). The update's files and
+     * the admin log keep only the shown name (see shownName()); a backup made before 1.2.3 got its random part when the
+     * update to 1.2.3 renamed it (App\Support\StorageHider), after the update had named it (judge R3-031).
+     */
+    public static function listedName(string $shown, ?string $directory = null): ?string
+    {
+        if (preg_match('/^[A-Za-z0-9._-]+\.sql(?:\.gz)?\z/', $shown) !== 1) {
+            return null;
+        }
+
+        $directory ??= storage_path('app/backups');
+        $found = null;
+        $newest = -1;
+
+        foreach (glob(rtrim(str_replace('\\', '/', $directory), '/').'/*.sql*') ?: [] as $path) {
+            $name = basename($path);
+
+            if (is_file($path) && ! is_link($path) && self::shownName($name) === $shown && (int) @filemtime($path) > $newest) {
+                $found = $name;
+                $newest = (int) @filemtime($path);
+            }
+        }
+
+        return $found;
+    }
+
+    /** 12 random hex characters for a backup's name. */
+    public static function randomPart(): string
+    {
+        return bin2hex(random_bytes(6));
     }
 
     public static function gzipAvailable(): bool

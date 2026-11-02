@@ -6,7 +6,7 @@
 --}}
 @props(['form' => null, 'save' => null])
 <div {{ $attributes->class(['ad-savebar']) }} data-ad-savebar="{{ $form ?? '' }}" role="region" aria-label="{{ __('Unsaved changes') }}" hidden>
-    <span class="ad-changes" data-ad-changes aria-live="polite">{{ __('1 unsaved change') }}</span>
+    <span class="ad-changes" data-ad-changes aria-live="polite">{{ trans_choice('1 unsaved change|:count unsaved changes', 1) }}</span>
     <button type="button" class="ad-btn" data-ad-discard>{{ __('Discard') }}</button>
     <button type="button" class="ad-btn is-primary" data-ad-save>{{ $save ?? __('Save changes') }}</button>
 </div>

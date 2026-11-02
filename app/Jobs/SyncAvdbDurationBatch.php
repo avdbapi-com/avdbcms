@@ -120,7 +120,6 @@ class SyncAvdbDurationBatch implements ShouldBeUnique, ShouldQueue
 
         try {
             $response = Http::timeout(30)
-                ->withOptions(['verify' => false])
                 ->get(self::API, [
                     'ac' => 'detail',
                     'ids' => implode(',', $avdbIds),

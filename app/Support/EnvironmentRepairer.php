@@ -9,6 +9,9 @@ use Throwable;
 
 final class EnvironmentRepairer
 {
+    /** Runs "nginx -t" / "nginx -s reload" for the aaPanel rules instead of the shell (tests never touch a real nginx). */
+    public static ?\Closure $nginxRunner = null;
+
     /**
      * Lightweight repairs that are safe to run during normal HTTP boot.
      *
@@ -124,11 +127,13 @@ final class EnvironmentRepairer
             // Also fix permissions, shallow only.
             @exec('chmod 775 ' . implode(' ', $paths) . ' 2>&1');
 
-            // Also try to make .env writable
+            // Also try to make .env writable: owned by the PHP user, written by it only and read by the group (it holds
+            // every secret of the site: never readable by the other accounts of the server, never rewritten by the web
+            // server's group; R1B-016).
             $envPath = base_path('.env');
             if (is_file($envPath) && !is_writable($envPath)) {
                 @exec('chown ' . escapeshellarg($phpUser . ':' . $phpUser) . ' ' . escapeshellarg($envPath) . ' 2>&1');
-                @exec('chmod 664 ' . escapeshellarg($envPath) . ' 2>&1');
+                @exec('chmod 640 ' . escapeshellarg($envPath) . ' 2>&1');
             }
 
             // Also try to make the project root writable for .env creation
@@ -236,57 +241,64 @@ final class EnvironmentRepairer
             return [];
         }
 
-        $results = [];
-        $base = escapeshellarg(base_path());
+        $canExec = Environment::functionAvailable('exec');
+        $plan = $this->filePermissionPlan($canExec, ! app()->runningInConsole());
 
-        if (Environment::functionAvailable('exec')) {
-            // Set standard directories to 755 (excluding storage to preserve runtime write permissions)
-            @exec("find {$base} -maxdepth 4 -type d ! -path '*/.git*' ! -path '*/storage*' ! -path '*/bootstrap/cache*' -exec chmod 755 {} + 2>/dev/null");
-
-            // Set standard files to 644 (excluding storage and artisan)
-            @exec("find {$base} -maxdepth 4 -type f ! -path '*/.git*' ! -path '*/storage*' ! -path '*/bootstrap/cache*' ! -name 'artisan' -exec chmod 644 {} + 2>/dev/null");
-
-            // Ensure artisan executable is 755
-            $artisan = base_path('artisan');
-            if (is_file($artisan)) {
-                @chmod($artisan, 0755);
-            }
-
-            // Ensure .env is 644 or 664 if present
-            $envPath = base_path('.env');
-            if (is_file($envPath)) {
-                @chmod($envPath, 0664);
-            }
-
-            $results[] = $this->result(
-                'permissions',
-                'Standard file permissions applied (files: 644, directories: 755, artisan: 755).',
-                'success'
-            );
-        } else {
-            // PHP fallback for essential root folders and files
-            foreach (['app', 'bootstrap', 'config', 'database', 'lang', 'public', 'resources', 'routes'] as $folder) {
-                $dirPath = base_path($folder);
-                if (is_dir($dirPath)) {
-                    @chmod($dirPath, 0755);
-                }
-            }
-            $artisan = base_path('artisan');
-            if (is_file($artisan)) {
-                @chmod($artisan, 0755);
-            }
-            $envPath = base_path('.env');
-            if (is_file($envPath)) {
-                @chmod($envPath, 0664);
-            }
-            $results[] = $this->result(
-                'permissions',
-                'Core directory and file permissions normalized.',
-                'success'
-            );
+        foreach ($plan['commands'] as $command) {
+            @exec($command);
         }
 
-        return $results;
+        foreach ($plan['modes'] as $path => $mode) {
+            if (is_file($path) || is_dir($path)) {
+                @chmod($path, $mode);
+            }
+        }
+
+        return [$this->result(
+            'permissions',
+            $canExec
+                ? 'Standard file permissions applied (files: 644, directories: 755, artisan: 755, .env: 640).'
+                : 'Core directory and file permissions normalized.',
+            'success'
+        )];
+    }
+
+    /**
+     * What repairFilePermissions() runs, without running it: the shell commands (when exec() works) and the modes to
+     * set. Every .env* file is left out of the "files: 644" pass: .env holds every secret of the site and its copies are
+     * kept by EnvBackups (0600). .env itself gets 0640 (written by its owner only, read by the group, never by the world:
+     * R1B-016, where the web server reads the site through the group it could rewrite a 0660 .env) only from a web
+     * request: then this PHP user is the site's own, and if it may change the mode it owns the file and keeps reading it.
+     * From the console (app:doctor as another user, root) its mode stays as it is: the site's PHP user might read it as
+     * "others".
+     *
+     * @return array{commands: list<string>, modes: array<string, int>}
+     */
+    public function filePermissionPlan(bool $canExec, bool $asSiteUser): array
+    {
+        $base = escapeshellarg(base_path());
+        $commands = [];
+        $modes = [];
+
+        if ($canExec) {
+            // Standard directories 755 (storage and bootstrap/cache keep their runtime write permissions).
+            $commands[] = "find {$base} -maxdepth 4 -type d ! -path '*/.git*' ! -path '*/storage*' ! -path '*/bootstrap/cache*' -exec chmod 755 {} + 2>/dev/null";
+            // Standard files 644 (not storage, artisan or any .env* file).
+            $commands[] = "find {$base} -maxdepth 4 -type f ! -path '*/.git*' ! -path '*/storage*' ! -path '*/bootstrap/cache*' ! -name 'artisan' ! -name '.env*' -exec chmod 644 {} + 2>/dev/null";
+        } else {
+            // PHP fallback for the essential root folders.
+            foreach (['app', 'bootstrap', 'config', 'database', 'lang', 'public', 'resources', 'routes'] as $folder) {
+                $modes[base_path($folder)] = 0755;
+            }
+        }
+
+        $modes[base_path('artisan')] = 0755;
+
+        if ($asSiteUser) {
+            $modes[base_path('.env')] = 0640;
+        }
+
+        return ['commands' => $commands, 'modes' => $modes];
     }
 
     /**
@@ -380,6 +392,12 @@ final class EnvironmentRepairer
                 if (! @copy($example, $envPath)) {
                     return [$this->result('app.key', 'APP_KEY is empty and .env could not be created from .env.example.', 'warn')];
                 }
+
+                // Made by a web request, the new .env is the site's PHP user's: the mode the front controllers give it
+                // (R1B-016). From the console (another user, root) it keeps its mode, as in filePermissionPlan().
+                if (! app()->runningInConsole()) {
+                    @chmod($envPath, 0640);
+                }
             } else {
                 return [$this->result('app.key', 'APP_KEY is empty and no .env file exists.', 'warn')];
             }
@@ -415,14 +433,12 @@ final class EnvironmentRepairer
     }
 
     /**
-     * Auto-write the Laravel try_files rewrite rule for aaPanel + Nginx.
-     *
-     * aaPanel stores per-site Nginx rewrite rules under:
-     *   /www/server/panel/vhost/rewrite/<domain>.conf
-     *
-     * This file is included INSIDE the server {} block. When it's empty,
-     * pretty URLs like /install, /admin, /video/xxx won't work — only
-     * /index.php works. This method writes the location block automatically.
+     * Write the site's nginx rules into aaPanel's rewrite file of this site (/www/server/panel/vhost/rewrite/<domain>.conf,
+     * included INSIDE the server {} block): the same rules, the same "when" and the same nginx test as the root
+     * index.php (App\Support\AaPanelRewrite): clean addresses, the upload folders that never run a script, the videos'
+     * internal location, the closed source folders. Up to 1.2.3 RC1 this wrote a bare try_files rule of its own, which
+     * left the upload folders running PHP (R1B-002) and, with the web root at the project folder, every file under
+     * storage/ downloadable until the next request rewrote it.
      *
      * @return array<int, array{scope:string,message:string,severity:string}>
      */
@@ -438,7 +454,7 @@ final class EnvironmentRepairer
         }
 
         // Detect the rewrite config file path from the site domain
-        $rewriteDir = '/www/server/panel/vhost/rewrite';
+        $rewriteDir = AaPanelRewrite::$panelRoot . '/vhost/rewrite';
         if (! $this->canInspectPath($rewriteDir) || ! @is_dir($rewriteDir)) {
             return [];
         }
@@ -450,57 +466,57 @@ final class EnvironmentRepairer
 
         $rewriteFile = $rewriteDir . '/' . $domain . '.conf';
 
-        // Read current content — only modify if empty or has default aaPanel content
         if (! $this->canInspectPath($rewriteFile)) {
             return [];
         }
 
-        $currentContent = @is_file($rewriteFile) ? trim((string) @file_get_contents($rewriteFile)) : '';
+        return match (AaPanelRewrite::apply(base_path(), AaPanelRewrite::$panelRoot, $this->nginxRunner())) {
+            'reloaded' => [$this->result('nginx.rewrite', 'Wrote the nginx rules to ' . $rewriteFile . ' and reloaded nginx.', 'success')],
+            'written' => [$this->result('nginx.rewrite', 'Wrote the nginx rules to ' . $rewriteFile . '; they apply after nginx is reloaded.', 'success')],
+            'restored' => [$this->result('nginx.rewrite', 'nginx refused the rules, so the rewrite file was put back as it was: ' . $rewriteFile, 'warn')],
+            'write-failed' => [$this->result('nginx.rewrite', 'Cannot write to Nginx rewrite file: ' . $rewriteFile, 'warn')],
+            'unreadable' => [$this->result('nginx.rewrite', 'Cannot read the Nginx rewrite file: ' . $rewriteFile, 'warn')],
+            default => [],
+        };
+    }
 
-        $laravelRewrite = <<<'NGINX'
-# AVDBClip auto-configured Laravel rewrite rule.
-# This was written automatically by the installer.
-# It makes pretty URLs work (e.g. /install, /admin, /video/xxx).
-location / {
-    try_files $uri $uri/ /index.php?$query_string;
-}
-NGINX;
-
-        // If the rewrite file already contains try_files, don't touch it
-        if (str_contains($currentContent, 'try_files')) {
-            return [];
+    /**
+     * Runs "nginx -t" / "nginx -s reload" for AaPanelRewrite::apply(): proc_open when the host allows it, else exec(),
+     * else null (the rules are written; nginx picks them up on its next reload).
+     *
+     * @return (callable(string): array{0: int, 1: list<string>})|null
+     */
+    private function nginxRunner(): ?callable
+    {
+        if (self::$nginxRunner !== null) {
+            return self::$nginxRunner;
         }
 
-        // If it contains a "server" directive, someone pasted the wrong config — replace it
-        if (str_contains($currentContent, 'server {') || str_contains($currentContent, 'server{')) {
-            if (@file_put_contents($rewriteFile, $laravelRewrite . PHP_EOL)) {
-                $this->reloadNginx();
-                return [$this->result(
-                    'nginx.rewrite',
-                    'Replaced invalid server{} block in Nginx rewrite file with Laravel try_files rule. '
-                    . 'aaPanel rewrite files cannot contain server{} blocks — that causes "server directive is not allowed here".',
-                    'success'
-                )];
-            }
+        if (Environment::canRunProcesses()) {
+            return static function (string $command): array {
+                try {
+                    $process = Process::fromShellCommandline($command);
+                    $process->setTimeout(10);
+                    $process->run();
 
-            return [$this->result('nginx.rewrite', 'Cannot write to Nginx rewrite file: ' . $rewriteFile, 'warn')];
+                    return [(int) $process->getExitCode(), preg_split('/\R/', trim($process->getOutput().$process->getErrorOutput())) ?: []];
+                } catch (Throwable) {
+                    return [1, []];
+                }
+            };
         }
 
-        // Empty or default — write our rewrite
-        if ($currentContent === '' || ! str_contains($currentContent, 'location')) {
-            if (@file_put_contents($rewriteFile, $laravelRewrite . PHP_EOL)) {
-                $this->reloadNginx();
-                return [$this->result(
-                    'nginx.rewrite',
-                    'Wrote Laravel URL rewrite rule to ' . $rewriteFile,
-                    'success'
-                )];
-            }
+        if (Environment::functionAvailable('exec')) {
+            return static function (string $command): array {
+                $output = [];
+                $status = 1;
+                @exec($command, $output, $status);
 
-            return [$this->result('nginx.rewrite', 'Cannot write to Nginx rewrite file: ' . $rewriteFile, 'warn')];
+                return [(int) $status, $output];
+            };
         }
 
-        return [];
+        return null;
     }
 
     /**
@@ -588,106 +604,19 @@ NGINX;
     }
 
     /**
-     * Detect the current site domain from the Nginx server_name or HTTP Host.
-     * Enhanced to work with IP-based access (when DNS hasn't resolved yet)
-     * by scanning aaPanel vhost configs to match the project directory.
+     * The aaPanel site that serves this project: the vhost file whose root is this folder (or its public/), the name
+     * aaPanel also gives the site's rewrite file (App\Support\AaPanelRewrite::siteFor()). Never the Host header of the
+     * request: a visitor chooses it, and the rewrite file of another site would be written (R1-091). Never a guess from
+     * a folder name either (a site of that name may be somebody else's). '' when the panel's files do not tell.
      */
     private function detectSiteDomain(): string
     {
-        $host = $_SERVER['HTTP_HOST'] ?? $_SERVER['SERVER_NAME'] ?? '';
-        $host = strtolower(trim((string) $host));
-
-        // Strip port
-        if (str_contains($host, ':')) {
-            $host = explode(':', $host, 2)[0];
+        $vhostDir = AaPanelRewrite::$panelRoot . '/vhost/nginx';
+        if (! $this->canInspectPath($vhostDir)) {
+            return '';
         }
 
-        // Basic validation — if we have a proper domain, use it
-        if ($host !== '' && $host !== 'localhost' && !filter_var($host, FILTER_VALIDATE_IP)) {
-            // Remove www. prefix for the config filename
-            if (str_starts_with($host, 'www.')) {
-                $host = substr($host, 4);
-            }
-            return $host;
-        }
-
-        // Host is an IP or localhost — try to detect from document root
-        $docRoot = rtrim(str_replace('\\', '/', ($_SERVER['DOCUMENT_ROOT'] ?? '')), '/');
-        $basePath = rtrim(str_replace('\\', '/', base_path()), '/');
-
-        // Strategy 1: Match document root to /www/wwwroot/<domain>
-        if (preg_match('#^/www/wwwroot/([^/]+)(?:/public)?$#', $docRoot, $m)) {
-            return $m[1];
-        }
-
-        // Strategy 2: Match base_path to /www/wwwroot/<domain>
-        if (preg_match('#^/www/wwwroot/([^/]+)$#', $basePath, $m)) {
-            return $m[1];
-        }
-
-        // Strategy 3: Scan aaPanel rewrite directory for matching domain
-        $rewriteDir = '/www/server/panel/vhost/rewrite';
-        if ($this->canInspectPath($rewriteDir) && @is_dir($rewriteDir)) {
-            $files = @glob($rewriteDir . '/*.conf') ?: [];
-            foreach ($files as $file) {
-                $name = pathinfo($file, PATHINFO_FILENAME);
-                $possibleRoot = '/www/wwwroot/' . $name;
-                if ($docRoot === $possibleRoot || $docRoot === $possibleRoot . '/public'
-                    || $basePath === $possibleRoot) {
-                    return $name;
-                }
-            }
-        }
-
-        // Strategy 4: Scan aaPanel Nginx vhost configs to match our project root
-        $vhostDir = '/www/server/panel/vhost/nginx';
-        if ($this->canInspectPath($vhostDir) && @is_dir($vhostDir)) {
-            $vhostFiles = @glob($vhostDir . '/*.conf') ?: [];
-            foreach ($vhostFiles as $vhostFile) {
-                $vhostContent = @file_get_contents($vhostFile);
-                if ($vhostContent !== false) {
-                    $escapedBase = preg_quote($basePath, '#');
-                    if (preg_match('#root\s+' . $escapedBase . '(?:/public)?[;\s]#', $vhostContent)) {
-                        return pathinfo($vhostFile, PATHINFO_FILENAME);
-                    }
-                }
-            }
-        }
-
-        return '';
-    }
-
-    /**
-     * Safely reload Nginx after writing rewrite config.
-     */
-    private function reloadNginx(): void
-    {
-        if (! Environment::canRunProcesses()) {
-            // Fallback: try exec directly even without proc_open
-            if (Environment::functionAvailable('exec')) {
-                $output = [];
-                $status = 1;
-                @exec('nginx -t 2>&1', $output, $status);
-                if ($status === 0) {
-                    @exec('nginx -s reload 2>&1');
-                }
-            }
-            return;
-        }
-
-        try {
-            $test = Process::fromShellCommandline('nginx -t 2>&1');
-            $test->setTimeout(10);
-            $test->run();
-
-            if ($test->isSuccessful()) {
-                $reload = Process::fromShellCommandline('nginx -s reload 2>&1');
-                $reload->setTimeout(10);
-                $reload->run();
-            }
-        } catch (Throwable $e) {
-            // Non-critical — the config will apply on next Nginx restart
-        }
+        return AaPanelRewrite::siteFor(base_path()) ?? '';
     }
 
     private function linkPointsTo(string $link, string $target): bool

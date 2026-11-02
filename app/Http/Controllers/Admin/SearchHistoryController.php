@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Support\AuditDetails;
 use App\Models\Search;
 use App\Support\AdminCache;
 use App\Support\AdminPagination;
@@ -60,15 +61,24 @@ class SearchHistoryController
 
     public function destroy(int $id): RedirectResponse
     {
-        DB::table('searches')->where('id', $id)->delete();
+        // Tools > Logs > Admin actions (R3-019): the entry's number, never what was searched.
+        if (DB::table('searches')->where('id', $id)->delete() > 0) {
+            AuditLogController::log('search.deleted', AuditDetails::ids([$id]));
+        }
+
         return redirect()->route('admin.searches.index')
-            ->withSuccess('Search record deleted.');
+            ->withSuccess(__('Removed from the history'));
     }
 
     public function clear(): RedirectResponse
     {
-        DB::table('searches')->delete();
+        $count = DB::table('searches')->delete();
+
+        if ($count > 0) {
+            AuditLogController::log('searches.cleared', (string) $count);
+        }
+
         return redirect()->route('admin.searches.index')
-            ->withSuccess('All search history cleared.');
+            ->withSuccess(__('All search history deleted'));
     }
 }

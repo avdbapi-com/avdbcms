@@ -7,6 +7,7 @@ use App\Models\Comment;
 use App\Support\AdminCache;
 use App\Support\AdminPagination;
 use App\Support\AdminPreferences;
+use App\Support\AuditDetails;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -68,20 +69,30 @@ class CommentController extends Controller
 
     public function ban (Comment $comment) : RedirectResponse {
 
+        $hidden = $comment->banned_at === null;
         $comment->update([
             'banned_at' => now()
         ]);
 
-        return redirect()->route('admin.comments.index')->withSuccess('Comment banned successfully.');
+        if ($hidden) {
+            AuditLogController::log('comment.hidden', AuditDetails::ids([$comment->id]));
+        }
+
+        return redirect()->route('admin.comments.index')->withSuccess(__('Comment hidden'));
     }
 
     public function unban (Comment $comment) : RedirectResponse {
 
+        $shown = $comment->banned_at !== null;
         $comment->update([
             'banned_at' => null
         ]);
 
-        return redirect()->route('admin.comments.index')->withSuccess('Comment unbanned successfully.');
+        if ($shown) {
+            AuditLogController::log('comment.shown', AuditDetails::ids([$comment->id]));
+        }
+
+        return redirect()->route('admin.comments.index')->withSuccess(__('Comment visible again'));
     }
 
     public function destroy (Comment $comment) : RedirectResponse {
@@ -94,7 +105,8 @@ class CommentController extends Controller
             $reply->forceDelete();
         });
         $comment->forceDelete();
+        AuditLogController::log('comment.deleted', AuditDetails::ids([$comment->id]));
 
-        return redirect()->route('admin.comments.index')->withSuccess('Comment deleted permanently.');
+        return redirect()->route('admin.comments.index')->withSuccess(__('Comment deleted'));
     }
 }

@@ -48,12 +48,12 @@ html[data-bs-theme="dark"] {
   --avd-info-fill: #38bdf8;
   --avd-on-info: #020a14;
   --avd-border-input: #4b678b;
-  --avd-font-display: 'Sora', system-ui, 'Segoe UI', Roboto, sans-serif;
-  --avd-font-body: 'IBM Plex Sans', system-ui, 'Segoe UI', Roboto, sans-serif;
-  --avd-font-label: 'IBM Plex Sans', system-ui, 'Segoe UI', Roboto, sans-serif;
-  --avd-font-title: 'IBM Plex Sans', system-ui, 'Segoe UI', Roboto, sans-serif;
-  --avd-font-kicker: 'IBM Plex Sans', system-ui, 'Segoe UI', Roboto, sans-serif;
-  --avd-font-meta: 'IBM Plex Sans', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --avd-font-display: 'Sora', 'Sora Fallback', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --avd-font-body: 'IBM Plex Sans', 'IBM Plex Sans Fallback', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --avd-font-label: 'IBM Plex Sans', 'IBM Plex Sans Fallback', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --avd-font-title: 'IBM Plex Sans', 'IBM Plex Sans Fallback', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --avd-font-kicker: 'IBM Plex Sans', 'IBM Plex Sans Fallback', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --avd-font-meta: 'IBM Plex Sans', 'IBM Plex Sans Fallback', system-ui, 'Segoe UI', Roboto, sans-serif;
   --avd-display-weight: 650;
   --avd-display-case: none;
   --avd-display-tracking: -0.02em;
@@ -119,7 +119,7 @@ html[data-bs-theme="dark"] {
   --avd-chip-active-text: #020a14;
   --avd-chip-active-border: transparent;
   --avd-chip-active-shadow: none;
-  --avd-btn-bg: #0c74e5;
+  --avd-btn-bg: #0772e3;
   --avd-btn-text: #ffffff;
   --avd-btn-border: transparent;
   --avd-btn-shadow: none;
@@ -131,7 +131,7 @@ html[data-bs-theme="dark"] {
   --avd-btn2-bg: #0b2338;
   --avd-btn2-text: #e8f4ff;
   --avd-btn2-border: transparent;
-  --avd-play-bg: #0c74e5;
+  --avd-play-bg: #0772e3;
   --avd-play-text: #ffffff;
   --avd-card-bg: transparent;
   --avd-card-border: none;
@@ -253,12 +253,12 @@ html[data-bs-theme="light"] {
   --avd-info-fill: #0369a1;
   --avd-on-info: #ffffff;
   --avd-border-input: #848e97;
-  --avd-font-display: 'Sora', system-ui, 'Segoe UI', Roboto, sans-serif;
-  --avd-font-body: 'IBM Plex Sans', system-ui, 'Segoe UI', Roboto, sans-serif;
-  --avd-font-label: 'IBM Plex Sans', system-ui, 'Segoe UI', Roboto, sans-serif;
-  --avd-font-title: 'IBM Plex Sans', system-ui, 'Segoe UI', Roboto, sans-serif;
-  --avd-font-kicker: 'IBM Plex Sans', system-ui, 'Segoe UI', Roboto, sans-serif;
-  --avd-font-meta: 'IBM Plex Sans', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --avd-font-display: 'Sora', 'Sora Fallback', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --avd-font-body: 'IBM Plex Sans', 'IBM Plex Sans Fallback', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --avd-font-label: 'IBM Plex Sans', 'IBM Plex Sans Fallback', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --avd-font-title: 'IBM Plex Sans', 'IBM Plex Sans Fallback', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --avd-font-kicker: 'IBM Plex Sans', 'IBM Plex Sans Fallback', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --avd-font-meta: 'IBM Plex Sans', 'IBM Plex Sans Fallback', system-ui, 'Segoe UI', Roboto, sans-serif;
   --avd-display-weight: 650;
   --avd-display-case: none;
   --avd-display-tracking: -0.02em;
@@ -482,8 +482,9 @@ html[data-avd-hero-deco="billboard_fade"][data-avd-theme] .avd-bb .avd-scrim {
         top: 12px;
         bottom: auto;
     }
+    /* R1-151: the track bleeds exactly the container's side padding (1rem from 576px, none below: see the next block) */
     html[data-avd-hero-deco="billboard_fade"][data-avd-theme] .avd-bb-track {
-        margin: -12px -12px 0;
+        margin: -12px -1rem 0;
     }
     html[data-avd-hero-deco="billboard_fade"][data-avd-theme] .avd-bb {
         height: 330px;
@@ -492,5 +493,13 @@ html[data-avd-hero-deco="billboard_fade"][data-avd-theme] .avd-bb .avd-scrim {
        this decoration's desktop size; keyed with two attributes, the desktop size would win here) */
     html[data-avd-hero-deco="billboard_fade"][data-avd-theme] .avd-bb .avd-htitle {
         font-size: 26px;
+    }
+}
+/* R1-151: below 576px the container has no side padding: the photo runs edge to edge without bleeding (it ran 12px
+   past both screen edges, its text 4px from the edge), and it skips the phone gutter the rounded billboards take. */
+@media (max-width: 575.98px) {
+    html[data-avd-hero-deco="billboard_fade"][data-avd-theme] .avd-hero--billboard,
+    html[data-avd-hero-deco="billboard_fade"][data-avd-theme] .avd-bb-track {
+        margin-inline: 0;
     }
 }

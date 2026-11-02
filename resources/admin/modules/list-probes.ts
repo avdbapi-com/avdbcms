@@ -5,13 +5,15 @@
 // with the answers. One try only; a section the server still cannot fill keeps its placeholder.
 // A Refresh button inside a section (<button data-ad-probe-refresh="url url">) asks its probes again without their
 // cache (?refresh=1) and swaps the section the same way.
+// All of these are background GETs (backgroundGet): the copy of the page fetched here never uses up the one-time
+// message of a page the administrator opens meanwhile, such as the view-only refusal.
 
-import {$$} from '../lib/dom';
+import {$$, backgroundGet} from '../lib/dom';
 import {adoptSymbols} from './list-rows';
 
 const fetchOk = async (url: string, accept: string): Promise<Response | null> => {
     try {
-        const response = await fetch(url, {credentials: 'same-origin', headers: {Accept: accept, 'X-Requested-With': 'XMLHttpRequest'}});
+        const response = await backgroundGet(url, {Accept: accept, 'X-Requested-With': 'XMLHttpRequest'});
 
         return response.ok ? response : null;
     } catch {
@@ -26,7 +28,9 @@ const fill = async (sections: HTMLElement[], urls: Set<string>): Promise<void> =
     await Promise.all([...urls].map((url) => fetchOk(url, 'application/json')));
 
     const page = await fetchOk(window.location.href, 'text/html');
-    const html = page ? await page.text() : '';
+    // Reading the body fails too when the administrator leaves the page meanwhile (Safari: "Fetch API cannot load ...
+    // due to access control checks", R2A-057): no copy then, the sections keep their placeholders.
+    const html = page ? await page.text().catch(() => '') : '';
     const fresh = html ? new DOMParser().parseFromString(html, 'text/html') : null;
 
     if (fresh) adoptSymbols(fresh);

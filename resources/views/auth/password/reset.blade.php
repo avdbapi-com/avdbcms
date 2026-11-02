@@ -1,51 +1,59 @@
-@extends('layouts.default')
+@extends('auth.layout')
 
-@section('title', __('Password reset'))
+@section('title', __('Choose a new password'))
 
-@section('content')
-    <div class="avd-auth-page">
-        <div class="row mx-0">
-            <div class="avd-auth-panel border border-1 bg-light">
-                <div class="row">
-                    <div class="col-6 d-none d-xl-flex px-0 border-end border-gray-200 d-flex justify-content-center align-items-center bg-white">
-                        <img class="img-fluid" src="{{asset('images/pages/reset.jpg')}}" alt="{{__('Reset')}}" width="640" height="640" decoding="async">
-                    </div>
-                    <div class="col-12 col-xl-6 py-4 py-sm-5 px-3 px-sm-5">
-                        <h1 class="h3 mb-5 fw-normal text-center">{{__('Password reset')}}</h1>
-                        <form method="POST" action="{{ locale_url(route('password.update')) }}">
-                            @csrf
-                            <x-auth-errors />
-                            <div class="form-group form-floating mb-3">
-                                <input
-                                    type="email"
-                                    value="{{request()->get('email')}}"
-                                    @class(['form-control', 'is-invalid' => $errors->has('email')])
-                                    name="email"
-                                    id="email"
-                                    autocomplete="username"
-                                    inputmode="email"
-                                    autocapitalize="none"
-                                    autocorrect="off"
-                                    spellcheck="false"
-                                    placeholder="{{__('Email')}}"
-                                    required
-                                    readonly
-                                >
-                                <label for="email">{{__('Email')}}</label>
-                                @error('email')
-                                <div class="invalid-feedback">
-                                    {{ $message }}
-                                </div>
-                                @enderror
-                            </div>
-                            <x-auth-password :label="__('New Password')" autocomplete="new-password" :minlength="config('validation.user.password.min')" />
-                            <x-auth-password name="password_confirmation" :label="__('Confirm New Password')" autocomplete="new-password" :minlength="config('validation.user.password.min')" />
-                            <input type="hidden" name="token" value="{{$token}}">
-                            <button class="w-100 btn btn-lg btn-primary" type="submit">{{__('Reset Password')}}</button>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        </div>
+@php
+    $passwordMin = (int) config('validation.user.password.min', 6);
+    $linkEmail = $linkEmail ?? null;
+    $resetEmail = old('email', $linkEmail);
+    // Read-only only when the address came with the link and nothing was typed over it (auth-15).
+    $emailLocked = $linkEmail !== null && ! $errors->has('email') && $resetEmail === $linkEmail;
+@endphp
+
+@section('auth-card')
+    <div class="mk-auth__intro" x-data x-init="$nextTick(() => { const card = $el.closest('.mk-auth__card'); const target = card && (card.querySelector('[data-auth-focus]') || card.querySelector('[aria-invalid=true]')); if (target) target.focus(); })">
+        <h1 class="mk-auth__title" id="authTitle">{{ __('Choose a new password') }}</h1>
+        <p class="mk-auth__lead">{{ trans_choice('{1} Use at least :count character. After saving you sign in with the new password.|[2,*] Use at least :count characters. After saving you sign in with the new password.', $passwordMin, ['count' => $passwordMin]) }}</p>
     </div>
+
+    <x-auth-errors :fields="['email', 'password', 'password_confirmation']" />
+
+    <form class="mk-form" method="POST" action="{{ locale_url(route('password.update')) }}" novalidate>
+        @csrf
+        <input type="hidden" name="token" value="{{ $token }}">
+        <div class="mk-field">
+            <label class="mk-label" for="email">{{ __('E-mail') }}</label>
+            <input
+                class="mk-input"
+                type="email"
+                name="email"
+                id="email"
+                value="{{ $resetEmail }}"
+                autocomplete="username"
+                inputmode="email"
+                autocapitalize="none"
+                autocorrect="off"
+                spellcheck="false"
+                maxlength="255"
+                required
+                @if($emailLocked) readonly aria-describedby="email-help" @endif
+                @error('email') aria-invalid="true" aria-describedby="email-error" @enderror
+            >
+            @if($emailLocked)
+                <span class="mk-help mk-help--link" id="email-help">{{ __('From your reset link.') }} <a href="{{ locale_url(route('password.forgot')) }}">{{ __('Not you?') }}</a></span>
+            @endif
+            @error('email')
+                <span class="mk-error" id="email-error">{{ $message }}</span>
+            @enderror
+        </div>
+
+        <div class="mk-form__row mk-form__row--2">
+            <x-auth-password name="password" :label="__('New password')" autocomplete="new-password" :minlength="$passwordMin" />
+            <x-auth-password name="password_confirmation" :label="__('Confirm new password')" autocomplete="new-password" :minlength="$passwordMin" />
+        </div>
+
+        <button type="submit" class="mk-btn mk-btn--primary mk-btn--block"><span>{{ __('Save new password') }}</span></button>
+    </form>
+
+    <p class="mk-auth__switch"><a href="{{ locale_url(route('login')) }}"><i class="fa-solid fa-arrow-left mk-flip-rtl" aria-hidden="true"></i> {{ __('Back to sign in') }}</a></p>
 @endsection

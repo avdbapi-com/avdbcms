@@ -145,6 +145,49 @@
         --settings-muted: #445066;
     }
 
+    /* The Appearance tab's studio panels (1-Click Master Experiences, its cards, today's daily design) were painted dark
+       in both modes while their text follows the mode: 1.06-3.15:1 in light mode. Their fills follow the mode now; the
+       dark values are the ones they always had (lane AD, pass 2). */
+    .avd-settings-page {
+        --avd-studio-panel-bg: #11141d;
+        --avd-studio-panel-border: rgba(255, 255, 255, 0.12);
+        --avd-studio-card-bg: rgba(255, 255, 255, 0.03);
+        --avd-studio-card-border: rgba(255, 255, 255, 0.08);
+        --avd-studio-today-bg: rgba(15, 23, 42, 0.65);
+    }
+
+    [data-bs-theme="light"] .avd-settings-page {
+        --avd-studio-panel-bg: var(--settings-card, #fff);
+        --avd-studio-panel-border: var(--settings-line);
+        --avd-studio-card-bg: rgba(15, 23, 42, 0.02);
+        --avd-studio-card-border: rgba(15, 23, 42, 0.16);
+        --avd-studio-today-bg: rgba(15, 23, 42, 0.04);
+    }
+
+    /* The active experience's ribbon keeps its white words on its dark green in light mode too (the look turns white
+       text into the page's text colour on light panels: dark on dark green, 2.74:1). */
+    html[data-bs-theme="light"] #main-container .avd-settings-page .master-active-ribbon.text-white:not(.btn) {
+        color: #fff !important;
+    }
+
+    /* The contrast badge of the Live Fine-Tuner: its colour by level (data-level, set by the page script), darker
+       shades of the same colours in light mode (the dark-mode greens read 2-2.5:1 on light). */
+    .avd-wcag-badge {
+        border: 1px solid var(--avd-wcag-line);
+        background: var(--avd-wcag-fill);
+        color: var(--avd-wcag-text);
+    }
+
+    .avd-wcag-badge[data-level="aaa"] { --avd-wcag-text: #22c55e; --avd-wcag-fill: rgba(34, 197, 94, 0.15); --avd-wcag-line: rgba(34, 197, 94, 0.3); }
+    .avd-wcag-badge[data-level="aa"] { --avd-wcag-text: #10b981; --avd-wcag-fill: rgba(16, 185, 129, 0.15); --avd-wcag-line: rgba(16, 185, 129, 0.3); }
+    .avd-wcag-badge[data-level="low"] { --avd-wcag-text: #f59e0b; --avd-wcag-fill: rgba(245, 158, 11, 0.15); --avd-wcag-line: rgba(245, 158, 11, 0.3); }
+    .avd-wcag-badge[data-level="fail"] { --avd-wcag-text: #ef4444; --avd-wcag-fill: rgba(239, 68, 68, 0.15); --avd-wcag-line: rgba(239, 68, 68, 0.3); }
+    .avd-wcag-badge[data-level="unknown"] { --avd-wcag-fill: rgba(148, 163, 184, 0.15); --avd-wcag-line: rgba(148, 163, 184, 0.4); color: inherit; }
+    [data-bs-theme="light"] .avd-wcag-badge[data-level="aaa"] { --avd-wcag-text: #166534; }
+    [data-bs-theme="light"] .avd-wcag-badge[data-level="aa"] { --avd-wcag-text: #065f46; }
+    [data-bs-theme="light"] .avd-wcag-badge[data-level="low"] { --avd-wcag-text: #92400e; }
+    [data-bs-theme="light"] .avd-wcag-badge[data-level="fail"] { --avd-wcag-text: #991b1b; }
+
     .avd-settings-page * {
         box-sizing: border-box;
     }
@@ -263,6 +306,14 @@
         gap: 0.45rem !important;
         padding-bottom: 6px;
         max-width: 100% !important;
+    }
+
+    /* The strip's label keeps its words on one line: it shrank to one word per line and the "All" chip covered it, in
+       both modes and both directions (review AD-R4). The strip scrolls sideways where it does not fit. */
+    #moodQuickFilterStrip > span {
+        flex: 0 0 auto;
+        min-width: max-content;
+        white-space: nowrap;
     }
 
     #moodQuickFilterStrip .mood-filter-btn,
@@ -458,9 +509,11 @@
         font-size: 0.82rem;
     }
 
+    /* The look's fills and the text colour made for them, as the site's brand title bars (white on the look's second
+       colour was 4.2:1 under a long Arabic tab name, R3-020) */
     .avd-settings-tabs .nav-link.active {
-        background: linear-gradient(135deg, var(--avd-brand), var(--avd-brand-2));
-        color: #fff;
+        background: linear-gradient(135deg, var(--avd-brand-fill, var(--avd-brand)), var(--avd-brand-2-fill, var(--avd-brand-2)));
+        color: var(--avd-on-brand, #fff);
         box-shadow: 0 10px 22px rgba(var(--avd-brand-rgb), 0.22);
     }
 
@@ -845,9 +898,11 @@
                     <span class="realtime-hud-dot" id="realtimeHudDot"></span>
                     <span class="fw-bold text-white" id="realtimeHudText">{{ __('Real-Time Auto-Save Active') }}</span>
                 </div>
+                @unless(\App\Http\Middleware\ViewOnlyDemo::hides('admin.env-editor.index'))
                 <a href="{{ route('admin.env-editor.index') }}" class="btn btn-outline-secondary">
                     <i class="fa-solid fa-file-shield me-1"></i> {{__('Env Editor')}}
                 </a>
+                @endunless
                 <form method="POST" action="{{ route('admin.settings.clear.cache') }}">
                     @csrf
                     <button type="submit" class="btn btn-warning">
@@ -883,7 +938,7 @@
                 <div class="avd-settings-card p-3">
                     <i class="{{ $card['icon'] }} text-primary mb-2"></i>
                     <div class="small text-muted">{{ $display($card['label']) }}</div>
-                    <div class="fw-black text-truncate">{{ $card['value'] }}</div>
+                    <div class="fw-black text-truncate"><span dir="ltr" class="text-nowrap">{{ $card['value'] }}</span></div>
                 </div>
             </div>
         @endforeach
@@ -1111,7 +1166,7 @@
                 <div class="row g-4">
                     <div class="col-xl-8">
                         {{-- 1-CLICK MASTER EXPERIENCE PRESETS STUDIO --}}
-                        <div class="mb-4 p-3 p-md-4 rounded-4 border position-relative overflow-hidden shadow-sm" style="background: linear-gradient(135deg, rgba(255, 61, 97, 0.05) 0%, rgba(24, 200, 216, 0.05) 100%), #11141d; border-color: rgba(255, 255, 255, 0.12) !important;">
+                        <div class="mb-4 p-3 p-md-4 rounded-4 border position-relative overflow-hidden shadow-sm" style="background: linear-gradient(135deg, rgba(255, 61, 97, 0.05) 0%, rgba(24, 200, 216, 0.05) 100%), var(--avd-studio-panel-bg); border-color: var(--avd-studio-panel-border) !important;">
                             @php
                                 $activeMasterExpKey = (string) $value('appearance', 'active_master_experience', '');
                                 if ($activeMasterExpKey === 'youtube_2026_pro') {
@@ -1147,7 +1202,7 @@
                                         <span class="badge bg-danger text-uppercase px-2.5 py-1 fw-bold rounded-pill" style="letter-spacing: 0.08em;">
                                             <i class="fa-solid fa-wand-magic-sparkles me-1"></i> {{ __('1-Click Master Experiences') }}
                                         </span>
-                                        <span class="badge bg-secondary-subtle text-body-secondary rounded-pill small">{{ count($masterExperiences) }} {{ __('Studios') }}</span>
+                                        <span class="badge bg-secondary-subtle text-body-secondary rounded-pill small">{{ trans_choice('1 Studio|:count Studios', count($masterExperiences), ['count' => number_format(count($masterExperiences))]) }}</span>
                                     </div>
                                     <h5 class="fw-bold mt-2 mb-1 text-white">{{ __('Complete Ecosystem Transformations') }}</h5>
                                     <p class="small text-muted mb-0">{{ __('Instantly transform your site into an entirely new experience. Combines theme colors, page layouts, card styles, physics engine, and modal archetypes with one click.') }}</p>
@@ -1174,8 +1229,9 @@
                                         <div class="card h-100 border rounded-4 overflow-hidden position-relative shadow-sm transition-all master-experience-card {{ $isActiveExp ? 'active-master-card border-success' : '' }}"
                                              data-experience-id="{{ $expKey }}"
                                              data-theme-preset="{{ $exp['theme_preset'] }}"
-                                             style="{{ $isActiveExp ? 'background: linear-gradient(135deg, rgba(34, 197, 94, 0.14), rgba(255,255,255,0.03)) !important; border-color: #22c55e !important; box-shadow: 0 0 25px rgba(34, 197, 94, 0.4) !important;' : 'background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.08) !important;' }}">
-                                            <div class="master-active-ribbon w-100 py-1 text-center fw-bold text-white shadow-sm" style="background: linear-gradient(90deg, #15803d, #22c55e, #15803d); font-size: 0.65rem; letter-spacing: 0.08em; z-index: 2; {{ $isActiveExp ? '' : 'display: none !important;' }}">
+                                             style="{{ $isActiveExp ? 'background: linear-gradient(135deg, rgba(34, 197, 94, 0.14), rgba(255,255,255,0.03)) !important; border-color: #22c55e !important; box-shadow: 0 0 25px rgba(34, 197, 94, 0.4) !important;' : 'background: var(--avd-studio-card-bg); border-color: var(--avd-studio-card-border) !important;' }}">
+                                            {{-- White on a green that keeps it readable (5:1 and more; the bright middle was 2.3:1, R3-020). --}}
+                                            <div class="master-active-ribbon w-100 py-1 text-center fw-bold text-white shadow-sm" style="background: linear-gradient(90deg, #15803d, #166534, #15803d); font-size: 0.65rem; letter-spacing: 0.08em; z-index: 2; {{ $isActiveExp ? '' : 'display: none !important;' }}">
                                                 <i class="fa-solid fa-circle-check me-1"></i> {{ __('CURRENTLY ACTIVE ECOSYSTEM') }}
                                             </div>
                                             <div class="card-body p-3 d-flex flex-column {{ $isActiveExp ? 'pt-2' : '' }}">
@@ -1233,7 +1289,7 @@
                                 <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3">
                                     <div>
                                         <div class="d-flex align-items-center gap-2 mb-1.5">
-                                            <span class="badge rounded-pill text-white px-2.5 py-1 fw-bold shadow-sm" style="background: linear-gradient(135deg, #6366f1, #06b6d4); font-size: 0.72rem;">
+                                            <span class="badge rounded-pill text-white px-2.5 py-1 fw-bold shadow-sm" style="background: linear-gradient(135deg, #4f46e5, #0e7490); font-size: 0.72rem;">
                                                 <i class="fa-solid fa-calendar-days me-1"></i>365 DAYS / 365 DESIGNS
                                             </span>
                                             <span class="badge bg-body-tertiary text-muted border rounded-pill px-2 py-0.5 small">
@@ -1262,7 +1318,7 @@
                                 </div>
 
                                 <!-- Today's Active Identity Showcase -->
-                                <div class="row g-3 align-items-center p-3 rounded-3 border mb-3" style="background: rgba(15, 23, 42, 0.65); border-color: rgba(255,255,255,0.08) !important;">
+                                <div class="row g-3 align-items-center p-3 rounded-3 border mb-3" style="background: var(--avd-studio-today-bg); border-color: var(--avd-studio-card-border) !important;">
                                     <div class="col-lg-5">
                                         <div class="d-flex align-items-center gap-3">
                                             <div class="rounded-circle d-flex align-items-center justify-content-center shadow-lg flex-shrink-0" style="width: 48px; height: 48px; background: linear-gradient(135deg, {{ $curDailyDesignToday['primary'] }}, {{ $curDailyDesignToday['accent'] }});">
@@ -1284,7 +1340,7 @@
                                                 </div>
                                                 <h6 class="fw-bold text-white mb-0 text-truncate" id="activeDailyDesignName">{{ $curDailyDesignToday['name'] }}</h6>
                                                 <div class="small text-muted" style="font-size: 0.73rem;">
-                                                    {{ __('Layout:') }} <strong class="text-info">{{ Str::headline($curDailyDesignToday['home_layout_mode']) }}</strong> • {{ __('Surface:') }} <strong>{{ Str::headline($curDailyDesignToday['surface_style']) }}</strong>
+                                                    {{ __('Layout:') }}{{ \App\Support\LabelGap::admin() }}<strong class="text-info">{{ Str::headline($curDailyDesignToday['home_layout_mode']) }}</strong> • {{ __('Surface:') }}{{ \App\Support\LabelGap::admin() }}<strong>{{ Str::headline($curDailyDesignToday['surface_style']) }}</strong>
                                                 </div>
                                             </div>
                                         </div>
@@ -1370,7 +1426,7 @@
                                             </button>
                                             <label class="form-check form-switch mb-0 ms-2">
                                                 <input class="form-check-input" type="checkbox" name="apply_theme_preset" value="1" id="applyThemePresetCheck" checked>
-                                                <span class="form-check-label small fw-bold text-primary">{{__('Sync Styles on Save')}}</span>
+                                                <span class="form-check-label small fw-bold">{{__('Sync Styles on Save')}}</span>
                                             </label>
                                         </div>
                                     </div>
@@ -1582,8 +1638,8 @@
                                                 </button>
 
                                                 <!-- Dynamic WCAG 2.2 Contrast Ratio Audit Badge (Click to open full audit) -->
-                                                <span class="badge rounded-pill px-2.5 py-1 fw-bold shadow-sm" id="wcagContrastBadge" role="button" data-bs-toggle="modal" data-bs-target="#wcagComplianceModal" style="background: rgba(34, 197, 94, 0.15); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.3); cursor: pointer;" title="{{ __('Click to inspect full WCAG 2.2 contrast compliance matrix') }}">
-                                                    <i class="fa-solid fa-shield-halved me-1"></i><span id="wcagContrastText">WCAG AAA (12.8:1)</span>
+                                                <span class="badge rounded-pill px-2.5 py-1 fw-bold shadow-sm avd-wcag-badge" id="wcagContrastBadge" data-level="aaa" role="button" data-bs-toggle="modal" data-bs-target="#wcagComplianceModal" style="cursor: pointer;" title="{{ __('Click to inspect full WCAG 2.2 contrast compliance matrix') }}">
+                                                    <i class="fa-solid fa-shield-halved me-1"></i><span id="wcagContrastText">{{ __('Checking...') }}</span>
                                                 </span>
                                                 <span class="badge rounded-pill px-2 py-1 bg-dark text-white border border-secondary small" id="wcagSurfaceBadge">
                                                     <i class="fa-solid fa-cube me-1"></i><span id="livePreviewSurfaceText">Glass Surface</span>
@@ -1785,17 +1841,18 @@
                                                         <!-- Primary -->
                                                         <div class="d-inline-flex align-items-center gap-1 px-2 py-0.5 rounded-pill border bg-body shadow-sm" title="{{ __('Fine-tune Primary Brand Color') }}">
                                                             <input type="color" id="pickerStudioPrimary" class="form-control form-control-color border-0 p-0 rounded-circle" style="width: 18px; height: 18px; cursor: pointer;" value="#ff3d61">
-                                                            <span class="font-monospace small studio-token-pill" id="liveTokenPrimaryFine" style="font-size: 0.68rem; cursor: pointer; color: var(--avd-brand, #ff3d61);" title="{{ __('Click to copy Primary Hex') }}">Pri</span>
+                                                            {{-- The code in the text colour: the swatch beside it shows the colour (the code written in its own colour was 2.4-4.3:1 on the dark card, R3-020). --}}
+                                                            <span class="font-monospace small studio-token-pill" id="liveTokenPrimaryFine" style="font-size: 0.68rem; cursor: pointer;" title="{{ __('Click to copy Primary Hex') }}">Pri</span>
                                                         </div>
                                                         <!-- Secondary -->
                                                         <div class="d-inline-flex align-items-center gap-1 px-2 py-0.5 rounded-pill border bg-body shadow-sm" title="{{ __('Fine-tune Secondary Brand Color') }}">
                                                             <input type="color" id="pickerStudioSecondary" class="form-control form-control-color border-0 p-0 rounded-circle" style="width: 18px; height: 18px; cursor: pointer;" value="#ff8b5c">
-                                                            <span class="font-monospace small studio-token-pill" id="liveTokenSecondaryFine" style="font-size: 0.68rem; cursor: pointer; color: var(--avd-brand-2, #ff8b5c);" title="{{ __('Click to copy Secondary Hex') }}">Sec</span>
+                                                            <span class="font-monospace small studio-token-pill" id="liveTokenSecondaryFine" style="font-size: 0.68rem; cursor: pointer;" title="{{ __('Click to copy Secondary Hex') }}">Sec</span>
                                                         </div>
                                                         <!-- Accent -->
                                                         <div class="d-inline-flex align-items-center gap-1 px-2 py-0.5 rounded-pill border bg-body shadow-sm" title="{{ __('Fine-tune Accent Glow Color') }}">
                                                             <input type="color" id="pickerStudioAccent" class="form-control form-control-color border-0 p-0 rounded-circle" style="width: 18px; height: 18px; cursor: pointer;" value="#18c8d8">
-                                                            <span class="font-monospace small studio-token-pill" id="liveTokenAccentFine" style="font-size: 0.68rem; cursor: pointer; color: var(--avd-cyan, #18c8d8);" title="{{ __('Click to copy Accent Hex') }}">Acc</span>
+                                                            <span class="font-monospace small studio-token-pill" id="liveTokenAccentFine" style="font-size: 0.68rem; cursor: pointer;" title="{{ __('Click to copy Accent Hex') }}">Acc</span>
                                                         </div>
                                                         <!-- Dark BG -->
                                                         <div class="d-inline-flex align-items-center gap-1 px-2 py-0.5 rounded-pill border bg-body shadow-sm" title="{{ __('Fine-tune Dark Canvas Background Color') }}">
@@ -1833,7 +1890,7 @@
                                                         <i class="fa-solid fa-circle-half-stroke"></i>
                                                         <span>{{ __('Depth') }}</span>
                                                     </button>
-                                                    <button type="button" class="btn btn-xs btn-outline-success rounded-pill px-2 py-1 d-inline-flex align-items-center gap-1" id="btnStudioExportTheme" title="{{ __('Export Theme JSON & CSS Tokens') }}">
+                                                    <button type="button" class="btn btn-xs btn-outline-secondary rounded-pill px-2 py-1 d-inline-flex align-items-center gap-1" id="btnStudioExportTheme" title="{{ __('Export Theme JSON & CSS Tokens') }}">
                                                         <i class="fa-solid fa-download"></i>
                                                         <span>{{ __('Export') }}</span>
                                                     </button>
@@ -1868,7 +1925,7 @@
                                 <label class="form-label fw-bold" for="grid_columns">{{__('Video Grid Columns')}}</label>
                                 <select id="grid_columns" name="grid_columns" class="form-select">
                                     @for($i = 2; $i <= 6; $i++)
-                                        <option value="{{ $i }}" @selected((int)$value('appearance', 'grid_columns', 4) === $i)>{{ $i }} {{__('columns')}}</option>
+                                        <option value="{{ $i }}" @selected((int)$value('appearance', 'grid_columns', 4) === $i)>{{ trans_choice('1 column|:count columns', $i) }}</option>
                                     @endfor
                                 </select>
                             </div>
@@ -2013,7 +2070,7 @@
                                             </option>
                                         @endforeach
                                     </select>
-                                    <div class="form-text small">{{ __('Liquid glass blur, floating glass island, minimalist slim topbar, full portal megabar, or app rail.') }}</div>
+                                    <div class="form-text small">{{ __('Solid, slim, translucent, a floating island, two rows, or over the banner on pages that have one.') }}</div>
                                 </div>
 
                                 <div class="col-md-6">
@@ -2303,7 +2360,7 @@
                                 <label class="form-label fw-bold" for="mobile_video_columns">{{__('Mobile Video Columns')}}</label>
                                 <select id="mobile_video_columns" name="mobile_video_columns" class="form-select">
                                     @foreach([1 => __('1 video per row'), 2 => __('2 videos per row')] as $key => $label)
-                                        <option value="{{ $key }}" @selected((int)$value('appearance', 'mobile_video_columns', $appearanceDefaults['mobile_video_columns']) === $key)>{{ $display($label, $key . ' columns') }}</option>
+                                        <option value="{{ $key }}" @selected((int)$value('appearance', 'mobile_video_columns', $appearanceDefaults['mobile_video_columns']) === $key)>{{ $display($label, trans_choice('1 column|:count columns', $key)) }}</option>
                                     @endforeach
                                 </select>
                             </div>
@@ -2435,7 +2492,7 @@
                                 </select>
                             </div>
                             <div>
-                                <label class="form-label fw-bold" for="home_feed_category_id">{{__('Category')}}</label>
+                                <label class="form-label fw-bold" for="home_feed_category_id">{{__('Category for the main list')}}</label>
                                 <select id="home_feed_category_id" name="home_feed_category_id" class="form-select">
                                     <option value="0" @selected((string)$value('appearance', 'home_feed_category_id', $appearanceDefaults['home_feed_category_id']) === '0')>{{__('All Categories')}}</option>
                                     @foreach($homeFeedCategories as $category)
@@ -2481,15 +2538,15 @@
                             </div>
                             <div>
                                 <label class="form-label fw-bold" for="home_widget_motion_duration_ms">{{__('Duration Ms')}}</label>
-                                <input id="home_widget_motion_duration_ms" type="number" name="home_widget_motion_duration_ms" class="form-control" value="{{ $value('appearance', 'home_widget_motion_duration_ms', $appearanceDefaults['home_widget_motion_duration_ms']) }}" min="120" max="2000" required>
+                                <div class="input-group"><input id="home_widget_motion_duration_ms" type="number" name="home_widget_motion_duration_ms" class="form-control" value="{{ $value('appearance', 'home_widget_motion_duration_ms', $appearanceDefaults['home_widget_motion_duration_ms']) }}" min="120" max="2000" required>{{ \App\Support\NumberUnit::suffix('Duration Ms', 'ms') }}</div>
                             </div>
                             <div>
                                 <label class="form-label fw-bold" for="home_widget_motion_distance_px">{{__('Distance Px')}}</label>
-                                <input id="home_widget_motion_distance_px" type="number" name="home_widget_motion_distance_px" class="form-control" value="{{ $value('appearance', 'home_widget_motion_distance_px', $appearanceDefaults['home_widget_motion_distance_px']) }}" min="0" max="160" required>
+                                <div class="input-group"><input id="home_widget_motion_distance_px" type="number" name="home_widget_motion_distance_px" class="form-control" value="{{ $value('appearance', 'home_widget_motion_distance_px', $appearanceDefaults['home_widget_motion_distance_px']) }}" min="0" max="160" required>{{ \App\Support\NumberUnit::suffix('Distance Px', 'px') }}</div>
                             </div>
                             <div>
                                 <label class="form-label fw-bold" for="home_widget_motion_stagger_ms">{{__('Stagger Ms')}}</label>
-                                <input id="home_widget_motion_stagger_ms" type="number" name="home_widget_motion_stagger_ms" class="form-control" value="{{ $value('appearance', 'home_widget_motion_stagger_ms', $appearanceDefaults['home_widget_motion_stagger_ms']) }}" min="0" max="240" required>
+                                <div class="input-group"><input id="home_widget_motion_stagger_ms" type="number" name="home_widget_motion_stagger_ms" class="form-control" value="{{ $value('appearance', 'home_widget_motion_stagger_ms', $appearanceDefaults['home_widget_motion_stagger_ms']) }}" min="0" max="240" required>{{ \App\Support\NumberUnit::suffix('Stagger Ms', 'ms') }}</div>
                             </div>
                             <div>
                                 <label class="form-label fw-bold" for="home_widget_motion_speed_px_per_second">{{__('Auto Run Speed')}}</label>
@@ -2923,7 +2980,7 @@
                     </div>
                     <div>
                         <label class="form-label fw-bold" for="smart_discovery_rail_lookback_days">{{__('Discovery Window Days')}}</label>
-                        <input id="smart_discovery_rail_lookback_days" type="number" name="smart_discovery_rail_lookback_days" class="form-control" value="{{ $value('discovery', 'smart_discovery_rail_lookback_days', $smartDiscoveryDefaults['lookback_days']) }}" min="{{ $smartDiscoveryDefaults['lookback_days_min'] }}" max="{{ $smartDiscoveryDefaults['lookback_days_max'] }}" required>
+                        <div class="input-group"><input id="smart_discovery_rail_lookback_days" type="number" name="smart_discovery_rail_lookback_days" class="form-control" value="{{ $value('discovery', 'smart_discovery_rail_lookback_days', $smartDiscoveryDefaults['lookback_days']) }}" min="{{ $smartDiscoveryDefaults['lookback_days_min'] }}" max="{{ $smartDiscoveryDefaults['lookback_days_max'] }}" required>{{ \App\Support\NumberUnit::suffix('Discovery Window Days', 'days') }}</div>
                         <div class="form-text">{{__('Only public videos inside this recent window are counted.')}}</div>
                     </div>
                 </div>
@@ -2999,7 +3056,7 @@
                     </div>
                     <div>
                         <label class="form-label fw-bold" for="creator_spotlight_lookback_days">{{__('Creator Lookback Days')}}</label>
-                        <input id="creator_spotlight_lookback_days" type="number" name="creator_spotlight_lookback_days" class="form-control" value="{{ $value('discovery', 'creator_spotlight_lookback_days', $creatorSpotlightDefaults['lookback_days']) }}" min="{{ $creatorSpotlightDefaults['lookback_days_min'] }}" max="{{ $creatorSpotlightDefaults['lookback_days_max'] }}" required>
+                        <div class="input-group"><input id="creator_spotlight_lookback_days" type="number" name="creator_spotlight_lookback_days" class="form-control" value="{{ $value('discovery', 'creator_spotlight_lookback_days', $creatorSpotlightDefaults['lookback_days']) }}" min="{{ $creatorSpotlightDefaults['lookback_days_min'] }}" max="{{ $creatorSpotlightDefaults['lookback_days_max'] }}" required>{{ \App\Support\NumberUnit::suffix('Creator Lookback Days', 'days') }}</div>
                     </div>
                 </div>
                 <div class="avd-section-title mt-4"><i class="fa-solid fa-pen text-primary"></i> {{__('Creator Spotlight Text')}}</div>
@@ -3075,7 +3132,7 @@
                     </div>
                     <div>
                         <label class="form-label fw-bold" for="trending_collections_lookback_days">{{__('Actor Lookback Days')}}</label>
-                        <input id="trending_collections_lookback_days" type="number" name="trending_collections_lookback_days" class="form-control" value="{{ $value('discovery', 'trending_collections_lookback_days', $trendingCollectionsDefaults['lookback_days']) }}" min="{{ $trendingCollectionsDefaults['lookback_days_min'] }}" max="{{ $trendingCollectionsDefaults['lookback_days_max'] }}" required>
+                        <div class="input-group"><input id="trending_collections_lookback_days" type="number" name="trending_collections_lookback_days" class="form-control" value="{{ $value('discovery', 'trending_collections_lookback_days', $trendingCollectionsDefaults['lookback_days']) }}" min="{{ $trendingCollectionsDefaults['lookback_days_min'] }}" max="{{ $trendingCollectionsDefaults['lookback_days_max'] }}" required>{{ \App\Support\NumberUnit::suffix('Actor Lookback Days', 'days') }}</div>
                         <div class="form-text">{{__('Counts actor views inside this recent window.')}}</div>
                     </div>
                 </div>
@@ -3296,8 +3353,7 @@
                         <div class="col-md-6">
                             <div class="alert alert-info mb-0 small">
                                 <i class="fa-solid fa-circle-info me-1"></i>
-                                <strong>{{ __('Queue Notice') }}:</strong>
-                                {{ __('Broadcast dispatches use your background queue worker. Ensure queue worker is running so notifications deliver instantly.') }}
+                                <strong>{{ rtrim(\App\Support\AdminText::labelled(__('Queue Notice'), '')) }}</strong>{{ \App\Support\LabelGap::admin() }}{{ __('Broadcast dispatches use your background queue worker. Ensure queue worker is running so notifications deliver instantly.') }}
                             </div>
                         </div>
                     </div>
@@ -3389,11 +3445,11 @@
                     </div>
                     <div>
                         <label class="form-label fw-bold" for="support_email">{{__('Support Email')}}</label>
-                        <input id="support_email" type="email" name="support_email" class="form-control" value="{{ $value('email', 'support_email', $env['support_email'] ?? config('mail.support_mail')) }}">
+                        <input id="support_email" type="email" name="support_email" class="form-control" value="{{ \App\Support\SiteMailAddress::shownValue('support_email', $value('email', 'support_email', $env['support_email'] ?? config('mail.support_mail')), $settings['general']['contact_email'] ?? null) }}">
                     </div>
                     <div>
                         <label class="form-label fw-bold" for="server_email">{{__('Server Alert Email')}}</label>
-                        <input id="server_email" type="email" name="server_email" class="form-control" value="{{ $value('email', 'server_email', $env['server_email'] ?? config('mail.server_mail')) }}">
+                        <input id="server_email" type="email" name="server_email" class="form-control" value="{{ \App\Support\SiteMailAddress::shownValue('server_email', $value('email', 'server_email', $env['server_email'] ?? config('mail.server_mail')), $settings['general']['contact_email'] ?? null) }}">
                     </div>
                 </div>
 
@@ -3489,7 +3545,7 @@
                         </div>
                         <div>
                             <label class="form-label fw-bold" for="view_history_retention_days">{{__('Raw View Retention Days')}}</label>
-                            <input id="view_history_retention_days" type="number" name="view_history_retention_days" class="form-control" value="{{ $value('comments', 'view_history_retention_days', $viewHistoryDefaults['retention_days'] ?? 90) }}" min="{{ $viewHistoryDefaults['retention_days_min'] ?? 1 }}" max="{{ $viewHistoryDefaults['retention_days_max'] ?? 3650 }}" required>
+                            <div class="input-group"><input id="view_history_retention_days" type="number" name="view_history_retention_days" class="form-control" value="{{ $value('comments', 'view_history_retention_days', $viewHistoryDefaults['retention_days'] ?? 90) }}" min="{{ $viewHistoryDefaults['retention_days_min'] ?? 1 }}" max="{{ $viewHistoryDefaults['retention_days_max'] ?? 3650 }}" required>{{ \App\Support\NumberUnit::suffix('Raw View Retention Days', 'days') }}</div>
                             <div class="form-text small">{{ __('Scheduled cleanup deletes older raw view rows while video totals stay intact.') }}</div>
                         </div>
                     </div>
@@ -3570,7 +3626,7 @@
                         ['channel_customization_cta_enabled', __('Custom CTA')],
                         ['channel_customization_stats_enabled', __('Stats Modules')],
                         ['channel_customization_socials_enabled', __('Website Links')],
-                        ['channel_customization_upload_rhythm_enabled', __('Upload Rhythm')],
+                        ['channel_customization_upload_rhythm_enabled', __('Last upload')],
                     ] as $toggle)
                         <label class="avd-switch-card">
                             <input class="form-check-input" type="checkbox" name="{{ $toggle[0] }}" value="1" @checked($isChecked('users', $toggle[0], $channelCustomizationDefaults[$toggle[0]] ?? '1'))>
@@ -3597,11 +3653,18 @@
                         'playlists_layout' => 'channel_default_playlists_layout',
                         'density' => 'channel_default_density',
                     ] as $optionKey => $settingKey)
+                        @php
+                            // the default accent shows what channels use: an untouched installer "coral" is the look's colour
+                            $channelDefaultValue = (string) $value('users', $settingKey, $channelCustomizationDefaults[$settingKey]);
+                            if ($settingKey === 'channel_default_accent') {
+                                $channelDefaultValue = \App\Support\ChannelCustomizationSettings::adminAccentValue($channelDefaultValue);
+                            }
+                        @endphp
                         <div>
-                            <label class="form-label fw-bold" for="{{ $settingKey }}">{{ __(str_replace('Default ', '', \Illuminate\Support\Str::headline($settingKey))) }}</label>
+                            <label class="form-label fw-bold" for="{{ $settingKey }}">{{ __((string) config('admin_settings.settings.'.$settingKey.'.label', str_replace('Default ', '', \Illuminate\Support\Str::headline($settingKey)))) }}</label>
                             <select id="{{ $settingKey }}" name="{{ $settingKey }}" class="form-select">
                                 @foreach($channelCustomizationOptions[$optionKey] as $key => $label)
-                                    <option value="{{ $key }}" @selected((string)$value('users', $settingKey, $channelCustomizationDefaults[$settingKey]) === $key)>{{ __($label) }}</option>
+                                    <option value="{{ $key }}" @selected($channelDefaultValue === $key)>{{ __($label) }}</option>
                                 @endforeach
                             </select>
                         </div>
@@ -3634,14 +3697,10 @@
                         <label class="form-label fw-bold" for="channel_default_playlists_rows">{{__('Default Playlist Rows')}}</label>
                         <input id="channel_default_playlists_rows" type="number" name="channel_default_playlists_rows" class="form-control" value="{{ $value('users', 'channel_default_playlists_rows', $channelCustomizationDefaults['channel_default_playlists_rows']) }}" min="1" max="6">
                     </div>
-                    <div>
-                        <label class="form-label fw-bold" for="channel_default_playlist_video_columns">{{__('Default Playlist Videos Per Row')}}</label>
-                        <input id="channel_default_playlist_video_columns" type="number" name="channel_default_playlist_video_columns" class="form-control" value="{{ $value('users', 'channel_default_playlist_video_columns', $channelCustomizationDefaults['channel_default_playlist_video_columns']) }}" min="1" max="6">
-                    </div>
-                    <div>
-                        <label class="form-label fw-bold" for="channel_default_playlist_video_rows">{{__('Default Playlist Video Rows')}}</label>
-                        <input id="channel_default_playlist_video_rows" type="number" name="channel_default_playlist_video_rows" class="form-control" value="{{ $value('users', 'channel_default_playlist_video_rows', $channelCustomizationDefaults['channel_default_playlist_video_rows']) }}" min="1" max="4">
-                    </div>
+                    {{-- "Playlist videos per row / rows" change nothing since 1.2.3 (a channel shows each playlist as one card):
+                         no field any more; the save of this tab still sends the stored values unchanged --}}
+                    <input type="hidden" name="channel_default_playlist_video_columns" value="{{ max(1, min(6, (int) ($value('users', 'channel_default_playlist_video_columns', $channelCustomizationDefaults['channel_default_playlist_video_columns']) ?: $channelCustomizationDefaults['channel_default_playlist_video_columns']))) }}">
+                    <input type="hidden" name="channel_default_playlist_video_rows" value="{{ max(1, min(4, (int) ($value('users', 'channel_default_playlist_video_rows', $channelCustomizationDefaults['channel_default_playlist_video_rows']) ?: $channelCustomizationDefaults['channel_default_playlist_video_rows']))) }}">
                     <div>
                         <label class="form-label fw-bold" for="channel_tagline_max_length">{{__('Tagline Max Length')}}</label>
                         <input id="channel_tagline_max_length" type="number" name="channel_tagline_max_length" class="form-control" value="{{ $value('users', 'channel_tagline_max_length', $channelCustomizationDefaults['channel_tagline_max_length']) }}" min="20" max="240">
@@ -3666,7 +3725,7 @@
                     </div>
                     <div>
                         <label class="form-label fw-bold" for="creator_quality_pulse_lookback_days">{{__('Pulse Lookback Days')}}</label>
-                        <input id="creator_quality_pulse_lookback_days" type="number" name="creator_quality_pulse_lookback_days" class="form-control" value="{{ $value('users', 'creator_quality_pulse_lookback_days', $creatorQualityPulseDefaults['lookback_days']) }}" min="{{ $creatorQualityPulseDefaults['lookback_days_min'] }}" max="{{ $creatorQualityPulseDefaults['lookback_days_max'] }}" required>
+                        <div class="input-group"><input id="creator_quality_pulse_lookback_days" type="number" name="creator_quality_pulse_lookback_days" class="form-control" value="{{ $value('users', 'creator_quality_pulse_lookback_days', $creatorQualityPulseDefaults['lookback_days']) }}" min="{{ $creatorQualityPulseDefaults['lookback_days_min'] }}" max="{{ $creatorQualityPulseDefaults['lookback_days_max'] }}" required>{{ \App\Support\NumberUnit::suffix('Pulse Lookback Days', 'days') }}</div>
                     </div>
                 </div>
                 <hr class="my-4">
@@ -3684,7 +3743,7 @@
                     </div>
                     <div>
                         <label class="form-label fw-bold" for="studio_health_alerts_lookback_days">{{__('Alert Lookback Days')}}</label>
-                        <input id="studio_health_alerts_lookback_days" type="number" name="studio_health_alerts_lookback_days" class="form-control" value="{{ $value('users', 'studio_health_alerts_lookback_days', $studioHealthAlertsDefaults['lookback_days']) }}" min="{{ $studioHealthAlertsDefaults['lookback_days_min'] }}" max="{{ $studioHealthAlertsDefaults['lookback_days_max'] }}" required>
+                        <div class="input-group"><input id="studio_health_alerts_lookback_days" type="number" name="studio_health_alerts_lookback_days" class="form-control" value="{{ $value('users', 'studio_health_alerts_lookback_days', $studioHealthAlertsDefaults['lookback_days']) }}" min="{{ $studioHealthAlertsDefaults['lookback_days_min'] }}" max="{{ $studioHealthAlertsDefaults['lookback_days_max'] }}" required>{{ \App\Support\NumberUnit::suffix('Alert Lookback Days', 'days') }}</div>
                     </div>
                 </div>
                 <hr class="my-4">
@@ -3702,7 +3761,7 @@
                     </div>
                     <div>
                         <label class="form-label fw-bold" for="creator_recovery_checklist_inactivity_days">{{__('Inactivity Days')}}</label>
-                        <input id="creator_recovery_checklist_inactivity_days" type="number" name="creator_recovery_checklist_inactivity_days" class="form-control" value="{{ $value('users', 'creator_recovery_checklist_inactivity_days', $creatorRecoveryChecklistDefaults['inactivity_days']) }}" min="{{ $creatorRecoveryChecklistDefaults['inactivity_days_min'] }}" max="{{ $creatorRecoveryChecklistDefaults['inactivity_days_max'] }}" required>
+                        <div class="input-group"><input id="creator_recovery_checklist_inactivity_days" type="number" name="creator_recovery_checklist_inactivity_days" class="form-control" value="{{ $value('users', 'creator_recovery_checklist_inactivity_days', $creatorRecoveryChecklistDefaults['inactivity_days']) }}" min="{{ $creatorRecoveryChecklistDefaults['inactivity_days_min'] }}" max="{{ $creatorRecoveryChecklistDefaults['inactivity_days_max'] }}" required>{{ \App\Support\NumberUnit::suffix('Inactivity Days', 'days') }}</div>
                     </div>
                 </div>
                 <button class="btn btn-primary mt-4" type="submit"><i class="fa-solid fa-save me-1"></i> {{__('Save Users')}}</button>
@@ -3721,7 +3780,9 @@
                         <span class="badge bg-{{ $billingConfigured ? 'success' : 'warning' }} fs-6">
                             {{ $billingConfigured ? __('Billing ready') : __('Billing incomplete') }}
                         </span>
+                        @unless(\App\Http\Middleware\ViewOnlyDemo::hides('admin.env-editor.index'))
                         <a class="btn btn-outline-secondary btn-sm" href="{{ route('admin.env-editor.index') }}"><i class="fa-solid fa-file-shield me-1"></i> {{__('Env Editor')}}</a>
+                        @endunless
                         <a class="btn btn-outline-primary btn-sm" href="{{ route('admin.plans.index') }}"><i class="fa-solid fa-layer-group me-1"></i> {{__('Plans')}}</a>
                     </div>
                 </div>
@@ -3730,7 +3791,7 @@
                         ['premium_enabled', __('Premium Enabled'), '1'],
                         ['stripe_enabled', __('Stripe Enabled'), '1'],
                         ['paypal_enabled', __('PayPal Enabled'), '1'],
-                        ['show_premium_badge', __('Show Premium Badge'), '1'],
+                        {{-- The toggle Show Premium Badge is gone (1.2.3, R3X-01): nothing ever read it; the badge Premium members see is the header's. --}}
                     ] as $toggle)
                         <label class="avd-switch-card">
                             <input class="form-check-input" type="checkbox" name="{{ $toggle[0] }}" value="1" @checked($isChecked('monetization', $toggle[0], $toggle[2]))>
@@ -3752,7 +3813,7 @@
                     </div>
                     <div class="avd-env-item">
                         <div class="small text-muted">{{__('Plans')}}</div>
-                        <div class="fw-black">{{ $systemInfo['total_plans'] ?? 0 }} {{__('total')}} / {{ $systemInfo['plans_missing_stripe'] ?? 0 }} {{__('missing Stripe ID')}}</div>
+                        <div class="fw-black">{{ __(':total in all, without a Stripe ID: :missing', ['total' => number_format((int) ($systemInfo['total_plans'] ?? 0)), 'missing' => number_format((int) ($systemInfo['plans_missing_stripe'] ?? 0))]) }}</div>
                     </div>
                 </div>
 
@@ -3770,7 +3831,7 @@
                     </div>
                     <div class="avd-env-item">
                         <div class="small text-muted">{{__('Plans')}}</div>
-                        <div class="fw-black">{{ $systemInfo['total_plans'] ?? 0 }} {{__('total')}} / {{ $systemInfo['plans_missing_paypal'] ?? 0 }} {{__('missing PayPal ID')}}</div>
+                        <div class="fw-black">{{ __(':total in all, without a PayPal ID: :missing', ['total' => number_format((int) ($systemInfo['total_plans'] ?? 0)), 'missing' => number_format((int) ($systemInfo['plans_missing_paypal'] ?? 0))]) }}</div>
                     </div>
                 </div>
 
@@ -3809,9 +3870,16 @@
                         [
                             'icon' => 'clapperboard',
                             'label' => __('New Videos'),
-                            'description' => __('Main homepage video feed.'),
+                            'description' => __('Used by the Classic grid homepage layout. Leave empty to use no ad there.'),
                             'layout' => 'ad_grid_layout_new_videos',
                             'code' => 'ad_code_grid_new_videos',
+                        ],
+                        [
+                            'icon' => 'house',
+                            'label' => __('Homepage Feed'),
+                            'description' => __('Used by the Spotlight, Cinema rows, Mosaic, Shorts and Control room homepage layouts. Leave empty to use no ad there.'),
+                            'layout' => 'ad_grid_layout_home_feed',
+                            'code' => 'ad_code_grid_home_feed',
                         ],
                         [
                             'icon' => 'arrow-trend-up',
@@ -4021,18 +4089,20 @@
                     <div class="d-flex align-items-center justify-content-between mb-2 pb-2 border-bottom">
                         <span class="fw-bold small text-uppercase text-muted"><i class="fa-brands fa-google text-primary me-1"></i> {{ __('Google SERP Snippet Preview (Desktop)') }}</span>
                         <div class="d-flex gap-3 small">
-                            <span>{{ __('Title') }}: <strong id="serpTitleLength" class="text-success">0</strong>/60</span>
-                            <span>{{ __('Description') }}: <strong id="serpDescLength" class="text-success">0</strong>/160</span>
+                            <span>{{ \App\Support\AdminText::labelled(__('Title'), '') }}<strong id="serpTitleLength" class="text-success">0</strong>/60</span>
+                            <span>{{ \App\Support\AdminText::labelled(__('Description'), '') }}<strong id="serpDescLength" class="text-success">0</strong>/160</span>
                         </div>
                     </div>
-                    <div class="p-3 bg-body border rounded-3" style="max-width: 650px;">
+                    {{-- A Google result as Google shows it: its own white card and colours in light and dark mode (the
+                         dark card made its dark blue and grey text 1.04-1.35:1, R3-020). --}}
+                    <div class="p-3 border rounded-3" style="max-width: 650px; background: #fff; color: #202124;">
                         <div class="d-flex align-items-center gap-2 mb-1">
-                            <span class="rounded-circle bg-primary-subtle text-primary d-inline-flex align-items-center justify-content-center" style="width: 22px; height: 22px; font-size: 11px;">
+                            <span class="rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 22px; height: 22px; font-size: 11px; background: #e8f0fe; color: #1a0dab;" aria-hidden="true">
                                 <i class="fa-solid fa-globe"></i>
                             </span>
                             <div class="small text-truncate" style="color: #202124; font-size: 0.82rem;">
-                                <strong>{{ config('app.name', 'AVDBCMS') }}</strong>
-                                <span class="text-muted ms-1">{{ config('app.url') }} › video › watch</span>
+                                <strong style="color: #202124;">{{ config('app.name', 'AVDBCMS') }}</strong>
+                                <span class="ms-1" style="color: #4d5156;">{{ config('app.url') }} › video › watch</span>
                             </div>
                         </div>
                         <h5 class="mb-1" style="font-size: 1.15rem; line-height: 1.3;">
@@ -4040,7 +4110,7 @@
                                 {{ config('app.name') }} | Premium Video Community
                             </a>
                         </h5>
-                        <p class="mb-0 small text-body-secondary" id="serpPreviewDesc" style="color: #4d5156; font-size: 0.85rem; line-height: 1.4;">
+                        <p class="mb-0 small" id="serpPreviewDesc" style="color: #4d5156; font-size: 0.85rem; line-height: 1.4;">
                             Watch and discover trending videos, creator channels, playlists, and HD streaming on {{ config('app.name') }}.
                         </p>
                     </div>
@@ -4120,7 +4190,7 @@
                                     @else
                                         <input id="{{ $templateKey }}" type="text" name="{{ $templateKey }}" class="form-control font-monospace" value="{{ $value('seo', $templateKey, $templateDefault) }}">
                                     @endif
-                                    <div class="form-text">{{__('Tokens:')}} <code>{{ $templateField['tokens'] }}</code></div>
+                                    <div class="form-text">{{__('Tokens:')}}{{ \App\Support\LabelGap::admin() }}<code>{{ $templateField['tokens'] }}</code></div>
                                 </div>
                             @endforeach
                         </div>
@@ -4620,26 +4690,26 @@
                             <div class="mb-3">
                                 <div class="d-flex align-items-center justify-content-between mb-1">
                                     <label class="form-label fw-bold mb-0" for="free_max_file_size">{{__('Free Max Video File Size')}}</label>
-                                    <span class="badge bg-info-subtle text-info byte-converter-badge" data-for="free_max_file_size">500 MB</span>
+                                    <span class="badge bg-info-subtle text-info byte-converter-badge" dir="ltr" data-for="free_max_file_size">500 MB</span>
                                 </div>
                                 <input type="number" name="free_max_file_size" id="free_max_file_size" class="form-control byte-input" value="{{ $value('planlimits', 'free_max_file_size', config('plans.free.max_file_size', 524288000)) }}" min="1048576">
                                 <div class="d-flex gap-1 flex-wrap mt-1">
-                                    <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 byte-preset-btn" data-target="free_max_file_size" data-bytes="104857600">100 MB</button>
-                                    <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 byte-preset-btn" data-target="free_max_file_size" data-bytes="262144000">250 MB</button>
-                                    <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 byte-preset-btn" data-target="free_max_file_size" data-bytes="524288000">500 MB</button>
-                                    <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 byte-preset-btn" data-target="free_max_file_size" data-bytes="1073741824">1 GB</button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 byte-preset-btn text-nowrap" dir="ltr" data-target="free_max_file_size" data-bytes="104857600">100 MB</button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 byte-preset-btn text-nowrap" dir="ltr" data-target="free_max_file_size" data-bytes="262144000">250 MB</button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 byte-preset-btn text-nowrap" dir="ltr" data-target="free_max_file_size" data-bytes="524288000">500 MB</button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 byte-preset-btn text-nowrap" dir="ltr" data-target="free_max_file_size" data-bytes="1073741824">1 GB</button>
                                 </div>
                             </div>
                             <div>
                                 <div class="d-flex align-items-center justify-content-between mb-1">
                                     <label class="form-label fw-bold mb-0" for="free_max_storage">{{__('Free Max Total Storage')}}</label>
-                                    <span class="badge bg-info-subtle text-info byte-converter-badge" data-for="free_max_storage">5 GB</span>
+                                    <span class="badge bg-info-subtle text-info byte-converter-badge" dir="ltr" data-for="free_max_storage">5 GB</span>
                                 </div>
                                 <input type="number" name="free_max_storage" id="free_max_storage" class="form-control byte-input" value="{{ $value('planlimits', 'free_max_storage', config('plans.free.max_videos_storage', 5368709120)) }}" min="1048576">
                                 <div class="d-flex gap-1 flex-wrap mt-1">
-                                    <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 byte-preset-btn" data-target="free_max_storage" data-bytes="1073741824">1 GB</button>
-                                    <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 byte-preset-btn" data-target="free_max_storage" data-bytes="5368709120">5 GB</button>
-                                    <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 byte-preset-btn" data-target="free_max_storage" data-bytes="10737418240">10 GB</button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 byte-preset-btn text-nowrap" dir="ltr" data-target="free_max_storage" data-bytes="1073741824">1 GB</button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 byte-preset-btn text-nowrap" dir="ltr" data-target="free_max_storage" data-bytes="5368709120">5 GB</button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 byte-preset-btn text-nowrap" dir="ltr" data-target="free_max_storage" data-bytes="10737418240">10 GB</button>
                                 </div>
                             </div>
                         </div>
@@ -4655,26 +4725,26 @@
                             <div class="mb-3">
                                 <div class="d-flex align-items-center justify-content-between mb-1">
                                     <label class="form-label fw-bold mb-0" for="premium_max_file_size">{{__('Premium Max Video File Size')}}</label>
-                                    <span class="badge bg-warning-subtle text-warning byte-converter-badge" data-for="premium_max_file_size">2 GB</span>
+                                    <span class="badge bg-warning-subtle text-warning byte-converter-badge" dir="ltr" data-for="premium_max_file_size">2 GB</span>
                                 </div>
                                 <input type="number" name="premium_max_file_size" id="premium_max_file_size" class="form-control byte-input" value="{{ $value('planlimits', 'premium_max_file_size', config('plans.premium.max_file_size', 2147483648)) }}" min="1048576">
                                 <div class="d-flex gap-1 flex-wrap mt-1">
-                                    <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 byte-preset-btn" data-target="premium_max_file_size" data-bytes="1073741824">1 GB</button>
-                                    <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 byte-preset-btn" data-target="premium_max_file_size" data-bytes="2147483648">2 GB</button>
-                                    <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 byte-preset-btn" data-target="premium_max_file_size" data-bytes="5368709120">5 GB</button>
-                                    <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 byte-preset-btn" data-target="premium_max_file_size" data-bytes="10737418240">10 GB</button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 byte-preset-btn text-nowrap" dir="ltr" data-target="premium_max_file_size" data-bytes="1073741824">1 GB</button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 byte-preset-btn text-nowrap" dir="ltr" data-target="premium_max_file_size" data-bytes="2147483648">2 GB</button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 byte-preset-btn text-nowrap" dir="ltr" data-target="premium_max_file_size" data-bytes="5368709120">5 GB</button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 byte-preset-btn text-nowrap" dir="ltr" data-target="premium_max_file_size" data-bytes="10737418240">10 GB</button>
                                 </div>
                             </div>
                             <div>
                                 <div class="d-flex align-items-center justify-content-between mb-1">
                                     <label class="form-label fw-bold mb-0" for="premium_max_storage">{{__('Premium Max Total Storage')}}</label>
-                                    <span class="badge bg-warning-subtle text-warning byte-converter-badge" data-for="premium_max_storage">Unlimited</span>
+                                    <span class="badge bg-warning-subtle text-warning byte-converter-badge" dir="ltr" data-for="premium_max_storage">Unlimited</span>
                                 </div>
                                 <input type="number" name="premium_max_storage" id="premium_max_storage" class="form-control byte-input" value="{{ $value('planlimits', 'premium_max_storage') }}" placeholder="{{ __('Empty for Unlimited') }}">
                                 <div class="d-flex gap-1 flex-wrap mt-1">
-                                    <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 byte-preset-btn" data-target="premium_max_storage" data-bytes="10737418240">10 GB</button>
-                                    <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 byte-preset-btn" data-target="premium_max_storage" data-bytes="53687091200">50 GB</button>
-                                    <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 byte-preset-btn" data-target="premium_max_storage" data-bytes="107374182400">100 GB</button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 byte-preset-btn text-nowrap" dir="ltr" data-target="premium_max_storage" data-bytes="10737418240">10 GB</button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 byte-preset-btn text-nowrap" dir="ltr" data-target="premium_max_storage" data-bytes="53687091200">50 GB</button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 byte-preset-btn text-nowrap" dir="ltr" data-target="premium_max_storage" data-bytes="107374182400">100 GB</button>
                                 </div>
                             </div>
                         </div>
@@ -4857,7 +4927,9 @@
                         <p class="text-muted mb-0">{{__('Instant granular cache purging, server runtime metrics, and operational health checks.')}}</p>
                     </div>
                     <div class="d-flex flex-wrap gap-2">
+                        @unless(\App\Http\Middleware\ViewOnlyDemo::hides('admin.env-editor.index'))
                         <a class="btn btn-outline-secondary" href="{{ route('admin.env-editor.index') }}"><i class="fa-solid fa-file-shield me-1"></i> {{__('Open Env Editor')}}</a>
+                        @endunless
                     </div>
                 </div>
 
@@ -4938,6 +5010,14 @@
 
 @push('scripts')
 <script>
+    // The words this script writes into the Appearance tab's buttons, in the admin's language (after an activation they
+    // came back in English; lane AD, pass 2), escaped before they go into HTML.
+    @php
+        $studioWords = ['active' => __('Currently Active'), 'activate' => __('Activate'), 'restore' => __('Restore Default'), 'apply' => __('Apply')];
+    @endphp
+    const studioWords = @json($studioWords);
+    const studioText = (value) => String(value).replace(/[&<>"']/g, (c) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+
     document.addEventListener('DOMContentLoaded', function () {
         const tabs = Array.from(document.querySelectorAll('#settingsTabs [data-settings-tab]'));
 
@@ -5018,6 +5098,24 @@
         const inputLightBg = document.querySelector('input[name="light_bg_color"]');
         const inputLightSurface = document.querySelector('input[name="light_surface_color"]');
 
+        // The preset's (or the custom) canvas and surface colours for the colour mode the admin is in: rules for both
+        // modes, so the header's mode switch keeps them right. One inline value - always the dark ones - stayed under
+        // light mode's dark text: this page's hero, cards and tab bar read 1.04-2.4:1 in light mode (lane AD, pass 2).
+        // Only #rgb / #rrggbb(aa) colours are written into the rules.
+        function applyLiveCanvas(darkBg, darkSurface, lightBg, lightSurface) {
+            const hex = (value, fallback) => /^#[0-9a-f]{3,8}$/i.test(String(value || '').trim()) ? String(value).trim() : fallback;
+            let live = document.getElementById('avdStudioLiveCanvas');
+            if (!live) {
+                live = document.createElement('style');
+                live.id = 'avdStudioLiveCanvas';
+                document.body.appendChild(live);
+            }
+            live.textContent = 'html[data-bs-theme="dark"]{--avd-bg:' + hex(darkBg, '#070913') + ';--avd-surface:' + hex(darkSurface, '#0e1322') + '}'
+                + 'html[data-bs-theme="light"]{--avd-bg:' + hex(lightBg, '#f8fafc') + ';--avd-surface:' + hex(lightSurface, '#ffffff') + '}';
+            document.documentElement.style.removeProperty('--avd-bg');
+            document.documentElement.style.removeProperty('--avd-surface');
+        }
+
         function updateActiveThemeStrip(syncInputs = true) {
             const selected = presetSelect.options[presetSelect.selectedIndex];
             if (!selected) return;
@@ -5095,8 +5193,7 @@
             document.documentElement.style.setProperty('--avd-dark-surface', darkSurface);
             document.documentElement.style.setProperty('--avd-light-bg', lightBg);
             document.documentElement.style.setProperty('--avd-light-surface', lightSurface);
-            document.documentElement.style.setProperty('--avd-bg', darkBg);
-            document.documentElement.style.setProperty('--avd-surface', darkSurface);
+            applyLiveCanvas(darkBg, darkSurface, lightBg, lightSurface);
 
             if (syncInputs) {
                 const applyCheck = document.getElementById('applyThemePresetCheck');
@@ -5229,27 +5326,47 @@
             try { updateLiveStudioStage(); } catch (e) {}
         }
 
-        function getLuminance(hex) {
-            if (!hex || typeof hex !== 'string') return 0.5;
-            hex = hex.replace('#', '').trim();
-            if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
-            if (hex.length !== 6) return 0.5;
-            const r = parseInt(hex.substring(0, 2), 16) / 255;
-            const g = parseInt(hex.substring(2, 4), 16) / 255;
-            const b = parseInt(hex.substring(4, 6), 16) / 255;
-            const toLinear = (c) => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
-            return 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b);
+        // A colour in any CSS form (#rgb, #rrggbb, #rrggbbaa, rgb(), hsl(), a name) as [r, g, b] 0-255, or null when it
+        // is no colour: the browser converts it (a stored value need not be #rrggbb), so the check never shows NaN.
+        function stageColourRgb(value) {
+            if (!value || typeof value !== 'string') return null;
+            const probe = document.createElement('span');
+            probe.style.color = '';
+            probe.style.color = value.trim();
+            if (probe.style.color === '') return null;
+            document.body.appendChild(probe);
+            const computed = getComputedStyle(probe).color;
+            probe.remove();
+            const parts = computed.match(/[\d.]+/g);
+            if (!parts || parts.length < 3) return null;
+            const rgb = parts.slice(0, 3).map(Number);
+            return rgb.every((n) => Number.isFinite(n)) ? rgb : null;
         }
 
-        function getContrastRatio(hex1, hex2) {
-            const l1 = getLuminance(hex1);
-            const l2 = getLuminance(hex2);
+        function stageLuminance(value) {
+            const rgb = stageColourRgb(value);
+            if (!rgb) return null;
+            const toLinear = (c) => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+            const [r, g, b] = rgb.map((c) => toLinear(c / 255));
+            return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        }
+
+        // The ratio with one decimal, or null when one of the colours cannot be read. Own names: the palette tools further
+        // down declare a getLuminance(r, g, b) in the same scope, which replaced this one (every badge said NaN:1).
+        function stageContrastRatio(colour1, colour2) {
+            const l1 = stageLuminance(colour1);
+            const l2 = stageLuminance(colour2);
+            if (l1 === null || l2 === null) return null;
             const lighter = Math.max(l1, l2);
             const darker = Math.min(l1, l2);
             return ((lighter + 0.05) / (darker + 0.05)).toFixed(1);
         }
 
         let liveStudioStageCanvasMode = 'dark';
+        @php
+            $contrastWords = ['good' => __('Text on this colour: :ratio:1 Good'), 'low' => __('Text on this colour: :ratio:1 Hard to read'), 'unknown' => __('This colour cannot be checked.'), 'dark' => __('Dark'), 'light' => __('Light')];
+        @endphp
+        const contrastWords = @json($contrastWords);
 
         function updateLiveStudioStage() {
             const p = inputPrimary ? inputPrimary.value : '#ff3d61';
@@ -5264,32 +5381,28 @@
             const activeBg = isDarkCanvas ? dbg : lbg;
             const activeSurf = isDarkCanvas ? dsurf : lsurf;
 
-            // 1. Dynamic WCAG 2.2 Contrast Ratio Calculation
-            const ratio = parseFloat(getContrastRatio(p, activeBg));
+            // 1. Dynamic WCAG 2.2 Contrast Ratio Calculation (the words in the admin's language)
+            const ratioText = stageContrastRatio(p, activeBg);
+            const ratio = ratioText === null ? NaN : parseFloat(ratioText);
             const wcagBadge = document.getElementById('wcagContrastBadge');
             const wcagText = document.getElementById('wcagContrastText');
             if (wcagBadge && wcagText) {
-                const canvasSuffix = isDarkCanvas ? ' [Dark]' : ' [Light]';
-                if (ratio >= 7.0) {
-                    wcagText.textContent = `WCAG AAA (${ratio}:1)${canvasSuffix}`;
-                    wcagBadge.style.background = 'rgba(34, 197, 94, 0.15)';
-                    wcagBadge.style.color = '#22c55e';
-                    wcagBadge.style.borderColor = 'rgba(34, 197, 94, 0.3)';
+                const canvasSuffix = ' [' + (isDarkCanvas ? contrastWords.dark : contrastWords.light) + ']';
+                if (!Number.isFinite(ratio)) {
+                    wcagText.textContent = contrastWords.unknown + canvasSuffix;
+                    wcagBadge.dataset.level = 'unknown';
+                } else if (ratio >= 7.0) {
+                    wcagText.textContent = contrastWords.good.replace(':ratio', ratio) + canvasSuffix;
+                    wcagBadge.dataset.level = 'aaa';
                 } else if (ratio >= 4.5) {
-                    wcagText.textContent = `WCAG AA (${ratio}:1)${canvasSuffix}`;
-                    wcagBadge.style.background = 'rgba(16, 185, 129, 0.15)';
-                    wcagBadge.style.color = '#10b981';
-                    wcagBadge.style.borderColor = 'rgba(16, 185, 129, 0.3)';
+                    wcagText.textContent = contrastWords.good.replace(':ratio', ratio) + canvasSuffix;
+                    wcagBadge.dataset.level = 'aa';
                 } else if (ratio >= 3.0) {
-                    wcagText.textContent = `WCAG AA Large (${ratio}:1)${canvasSuffix}`;
-                    wcagBadge.style.background = 'rgba(245, 158, 11, 0.15)';
-                    wcagBadge.style.color = '#f59e0b';
-                    wcagBadge.style.borderColor = 'rgba(245, 158, 11, 0.3)';
+                    wcagText.textContent = contrastWords.low.replace(':ratio', ratio) + canvasSuffix;
+                    wcagBadge.dataset.level = 'low';
                 } else {
-                    wcagText.textContent = `Contrast Alert (${ratio}:1)${canvasSuffix}`;
-                    wcagBadge.style.background = 'rgba(239, 68, 68, 0.15)';
-                    wcagBadge.style.color = '#ef4444';
-                    wcagBadge.style.borderColor = 'rgba(239, 68, 68, 0.3)';
+                    wcagText.textContent = contrastWords.low.replace(':ratio', ratio) + canvasSuffix;
+                    wcagBadge.dataset.level = 'fail';
                 }
             }
 
@@ -5398,11 +5511,11 @@
 
             // Studio Fine-Tuner Labels
             const tPFine = document.getElementById('liveTokenPrimaryFine');
-            if (tPFine) { tPFine.textContent = `Pri: ${p}`; tPFine.style.color = p; tPFine.dataset.hex = p; }
+            if (tPFine) { tPFine.textContent = `Pri: ${p}`; tPFine.dataset.hex = p; }
             const tSFine = document.getElementById('liveTokenSecondaryFine');
-            if (tSFine) { tSFine.textContent = `Sec: ${s}`; tSFine.style.color = s; tSFine.dataset.hex = s; }
+            if (tSFine) { tSFine.textContent = `Sec: ${s}`; tSFine.dataset.hex = s; }
             const tAFine = document.getElementById('liveTokenAccentFine');
-            if (tAFine) { tAFine.textContent = `Acc: ${a}`; tAFine.style.color = a; tAFine.dataset.hex = a; }
+            if (tAFine) { tAFine.textContent = `Acc: ${a}`; tAFine.dataset.hex = a; }
             const tDbgFine = document.getElementById('liveTokenDarkBgFine');
             if (tDbgFine) { tDbgFine.textContent = `D-BG: ${dbg}`; tDbgFine.dataset.hex = dbg; }
             const tDsurfFine = document.getElementById('liveTokenDarkSurfaceFine');
@@ -5779,7 +5892,14 @@
 
         // Color Science & Accessibility Utilities
         function hexToRgb(hex) {
-            hex = (hex || '').replace('#', '').trim();
+            // A stored colour that is not #rgb / #rrggbb (rgb(), a name) is read by the browser (stageColourRgb above):
+            // it was taken as black, so the contrast matrix showed wrong ratios for it.
+            const raw = (hex || '').replace('#', '').trim();
+            if (!/^[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$/.test(raw)) {
+                const rgb = stageColourRgb(hex);
+                if (rgb) return { r: rgb[0], g: rgb[1], b: rgb[2] };
+            }
+            hex = raw;
             if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
             const num = parseInt(hex || '0', 16);
             return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 };
@@ -6450,8 +6570,7 @@
             document.documentElement.style.setProperty('--avd-dark-surface', dsurf);
             document.documentElement.style.setProperty('--avd-light-bg', lbg);
             document.documentElement.style.setProperty('--avd-light-surface', lsurf);
-            document.documentElement.style.setProperty('--avd-bg', dbg);
-            document.documentElement.style.setProperty('--avd-surface', dsurf);
+            applyLiveCanvas(dbg, dsurf, lbg, lsurf);
 
             try { updateLiveStudioStage(); } catch (e) {}
         }
@@ -6638,7 +6757,9 @@
                     }
                 } else {
                     if (typeof alertToast === 'function') {
-                        alertToast(`🔍 Found ${diffs.length} color delta(s) vs "${presetName}":\n` + diffs.slice(0, 3).join(' | ') + (diffs.length > 3 ? '...' : ''), 'info');
+                        // a label ("Colours that differ: 2.") reads right for any number in every language
+                        const differLine = String(@json(__('Colours that differ from ":preset": :count.'))).replace(/:preset|:count/g, (name) => (name === ':preset' ? presetName : String(diffs.length)));
+                        alertToast(`🔍 ${differLine}\n` + diffs.slice(0, 3).join(' | ') + (diffs.length > 3 ? '...' : ''), 'info');
                     }
                 }
             });
@@ -6972,7 +7093,7 @@
                             }
                             if (applyBtn) {
                                 applyBtn.className = 'btn btn-sm btn-success w-100 rounded-pill fw-bold py-1.5 shadow-sm active-theme-btn';
-                                applyBtn.innerHTML = '<i class="fa-solid fa-check-double me-1"></i>Currently Active';
+                                applyBtn.innerHTML = '<i class="fa-solid fa-check-double me-1"></i>' + studioText(studioWords.active);
                                 applyBtn.disabled = true;
                             }
                         } else {
@@ -6983,7 +7104,7 @@
                             }
                             if (applyBtn) {
                                 applyBtn.className = 'btn btn-sm btn-outline-primary w-100 rounded-pill apply-theme-btn fw-semibold py-1.5';
-                                applyBtn.innerHTML = '<i class="fa-solid fa-bolt me-1"></i>Apply Theme Now';
+                                applyBtn.innerHTML = '<i class="fa-solid fa-bolt me-1"></i>' + studioText(studioWords.apply);
                                 applyBtn.disabled = false;
                             }
                         }
@@ -7009,7 +7130,7 @@
                     alertToast(data.message || 'Failed to apply theme.', 'danger');
                     applyBtns.forEach(b => {
                         b.disabled = false;
-                        b.innerHTML = '<i class="fa-solid fa-bolt me-1"></i>Apply Theme Now';
+                        b.innerHTML = '<i class="fa-solid fa-bolt me-1"></i>' + studioText(studioWords.apply);
                     });
                 }
             } catch (err) {
@@ -7134,12 +7255,12 @@
                                     c.classList.remove('bg-body-tertiary', 'text-muted');
                                 });
                                 if (btnContainer) {
-                                    btnContainer.innerHTML = '<button type="button" class="btn btn-sm btn-success rounded-pill w-100 fw-bold py-1.5 shadow-sm active-experience-btn" disabled style="opacity: 1; cursor: default; pointer-events: none;"><i class="fa-solid fa-check-double me-1"></i>Currently Active</button>';
+                                    btnContainer.innerHTML = '<button type="button" class="btn btn-sm btn-success rounded-pill w-100 fw-bold py-1.5 shadow-sm active-experience-btn" disabled style="opacity: 1; cursor: default; pointer-events: none;"><i class="fa-solid fa-check-double me-1"></i>' + studioText(studioWords.active) + '</button>';
                                 }
                             } else {
                                 card.classList.remove('active-master-card', 'border-success');
-                                card.style.background = 'rgba(255,255,255,0.03)';
-                                card.style.borderColor = (cardKey === 'default_factory') ? 'rgba(255,61,97,0.3)' : 'rgba(255,255,255,0.08)';
+                                card.style.background = 'var(--avd-studio-card-bg)';
+                                card.style.borderColor = (cardKey === 'default_factory') ? 'rgba(255,61,97,0.3)' : 'var(--avd-studio-card-border)';
                                 card.style.boxShadow = '';
                                 if (ribbon) ribbon.style.setProperty('display', 'none', 'important');
                                 if (activeBadge) activeBadge.style.setProperty('display', 'none', 'important');
@@ -7152,7 +7273,7 @@
                                 if (btnContainer) {
                                     const btnColor = (cardKey === 'default_factory') ? 'btn-outline-danger' : 'btn-outline-primary';
                                     const iconClass = (cardKey === 'default_factory') ? 'fa-arrow-rotate-left' : 'fa-bolt';
-                                    const label = (cardKey === 'default_factory') ? 'Restore Default' : 'Activate';
+                                    const label = studioText((cardKey === 'default_factory') ? studioWords.restore : studioWords.activate);
                                     btnContainer.innerHTML = `<button type="button" class="btn btn-sm ${btnColor} rounded-pill w-100 fw-semibold apply-experience-btn py-1.5" data-experience-id="${cardKey}"><i class="fa-solid ${iconClass} me-1"></i>${label}</button>`;
                                 }
                             }
@@ -7298,8 +7419,8 @@
                 const modal = bootstrap.Modal.getInstance(modalEl);
                 if (modal) modal.hide();
 
-                // Toast notification
-                alertToast(`Previewing Day ${day}: ${name} (Loaded into Studio!)`, 'info');
+                // Toast notification, in the admin's language (1.2.3 round 3: it was "Previewing Day N: <name> (Loaded into Studio!)" in English)
+                alertToast(@js(__('Previewing :name')).replace(':name', () => name), 'info');
             });
         });
 
@@ -7345,7 +7466,8 @@
         if (calLayoutFilter) calLayoutFilter.addEventListener('change', filterCalendarCards);
 
         window.downloadCalendarJson = function() {
-            fetch('/api/daily-design/catalog')
+            // a background GET (App\Http\Middleware\BackgroundRequest): it leaves the session as it is
+            fetch(@json((string) parse_url(url('/api/daily-design/catalog'), PHP_URL_PATH)), { headers: { 'Accept': 'application/json', [@json(\App\Http\Middleware\BackgroundRequest::HEADER)]: '1' } })
                 .then(res => res.json())
                 .then(data => {
                     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -7570,7 +7692,7 @@
 
                     if (data.success) {
                         alertBox.className = 'alert alert-success small mt-3';
-                        alertBox.innerHTML = '<i class="fa-solid fa-circle-check me-1"></i> <strong>' + data.timestamp + '</strong>: ' + data.message;
+                        alertBox.innerHTML = '<i class="fa-solid fa-circle-check me-1"></i> <strong>' + data.timestamp + '</strong>' + @json(\App\Support\AdminText::punctuation()['label']) + data.message;
                     } else {
                         alertBox.className = 'alert alert-danger small mt-3';
                         alertBox.innerHTML = '<i class="fa-solid fa-triangle-exclamation me-1"></i> ' + (data.message || 'Cache purge failed.');

@@ -2,6 +2,9 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Support\AuditDetails;
+use App\Models\Subscription;
+use App\Services\SubscriptionCanceller;
 use App\Support\AdminCache;
 use App\Support\AdminPagination;
 use App\Support\AdminPreferences;
@@ -60,10 +63,24 @@ class PremiumController
         return view('admin.premiums.index', compact('premiums', 'stats'));
     }
 
-    public function destroy(int $id): RedirectResponse
+    public function destroy(int $id, SubscriptionCanceller $canceller): RedirectResponse
     {
-        DB::table('premiums')->where('id', $id)->delete();
-        return redirect()->route('admin.premiums.index')->withSuccess('Premium record deleted.');
+        // Stripe / PayPal first, so the member is not charged again (the record goes either way).
+        $premium = Subscription::query()->find($id);
+        $confirmed = $premium === null || $canceller->cancelAtProvider($premium, 'Cancelled by the site administrator');
+
+        $name = self::memberOf($id);
+
+        if (DB::table('premiums')->where('id', $id)->delete() > 0) {
+            // Tools > Logs > Admin actions (R3-019): whose premium record it was.
+            AuditLogController::log('premium.deleted', $name);
+        }
+
+        $redirect = redirect()->route('admin.premiums.index')->withSuccess(__('Premium record deleted'));
+
+        return $confirmed ? $redirect : $redirect->withErrors([
+            'payment_provider' => __('The payment provider did not confirm the cancellation. Cancel this subscription in the Stripe or PayPal dashboard too.'),
+        ]);
     }
 
     public function extend(Request $request, int $id): RedirectResponse
@@ -74,7 +91,7 @@ class PremiumController
         $premium = DB::table('premiums')->where('id', $id)->first();
 
         if (!$premium) {
-            return redirect()->route('admin.premiums.index')->withSuccess('Premium record not found.');
+            return redirect()->route('admin.premiums.index')->withSuccess(__('Premium record not found.'));
         }
 
         $baseDate = $premium->ends_at
@@ -89,7 +106,16 @@ class PremiumController
             'ends_at' => $baseDate->copy()->addDays($days),
             'updated_at' => now(),
         ]);
+        AuditLogController::log('premium.extended', self::memberOf($id).', +'.$days.' '.($days === 1 ? 'day' : 'days'));
 
-        return redirect()->route('admin.premiums.index')->withSuccess("Extended by {$request->days} days.");
+        return redirect()->route('admin.premiums.index')->withSuccess(trans_choice('Added 1 day.|Added :count days.', $days));
+    }
+
+    /** "alice (#12)": the member of a premium record, or the record's number when it has none. */
+    private static function memberOf(int $id): string
+    {
+        $member = DB::table('premiums')->join('users', 'premiums.user_id', '=', 'users.id')->where('premiums.id', $id)->first(['users.id', 'users.username']);
+
+        return $member !== null ? AuditDetails::member($member) : '#'.$id;
     }
 }

@@ -33,7 +33,7 @@ class SessionController
 
         $stats = [
             'driver' => $driver,
-            'lifetime' => config('session.lifetime') . ' minutes',
+            'lifetime' => trans_choice('1 minute|:count minutes', (int) config('session.lifetime'), ['count' => number_format((int) config('session.lifetime'))]),
             'expire_on_close' => config('session.expire_on_close') ? 'Yes' : 'No',
             'encrypt' => config('session.encrypt') ? 'Yes' : 'No',
             'total' => $driver === 'database' ? DB::table('sessions')->count() : 'N/A (not DB driver)',
@@ -80,20 +80,30 @@ class SessionController
 
     public function destroy(string $id): RedirectResponse
     {
-        DB::table('sessions')->where('id', $id)->delete();
-        return redirect()->route('admin.sessions.index')->withSuccess('Session terminated.');
+        $user = DB::table('sessions')->where('id', $id)->value('user_id');
+
+        if (DB::table('sessions')->where('id', $id)->delete() > 0) {
+            $member = $user !== null ? DB::table('users')->where('id', $user)->first(['id', 'username']) : null;
+            AuditLogController::log('security.session.signed_out', $member !== null ? \App\Support\AuditDetails::member($member) : null);
+        }
+
+        return redirect()->route('admin.sessions.index')->withSuccess(__('Signed out'));
     }
 
     public function clearAll(): RedirectResponse
     {
         $currentId = session()->getId();
-        DB::table('sessions')->where('id', '!=', $currentId)->delete();
-        return redirect()->route('admin.sessions.index')->withSuccess('All other sessions terminated.');
+        // no other session: nothing written in Admin actions (judge R2CD-RV-03)
+        if (DB::table('sessions')->where('id', '!=', $currentId)->delete() > 0) {
+            AuditLogController::log('security.sessions.signed_out');
+        }
+        return redirect()->route('admin.sessions.index')->withSuccess(__('All other sessions signed out'));
     }
 
     public function clearGuests(): RedirectResponse
     {
         DB::table('sessions')->whereNull('user_id')->delete();
-        return redirect()->route('admin.sessions.index')->withSuccess('Guest sessions cleared.');
+        AuditLogController::log('security.sessions.guests_removed');
+        return redirect()->route('admin.sessions.index')->withSuccess(__('Guest sessions removed'));
     }
 }

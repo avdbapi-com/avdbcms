@@ -66,7 +66,9 @@ class SearchTagParityTest extends TestCase
             ->json();
 
         $this->assertSame($category->id, $payload['categories'][0]['id'] ?? null);
-        $this->assertSame('nghiệp dư', $payload['categories'][0]['title'] ?? null);
+        // the category's Vietnamese title as lang/vi.json gives it (a capital like the other category names since 1.2.3);
+        // the lower-case query above still finds it
+        $this->assertSame('Nghiệp dư', $payload['categories'][0]['title'] ?? null);
     }
 
     public function test_localized_tag_label_is_shared_by_web_and_public_api_search(): void

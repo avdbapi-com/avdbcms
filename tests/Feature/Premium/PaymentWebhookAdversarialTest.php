@@ -11,7 +11,7 @@ use App\Services\PayPalService;
 use App\Services\StripeService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Notification;
-use Laravel\Cashier\Http\Middleware\VerifyWebhookSignature;
+use App\Http\Middleware\VerifyStripeWebhookSignature;
 use Mockery\MockInterface;
 use Tests\Fixtures\StripeApiFixtures;
 use Tests\TestCase;
@@ -32,7 +32,7 @@ class PaymentWebhookAdversarialTest extends TestCase
             $mock->shouldReceive('generate')->never();
         });
 
-        $this->withoutMiddleware(VerifyWebhookSignature::class)
+        $this->withoutMiddleware(VerifyStripeWebhookSignature::class)
             ->postJson(route('stripe_webhook'), $payload)
             ->assertNoContent();
 
@@ -60,11 +60,11 @@ class PaymentWebhookAdversarialTest extends TestCase
             $mock->shouldReceive('generate')->once();
         });
 
-        $this->withoutMiddleware(VerifyWebhookSignature::class)
+        $this->withoutMiddleware(VerifyStripeWebhookSignature::class)
             ->postJson(route('stripe_webhook'), $payload)
             ->assertNoContent();
 
-        $this->withoutMiddleware(VerifyWebhookSignature::class)
+        $this->withoutMiddleware(VerifyStripeWebhookSignature::class)
             ->postJson(route('stripe_webhook'), $payload)
             ->assertNoContent();
 
@@ -85,7 +85,7 @@ class PaymentWebhookAdversarialTest extends TestCase
             $mock->shouldReceive('generate')->never();
         });
 
-        $this->withoutMiddleware(VerifyWebhookSignature::class)
+        $this->withoutMiddleware(VerifyStripeWebhookSignature::class)
             ->postJson(route('stripe_webhook'), $payload)
             ->assertNoContent();
 

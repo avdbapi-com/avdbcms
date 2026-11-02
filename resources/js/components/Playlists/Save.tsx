@@ -9,10 +9,31 @@ import {useCursorQuery, useErrorMutation} from "@/hooks";
 import {produce} from "immer";
 import {useTranslation} from "react-i18next";
 import {ApiError, Loader} from "@/components/Commons";
+import {calmModalManager} from "@/layout/calmModalManager";
 
 type Props = {
     video: number
 }
+
+// R1-026: the press paints first (its ripple, pressed and focus states), then the dialog renders in the task right after
+// that frame. Rendering the dialog inside the click (react-bootstrap's modal, then the style and layout of its sheet and
+// the page's new layers in the same frame) kept the press unanswered for 232-264 ms at CPU 4x on a 1366 px screen, over the
+// 200 ms budget; split, the press is answered in the next frame and the dialog follows one frame later. A tab without
+// frames (hidden) still opens it, by the timer.
+const afterNextPaint = (callback: () => void): void => {
+    let done = false;
+    const run = (): void => {
+        if (!done) {
+            done = true;
+            callback();
+        }
+    };
+    const timer = window.setTimeout(run, 100);
+    window.requestAnimationFrame(() => {
+        window.clearTimeout(timer);
+        window.setTimeout(run, 0);
+    });
+};
 
 export function Main ({video}: Props) {
 
@@ -25,21 +46,28 @@ export function Main ({video}: Props) {
 
     const { t } = useTranslation();
 
+    // The page keeps one query client (watch-15: no "Loading your playlists ..." on every open), but the list is
+    // read again each time the dialog opens: a save TOGGLES the video on the server, so a box ticked from an old list
+    // (the video saved meanwhile from a card's Watch Later, or in another tab) would take it out. While that read runs
+    // the old list stays on screen, dimmed, and its boxes wait for it.
     const {
         data: playlists,
         isLoading,
         isError,
+        isRefetching,
         refetch,
         error,
         isFetchingNextPage,
         hasNextPage,
         ref,
     } = useCursorQuery({
-        queryKey: ['save'],
+        queryKey: ['save', video],
         queryFn: ({pageParam}) => getMyPlaylists(video, pageParam),
         enabled: open,
-        staleTime: Infinity,
+        staleTime: 0,
+        refetchOnMount: 'always',
     });
+    const checking = isRefetching && !isFetchingNextPage;
 
     return (
         <>
@@ -47,16 +75,21 @@ export function Main ({video}: Props) {
                 type={'button'}
                 className="btn bg-light-dark btn-sm rounded-4 px-4 d-flex align-items-center gap-1"
                 title={t('Save video')}
-                onClick={() => setOpen(true)}
+                aria-haspopup="dialog"
+                onClick={() => afterNextPaint(() => setOpen(true))}
             >
                 <i class="fa-regular fa-bookmark"></i>&nbsp;
                 {t('Save')}
             </button>
-            <Modal show={open} onHide={() => setOpen(false)}>
-                <Modal.Header closeButton>
-                    <h5 className="modal-title">{t('Save Video to ...')}</h5>
+            {/* R1-026 (opening it took 300-470 ms at CPU 4x, over the 200 ms budget): the page lock without the layout thrash
+                of react-bootstrap's own manager (layout/calmModalManager), and no JavaScript fade, whose reflow and two
+                computed-style reads (the transition's timing, dialog and backdrop) forced the page's style three times in
+                the click. The dialog still comes in with the site's own entrance (app.scss: .modal.show .modal-dialog). */}
+            <Modal show={open} onHide={() => setOpen(false)} manager={calmModalManager()} animation={false}>
+                <Modal.Header closeButton closeLabel={t('Close')}>
+                    <h5 className="modal-title">{t('Save to playlist')}</h5>
                 </Modal.Header>
-                <Modal.Body className={'overflow-y-auto'} style={{'max-height': '500px'}}>
+                <Modal.Body className={'overflow-y-auto avd-save-playlists'}>
                     {
                         isLoading &&
                         <div className={'alert alert-primary d-flex align-items-center gap-3 mb-0'}>
@@ -70,10 +103,10 @@ export function Main ({video}: Props) {
                     {
                         playlists && (
                             playlists?.pages.flatMap((page => page.data)).length > 0 ?
-                                <form id={'playlists-from'}>
+                                <form id={'playlists-from'} aria-busy={checking} className={checking ? 'opacity-50' : undefined}>
                                     {playlists.pages.map((group, i) => (
                                         <Fragment key={i}>
-                                            {group.data.map((playlist) => <Playlist key={playlist.id} playlist={playlist} video={video}/>)}
+                                            {group.data.map((playlist) => <Playlist key={playlist.id} playlist={playlist} video={video} disabled={checking}/>)}
                                         </Fragment>
                                     ))}
                                 </form>
@@ -98,11 +131,13 @@ export function Main ({video}: Props) {
                 <Modal.Footer>
                     <div className="d-flex justify-content-between w-100 align-items-center flex-wrap gap-2">
                         <button
+                            type="button"
                             onClick={() => setOpenCreate(v => !v)}
-                            className="btn btn-success btn-sm d-inline-flex align-items-center gap-2 text-start"
+                            className="btn btn-outline-primary btn-sm d-inline-flex align-items-center gap-2 text-start"
                             style={{maxWidth: '100%', whiteSpace: 'normal'}}
+                            aria-expanded={openCreate}
                         >
-                            <i className="fa-solid fa-plus flex-shrink-0"></i>
+                            <i className="fa-solid fa-plus flex-shrink-0" aria-hidden="true"></i>
                             <span>{t('Create new playlist')}</span>
                         </button>
                         {
@@ -110,7 +145,7 @@ export function Main ({video}: Props) {
                             <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
                         }
                     </div>
-                    <CreatePlaylist open={openCreate} setOpen={setOpenCreate}/>
+                    <CreatePlaylist open={openCreate} setOpen={setOpenCreate} video={video}/>
                 </Modal.Footer>
             </Modal>
         </>
@@ -120,29 +155,44 @@ export function Main ({video}: Props) {
 type PlaylistProps = {
     playlist: PlaylistType
     video: number,
+    disabled?: boolean,
 }
 
-function Playlist ({playlist, video} : PlaylistProps) {
+function Playlist ({playlist, video, disabled = false} : PlaylistProps) {
 
     const queryClient = useQueryClient();
+
+    // The box flips at once (the save toggles the video in this playlist on the server). If the request fails, the box
+    // flips back and the list is read again, so it never shows a state the server does not have (the error itself is
+    // the mutation's toast).
+    const flip = (): void => {
+        queryClient.setQueryData(['save', video], (oldData: InfiniteData<Paginator<PlaylistType>> | undefined) => {
+                if (!oldData) return undefined
+                return produce(oldData, draft => {
+                    draft.pages.forEach(page => {
+                        page.data.forEach(p => {
+                            if (p.id === playlist.id) {
+                                p.has_video = !p.has_video;
+                            }
+                        });
+                    });
+                });
+            }
+        )
+    };
 
     const {mutate} = useErrorMutation({
         mutationFn: (data: PlaylistSaveData) => savePlaylist(data),
         mutationKey: ['playlist.save', playlist.uuid],
-        onMutate: () => {
-            queryClient.setQueryData(['save'], (oldData: InfiniteData<Paginator<PlaylistType>> | undefined) => {
-                    if (!oldData) return undefined
-                    return produce(oldData, draft => {
-                        draft.pages.forEach(page => {
-                            page.data.forEach(p => {
-                                if (p.id === playlist.id) {
-                                    p.has_video = !p.has_video;
-                                }
-                            });
-                        });
-                    });
-                }
-            )
+        onMutate: async () => {
+            await queryClient.cancelQueries({queryKey: ['save', video]});
+            flip();
+        },
+        onSettled: (_data, error) => {
+            if (error) {
+                flip();
+                void queryClient.invalidateQueries({queryKey: ['save', video]});
+            }
         },
     });
 
@@ -157,37 +207,49 @@ function Playlist ({playlist, video} : PlaylistProps) {
         mutate(PlaylistSaveDataSchema.parse(data));
     }
 
+    // R1R-10: the whole row is the box's label (box, name, visibility icon; video.scss .avd-save-playlist), so a tap on the
+    // box, the name or the rest of the row ticks it once, and the icon never lies on the box in Arabic.
+    // R3-066: while the list is read again (each opening, and after a change the server refused) a box waits
+    // (aria-disabled: a press changes nothing, dimmed as a disabled box) but it keeps the keyboard focus: a disabled box
+    // lost it, so the view-only demo window, closing while the list was read again after its refusal, gave the focus to
+    // the dialog's Close button instead of the box it came from (and the next Enter closed the dialog).
     return (
-        <div className="form-check mb-3">
-            <div className="d-flex align-items-center gap-3">
-                <div>
-                    <input
-                        className="form-check-input"
-                        name={'playlist-' + playlist.id}
-                        type="checkbox"
-                        id={'playlist-' + playlist.id}
-                        checked={playlist.has_video}
-                        onChange={handleChange}
-                    />
-                    <label className="form-check-label text-break" htmlFor={'playlist-' + playlist.id}>
-                        {playlist.title}
-                    </label>
-                </div>
-                <i className={'fa-solid fa-' + playlist.icon}></i>&nbsp;
-            </div>
-        </div>
+        <label className="form-check avd-save-playlist mb-3" htmlFor={'playlist-' + playlist.id}>
+            <input
+                className="form-check-input"
+                name={'playlist-' + playlist.id}
+                type="checkbox"
+                id={'playlist-' + playlist.id}
+                checked={playlist.has_video}
+                aria-disabled={disabled ? 'true' : undefined}
+                onClick={(event) => { if (disabled) event.preventDefault(); }}
+                onChange={handleChange}
+            />
+            <span className="form-check-label text-break">{playlist.title}</span>
+            <i className={'fa-solid fa-' + playlist.icon} aria-hidden="true"></i>
+        </label>
     )
 }
 
-export function Save(props: Props) {
+// One client for the page: a client made on every render dropped the loaded playlists, so every open showed
+// "Loading your playlists ..." again (watch-15). The list is still read again on every open (Main).
+let saveQueryClient: QueryClient | null = null;
 
-    const queryClient = new QueryClient({
+const pageQueryClient = (): QueryClient => {
+    saveQueryClient ??= new QueryClient({
         defaultOptions: {
             queries: {
                 retry: false,
             }
         }
     });
+
+    return saveQueryClient;
+};
+
+export function Save(props: Props) {
+
+    const queryClient = pageQueryClient();
 
     return (
         <QueryClientProvider client={queryClient}>

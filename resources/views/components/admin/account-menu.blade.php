@@ -10,7 +10,10 @@
 @php
     $user ??= auth()->user();
     $prefs = $prefs ?: \App\Support\AdminPreferences::all($user);
-    $canSave = \App\Support\AdminPreferences::available($user);
+    // A view-only demo account may look at every choice, but the server refuses to save any (ViewOnlyDemo): the
+    // controls are shown switched off with a note instead of flipping and then answering "refused".
+    $viewOnly = \App\Http\Middleware\ViewOnlyDemo::isViewOnlyUser($user);
+    $canSave = \App\Support\AdminPreferences::available($user) && ! $viewOnly;
     $name = (string) ($user?->username ?? $user?->name ?? '');
     $initials = strtoupper(mb_substr(preg_replace('/[^\pL\pN]/u', '', $name) ?: 'A', 0, 2));
     $prefsUrl = route('admin.shell.preferences');
@@ -29,14 +32,16 @@
     <div class="ad-menu ad-account-menu" id="ad-account-menu" hidden data-prefs-url="{{ $prefsUrl }}">
         <div class="ad-menu-h">
             <b>{{ $name }}</b>
-            <span>{{ __('Administrator') }}</span>
+            <span data-account-badge>{{ $viewOnly ? __('View-only demo') : __('Administrator') }}</span>
         </div>
         <hr>
         <a href="{{ locale_url(route('user.edit')) }}">{{ AdminTheme::icon('user') }}{{ __('Your profile') }}</a>
 
-        @unless ($canSave)
+        @if ($viewOnly)
+            <p class="ad-menu-note" data-view-only-note>{{ __('View-only demo: these choices are shown but not saved.') }}</p>
+        @elseif (! $canSave)
             <p class="ad-menu-note">{{ __('These choices can be saved after the update is finished. Open Home and click Finish update.') }}</p>
-        @endunless
+        @endif
         <div class="ad-menu-label" id="ad-pref-theme-label">{{ __('Admin appearance') }}</div>
         <div class="ad-seg" role="radiogroup" aria-labelledby="ad-pref-theme-label">
             @foreach (['system' => [__('System'), 'monitor'], 'light' => [__('Light'), 'sun'], 'dark' => [__('Dark'), 'moon']] as $value => [$label, $symbol])
@@ -75,6 +80,9 @@
             <input type="hidden" name="value" value="v1">
             <button type="submit" @disabled(! $canSave)>{{ AdminTheme::icon('undo', 'flip-rtl') }}{{ __('Use the old admin for now') }}</button>
         </form>
-        <a href="{{ locale_url(route('logout')) }}">{{ AdminTheme::icon('logout', 'flip-rtl') }}{{ __('Log out') }}</a>
+        <form method="POST" action="{{ locale_url(route('logout')) }}">
+            @csrf
+            <button type="submit">{{ AdminTheme::icon('logout', 'flip-rtl') }}{{ __('Log out') }}</button>
+        </form>
     </div>
 </div>

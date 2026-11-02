@@ -60,25 +60,48 @@ class FailedJobController
 
     public function retry(string $uuid): RedirectResponse
     {
+        // a job that is not there any more (retried or deleted in another tab): nothing written (judge R2CD-RV-03)
+        $there = DB::table('failed_jobs')->where('uuid', $uuid)->exists();
         Artisan::call('queue:retry', ['id' => [$uuid]]);
-        return redirect()->route('admin.failed-jobs.index')->withSuccess("Job {$uuid} queued for retry.");
+
+        if ($there) {
+            AuditLogController::log('queue.failed.retry', "Retried failed job {$uuid}.");
+        }
+
+        return redirect()->route('admin.failed-jobs.index')->withSuccess(__('Sent back to the queue'));
     }
 
     public function retryAll(): RedirectResponse
     {
+        $any = DB::table('failed_jobs')->exists();
         Artisan::call('queue:retry', ['id' => ['all']]);
-        return redirect()->route('admin.failed-jobs.index')->withSuccess('All failed jobs queued for retry.');
+
+        if ($any) {
+            AuditLogController::log('queue.failed.retry_all', 'Retried all failed jobs.');
+        }
+
+        return redirect()->route('admin.failed-jobs.index')->withSuccess(__('All failed jobs sent back to the queue'));
     }
 
     public function destroy(string $uuid): RedirectResponse
     {
-        Artisan::call('queue:forget', ['id' => $uuid]);
-        return redirect()->route('admin.failed-jobs.index')->withSuccess('Failed job deleted.');
+        // queue:forget answers 0 only when it deleted the job
+        if (Artisan::call('queue:forget', ['id' => $uuid]) === 0) {
+            AuditLogController::log('queue.failed.delete', "Deleted failed job {$uuid}.");
+        }
+
+        return redirect()->route('admin.failed-jobs.index')->withSuccess(__('Failed job deleted'));
     }
 
     public function clear(): RedirectResponse
     {
+        $any = DB::table('failed_jobs')->exists();
         Artisan::call('queue:flush');
-        return redirect()->route('admin.failed-jobs.index')->withSuccess('All failed jobs cleared.');
+
+        if ($any) {
+            AuditLogController::log('queue.failed.clear');
+        }
+
+        return redirect()->route('admin.failed-jobs.index')->withSuccess(__('All failed jobs deleted'));
     }
 }

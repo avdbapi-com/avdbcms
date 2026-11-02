@@ -38,7 +38,7 @@
                 @forelse($users as $user)
                 <tr>
                     <td>{{ $user->id }}</td>
-                    <td><strong>{{ $user->username }}</strong> @if($user->is_admin)<span class="badge bg-danger">{{__('Admin')}}</span>@endif</td>
+                    <td><strong>{{ $user->username }}</strong> @if($user->is_admin)<span class="badge bg-danger">{{__('Administrator')}}</span>@endif</td>
                     <td>{{ $user->email }}</td>
                     <td>
                         @if($user->email_verified_at)

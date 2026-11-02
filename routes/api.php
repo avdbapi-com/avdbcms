@@ -21,6 +21,7 @@ use App\Http\Controllers\Api\Public\PlaylistController as PublicPlaylistControll
 use App\Http\Controllers\Api\Public\SearchController as SearchPublicController;
 use App\Http\Controllers\Api\Public\UserController as PublicUserController;
 use App\Http\Controllers\Api\Public\VideoController as PublicVideoController;
+use App\Http\Middleware\PublicCacheForGuests;
 use App\Models\Video;
 use Illuminate\Support\Facades\Route;
 
@@ -59,15 +60,20 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/upload18/config', 'getUploadConfig')
                 ->name('upload18.config')
                 ->can('upload', Video::class);
+            // The checks and the finish of an upload the member already announced skip the upload limits, which were
+            // checked when its pending draft was kept (AuthorizeUpload18Continue); every other request is checked as before.
             Route::get('/upload18/status', 'getUploadStatus')
                 ->name('upload18.status')
+                ->middleware(\App\Http\Middleware\AuthorizeUpload18Continue::class);
+            Route::post('/upload18/pending', 'announceUpload')
+                ->name('upload18.pending')
                 ->can('upload', Video::class);
             Route::post('/upload18/chunk', 'uploadChunk')
                 ->name('upload18.chunk')
                 ->can('upload', Video::class);
             Route::post('/upload18/complete', 'completeUpload')
                 ->name('upload18.complete')
-                ->can('upload', Video::class);
+                ->middleware(\App\Http\Middleware\AuthorizeUpload18Continue::class);
             Route::post('/{video:id}/generate-thumbnails', 'generateThumbnails')
                 ->name('generate-thumbnails')
                 ->can('update', 'video');
@@ -105,23 +111,28 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::delete('/{playlist:uuid}', 'delete')->name('delete')->can('delete', 'playlist');
         });
 
-        // NOTIFICATIONS
+        // NOTIFICATIONS (the bell). Changes are POST / DELETE; the GET of pages opened before 1.2.3 is still answered
+        // with the page's token header (NotificationController::refuseForeignGet). Another member's notification: 404.
         Route::controller(NotificationController::class)->prefix('notifications')->name('notifications.')->group(function () {
             Route::get('/', 'index')
                 ->name('index');
-            Route::get('/{notification}/read', 'read')
+            Route::match(['GET', 'POST'], '/read-all', 'readAll')->name('read-all');
+            Route::delete('/delete-all', 'deleteAll')->name('delete-all');
+            Route::post('/delete-selected', 'deleteSelected')->name('delete-selected');
+            // The bell of a Subscribe button: which new videos of a channel reach the member's bell (Subscribe.tsx).
+            Route::get('/channels/{user}', 'channel')->name('channel');
+            Route::post('/channels/{user}', 'setChannel')->name('channel.update');
+            Route::match(['GET', 'POST'], '/{notification}/read', 'read')
                 ->name('read')
                 ->missing(fn() => abort(404, 'Notification not found'))
                 ->can('read', 'notification');
-            Route::get('/{notification}/unread', 'unread')->name('unread')
+            Route::match(['GET', 'POST'], '/{notification}/unread', 'unread')->name('unread')
                 ->missing(fn() => abort(404, 'Notification not found'))
                 ->can('unread', 'notification');
             Route::delete('/{notification}/delete', 'delete')
                 ->name('remove')
                 ->missing(fn() => abort(404, 'Notification not found'))
                 ->can('delete', 'notification');
-            Route::get('/read-all', 'readAll')->name('read-all');
-            Route::delete('/delete-all', 'deleteAll')->name('delete-all');
         });
 
         // SEARCH
@@ -147,6 +158,8 @@ Route::middleware('auth:sanctum')->group(function () {
                     Route::delete('/history/{view}', 'clear')->name('clear')->can('clear', 'view');
                     Route::post('/history/clear-day', 'clearDay')->name('clear-day');
                     Route::post('/history/clear-all', 'clearAll')->name('clear-all');
+                    // "Pause history" (History page; App\Support\WatchHistory::PAUSE_ROUTE)
+                    Route::post('/history/pause', 'pause')->name('history.pause');
                 });
         });
 
@@ -193,12 +206,12 @@ Route::middleware('throttle:api')->group(function () {
     // SEARCH
     Route::get("search", [SearchPublicController::class, 'search'])
         ->name('search')
-        ->middleware(['throttle:search', 'cache.headers:public;max_age=60;etag']);
+        ->middleware(['throttle:search', PublicCacheForGuests::class.':public;max_age=60;etag']);
 
     // VIDEOS
     Route::prefix('videos')->name('videos.')->controller(PublicVideoController::class)->group(function () {
-        Route::get('/', 'index')->name('index')->middleware('cache.headers:public;max_age=30;etag');
-        Route::get('/trend', 'trend')->name('trend')->middleware('cache.headers:public;max_age=30;etag');
+        Route::get('/', 'index')->name('index')->middleware(PublicCacheForGuests::class.':public;max_age=30;etag');
+        Route::get('/trend', 'trend')->name('trend')->middleware(PublicCacheForGuests::class.':public;max_age=30;etag');
         Route::get('/{video:uuid}', 'show')->name('show')->can('show', 'video');
         Route::post('/{video:uuid}/view', 'view')->name('view')->can('show', 'video')->middleware('throttle:video-view');
         Route::get('/{video:uuid}/player', 'player')->name('player')->can('show', 'video');
@@ -227,7 +240,7 @@ Route::middleware('throttle:api')->group(function () {
 
     // CATEGORIES
     Route::prefix('categories')->name('categories.')->controller(CategoryController::class)->group(function () {
-        Route::get('/{category}/videos', 'videos')->name('videos')->middleware('cache.headers:public;max_age=30;etag');
+        Route::get('/{category}/videos', 'videos')->name('videos')->middleware(PublicCacheForGuests::class.':public;max_age=30;etag');
     });
 
     // 365-DAY DAILY DESIGN API

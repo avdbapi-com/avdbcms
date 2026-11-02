@@ -21,7 +21,10 @@ class AuditLogController
                 'logs' => DB::table('admin_audit_logs')
                     ->leftJoin('users', 'admin_audit_logs.user_id', '=', 'users.id')
                     ->select('admin_audit_logs.id', 'admin_audit_logs.user_id', 'admin_audit_logs.action', 'admin_audit_logs.details', 'admin_audit_logs.ip_address', 'admin_audit_logs.created_at', 'users.username')
+                    // Newest first; rows of the same second by their id, so the order never flips and no page repeats
+                    // or skips a row.
                     ->orderByDesc('admin_audit_logs.created_at')
+                    ->orderByDesc('admin_audit_logs.id')
                     ->paginate(AdminPagination::perPage($request, 25))
                     ->withQueryString(),
                 'stats' => AdminCache::remember('audit.counts.v1', now()->addMinute(), function (): array {
@@ -36,6 +39,7 @@ class AuditLogController
             ->leftJoin('users', 'admin_audit_logs.user_id', '=', 'users.id')
             ->select('admin_audit_logs.*', 'users.username', 'users.email as user_email')
             ->orderByDesc('admin_audit_logs.created_at')
+            ->orderByDesc('admin_audit_logs.id')
             ->paginate(\App\Support\AdminPagination::perPage(null, 50));
 
         $stats = [
@@ -49,8 +53,16 @@ class AuditLogController
 
     public function clear(): RedirectResponse
     {
+        $rows = DB::table('admin_audit_logs')->exists();
         DB::table('admin_audit_logs')->truncate();
-        return redirect()->route('admin.audit.index')->withSuccess('Audit log cleared.');
+        // The emptied log starts with who emptied it and when (R2A-020); an empty log stays empty (its empty state stays
+        // true; judge R2CD-RV-03).
+        if ($rows) {
+            self::log('audit.cleared');
+        }
+        AdminCache::forget('audit.counts.v1');
+
+        return redirect()->route('admin.audit.index')->withSuccess(__('Audit log cleared.'));
     }
 
     /**

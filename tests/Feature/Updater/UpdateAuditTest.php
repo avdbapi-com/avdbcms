@@ -3,6 +3,7 @@
 namespace Tests\Feature\Updater;
 
 use App\Support\AppVersion;
+use App\Support\DatabaseBackup;
 use App\Support\PendingMigrations;
 use App\Support\Updater\Updater;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -17,7 +18,7 @@ use Tests\TestCase;
 use Throwable;
 
 /**
- * What an update writes down (F8 16, 18 "Audit"): one row in Tools > Logs > Admin actions per event (update.started,
+ * What an update writes down: one row in Tools > Logs > Admin actions per event (update.started,
  * update.database_backup, update.files, update.finished, update.failed with its step and reason, update.undone,
  * update.cancelled with where it stopped), with the administrator who did it; the step log one line per entry; and no
  * swap token, update cookie or signed GitHub download address in any log line, stored file or admin-log row, also
@@ -66,7 +67,14 @@ class UpdateAuditTest extends TestCase
         $this->assertSame(['update.started', 'update.database_backup', 'update.files', 'update.finished'], array_column($rows, 'action'));
         $this->assertSame([$id, $id, $id, $id], array_column($rows, 'user_id'));
         $this->assertSame($from.' -> '.$this->next, $rows[0]['details']);
-        $this->assertMatchesRegularExpression('/^backup_before_update_'.preg_quote($this->next, '/').'_\d{4}-\d\d-\d\d_\d{6}\.sql \(\d+\.\d\d MB, Pure-PHP\)$/', (string) $rows[1]['details']);
+        $this->assertSame(1, preg_match('/^(backup_before_update_'.preg_quote($this->next, '/').'_\d{4}-\d\d-\d\d_\d{6})(\.sql) \((.+), Pure-PHP\)$/', (string) $rows[1]['details'], $dump), (string) $rows[1]['details']);
+        // The file itself has a random part that the row never shows (security plan S03).
+        $files = glob($this->box->root.'/storage/app/backups/'.$dump[1].'_*'.$dump[2]) ?: [];
+        $this->assertCount(1, $files);
+        $this->assertMatchesRegularExpression('/_[0-9a-f]{12}\.sql$/', basename($files[0]));
+        $this->assertStringNotContainsString(basename($files[0]), (string) $rows[1]['details']);
+        // The size as Tools > Backups writes it ("308 B", "35.3 KB"), never "0.00 MB".
+        $this->assertSame(DatabaseBackup::sizeText((int) filesize($files[0])), $dump[3]);
         // 7 shipped files replaced (an unchanged translation file is replaced whole), 2 added, 1 removed (the old built
         // asset stays for pages still cached in browsers).
         $this->assertMatchesRegularExpression('/^7 replaced, 2 added, 1 removed \(zip engine (ZipArchive|PharData), OPcache [a-z]+\)$/', (string) $rows[2]['details']);
@@ -105,7 +113,7 @@ class UpdateAuditTest extends TestCase
 
         $this->assertSame('done', $done['status'], (string) $done['message']);
         $this->assertSame(['update.started', 'update.database_backup', 'update.failed', 'update.files', 'update.finished'], array_column($this->auditRows(), 'action'));
-        $this->assertStringEndsWith('(1 database changes)', (string) array_slice($this->auditRows(), -1)[0]['details']);
+        $this->assertStringEndsWith('(1 database change)', (string) array_slice($this->auditRows(), -1)[0]['details']);
     }
 
     public function test_a_swap_the_hook_put_back_is_written_down_once_with_the_administrator(): void

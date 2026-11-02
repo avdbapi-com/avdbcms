@@ -1,95 +1,58 @@
-@use('App\Filters\Forms\User\ReportFiltersForm')
-
+{{-- "Reports you sent" (member design 6.8): the reported item (video thumb, comment icon or channel icon),
+     the status (Pending / Reviewed: removed / Reviewed: no action), the reason and the date. A pending report can be
+     cancelled: "Cancel this report?" with Keep the report / Cancel report. The security rule (S06) stays in the controller:
+     own and pending only, any other report answers 404. --}}
 @extends('layouts.user')
 
-@section('title', __('My Reports'))
+@section('title', __('Reports you sent'))
 
 @section('content')
-    @if($reports->total() || request()->all())
-        <div class="d-flex justify-content-between align-items-center my-3">
-            <h2>{{ __('My Reports') }}</h2>
-        </div>
-        <hr>
-        {!! form(FormBuilder::create(ReportFiltersForm::class)) !!}
-        <div class="table-responsive">
-            <table class="table table-bordered table-striped">
-                <thead>
-                <tr style="border-top: 3px solid #0D6EFD;">
-                    <th class="w-10">{{ __('Type') }}</th>
-                    <th class="w-35" style="min-width: 350px;">{{ __('Content') }}</th>
-                    <th class="w-35">{{ __('Reason') }}</th>
-                    <th>{{ __('Status') }}</th>
-                    <th style="min-width: 89px;">{{ __('Date') }}</th>
-                    <th>{{ __('Action') }}</th>
-                </tr>
-                </thead>
-                <tbody>
-                @forelse($reports as $report)
-                    <tr class="bg-light">
-                        <td class="align-middle">
-                            <div class="d-flex align-items-center justify-content-center gap-2 badge bg-info">
-                                <i class="fa-solid fa-{{$report->icon}}"></i>
-                                {{ __($report->type) }}
-                            </div>
-                        </td>
-                        <td class="align-middle">
-                            @include('reports.' .strtolower($report->type))
-                        </td>
-                        <td class="align-middle">
-                            <div class="badge bg-danger mb-2">
-                                {{ $report->reason->name() }}
-                            </div>
-                            <div>
-                                <x-expand-item>
-                                    {{$report->comment}}
-                                </x-expand-item>
-                            </div>
-                        </td>
-                        <td class="align-middle">
-                            <div class="badge bg-{{$report->status->color()}}">
-                                {{ __($report->status->name()) }}
-                            </div>
-                        </td>
-                        <td class="align-middle">
-                            <small data-bs-toggle="tooltip" data-bs-title="{{$report->created_at->translatedFormat('d F Y - H:i')}}">
-                                {{$report->created_at->diffForHumans()}}
-                            </small>
-                        </td>
-                        <td class="align-middle">
-                            @if($report->is_pending)
-                                <button
-                                    data-bs-toggle="modal"
-                                    data-bs-target="#cancel-report"
-                                    data-route="{{route('user.reports.cancel', $report)}}"
-                                    class="btn btn-sm btn-primary d-flex align-items-center gap-1"
-                                >
-                                    <i class="fa-solid fa-ban"></i>&nbsp;
-                                    <span>{{ __('Cancel')}}</span>
-                                </button>
-                            @endif
-                        </td>
-                    </tr>
-                @empty
-                    <tr>
-                        <td colspan="7" class="text-center">
-                            <i class="fa-solid fa-database fa-2x my-3"></i>
-                            <p class="fw-bold">{{ __('No matching reports') }}</p>
-                        </td>
-                    </tr>
-                @endforelse
-                </tbody>
-            </table>
-        </div>
-        {{ $reports->links() }}
+<div class="avd-mk mk-page">
+    <x-mk.head icon="flag" :kicker="__('Activity')" :title="__('Reports you sent')" :desc="__('The team reviews every report. You can cancel a report while it is pending.')" />
+    <x-mk.flash refusal />
+
+    @if($reports->total() === 0)
+        <section class="mk-panel">
+            <x-mk.empty icon="flag" :title="__('No reports')" :text="__('When you report a video, a comment or a channel, you can follow it here.')" />
+        </section>
     @else
-        <div class="card shadow">
-            <div class="card-body d-flex justify-content-center align-items-center">
-                <div class="my-3 text-center">
-                    <i class="fa-solid fa-flag fa-2x"></i>
-                    <h5 class="my-3">{{ __("You haven't submitted any reports") }}</h5>
+        <section class="mk-panel" aria-label="{{ __('Reports') }}">
+            <ul class="mk-rows">
+                @foreach($reports as $report)
+                    @php($kind = match (class_basename((string) $report->reportable_type)) { 'Video' => 'video', 'Comment' => 'comment', default => 'user' })
+                    <li class="mk-item mk-item--media">
+                        @include('users.reports.partials.'.$kind, ['report' => $report])
+                        <div class="mk-item__aside">
+                            @if($report->is_pending)
+                                <button type="button" class="mk-btn mk-btn--quiet mk-btn--sm" data-bs-toggle="modal" data-bs-target="#mk-cancel-report" data-action="{{ route('user.reports.cancel', $report) }}"><span>{{ __('Cancel report') }}</span></button>
+                            @endif
+                        </div>
+                    </li>
+                @endforeach
+            </ul>
+            {{ $reports->onEachSide(1)->links('vendor.pagination.mk') }}
+        </section>
+
+        <div class="modal fade" id="mk-cancel-report" tabindex="-1" aria-labelledby="mk-cancel-report-title" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered mk-dialog mk-confirm">
+                <div class="modal-content avd-mk">
+                    <div class="mk-sheet__head">
+                        <h2 class="mk-sheet__title" id="mk-cancel-report-title">{{ __('Cancel this report?') }}</h2>
+                        <button type="button" class="mk-icon-btn mk-icon-btn--muted" data-bs-dismiss="modal" aria-label="{{ __('Close') }}" title="{{ __('Close') }}"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+                    </div>
+                    <div class="mk-sheet__body"><p class="mk-sheet__lead">{{ __('The team will not review it. You can report the item again later.') }}</p></div>
+                    <div class="mk-sheet__foot">
+                        <button type="button" class="mk-btn mk-btn--quiet" data-bs-dismiss="modal" data-mk-autofocus>{{ __('Keep the report') }}</button>
+                        <button type="submit" class="mk-btn mk-btn--danger" form="mk-cancel-report-form"><span>{{ __('Cancel report') }}</span></button>
+                    </div>
+                    <form id="mk-cancel-report-form" method="POST" action="" data-mk-action-from hidden>@csrf</form>
                 </div>
             </div>
         </div>
     @endif
-    @include('users.reports.modals.cancel')
+</div>
 @endsection
+
+@push('scripts')
+    @include('users.partials.studio-scripts', ['studioScriptsParts' => ['confirm']])
+@endpush

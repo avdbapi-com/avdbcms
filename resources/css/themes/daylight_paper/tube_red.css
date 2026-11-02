@@ -17,9 +17,9 @@ html[data-bs-theme="dark"][data-avd-flavor="tube_red"] {
   --avd-on-accent: #ffffff;
   --avd-brand-gradient: linear-gradient(135deg, #e5252a 0%, #b3161b 100%);
   --avd-focus: #fb514b;
-  --avd-btn-bg: #e5252a;
+  --avd-btn-bg: #e32228;
   --avd-btn-text: #ffffff;
-  --avd-play-bg: #e5252a;
+  --avd-play-bg: #e32228;
   --avd-play-text: #ffffff;
   --avd-badge-bg: #e5252a;
   --avd-badge-text: #ffffff;
@@ -54,8 +54,8 @@ html[data-bs-theme="light"][data-avd-flavor="tube_red"] {
   --avd-accent-fill: #1f5eff;
   --avd-brand-gradient: linear-gradient(135deg, #e5252a 0%, #b3161b 100%);
   --avd-focus: #d80b1d;
-  --avd-btn-bg: #e5252a;
-  --avd-play-bg: #e5252a;
+  --avd-btn-bg: #e32228;
+  --avd-play-bg: #e32228;
   --avd-badge-bg: #e5252a;
   --avd-new-bg: #1f5eff;
   --avd-kicker-color: #d80b1d;

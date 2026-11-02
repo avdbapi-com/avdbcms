@@ -25,7 +25,7 @@ use Illuminate\Support\Str;
 use Tests\TestCase;
 
 /**
- * AVDBCMS 1.2.2, lane V: the built-in view-only demo account (users.is_view_only, App\Http\Middleware\ViewOnlyDemo).
+ * AVDBCMS 1.2.2: the built-in view-only demo account (users.is_view_only, App\Http\Middleware\ViewOnlyDemo).
  * Built from a site-only guard first used on a public demo site: a view-only account opens the admin and the site, but every change is
  * refused, the private pages are closed, what a page writes is rolled back and what it sees is masked. The owner,
  * members and visitors are untouched; only a normal administrator can switch the flag, never on their own account.
@@ -172,7 +172,10 @@ class ViewOnlyDemoTest extends TestCase
         DB::table('users')->where('id', $demo->id)->update(['remember_token' => 'old-remember-token']);
         $demo = $demo->fresh();
 
-        $this->actingAs($demo)->get('/logout')->assertRedirect()->assertSessionDoesntHaveErrors('view_only_demo');
+        // signing out is a POST since 1.2.3 (auth-22); a GET only shows the sign-out button
+        $this->actingAs($demo)->get('/logout')->assertOk();
+        $this->assertAuthenticatedAs($demo, 'web');
+        $this->actingAs($demo)->post('/logout')->assertRedirect()->assertSessionDoesntHaveErrors('view_only_demo');
         $this->assertGuest('web');
         // kept, not rolled back: a "remember me" cookie of this account stops working
         $this->assertNotSame('old-remember-token', DB::table('users')->where('id', $demo->id)->value('remember_token'));
@@ -223,9 +226,9 @@ class ViewOnlyDemoTest extends TestCase
 
         $pages = [
             '/admin/backups', '/admin/backups/download/backup_x.sql.gz', '/admin/logs-viewer', '/admin/logs',
-            '/admin/exports', '/admin/users/export', '/admin/languages/en/export', '/admin/env-editor', '/admin/database',
+            '/admin/exports', '/admin/languages/en/export', '/admin/env-editor', '/admin/database',
             '/admin/phpinfo', '/admin/system', '/admin/preflight', '/admin/preflight/json', '/admin/artisan', '/admin/queue',
-            '/admin/cron', '/admin/failed-jobs', '/admin/horizon-link', '/admin/impersonate/take/'.$member->id, '/admin/audit',
+            '/admin/cron', '/admin/failed-jobs', '/admin/horizon-link', '/admin/audit',
         ];
 
         foreach ($pages as $page) {
@@ -237,6 +240,14 @@ class ViewOnlyDemoTest extends TestCase
             $this->actingAs($demo)->getJson($page)
                 ->assertForbidden()
                 ->assertJson(['message' => self::CLOSED]);
+        }
+
+        // The members export and taking over a member are POSTs since 1.2.3 (security plan S13, S32): closed too.
+        foreach (['/admin/users/export', '/admin/impersonate/take/'.$member->id] as $page) {
+            $this->actingAs($demo)->from('/admin/users')->post($page)
+                ->assertStatus(303)
+                ->assertSessionHasErrors(['view_only_demo' => self::CLOSED]);
+            $this->actingAs($demo)->postJson($page)->assertForbidden()->assertJson(['message' => self::CLOSED]);
         }
 
         // closed in every method: the maintenance secret, the .env editor
@@ -277,6 +288,131 @@ class ViewOnlyDemoTest extends TestCase
 
         $this->assertLessThan(500, $response->getStatusCode());
         $response->assertSessionDoesntHaveErrors('view_only_demo');
+    }
+
+    // ------------------------------------------------------------------ downloads (security plan S21)
+
+    public function test_a_view_only_admin_never_gets_a_members_invoice(): void
+    {
+        $member = User::factory()->create();
+        $id = DB::table('transactions')->insertGetId([
+            'payment_provider' => 'stripe', 'stripe_id' => 'ch_invoice_probe', 'amount' => 999, 'tax' => 100, 'fee' => 30,
+            'date' => '2026-10-01 10:00:00', 'user_id' => $member->id, 'name' => 'Billing Name', 'address' => 'Street 1',
+            'city' => 'Town', 'postal_code' => '1000', 'country' => 'de', 'vat_id' => 'DE123456789',
+        ]);
+        $transaction = Transaction::query()->findOrFail($id);
+        $pdf = "%PDF-1.4\n% billing name, address and VAT id\n";
+        \Illuminate\Support\Facades\Storage::put($transaction->invoice_path, $pdf);
+
+        try {
+            $demo = $this->viewOnlyAdmin();
+
+            $page = $this->actingAs($demo)->from('/admin/invoices')->get('/profile/invoice/'.$id);
+            $page->assertStatus(303)->assertHeader(ViewOnlyDemo::HEADER, '1')->assertSessionHasErrors(['view_only_demo' => self::CLOSED]);
+            $this->assertStringNotContainsString('%PDF', (string) $page->getContent());
+            $this->actingAs($demo)->getJson('/profile/invoice/'.$id)->assertForbidden()->assertJson(['message' => self::CLOSED]);
+
+            // A normal administrator and the member still get the PDF.
+            foreach ([$this->admin(), $member] as $reader) {
+                $this->actingAs($reader)->get('/profile/invoice/'.$id)
+                    ->assertOk()->assertHeader('Content-Type', 'application/pdf')->assertHeaderMissing(ViewOnlyDemo::HEADER);
+            }
+        } finally {
+            \Illuminate\Support\Facades\Storage::delete($transaction->invoice_path);
+        }
+    }
+
+    public function test_every_download_is_refused_for_a_view_only_account_and_untouched_for_others(): void
+    {
+        $files = $this->downloadProbeFiles();
+        $this->probeRoutes([
+            'zip' => fn () => response("PK\x03\x04archive", 200, ['Content-Type' => 'application/zip']),
+            'octet' => fn () => response("\x00\x01binary", 200, ['Content-Type' => 'application/octet-stream']),
+            'pdf' => fn () => response("%PDF-1.4\n", 200, ['Content-Type' => 'application/pdf']),
+            'download' => fn () => response()->download($files['zip'], 'site-backup.zip'),
+            'attachment-csv' => fn () => response("a,b\n1,2\n", 200, ['Content-Type' => 'text/csv', 'Content-Disposition' => 'attachment; filename="members.csv"']),
+            'file-zip-untyped' => fn () => response()->file($files['zip']),
+            'stream-sql' => fn () => response()->streamDownload(fn () => print ('-- dump'), 'dump.sql'),
+        ]);
+        $demo = $this->viewOnlyAdmin();
+        $owner = $this->admin();
+
+        foreach (['zip', 'octet', 'pdf', 'download', 'attachment-csv', 'file-zip-untyped', 'stream-sql'] as $probe) {
+            $this->actingAs($demo)->from('/admin')->get('/view-only-probe/'.$probe)
+                ->assertStatus(303)->assertSessionHasErrors(['view_only_demo' => self::CLOSED]);
+            $this->actingAs($demo)->getJson('/view-only-probe/'.$probe)->assertForbidden()->assertJson(['message' => self::CLOSED]);
+            $this->actingAs($owner)->get('/view-only-probe/'.$probe)->assertOk()->assertHeaderMissing(ViewOnlyDemo::HEADER);
+        }
+    }
+
+    public function test_pages_and_media_still_open_for_a_view_only_account(): void
+    {
+        $files = $this->downloadProbeFiles();
+        \Illuminate\Support\Facades\Storage::fake('public');
+        \Illuminate\Support\Facades\Storage::disk('public')->put('settings/logo.png', (string) file_get_contents($files['png']));
+        $this->probeRoutes([
+            'png-untyped' => fn () => response()->file($files['png']),
+            'video' => fn () => response()->file($files['mp4'], ['Content-Type' => 'video/mp4']),
+            'accel' => function () {
+                $response = response('', 200, ['X-Accel-Redirect' => '/protected-videos/a.mp4']);
+                $response->headers->remove('Content-Type');
+
+                return $response;
+            },
+            'svg' => fn () => response('<svg xmlns="http://www.w3.org/2000/svg"/>', 200, ['Content-Type' => 'image/svg+xml']),
+            'css' => fn () => response('body{}', 200, ['Content-Type' => 'text/css; charset=UTF-8']),
+            'font' => fn () => response('wOF2', 200, ['Content-Type' => 'font/woff2']),
+            'hls' => fn () => response("#EXTM3U\n", 200, ['Content-Type' => 'application/vnd.apple.mpegurl']),
+            'manifest' => fn () => response('{}', 200, ['Content-Type' => 'application/manifest+json']),
+            'js' => fn () => response('1;', 200, ['Content-Type' => 'text/javascript; charset=utf-8']),
+        ]);
+        $demo = $this->viewOnlyAdmin();
+        $member = User::factory()->create();
+
+        foreach (['png-untyped', 'video', 'accel', 'svg', 'css', 'font', 'hls', 'manifest', 'js'] as $probe) {
+            $this->actingAs($demo)->get('/view-only-probe/'.$probe)->assertOk()->assertHeader(ViewOnlyDemo::HEADER, '1');
+        }
+
+        foreach (['/', '/robots.txt', '/sitemap.xml', '/users/'.$member->id.'/avatar', '/users/'.$member->id.'/banner', '/storage/settings/logo.png'] as $page) {
+            $this->actingAs($demo)->get($page)->assertOk();
+        }
+
+        $this->assertFalse(ViewOnlyDemo::isDownload(response('', 200, ['Content-Type' => 'image/avif'])));
+        $this->assertTrue(ViewOnlyDemo::isDownload(response('', 200, ['Content-Type' => 'application/x-sqlite3'])));
+        $this->assertTrue(ViewOnlyDemo::isDownload(response('', 200, ['Content-Type' => 'text/html', 'Content-Disposition' => 'Attachment; filename=a.html'])));
+    }
+
+    /** @param  array<string, \Closure>  $answers  probe routes /view-only-probe/<name> in the web group, before the catch-all */
+    private function probeRoutes(array $answers): void
+    {
+        $router = $this->app['router'];
+        $routes = new \Illuminate\Routing\RouteCollection();
+
+        foreach ($answers as $name => $answer) {
+            $routes->add((new \Illuminate\Routing\Route(['GET', 'HEAD'], 'view-only-probe/'.$name, $answer))
+                ->middleware('web')->setRouter($router)->setContainer($this->app));
+        }
+
+        foreach ($router->getRoutes()->getRoutes() as $route) {
+            $routes->add($route);
+        }
+
+        $router->setRoutes($routes);
+    }
+
+    /** @return array{png: string, mp4: string, zip: string} small files the probe routes answer with */
+    private function downloadProbeFiles(): array
+    {
+        $dir = storage_path('framework/testing/view-only-downloads');
+        File::ensureDirectoryExists($dir);
+        $this->beforeApplicationDestroyed(fn () => File::deleteDirectory($dir));
+        $image = imagecreatetruecolor(2, 2);
+        imagepng($image, $dir.'/pixel.png');
+        imagedestroy($image);
+        file_put_contents($dir.'/clip.mp4', "\x00\x00\x00\x18ftypmp42");
+        file_put_contents($dir.'/backup.zip', "PK\x03\x04".str_repeat("\x00", 26));
+
+        return ['png' => $dir.'/pixel.png', 'mp4' => $dir.'/clip.mp4', 'zip' => $dir.'/backup.zip'];
     }
 
     // ------------------------------------------------------------------ keeping nothing
@@ -784,6 +920,13 @@ class ViewOnlyDemoTest extends TestCase
                 continue;
             }
 
+            // The new admin's old "To everyone" tab opens the one send form on the Sent page (judge R1-161).
+            if ($ui === 'v2' && $routeName === 'admin.broadcast.index') {
+                $response->assertRedirect(route('admin.notifications.index', ['new' => 1]).'#new-notification');
+
+                continue;
+            }
+
             // Money and its payment keys are pages of the new admin: the old one sends them to its settings tab.
             if ($ui === 'v1' && str_starts_with($routeName, 'admin.money.')) {
                 $response->assertStatus(302);
@@ -802,18 +945,20 @@ class ViewOnlyDemoTest extends TestCase
     public static function adminPages(): array
     {
         $open = ['admin.index', 'admin.activities.index', 'admin.announcements.index', 'admin.api-tokens.index',
-            'admin.avdb-import.index', 'admin.broadcast.index', 'admin.categories.index', 'admin.categories.create', 'admin.comments.index',
+            'admin.broadcast.index', 'admin.categories.index', 'admin.categories.create', 'admin.comments.index',
             'admin.contacts.index', 'admin.devices.index', 'admin.email-test.index', 'admin.featured.index', 'admin.interactions.index',
             'admin.invoices.index', 'admin.ip-bans.index', 'admin.languages.index', 'admin.languages.create', 'admin.media.index',
             'admin.notifications.index', 'admin.pages.index', 'admin.pages.create', 'admin.password-resets.index', 'admin.plans.index',
             'admin.plans.create', 'admin.playlists.index', 'admin.premiums.index', 'admin.redirects.index', 'admin.reports.index',
             'admin.searches.index', 'admin.sessions.index', 'admin.settings.index', 'admin.spams.index', 'admin.storage.index',
             'admin.subscriptions.index', 'admin.tags.index', 'admin.thumbnails.index', 'admin.transactions.index', 'admin.users.index',
-            'admin.verification.index', 'admin.videos.index', 'admin.views.index', 'admin.xvid-import.index', 'admin.updates.index',
+            'admin.verification.index', 'admin.videos.index', 'admin.views.index', 'admin.updates.index',
             'admin.money.index', 'admin.money.setup', 'admin.appearance.index'];
         $closed = ['admin.artisan.index', 'admin.backups.index', 'admin.cron.index', 'admin.database.index', 'admin.env-editor.index',
             'admin.exports.index', 'admin.failed-jobs.index', 'admin.logs.index', 'admin.phpinfo.index', 'admin.preflight.index',
-            'admin.queue.index', 'admin.system.index', 'admin.audit.index'];
+            'admin.queue.index', 'admin.system.index', 'admin.audit.index',
+            // 1.2.3: the import tools (the owner's import settings, runs and schedules)
+            'admin.avdb-import.index', 'admin.xvid-import.index'];
 
         $pages = [];
         foreach ($open as $name) {

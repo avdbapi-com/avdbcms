@@ -4,13 +4,18 @@ import {Subscribe} from "@/components/Actions";
 import {QueryClient, QueryClientProvider, useInfiniteQuery} from "@tanstack/react-query";
 import {getInteractions} from "@/api/avdbclip";
 import {Fragment} from "preact";
-import {InteractionSkeleton} from "@/components/Skeletons/InteractionSkeleton";
 import {InteractionType, InteractionsFilters} from "@/types";
 import {ChangeEvent} from "react";
 import {useDebounce} from "@/hooks/useDebounce";
 import {useTranslation} from "react-i18next";
 import {ApiError} from "@/components/Commons";
 import {formatRelativeTime} from "@/utils/format";
+
+/**
+ * "Who rated it" on a video's Analytics page (member design 6.5, perf-13, studio-35): the likes and the
+ * dislikes of the video, filtered (All / Likes / Dislikes) and searched by name, in the kit's markup. The list box keeps
+ * its height from the first frame (the dialog reserves it, the skeleton rows fill it), so nothing jumps when it loads.
+ */
 
 type Props = {
     target: number
@@ -66,53 +71,44 @@ function Main ({target} : Props) {
         }
     }, [inView, hasNextPage, isFetching, isError, fetchNextPage]);
 
-    const filtering = (type: InteractionsFilters) => {
-        if (type !== filter) {
-            setFilter(type)
-        }
-    }
     const searching = (e: ChangeEvent<HTMLInputElement>) => setSearch(e.currentTarget.value)
 
-    const activeButton = (type: InteractionsFilters) => filter === type ? 'primary ' : 'outline-primary ';
+    const total = interactions?.pages[0]?.meta?.total ?? 0;
+    const empty = interactions !== undefined && total === 0;
+    const choices: [InteractionsFilters, string][] = [['all', t('All')], ['up', t('Likes')], ['down', t('Dislikes')]];
 
     return (
-        <div style="height: 450px;">
-            <div className={'d-flex flex-wrap gap-2 align-items-center'}>
-                <button onClick={() => filtering('all')} className={'btn btn-' + activeButton('all') + 'btn-sm'}>{t('All')}</button>
-                <button onClick={() => filtering('up')} className={'d-flex align-items-center gap-2 btn btn-' + activeButton('up') + 'btn-sm'}>
-                    <span>{t('Only Likes')}</span>
-                </button>
-                <button onClick={() => filtering('down')} className={'d-flex align-items-center gap-2 btn btn-' + activeButton('down') + 'btn-sm'}>
-                    <span>{t('Only Dislikes')}</span>
-                </button>
-                <input onChange={searching} type="text" className={'form-control form-control-sm'} placeholder={t('Search user')} aria-label={t('Search')}/>
+        <div className="mk-likes">
+            <div className="mk-likes__tools">
+                <div className="mk-seg" role="group" aria-label={t('Show')}>
+                    {choices.map(([value, label]) => (
+                        <button type="button" className="mk-seg__item" aria-pressed={filter === value ? 'true' : 'false'} aria-current={filter === value ? 'true' : undefined} onClick={() => setFilter(value)}>{label}</button>
+                    ))}
+                </div>
+                <label className="mk-search">
+                    <span className="mk-sr">{t('Search names')}</span>
+                    <i className="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+                    <input onInput={searching} type="search" className="mk-input" placeholder={t('Search names')}/>
+                </label>
             </div>
-            <hr/>
-            <small className={'text-muted mb-1 d-block'}>
-                {isLoading && t('Loading ...')}
-                {interactions && t('Results', { count: interactions.pages[0].meta.total })}
-            </small>
-            <hr/>
-            {
-                isError && <ApiError error={error} refetch={refetch}/>
-            }
-            <div className="my-3" style="overflow-y: auto;height:330px;">
-                <ul className="list-group">
-                    {
-
-                        interactions &&
-                        <>
-                            {interactions.pages.map((group, i) => (
-                                <Fragment key={i}>
-                                    {group.data.map((interaction) => <Interaction interaction={interaction}/>)}
-                                </Fragment>
-                            ))}
-                        </>
-                    }
-                    {
-                        (isFetching || isLoading) &&
-                        [...Array(6).keys()].map(i => <InteractionSkeleton key={i}/>)
-                    }
+            <p className="mk-muted mk-likes__count" aria-live="polite">
+                {isLoading ? t('Loading ...') : t('Results', { count: total })}
+            </p>
+            {isError && <ApiError error={error} refetch={refetch}/>}
+            <div className="mk-likes__list">
+                {empty && !isFetching && (
+                    <div className="mk-empty mk-empty--compact">
+                        <span className="mk-empty__icon" aria-hidden="true"><i className="fa-regular fa-thumbs-up"></i></span>
+                        <p className="mk-empty__text">{t('Nobody rated it yet.')}</p>
+                    </div>
+                )}
+                <ul className="mk-rows">
+                    {interactions && interactions.pages.map((group, i) => (
+                        <Fragment key={i}>
+                            {group.data.map((interaction) => <Row interaction={interaction}/>)}
+                        </Fragment>
+                    ))}
+                    {(isFetching || isLoading) && [...Array(5).keys()].map(i => <SkeletonRow key={i}/>)}
                 </ul>
                 {hasNextPage && <span ref={ref}></span>}
             </div>
@@ -128,26 +124,39 @@ export function InteractionList(props: Props) {
     )
 }
 
-function Interaction ({interaction} : {interaction: InteractionType}) {
+function SkeletonRow () {
     return (
-        <li className="list-group-item d-flex flex-wrap justify-content-between align-items-center">
-            <div className={'d-flex align-items-center gap-2 gap-sm-4'}>
-                <div className={'p-2 badge text-' + (interaction.status ? 'success' : 'danger')}>
-                    {interaction.status ? <i className="fa-solid fa-thumbs-up"></i> : <i className="fa-solid fa-thumbs-down"></i>}
-                </div>
-                <div className={'d-flex align-items-center gap-2 ap-sm-4'}>
-                    <a href={interaction.user.route} className="d-flex align-items-center gap-2 text-decoration-none">
-                        <img className="rounded" src={interaction.user.avatar} alt={interaction.user.username + ' avatar'} style="width: 40px;"/>
-                    </a>
-                    <div className={'d-flex flex-column'}>
-                        <span className={'text-sm'}>{interaction.user.username}</span>
-                        <small className={'text-muted text-sm'}>{formatRelativeTime(interaction.perform_at)}</small>
-                    </div>
+        <li className="mk-item" aria-hidden="true">
+            <span className="mk-skel" style={{inlineSize: '40px', blockSize: '40px', borderRadius: '50%'}}></span>
+            <div className="mk-item__body">
+                <span className="mk-skel mk-skel--title" style={{inlineSize: '40%'}}></span>
+                <span className="mk-skel mk-skel--line" style={{inlineSize: '25%'}}></span>
+            </div>
+        </li>
+    );
+}
+
+function Row ({interaction} : {interaction: InteractionType}) {
+
+    const { t } = useTranslation();
+
+    return (
+        <li className="mk-item mk-item--media">
+            <img className="mk-avatar" src={interaction.user.avatar} alt="" width={40} height={40} loading="lazy" decoding="async"/>
+            <div className="mk-item__body">
+                <a className="mk-item__title" href={interaction.user.route}>{interaction.user.username}</a>
+                <div className="mk-row__meta">
+                    <span>{interaction.status
+                        ? <><i className="fa-solid fa-thumbs-up" aria-hidden="true" style={{color: 'var(--avd-success)'}}></i> {t('Liked it')}</>
+                        : <><i className="fa-solid fa-thumbs-down" aria-hidden="true" style={{color: 'var(--mk-danger)'}}></i> {t('Disliked it')}</>}</span>
+                    <span>{formatRelativeTime(interaction.perform_at)}</span>
                 </div>
             </div>
             {
                 interaction.user.id !== window.USER?.id &&
-                <Subscribe isSubscribe={interaction.user.subscribed_by_auth_user} user={interaction.user.id} size={'sm'}/>
+                <div className="mk-item__aside">
+                    <Subscribe isSubscribe={interaction.user.subscribed_by_auth_user} user={interaction.user.id} size={'sm'}/>
+                </div>
             }
         </li>
     )

@@ -30,6 +30,12 @@ class StripeService
         );
     }
 
+    /** Cancel a Stripe subscription now (Stripe stops charging it). Throws what the Stripe API throws. */
+    public function cancelSubscription(string $subscriptionId): void
+    {
+        Cashier::stripe()->subscriptions->cancel($subscriptionId);
+    }
+
     public function getTransactionFee(?string $stripeChargeId): int
     {
         if (blank($stripeChargeId)) {

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Support\AdminPreferences;
+use App\Support\AuditDetails;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -33,7 +34,7 @@ class AnnouncementController
             'expires_at' => 'nullable|date|after:starts_at',
         ]);
 
-        DB::table('announcements')->insert([
+        $id = DB::table('announcements')->insertGetId([
             'title' => $request->title,
             'message' => $request->message,
             'type' => $request->type,
@@ -45,26 +46,40 @@ class AnnouncementController
             'updated_at' => now(),
         ]);
 
+        // Tools > Logs > Admin actions (R3-019): the announcement by its title and number.
+        AuditLogController::log('announcement.created', AuditDetails::titled((object) ['id' => $id, 'title' => (string) $request->title]));
+
         return redirect()->route('admin.announcements.index')
-            ->withSuccess('Announcement created.');
+            ->withSuccess(__('Announcement created'));
     }
 
     public function toggle(int $id): RedirectResponse
     {
-        $current = DB::table('announcements')->where('id', $id)->value('is_active');
-        DB::table('announcements')->where('id', $id)->update([
-            'is_active' => !$current,
-            'updated_at' => now(),
-        ]);
+        $announcement = DB::table('announcements')->where('id', $id)->first(['id', 'title', 'is_active']);
+        $current = $announcement?->is_active;
+
+        if ($announcement !== null) {
+            DB::table('announcements')->where('id', $id)->update([
+                'is_active' => ! $current,
+                'updated_at' => now(),
+            ]);
+            AuditLogController::log($current ? 'announcement.hidden' : 'announcement.shown', AuditDetails::titled($announcement));
+        }
 
         return redirect()->route('admin.announcements.index')
-            ->withSuccess('Announcement ' . (!$current ? 'activated' : 'deactivated') . '.');
+            ->withSuccess($current ? __('Announcement hidden') : __('Announcement shown'));
     }
 
     public function destroy(int $id): RedirectResponse
     {
-        DB::table('announcements')->where('id', $id)->delete();
+        $announcement = DB::table('announcements')->where('id', $id)->first(['id', 'title']);
+
+        // Only an announcement that was there is written in Admin actions (a second click deletes nothing).
+        if ($announcement !== null && DB::table('announcements')->where('id', $id)->delete() > 0) {
+            AuditLogController::log('announcement.deleted', AuditDetails::titled($announcement));
+        }
+
         return redirect()->route('admin.announcements.index')
-            ->withSuccess('Announcement deleted.');
+            ->withSuccess(__('Announcement deleted'));
     }
 }

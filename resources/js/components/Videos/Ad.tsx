@@ -2,6 +2,7 @@ import Hls from "hls.js";
 import {useCallback, useEffect, useRef, useState} from "preact/hooks";
 import {useTranslation} from "react-i18next";
 import {HtmlAdSlot} from "./AdSlot";
+import {localePath} from "@/functions/sitePath";
 
 type Props = {
     setAds?: (ads: boolean) => void
@@ -226,7 +227,7 @@ export function Ad ({setAds, onComplete} : Props) {
                 <div className="avd-preroll-ad__fallback">
                     <h3>{t('Your Ad Could Be Here')}</h3>
                     <p>{t('Do you want to display your ad before each video ?')}</p>
-                    <a className="btn btn-primary btn-sm" href="/contact">{t('Contact us today')}</a>
+                    <a className="btn btn-primary btn-sm" href={localePath('/contact')}>{t('Contact us today')}</a>
                 </div>
             )}
             <div className="avd-preroll-ad__badge">

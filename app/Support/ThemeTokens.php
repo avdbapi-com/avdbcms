@@ -15,8 +15,8 @@ use Throwable;
  * `php artisan avd:themes:build` writes resources/css/themes/<id>.css: one block per mode keyed on
  * html[data-bs-theme] and mirrored clip-paths and corner radii under [dir="rtl"]; and per other colour
  * style (flavor) resources/css/themes/<id>/<flavor>.css with the tokens that differ, keyed on
- * [data-avd-flavor]. derive() is a port of the redesign's build_spec.derive (reference token files:
- * redesign spec/theme/tokens, whose blocks the files of a theme hold between them), so the build
+ * [data-avd-flavor]. derive() is a port of the redesign's reference token derivation (reference token
+ * files: the redesign's token CSS, whose blocks the files of a theme hold between them), so the build
  * reproduces them to within one sRGB step per channel.
  *
  * The owner's custom colours run through the same derive() at render time (ownerOverrides()).
@@ -27,8 +27,9 @@ final class ThemeTokens
 
     public const DEFAULT_FLAVOR = 'signature';
 
-    /** Bump when derive() changes, so cached owner-colour blocks are rebuilt. */
-    public const ENGINE_VERSION = '2.2';
+    /** Bump when derive() changes, so cached owner-colour blocks are rebuilt. 2.3: the owner CSS also carries the member
+     *  danger tokens decided for the owner's brand (Member\DangerTokens, member design 3.1a). */
+    public const ENGINE_VERSION = '2.3';
 
     /** Hero decoration sources under resources/css/themes (a hyphenated name: no theme id, no Vite token entry). */
     public const HERO_DECO_DIR = 'hero-decos';
@@ -95,6 +96,209 @@ final class ThemeTokens
     private const SERIF_FAMILIES = ['Playfair Display', 'Cinzel', 'Cormorant Garamond', 'Bodoni Moda', 'Newsreader', 'Fraunces', 'EB Garamond'];
 
     private const MONO_FAMILIES = ['JetBrains Mono', 'Space Mono', 'IBM Plex Mono', 'VT323', 'Silkscreen'];
+
+    /**
+     * perf-12 (b)-(d), channel-20 (lane M4 proposal, 1.2.3 round 3): a metric-matched fallback face per family, so the
+     * swap to the web font (font-display: swap) moves nothing: "<Family> Fallback" wraps the local font of its kind
+     * (Arial, Times New Roman, Courier New, or their metric twins) with the family's size-adjust and ascent / descent /
+     * line-gap overrides (percent), computed from the Google Fonts files by a font metrics script
+     * (letter-weighted widths against this machine's Arial, Times New Roman and Courier New). [kind, size-adjust, ascent,
+     * descent, line-gap].
+     *
+     * @var array<string, array{0: string, 1: float, 2: float, 3: float, 4: float}>
+     */
+    private const FALLBACK_FACES = [
+        'Outfit' => ['sans', 99.59, 100.41, 26.11, 0.0],
+        'Plus Jakarta Sans' => ['sans', 105.03, 98.83, 21.14, 0.0],
+        'Playfair Display' => ['serif', 112.4, 96.27, 22.33, 0.0],
+        'Inter' => ['sans', 107.33, 90.26, 22.47, 0.0],
+        'Orbitron' => ['sans', 124.7, 81.07, 19.49, 0.0],
+        'Chakra Petch' => ['sans', 103.42, 95.92, 29.78, 0.0],
+        'Roboto' => ['sans', 100.31, 92.48, 24.34, 0.0],
+        'Poppins' => ['sans', 113.71, 92.34, 30.78, 8.79],
+        'Quicksand' => ['sans', 105.35, 94.92, 23.73, 0.0],
+        'JetBrains Mono' => ['mono', 99.98, 102.02, 30.0, 0.0],
+        'Space Grotesk' => ['sans', 110.93, 88.71, 26.32, 0.0],
+        'Cinzel' => ['serif', 140.46, 69.48, 26.48, 0.0],
+        'Montserrat' => ['sans', 114.06, 84.87, 22.01, 0.0],
+        'Geist' => ['sans', 105.5, 95.26, 27.96, 0.0],
+        'Unbounded' => ['sans', 135.49, 73.44, 18.08, 0.0],
+        'Manrope' => ['sans', 103.58, 102.91, 28.96, 0.0],
+        'Syne' => ['sans', 98.99, 93.44, 27.78, 0.0],
+        'Be Vietnam Pro' => ['sans', 110.32, 90.64, 24.02, 0.0],
+        'Exo 2' => ['sans', 102.95, 97.04, 19.52, 0.0],
+        'Silkscreen' => ['mono', 111.53, 92.35, 22.41, 0.0],
+        'Nunito' => ['sans', 101.68, 99.43, 34.72, 0.0],
+        'VT323' => ['mono', 66.66, 120.02, 30.0, 0.0],
+        'Cormorant Garamond' => ['serif', 97.3, 94.96, 29.5, 0.0],
+        'Bodoni Moda' => ['serif', 115.14, 97.71, 34.74, 0.0],
+        'Newsreader' => ['serif', 105.43, 69.71, 25.13, 0.0],
+        'Lexend' => ['sans', 110.59, 90.42, 22.61, 0.0],
+        'Fraunces' => ['serif', 116.05, 84.27, 21.97, 0.0],
+        'Josefin Sans' => ['sans', 102.91, 72.88, 24.29, 0.0],
+        'EB Garamond' => ['serif', 94.3, 106.79, 31.6, 0.0],
+        'Sora' => ['sans', 113.85, 85.2, 25.47, 0.0],
+        'IBM Plex Sans' => ['sans', 101.21, 101.28, 27.17, 0.0],
+        'Onest' => ['sans', 105.97, 91.54, 28.78, 0.0],
+        'Fredoka' => ['sans', 102.28, 95.23, 23.07, 0.0],
+        'Baloo 2' => ['sans', 96.86, 111.3, 54.1, 0.0],
+        'Bricolage Grotesque' => ['sans', 106.7, 87.16, 25.3, 0.0],
+        'Archivo' => ['sans', 98.12, 89.48, 21.4, 0.0],
+        'Space Mono' => ['mono', 101.98, 109.82, 35.4, 0.0],
+        'Barlow Condensed' => ['sans', 77.34, 129.31, 25.86, 0.0],
+        'Barlow' => ['sans', 96.96, 103.13, 20.63, 0.0],
+        'Tektur' => ['sans', 111.7, 89.53, 26.86, 0.0],
+        'Saira Condensed' => ['sans', 79.91, 142.03, 54.93, 0.0],
+        'Saira' => ['sans', 104.3, 108.82, 42.09, 0.0],
+        'IBM Plex Mono' => ['mono', 99.98, 102.52, 27.5, 0.0],
+    ];
+
+    private const FALLBACK_LOCAL = [
+        'sans' => 'local("Arial"), local("ArialMT"), local("Liberation Sans"), local("Arimo")',
+        'serif' => 'local("Times New Roman"), local("TimesNewRomanPSMT"), local("Liberation Serif"), local("Tinos")',
+        'mono' => 'local("Courier New"), local("CourierNewPSMT"), local("Liberation Mono"), local("Cousine")',
+    ];
+
+    /**
+     * 1.2.3 round 1b (R1R-03): the bold fallback faces. Bold text (font-weight 600-900) set in a family's fallback face
+     * was its regular face drawn in synthetic bold, wider or narrower than the web font's bold: the header's Upload
+     * button grew 3.5-7 px and the header's buttons and links moved when the web font arrived. Each family gets one bold
+     * face (font-weight 600-900) wrapping the local BOLD font of its kind with the size-adjust and ascent / descent /
+     * line-gap overrides measured for the web font's 700 weight, by the regular faces' method (letter-weighted widths of
+     * the Google Fonts file against this machine's Arial Bold, Times New Roman Bold and Courier New Bold,
+     * measured by the same font metrics script). It covers what the regular face covers (fallbackRange(): every
+     * subset the web font has): the browser picks the bold face for bold text by its weight and sends a character outside
+     * that face's range to the NEXT font of the stack, not to the regular face, so a Latin-only bold face drew bold
+     * Vietnamese in two fonts inside one word ("Đăng nhập": Arial + Segoe UI) and bold Cyrillic in Segoe UI while the web
+     * font loaded. About 0.3-0.4 KB a family on every page (member design 4.3). [size-adjust, ascent, descent, line-gap]
+     * (percent); a family without a bold weight (VT323) has none.
+     *
+     * @var array<string, array{0: float, 1: float, 2: float, 3: float}>
+     */
+    private const FALLBACK_BOLD_FACES = [
+        'Outfit' => [95.17, 105.07, 27.32, 0.0],
+        'Plus Jakarta Sans' => [100.04, 103.76, 22.19, 0.0],
+        'Playfair Display' => [107.76, 100.41, 23.29, 0.0],
+        'Inter' => [101.96, 95.01, 23.66, 0.0],
+        'Orbitron' => [117.51, 86.03, 20.68, 0.0],
+        'Chakra Petch' => [100.81, 98.4, 30.55, 0.0],
+        'Roboto' => [93.99, 98.71, 25.98, 0.0],
+        'Poppins' => [107.4, 97.76, 32.59, 9.31],
+        'Quicksand' => [102.46, 97.6, 24.4, 0.0],
+        'JetBrains Mono' => [99.98, 102.02, 30.0, 0.0],
+        'Space Grotesk' => [102.48, 96.01, 28.49, 0.0],
+        'Cinzel' => [133.78, 72.96, 27.81, 0.0],
+        'Montserrat' => [110.92, 87.27, 22.63, 0.0],
+        'Geist' => [103.99, 96.64, 28.37, 0.0],
+        'Unbounded' => [131.81, 75.49, 18.59, 0.0],
+        'Manrope' => [100.81, 105.74, 29.76, 0.0],
+        'Syne' => [113.99, 81.15, 24.13, 0.0],
+        'Be Vietnam Pro' => [105.63, 94.67, 25.09, 0.0],
+        'Exo 2' => [99.12, 100.79, 20.28, 0.0],
+        'Silkscreen' => [128.58, 80.11, 19.44, 0.0],
+        'Nunito' => [97.78, 103.39, 36.1, 0.0],
+        'Cormorant Garamond' => [92.43, 99.96, 31.05, 0.0],
+        'Bodoni Moda' => [113.81, 98.85, 35.15, 0.0],
+        'Newsreader' => [106.46, 69.04, 24.89, 0.0],
+        'Lexend' => [108.38, 92.27, 23.07, 0.0],
+        'Fraunces' => [115.92, 84.37, 22.0, 0.0],
+        'Josefin Sans' => [101.29, 74.04, 24.68, 0.0],
+        'EB Garamond' => [98.04, 102.71, 30.4, 0.0],
+        'Sora' => [107.32, 90.38, 27.02, 0.0],
+        'IBM Plex Sans' => [98.18, 104.4, 28.01, 0.0],
+        'Onest' => [100.71, 96.32, 30.29, 0.0],
+        'Fredoka' => [95.3, 102.21, 24.76, 0.0],
+        'Baloo 2' => [94.18, 114.46, 55.64, 0.0],
+        'Bricolage Grotesque' => [102.3, 90.91, 26.39, 0.0],
+        'Archivo' => [97.48, 90.07, 21.54, 0.0],
+        'Space Mono' => [101.98, 109.82, 35.4, 0.0],
+        'Barlow Condensed' => [76.31, 131.04, 26.21, 0.0],
+        'Barlow' => [92.38, 108.25, 21.65, 0.0],
+        'Tektur' => [104.22, 95.95, 28.79, 0.0],
+        'Saira Condensed' => [74.44, 152.48, 58.97, 0.0],
+        'Saira' => [98.84, 114.84, 44.42, 0.0],
+        'IBM Plex Mono' => [99.98, 102.52, 27.5, 0.0],
+    ];
+
+    private const FALLBACK_BOLD_LOCAL = [
+        'sans' => 'local("Arial Bold"), local("Arial-BoldMT"), local("Liberation Sans Bold"), local("Arimo Bold")',
+        'serif' => 'local("Times New Roman Bold"), local("TimesNewRomanPS-BoldMT"), local("Liberation Serif Bold"), local("Tinos Bold")',
+        'mono' => 'local("Courier New Bold"), local("CourierNewPS-BoldMT"), local("Liberation Mono Bold"), local("Cousine Bold")',
+    ];
+
+    /**
+     * The Google Fonts subsets of each family above, as the Google Fonts CSS API (css2, current Chrome) serves them
+     * (read 2026-10-27 from the Google Fonts CSS API). A fallback face covers only the characters its
+     * family's web font draws (fallbackRange()): a character the web font lacks, such as Cyrillic in Outfit or Poppins,
+     * keeps the stack's system font (Segoe UI, Georgia, with their real bold faces), as it did before the fallback faces,
+     * instead of a regular-only Arial or Times New Roman at the family's size-adjust for good.
+     *
+     * @var array<string, list<string>>
+     */
+    private const FONT_SUBSETS = [
+        'Outfit' => ['latin', 'latin-ext'],
+        'Plus Jakarta Sans' => ['latin', 'latin-ext', 'cyrillic-ext', 'vietnamese'],
+        'Playfair Display' => ['latin', 'latin-ext', 'cyrillic', 'vietnamese'],
+        'Inter' => ['latin', 'latin-ext', 'cyrillic', 'cyrillic-ext', 'greek', 'greek-ext', 'vietnamese'],
+        'Orbitron' => ['latin'],
+        'Chakra Petch' => ['latin', 'latin-ext', 'vietnamese', 'thai'],
+        'Roboto' => ['latin', 'latin-ext', 'cyrillic', 'cyrillic-ext', 'greek', 'greek-ext', 'vietnamese', 'math', 'symbols'],
+        'Poppins' => ['latin', 'latin-ext', 'devanagari'],
+        'Quicksand' => ['latin', 'latin-ext', 'vietnamese'],
+        'JetBrains Mono' => ['latin', 'latin-ext', 'cyrillic', 'cyrillic-ext', 'greek', 'vietnamese'],
+        'Space Grotesk' => ['latin', 'latin-ext', 'vietnamese'],
+        'Cinzel' => ['latin', 'latin-ext'],
+        'Montserrat' => ['latin', 'latin-ext', 'cyrillic', 'cyrillic-ext', 'vietnamese'],
+        'Geist' => ['latin', 'latin-ext', 'cyrillic', 'cyrillic-ext', 'vietnamese'],
+        'Unbounded' => ['latin', 'latin-ext', 'cyrillic', 'cyrillic-ext', 'vietnamese'],
+        'Manrope' => ['latin', 'latin-ext', 'cyrillic', 'cyrillic-ext', 'greek', 'vietnamese'],
+        'Syne' => ['latin', 'latin-ext', 'greek'],
+        'Be Vietnam Pro' => ['latin', 'latin-ext', 'vietnamese'],
+        'Exo 2' => ['latin', 'latin-ext', 'cyrillic', 'cyrillic-ext', 'vietnamese'],
+        'Silkscreen' => ['latin', 'latin-ext'],
+        'Nunito' => ['latin', 'latin-ext', 'cyrillic', 'cyrillic-ext', 'vietnamese'],
+        'VT323' => ['latin', 'latin-ext', 'vietnamese'],
+        'Cormorant Garamond' => ['latin', 'latin-ext', 'cyrillic', 'cyrillic-ext', 'vietnamese'],
+        'Bodoni Moda' => ['latin', 'latin-ext', 'math', 'symbols'],
+        'Newsreader' => ['latin', 'latin-ext', 'vietnamese'],
+        'Lexend' => ['latin', 'latin-ext', 'vietnamese'],
+        'Fraunces' => ['latin', 'latin-ext', 'vietnamese'],
+        'Josefin Sans' => ['latin', 'latin-ext', 'vietnamese'],
+        'EB Garamond' => ['latin', 'latin-ext', 'cyrillic', 'cyrillic-ext', 'greek', 'greek-ext', 'vietnamese'],
+        'Sora' => ['latin', 'latin-ext'],
+        'IBM Plex Sans' => ['latin', 'latin-ext', 'cyrillic', 'cyrillic-ext', 'greek', 'vietnamese'],
+        'Onest' => ['latin', 'latin-ext', 'cyrillic', 'cyrillic-ext', 'vietnamese', 'math', 'symbols'],
+        'Fredoka' => ['latin', 'latin-ext', 'hebrew'],
+        'Baloo 2' => ['latin', 'latin-ext', 'vietnamese', 'devanagari'],
+        'Bricolage Grotesque' => ['latin', 'latin-ext', 'vietnamese'],
+        'Archivo' => ['latin', 'latin-ext', 'vietnamese'],
+        'Space Mono' => ['latin', 'latin-ext', 'vietnamese'],
+        'Barlow Condensed' => ['latin', 'latin-ext', 'vietnamese'],
+        'Barlow' => ['latin', 'latin-ext', 'vietnamese'],
+        'Tektur' => ['latin', 'latin-ext', 'cyrillic', 'cyrillic-ext', 'greek', 'vietnamese'],
+        'Saira Condensed' => ['latin', 'latin-ext', 'vietnamese'],
+        'Saira' => ['latin', 'latin-ext', 'vietnamese'],
+        'IBM Plex Mono' => ['latin', 'latin-ext', 'cyrillic', 'cyrillic-ext', 'vietnamese'],
+    ];
+
+    /**
+     * The unicode-range of each Google Fonts text subset that a local Arial / Times New Roman / Courier New can draw (the
+     * same in every family; css2 API, 2026-10-27). The other subsets (thai, devanagari: no such glyphs in those fonts;
+     * math, symbols: 1.3 KB of ranges per face) stay out: their characters keep the system font until the web font
+     * arrives, as before the fallback faces. A face never covers more than its web font.
+     *
+     * @var array<string, string>
+     */
+    private const FALLBACK_SUBSET_RANGES = [
+        'latin' => 'U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD',
+        'latin-ext' => 'U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF',
+        'vietnamese' => 'U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB',
+        'cyrillic' => 'U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116',
+        'cyrillic-ext' => 'U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F',
+        'greek' => 'U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF',
+        'greek-ext' => 'U+1F00-1FFF',
+        'hebrew' => 'U+0307-0308, U+0590-05FF, U+200C-2010, U+20AA, U+25CC, U+FB1D-FB4F',
+    ];
 
     private const GRAIN_SVG = 'url("data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'160\' height=\'160\'>'
         ."<filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/>"
@@ -455,7 +659,7 @@ final class ThemeTokens
     // ------------------------------------------------------------------ owner colours
 
     /**
-     * The owner's custom colours as an inline block (critique M10: same engine as the catalogue). A colour
+     * The owner's custom colours as an inline block (the same engine as the catalogue). A colour
      * setting counts as custom when it is a valid hex that differs from the active flavor's own value for that
      * role; the theme is then derived again with the custom palette and only the tokens that change are
      * printed, keyed on html[data-bs-theme][data-avd-flavor] so they beat the token file's flavor blocks.
@@ -525,6 +729,10 @@ final class ThemeTokens
 
                     $css .= 'html[data-bs-theme="'.$mode.'"][data-avd-flavor]{'.implode(';', $block).'}';
                 }
+
+                // The member danger tokens decided again for the owner's brand of this mode (member design 3.1a: Save
+                // and Delete never one colour, danger never the warning colour); (0,4,1), so they beat the static map.
+                $css .= \App\Support\Member\DangerTokens::css($tokens, $mode);
             }
 
             return $css;
@@ -573,7 +781,7 @@ final class ThemeTokens
 
     /**
      * The fonts a public page of this theme loads and the font tokens that differ from the theme's token file.
-     * Font budget (critique M5): the pairing's display and body families (plus a label family), only the styles
+     * Font budget: the pairing's display and body families (plus a label family), only the styles
      * the theme uses (e.g. Playfair italic only where a title is italic), static families with explicit weights
      * (the old 'Poppins:wght@400..700' was dropped by Google). Vietnamese pages swap a display face without
      * Vietnamese glyphs for the pairing's vi_display; Cyrillic pages fall back to the body face. Families the
@@ -818,7 +1026,7 @@ final class ThemeTokens
      * @param  array<string, string>  $overrides  palette roles replaced before the derivation (owner colours)
      * @param  bool  $fit  false = the brand, second brand and accent colours are used exactly on fills and text
      *                     (brand_contrast_autofix off); labels still take the more readable of white and ink
-     * @param  bool  $pageFit  false = the reference derivation (spec build_spec.derive): inks are fitted to the flat
+     * @param  bool  $pageFit  false = the reference derivation: inks are fitted to the flat
      *                         page and surface colours only, not to the colours the page backdrop paints behind text;
      *                         the transparent bar keeps its scrim tokens and no header overlay / solid-bar tokens are
      *                         added; the active menu ink is fitted to 4.5:1 without the real-page margin
@@ -985,7 +1193,7 @@ final class ThemeTokens
             '--avd-live' => $live, '--avd-live-fill' => $liveFill,
         ];
 
-        // Status colours fitted to this palette (critique M2): text inks + fills with their labels.
+        // Status colours fitted to this palette: text inks + fills with their labels.
         $status = Contrast::status($mode, $inkSurfaces, $inkDark);
 
         foreach (['success', 'warning', 'danger', 'info'] as $kind) {
@@ -1363,6 +1571,18 @@ final class ThemeTokens
             $btn['r'] = self::px($S['button']);
         }
 
+        // 1.2.3 round 1b (R1R-13): on real pages the primary button's label keeps a margin over 4.5:1 on a flat fill,
+        // like the side menu's active ink above. The film grain (surface_noise_grain_enabled, on by default) renders a
+        // fill a shade lighter or darker than its flat colour, so a label at exactly 4.5 measured 4.45-4.48:1 on screen
+        // (Swiss Bento dark: white on #e62335, 4.51 by the numbers; Esports Arena light: white on #e22b3a, 4.525). The
+        // fill moves just enough in lightness for 4.6:1 with its label; the label, the hue and every other token stay. A
+        // gradient fill is left as it is (its label sits on the gradient's middle, 5.6:1 and more on the default look's
+        // gradient, which keeps the demo site's colours: owner decision D1), and so is an owner's exact colour
+        // (brand_contrast_autofix off: $fit false).
+        if ($fit && $pageFit && preg_match('/^#[0-9a-f]{6}$/i', $btn['bg']) === 1 && preg_match('/^#[0-9a-f]{6}$/i', $btn['text']) === 1) {
+            $btn['bg'] = Contrast::fillForText($btn['bg'], $btn['text'], 4.6);
+        }
+
         $btn2Bg = empty($L['glass']) ? $s2o : self::a('#ffffff', $dark ? 0.12 : 0.6);
         $btn2Text = $text;
         $btn2Border = 'transparent';
@@ -1545,7 +1765,7 @@ final class ThemeTokens
             '--avd-hero-title' => '#ffffff', '--avd-hero-meta' => 'rgba(255,255,255,.86)',
             '--avd-hero-r' => $L['hero_variant'] !== 'billboard_full' ? self::px($S['card']) : '0px',
         ];
-        // Critique M4: <= 768px the hero text spans the full width, so the scrim is bottom-up and sits behind
+        // <= 768px the hero text spans the full width, so the scrim is bottom-up and sits behind
         // the whole text block (title, meta, buttons) at >= 62% black, whatever the poster.
         $tok['--avd-hero-scrim-phone'] = 'linear-gradient(0deg, rgba(0,0,0,.86) 0%, rgba(0,0,0,.70) 55%, rgba(0,0,0,.62) 78%, rgba(0,0,0,0) 100%)';
         $tok['--avd-hero-text-scrim'] = 'rgba(0,0,0,.62)';
@@ -1652,7 +1872,7 @@ final class ThemeTokens
             }
         }
 
-        // ---- compatibility aliases (audit G3) + Bootstrap bridge (critique M2)
+        // ---- compatibility aliases + Bootstrap bridge
         $tok = array_replace($tok, [
             '--avd-primary' => $brand, '--avd-primary-rgb' => self::rgb($brand), '--avd-surface-rgb' => self::rgb($s1o),
             '--avd-dark-surface-rgb' => self::rgb($s1o), '--avd-surface-card' => $s1o, '--avd-cyan' => $accent, '--avd-cyan-rgb' => self::rgb($accent),
@@ -2101,11 +2321,112 @@ final class ThemeTokens
     {
         $kind = in_array($family, self::SERIF_FAMILIES, true) ? 'serif' : (in_array($family, self::MONO_FAMILIES, true) ? 'mono' : 'sans');
 
-        return "'{$family}', ".match ($kind) {
+        // perf-12: the family's metric-matched fallback face (fallbackFaces()) comes right after it
+        $fallback = isset(self::FALLBACK_FACES[$family]) ? "'{$family} Fallback', " : '';
+
+        return "'{$family}', {$fallback}".match ($kind) {
             'mono' => "ui-monospace, 'Cascadia Code', Consolas, monospace",
             'serif' => "Georgia, 'Times New Roman', serif",
             default => "system-ui, 'Segoe UI', Roboto, sans-serif",
         };
+    }
+
+    /**
+     * perf-12: the @font-face rules of the given families' fallback faces (the families fontStack() names them for), one
+     * line of CSS; '' when none is known. The layout prints them next to the look's web font link.
+     *
+     * @param  list<string>  $families
+     */
+    public static function fallbackFaces(array $families): string
+    {
+        $css = '';
+
+        foreach (array_unique($families) as $family) {
+            $face = self::FALLBACK_FACES[$family] ?? null;
+
+            if ($face === null) {
+                continue;
+            }
+
+            [$kind, $size, $ascent, $descent, $gap] = $face;
+            $css .= '@font-face{font-family:"'.$family.' Fallback";src:'.self::FALLBACK_LOCAL[$kind].';size-adjust:'.$size.'%;'
+                .'ascent-override:'.$ascent.'%;descent-override:'.$descent.'%;line-gap-override:'.$gap.'%;'
+                .'unicode-range:'.self::fallbackRange($family).'}';
+
+            // R1R-03: its bold weights (600-900) from the local bold font, over the regular face's range (no synthetic
+            // bold while the web font loads, and one font per bold word in every script the web font has)
+            if (isset(self::FALLBACK_BOLD_FACES[$family])) {
+                [$boldSize, $boldAscent, $boldDescent, $boldGap] = self::FALLBACK_BOLD_FACES[$family];
+                $css .= '@font-face{font-family:"'.$family.' Fallback";font-weight:600 900;src:'.self::FALLBACK_BOLD_LOCAL[$kind].';'
+                    .'size-adjust:'.$boldSize.'%;ascent-override:'.$boldAscent.'%;descent-override:'.$boldDescent.'%;'
+                    .'line-gap-override:'.$boldGap.'%;unicode-range:'.self::fallbackRange($family).'}';
+            }
+        }
+
+        return $css;
+    }
+
+    /**
+     * R3-023: the families of fallbackFaces() (those of the given families that have a fallback face), in that order. The
+     * layout asks the browser for their faces right after printing them (document.fonts.load), while the page still waits
+     * for its stylesheets: a browser that meets its first local() face in a renderer sets up its local font matching
+     * then, and in the page's first full layout that took about a third more time (the watch page's first view at CPU
+     * x4: 824 ms of layout against 617 ms without the faces), whatever the number of faces, weights or local() names.
+     *
+     * @param  list<string>  $families
+     * @return list<string>
+     */
+    public static function fallbackFamilies(array $families): array
+    {
+        return array_values(array_filter(array_unique($families), static fn ($family): bool => isset(self::FALLBACK_FACES[$family])));
+    }
+
+    /**
+     * The unicode-range of a family's fallback face: the text subsets its web font covers (FONT_SUBSETS, only those in
+     * FALLBACK_SUBSET_RANGES; a family missing there counts as Latin only, which every Google family has), merged into
+     * one compact list such as 'U+0-2CC,U+2CE-2D7,...'. Never wider than the web font: what the web font lacks keeps
+     * the next font of the stack.
+     */
+    public static function fallbackRange(string $family): string
+    {
+        static $memo = [];
+
+        if (isset($memo[$family])) {
+            return $memo[$family];
+        }
+
+        $ranges = [];
+
+        foreach (self::FONT_SUBSETS[$family] ?? ['latin'] as $subset) {
+            foreach (explode(',', self::FALLBACK_SUBSET_RANGES[$subset] ?? '') as $part) {
+                $part = trim($part);
+
+                if (! preg_match('/^U\+([0-9A-F]{1,6})(?:-([0-9A-F]{1,6}))?$/i', $part, $m)) {
+                    continue;
+                }
+
+                $from = (int) hexdec($m[1]);
+                $ranges[] = [$from, isset($m[2]) ? (int) hexdec($m[2]) : $from];
+            }
+        }
+
+        sort($ranges);
+        $merged = [];
+
+        foreach ($ranges as [$from, $to]) {
+            $last = count($merged) - 1;
+
+            if ($last >= 0 && $from <= $merged[$last][1] + 1) {
+                $merged[$last][1] = max($merged[$last][1], $to);
+            } else {
+                $merged[] = [$from, $to];
+            }
+        }
+
+        return $memo[$family] = implode(',', array_map(
+            static fn (array $range): string => $range[0] === $range[1] ? sprintf('U+%X', $range[0]) : sprintf('U+%X-%X', $range[0], $range[1]),
+            $merged
+        ));
     }
 
     private static function grain(float $op): string

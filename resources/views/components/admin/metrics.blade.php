@@ -30,6 +30,17 @@
         return '<svg class="ad-spark" viewBox="0 0 '.$w.' '.$h.'" preserveAspectRatio="none" aria-hidden="true"><path class="a" d="'.$line.' L'.$w.','.$h.' L0,'.$h.' Z"/><path class="l" d="'.$line.'"/></svg>';
     };
     $items = array_slice($items, 0, 5);
+    // A signed number ("+12%", "-100%", "+3 today") reads left to right in every language: on a right-to-left page it
+    // is isolated (a <bdi dir="ltr">, so nothing invisible is copied with it), or its sign lands after it ("100%-").
+    $rtl = \App\Support\AdminTheme::direction() === 'rtl';
+    $isolate = static function (string $text) use ($rtl): \Illuminate\Support\HtmlString {
+        $html = '';
+        foreach ($rtl ? preg_split('/([+\-−]?\d[\d.,]*%?)/u', $text, -1, PREG_SPLIT_DELIM_CAPTURE) : [$text] as $i => $part) {
+            $html .= $i % 2 === 1 ? '<bdi dir="ltr">'.e($part).'</bdi>' : e($part);
+        }
+
+        return new \Illuminate\Support\HtmlString($html);
+    };
 @endphp
 <div {{ $attributes->class(['ad-metrics', 'is-n'.max(1, count($items))]) }}>
     @foreach ($items as $item)
@@ -39,7 +50,7 @@
             <span class="ad-metric-value">
                 <strong>{{ $item['value'] }}</strong>
                 @if (! empty($item['delta']))
-                    <span @class(['ad-delta', 'is-down' => ! empty($item['down'])])>{{ $item['delta'] }}</span>
+                    <span @class(['ad-delta', 'is-down' => ! empty($item['down'])])>{{ $isolate((string) $item['delta']) }}</span>
                 @endif
             </span>
             @if (! empty($item['spark']) && is_array($item['spark']))

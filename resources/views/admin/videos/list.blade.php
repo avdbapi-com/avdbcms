@@ -6,6 +6,7 @@
 --}}
 @use('App\Enums\VideoStatus')
 @use('App\Support\AdminTheme')
+@use('App\Support\VideoBans')
 @extends('layouts.admin')
 
 @section('title', __('All videos'))
@@ -29,10 +30,16 @@
             $counts['planned'] > 0 ? $statusTab((string) VideoStatus::PLANNED->value, $counts['planned'], __('Scheduled')) : null,
             $counts['banned'] > 0 ? $statusTab((string) VideoStatus::BANNED->value, $counts['banned'], __('Banned')) : null,
         ]));
-        $filtered = collect(request()->only(['search', 'category', 'user', 'date_start', 'date_end']))->filter(fn ($v) => $v !== null && $v !== '')->isNotEmpty();
-        // [dot tone, word, state for the row menu, why a public video is not shown]. The Public tab counts what visitors
-        // see: a public video whose creator is blocked, deleted or has not confirmed their email is not listed there.
-        $stateOf = function ($video): array {
+        $filtered = collect(request()->only(['search', 'category', 'user', 'date_start', 'date_end', 'unpublished', 'reason']))->filter(fn ($v) => $v !== null && $v !== '')->isNotEmpty();
+        $neverPublished = request()->query('unpublished') === '1';
+        // 1.2.3 round 3 (R3-073): the review list of the update's content-safety pass (Home's "Review") names its filter
+        $reasonFilter = request()->query('reason') === \App\Support\BlockedWordsPass::FILTER;
+        // 1.2.3: why a banned video of this page is banned, when its ban has a stored reason ("Blocked words (1.2.3)").
+        $banReasons = \App\Support\BlockedWordsPass::reasons($videos->getCollection());
+        // [dot tone, word, state for the row menu, why a public video is not shown / why a video is banned]. The Public
+        // tab counts what visitors see: a public video whose creator is blocked, deleted or has not confirmed their
+        // email is not listed there.
+        $stateOf = function ($video) use ($banReasons): array {
             $creator = $video->user;
             $hiddenBecause = match (true) {
                 $creator === null => __('Creator deleted'),
@@ -43,7 +50,7 @@
 
             return match (true) {
                 $video->is_failed => ['danger', __('Failed'), 'failed', null],
-                $video->is_banned => ['danger', __('Banned'), 'banned', null],
+                $video->is_banned => ['danger', __('Banned'), 'banned', $banReasons[$video->id] ?? null],
                 $video->is_uploading => ['off', __('Processing'), 'processing', null],
                 $video->is_draft => ['off', __('Draft'), 'draft', null],
                 $video->is_unlisted => ['off', __('Unlisted'), 'unlisted', null],
@@ -59,11 +66,23 @@
         :description="trans_choice('1 video. Visitors only see public ones.|:count videos. Visitors only see public ones.', $counts['all'], ['count' => number_format($counts['all'])])"
         :tabs="$tabs">
         <x-slot:actions>
-            <a class="ad-btn is-primary" href="{{ route('admin.avdb-import.index', [], false) }}">{{ AdminTheme::icon('cloud-down') }}{{ __('Import videos') }}</a>
+            {{-- A view-only demo account is not offered a closed page (ViewOnlyDemo::hides()): no import tools. --}}
+            @unless (\App\Http\Middleware\ViewOnlyDemo::hides('admin.avdb-import.index'))
+                <a class="ad-btn is-primary" href="{{ route('admin.avdb-import.index', [], false) }}">{{ AdminTheme::icon('cloud-down') }}{{ __('Import videos') }}</a>
+            @endunless
         </x-slot:actions>
         @if ($counts['not_shown'] > 0)
             <p class="ad-small ad-muted ad-note">{{ trans_choice('1 public video is not shown on your site: its creator is blocked or has not confirmed their email.|:count public videos are not shown on your site: their creators are blocked or have not confirmed their email.', $counts['not_shown'], ['count' => number_format($counts['not_shown'])]) }}
                 <a href="{{ route('admin.verification.index', [], false) }}">{{ __('Confirm emails') }}</a></p>
+        @endif
+        {{-- Public videos without a publish date (an older version's Unban or Make public): the lists show them last. --}}
+        @if ($counts['never_published'] > 0)
+            <p class="ad-small ad-muted ad-note">{{ trans_choice('1 public video was never published: an older version made it public without a publish date, so it comes last among the newest videos. Make public publishes it now, Make private hides it.|:count public videos were never published: an older version made them public without a publish date, so they come last among the newest videos. Make public publishes them now, Make private hides them.', $counts['never_published'], ['count' => number_format($counts['never_published'])]) }}
+                @unless ($neverPublished)<a href="{{ route('admin.videos.index', ['unpublished' => 1], false) }}">{{ trans_choice('Show 1 video|Show :count videos', $counts['never_published'], ['count' => number_format($counts['never_published'])]) }}</a>@endunless</p>
+        @endif
+        @if ($reasonFilter)
+            <p class="ad-small ad-note"><x-admin.status type="danger">{{ __('Reason: :reason', ['reason' => \App\Support\BlockedWordsPass::label(\App\Support\BlockedWordsPass::REASON)]) }}</x-admin.status>
+                <a href="{{ route('admin.videos.index', ['status' => VideoStatus::BANNED->value], false) }}">{{ __('Show all banned videos') }}</a></p>
         @endif
     </x-admin.page-header>
 
@@ -73,7 +92,8 @@
     <form id="ad-video-public" method="POST" action="{{ route('admin.bulk.videos', [], false) }}" data-ad-row-action="change" data-ad-done="{{ __('The video is public now') }}" hidden><input type="hidden" name="action" value="make_public"></form>
     <form id="ad-video-ban" method="POST" action="{{ route('admin.bulk.videos', [], false) }}" data-ad-row-action="change" data-ad-done="{{ __('The video is banned') }}"
           data-ad-confirm="{{ __('Ban this video?') }}" data-ad-confirm-body="{{ __('Visitors can no longer watch it. It stays in this list, where you can unban it.') }}" data-ad-confirm-label="{{ __('Ban video') }}" hidden></form>
-    <form id="ad-video-unban" method="POST" action="{{ route('admin.bulk.videos', [], false) }}" data-ad-row-action="change" data-ad-done="{{ __('The video is public again') }}" hidden></form>
+    {{-- Unban's toast is the row's own outcome (data-unbanned: the status it goes back to, or Private when none was kept). --}}
+    <form id="ad-video-unban" method="POST" action="{{ route('admin.bulk.videos', [], false) }}" data-ad-row-action="change" hidden></form>
     <form id="ad-video-delete" method="POST" action="{{ route('admin.bulk.videos', [], false) }}" data-ad-row-action="delete" data-ad-done="{{ __('Video deleted') }}"
           data-ad-confirm="{{ __('Delete this video for good?') }}" data-ad-confirm-body="{{ __('Its file, comments and views are deleted too. You can undo for a few seconds after this.') }}" data-ad-confirm-label="{{ __('Delete video') }}" hidden>@method('DELETE')</form>
     {{-- Names the rows' checkboxes and menu buttons together with each video's title (aria-labelledby). --}}
@@ -87,9 +107,9 @@
         <button type="submit" form="ad-video-private" name="ids[]" value="__ID__" data-ad-when="unlisted" data-ad-expect="private" data-ad-undo-url="{{ route('admin.bulk.videos', [], false) }}" data-ad-undo-fields='{"ids":["__ID__"],"action":"make_unlisted"}'>{{ AdminTheme::icon('eye-off') }}{{ __('Make private') }}</button>
         <button type="submit" form="ad-video-public" name="ids[]" value="__ID__" data-ad-when="private" data-ad-expect="public" data-ad-undo-url="{{ route('admin.bulk.videos', [], false) }}" data-ad-undo-fields='{"ids":["__ID__"],"action":"make_private"}'>{{ AdminTheme::icon('eye') }}{{ __('Make public') }}</button>
         <hr>
-        <button type="submit" form="ad-video-unban" formaction="{{ route('admin.videos.unban', ['video' => '__ID__'], false) }}" data-ad-when="banned" data-ad-expect="!banned">{{ AdminTheme::icon('check-circle') }}{{ __('Unban') }}</button>
-        <button type="submit" form="ad-video-ban" formaction="{{ route('admin.videos.ban', ['video' => '__ID__'], false) }}" class="is-danger" data-ad-when="public" data-ad-expect="banned" data-ad-undo-url="{{ route('admin.videos.unban', ['video' => '__ID__'], false) }}">{{ AdminTheme::icon('ban') }}{{ __('Ban video') }}</button>
-        <button type="submit" form="ad-video-ban" formaction="{{ route('admin.videos.ban', ['video' => '__ID__'], false) }}" class="is-danger" data-ad-when="!public,banned" data-ad-expect="banned">{{ AdminTheme::icon('ban') }}{{ __('Ban video') }}</button>
+        <button type="submit" form="ad-video-unban" formaction="{{ route('admin.videos.unban', ['video' => '__ID__'], false) }}" data-ad-when="banned" data-ad-expect="!banned" data-ad-done="__UNBANNED__">{{ AdminTheme::icon('check-circle') }}{{ __('Unban') }}</button>
+        {{-- Undo for every status: Unban gives a video back the status it had before the ban (VideoBans, since 1.2.3). --}}
+        <button type="submit" form="ad-video-ban" formaction="{{ route('admin.videos.ban', ['video' => '__ID__'], false) }}" class="is-danger" data-ad-when="!banned" data-ad-expect="banned" data-ad-undo-url="{{ route('admin.videos.unban', ['video' => '__ID__'], false) }}">{{ AdminTheme::icon('ban') }}{{ __('Ban video') }}</button>
         <button type="submit" form="ad-video-delete" formaction="{{ route('admin.videos.delete', ['video' => '__ID__'], false) }}" class="is-danger">{{ AdminTheme::icon('trash') }}{{ __('Delete video...') }}</button>
     </template>
 
@@ -122,6 +142,12 @@
                 @if (request()->filled('user'))
                     <input type="hidden" name="user" value="{{ request('user') }}">
                 @endif
+                @if ($neverPublished)
+                    <input type="hidden" name="unpublished" value="1">
+                @endif
+                @if ($reasonFilter)
+                    <input type="hidden" name="reason" value="{{ \App\Support\BlockedWordsPass::FILTER }}">
+                @endif
                 <span class="ad-spacer"></span>
                 <select class="ad-select" name="sort" aria-label="{{ __('Sort') }}" data-ad-autosubmit>
                     <option value="newest" @selected($sort === 'newest')>{{ __('Newest first') }}</option>
@@ -148,6 +174,10 @@
                 <button type="submit" class="ad-btn sm" form="ad-videos-bulk" name="action" value="change_category">{{ __('Change category') }}</button>
             </span>
             <button type="submit" class="ad-btn sm hide-phone" form="ad-videos-bulk" name="action" value="resync_duration">{{ __('Check durations again') }}</button>
+            {{-- While videos are banned (Members > Ban bans a member's videos at once): each goes back to its own status. --}}
+            @if ($counts['banned'] > 0)
+                <button type="submit" class="ad-btn sm" form="ad-videos-bulk" name="action" value="unban">{{ __('Unban') }}</button>
+            @endif
             <button type="submit" class="ad-btn is-danger sm" form="ad-videos-bulk" name="action" value="ban"
                     data-ad-confirm="{{ __('Ban the selected videos?') }}" data-ad-confirm-body="{{ __('Visitors can no longer watch them. They stay in this list, where you can unban them.') }}" data-ad-confirm-label="{{ __('Ban videos') }}">{{ __('Ban') }}</button>
             <button type="submit" class="ad-btn is-danger sm" form="ad-videos-bulk" name="action" value="delete"
@@ -169,7 +199,7 @@
             @if ($filtered || ($status !== null && $status !== ''))
                 <x-admin.empty icon="search" :title="__('No videos match')">{{ __('Try another word, or clear the filters.') }}</x-admin.empty>
             @else
-                <x-admin.empty icon="film" :title="__('No videos yet')" :action="__('Import your first videos')" :href="route('admin.avdb-import.index', [], false)">{{ __('Videos you import or members upload appear here.') }}</x-admin.empty>
+                <x-admin.empty icon="film" :title="__('No videos yet')" :action="__('Import your first videos')" :href="\App\Http\Middleware\ViewOnlyDemo::hides('admin.avdb-import.index') ? null : route('admin.avdb-import.index', [], false)">{{ __('Videos you import or members upload appear here.') }}</x-admin.empty>
             @endif
         </x-slot:empty>
 
@@ -181,7 +211,7 @@
                 $added = $video->created_at;
                 $comments = (int) $video->comments_count;
             @endphp
-            <tr><td class="is-check"><input type="checkbox" name="ids[]" value="{{ $video->id }}" form="ad-videos-bulk" aria-labelledby="ad-l-sel ad-v-{{ $video->id }}"></td><td class="c-main"><div class="ad-vid"><span class="ad-thumb">@unless ($video->is_draft)<img src="{{ $video->thumbnail_url }}" alt="" width="96" height="54" loading="lazy" decoding="async">@endunless @if ($video->duration !== '')<i>{{ $video->duration }}</i>@endif</span><p><a id="ad-v-{{ $video->id }}" href="{{ route('admin.videos.edit', $video, false) }}">{{ \Illuminate\Support\Str::limit((string) $video->title, 100) }}</a><small>{{ $video->user?->username ?? __('Deleted member') }}</small></p></div></td><td class="c-meta"><x-admin.status :type="$tone">{{ $stateLabel }}</x-admin.status>@if ($hiddenBecause)<small>{{ $hiddenBecause }}</small>@endif<small class="ad-phone-only">{{ trans_choice('1 view|:count views', (int) $video->views, ['count' => number_format((int) $video->views)]) }}</small></td><td class="hide-tab">{{ $video->category?->title ?? '-' }}</td><td class="is-num">{{ number_format((int) $video->views) }}</td><td class="is-num hide-tab">@if ($comments > 0)<a href="{{ route('admin.comments.index', ['video' => $video->id], false) }}">{{ number_format($comments) }}</a>@else 0 @endif</td><td class="is-date">{{ $added?->isToday() ? __('Today') : ($added?->isYesterday() ? __('Yesterday') : $added?->translatedFormat($added->isCurrentYear() ? 'j M' : 'j M Y')) }}</td><td class="is-actions"><button type="button" class="ad-iconbtn is-more" aria-labelledby="ad-l-act ad-v-{{ $video->id }}" data-id="{{ $video->id }}" data-state="{{ $stateKey }}"@if ($stateKey === 'public' || $stateKey === 'unlisted') data-url="{{ preg_replace('#^https?://[^/]+#', '', $video->route) }}"@endif @if ($comments > 0) data-comments="1"@endif></button></td></tr>
+            <tr><td class="is-check"><input type="checkbox" name="ids[]" value="{{ $video->id }}" form="ad-videos-bulk" aria-labelledby="ad-l-sel ad-v-{{ $video->id }}"></td><td class="c-main"><div class="ad-vid"><span class="ad-thumb">@unless ($video->is_draft)<img src="{{ $video->thumbnail_url }}" alt="" width="96" height="54" loading="lazy" decoding="async">@endunless @if ($video->duration !== '')<i>{{ $video->duration }}</i>@endif</span><p><a id="ad-v-{{ $video->id }}" href="{{ route('admin.videos.edit', $video, false) }}">{{ \Illuminate\Support\Str::limit((string) $video->title, 100) }}</a><small>{{ $video->user?->username ?? __('Deleted member') }}</small></p></div></td><td class="c-meta"><x-admin.status :type="$tone">{{ $stateLabel }}</x-admin.status>@if ($hiddenBecause)<small>{{ $hiddenBecause }}</small>@endif<small class="ad-phone-only">{{ trans_choice('1 view|:count views', (int) $video->views, ['count' => number_format((int) $video->views)]) }}</small></td><td class="hide-tab">{{ $video->category?->title ?? '-' }}</td><td class="is-num">{{ number_format((int) $video->views) }}</td><td class="is-num hide-tab">@if ($comments > 0)<a href="{{ route('admin.comments.index', ['video' => $video->id], false) }}">{{ number_format($comments) }}</a>@else 0 @endif</td><td class="is-date">{{ $added?->isToday() ? __('Today') : ($added?->isYesterday() ? __('Yesterday') : $added?->translatedFormat($added->isCurrentYear() ? 'j M' : 'j M Y')) }}</td><td class="is-actions"><button type="button" class="ad-iconbtn is-more" aria-labelledby="ad-l-act ad-v-{{ $video->id }}" data-id="{{ $video->id }}" data-state="{{ $stateKey }}"@if ($stateKey === 'banned') data-unbanned="{{ VideoBans::unbanMessage($video) }}"@endif @if ($stateKey === 'public' || $stateKey === 'unlisted') data-url="{{ preg_replace('#^https?://[^/]+#', '', $video->route) }}"@endif @if ($comments > 0) data-comments="1"@endif></button></td></tr>
         @endforeach
     </x-admin.table>
     {!! preg_replace('/\n\s+/', "\n", (string) ob_get_clean()) !!}

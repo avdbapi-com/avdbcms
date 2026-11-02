@@ -178,10 +178,12 @@ class VideoService {
                 return NextVideoDTO::fromPlaylist($nextPlaylistVideo, $playlist);
             }
 
-            /** @var Video $video */
+            /** @var Video|null $video */
             $video = $suggestedVideos->first();
 
-            return NextVideoDTO::fromSuggested($video);
+            // No video of the list the viewer may watch comes next, and the page has no suggestion either: no
+            // "Up next" (null used to reach fromSuggested(): a 500 on the watch page).
+            return $video !== null ? NextVideoDTO::fromSuggested($video) : null;
 
         }
 

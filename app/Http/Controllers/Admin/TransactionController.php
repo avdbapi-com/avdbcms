@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Support\AuditDetails;
 use App\Support\AdminCache;
 use App\Support\AdminPagination;
 use App\Support\AdminPreferences;
@@ -140,8 +141,14 @@ class TransactionController
 
     public function destroy(int $id): RedirectResponse
     {
-        DB::table('transactions')->where('id', $id)->delete();
-        return redirect()->route('admin.transactions.index')->withSuccess('Transaction deleted.');
+        $member = DB::table('transactions')->join('users', 'transactions.user_id', '=', 'users.id')->where('transactions.id', $id)->first(['users.id', 'users.username']);
+
+        // Tools > Logs > Admin actions (R3-019): the record's number and whose payment it was, never an amount.
+        if (DB::table('transactions')->where('id', $id)->delete() > 0) {
+            AuditLogController::log('payment.deleted', '#'.$id.($member !== null ? ', '.AuditDetails::member($member) : ''));
+        }
+
+        return redirect()->route('admin.transactions.index')->withSuccess(__('Payment record deleted'));
     }
 
     private function monthExpression(): string

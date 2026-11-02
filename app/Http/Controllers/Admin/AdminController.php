@@ -16,14 +16,12 @@ use App\Support\AppearanceSettings;
 use App\Support\AppVersion;
 use App\Support\MasterExperienceCatalog;
 use App\Support\PendingMigrations;
-use App\Support\RuntimeEnv;
 use App\Support\SettingsRevision;
 use App\Support\ThemeCatalog;
 use App\Support\Updater\PlanStore;
 use App\Support\Updater\ReleaseCheck;
 use App\Support\Updater\UpdatePaths;
 use App\Support\Updater\Updater;
-use Illuminate\Support\Carbon;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Http\JsonResponse;
@@ -36,8 +34,11 @@ use Throwable;
 
 class AdminController
 {
-    /** Notices an administrator can hide on Home (AdminPreferences "dismissed"). */
-    public const NOTICES = ['home-checklist'];
+    /**
+     * Notices an administrator can hide on Home (AdminPreferences "dismissed"); 'blocked-words': the videos the update to
+     * 1.2.3 hid (App\Support\BlockedWordsPass::NOTICE).
+     */
+    public const NOTICES = ['home-checklist', 'blocked-words'];
 
     /** @var array<string, true>|null see hasTable() */
     private ?array $tables = null;
@@ -47,6 +48,13 @@ class AdminController
 
     public function index(Request $request): View
     {
+        // 1.2.3: on a site too big for the update's own slice, a visit of Home goes on with the hiding of the videos that
+        // use words that are always blocked for a few seconds, after the page is sent (App\Support\BlockedWordsPass; the
+        // scheduler does the same every minute, so a site whose cron job does not run yet still gets there).
+        if (\App\Support\BlockedWordsPass::due()) {
+            app()->terminating(static fn () => rescue(fn () => \App\Support\BlockedWordsPass::run(\App\Support\BlockedWordsPass::VISIT_SECONDS), null, false));
+        }
+
         if (! AdminPreferences::usesNewAdmin($request->user())) {
             return $this->dashboard();
         }
@@ -91,7 +99,8 @@ class AdminController
      */
     private function home(Request $request): array
     {
-        $data = AdminCache::remember('home.v1', now()->addMinute(), fn (): array => [
+        // v2 (1.2.3): the week's earnings are cents (v1 held them divided by 100).
+        $data = AdminCache::remember('home.v2', now()->addMinute(), fn (): array => [
             'counts' => $this->homeCounts(),
             'metrics' => $this->weekMetrics(),
             'imports' => $this->recentImports(),
@@ -113,18 +122,23 @@ class AdminController
     }
 
     /**
-     * What Home says about the update: pending database changes (Finish update), the look the upgrade moved (Restore
-     * my previous look, 30 days) or the previous look in use after a restore (Use the new look again).
+     * What Home says about the update: pending database changes (Finish update), language files with texts this version
+     * corrected after an upload by hand without a database change (Correct the texts), the look the upgrade moved
+     * (Restore my previous look, 30 days) or the previous look in use after a restore (Use the new look again).
      */
     private function updateState(Request $request, array $pending, ?array $appearance): array
     {
-        $state = ['pending' => count($pending), 'moves_look' => false, 'look' => null, 'snapshot' => null];
+        $state = ['pending' => count($pending), 'moves_look' => false, 'look' => null, 'snapshot' => null, 'texts' => []];
 
         if ($pending !== []) {
             $state['moves_look'] = collect($pending)->contains(fn (string $name): bool => str_contains($name, 'theme_catalog_v2'));
 
             return $state;
         }
+
+        // Language files the owner changed that still have texts as an older version shipped them (Updater::pendingTexts():
+        // one cached answer, read again only when a language file changes). Finish update does them when it shows.
+        $state['texts'] = (array) rescue(fn (): array => (app()->bound(Updater::class) ? app(Updater::class) : new Updater())->pendingTexts(), [], false);
 
         if ($appearance === null || ! SettingsRevision::available()) {
             return $state;
@@ -165,12 +179,7 @@ class AdminController
                 $stalled = Updater::stalled($plan);
 
                 return array_merge($notice, [
-                    'running' => $stalled
-                        ? __('An update to :version stopped :time. Continue it or cancel it first.', [
-                            'version' => (string) ($plan['version'] ?? ''),
-                            'time' => Carbon::createFromTimestamp((int) ($plan['step_at'] ?? time()))->diffForHumans(),
-                        ])
-                        : Updater::busyMessage($plan),
+                    'running' => $stalled ? Updater::stalledMessage($plan) : Updater::busyMessage($plan),
                     'action' => $stalled ? __('See the update') : __('Show progress'),
                 ]);
             }
@@ -368,13 +377,14 @@ class AdminController
 
     private function weekEarnings(): array
     {
-        // The site's own reading of the setting (AppServiceProvider: on unless it is switched off).
+        // The site's own reading of the setting (AppServiceProvider: on unless it is switched off). 'week' is cents as
+        // the payments store them (JPY: whole yen): Home writes it with PremiumAvailability::money(), like Payments.
         $enabled = (bool) config('site.premium_enabled', true);
-        $earnings = ['enabled' => $enabled, 'week' => 0.0, 'currency' => strtoupper((string) RuntimeEnv::get('CASHIER_CURRENCY', 'usd'))];
+        $earnings = ['enabled' => $enabled, 'week' => 0];
 
         if ($enabled) {
             try {
-                $earnings['week'] = (float) DB::table('transactions')->where('date', '>=', now()->subDays(7))->sum('amount') / 100;
+                $earnings['week'] = (int) round((float) DB::table('transactions')->where('date', '>=', now()->subDays(7))->sum('amount'));
             } catch (Throwable) {
             }
         }
@@ -564,13 +574,48 @@ class AdminController
             ];
         }
 
+        // Premium checkout closed although payments were set up: a service with its keys but no webhook value (1.2.3
+        // requires it), or plans without the id of a connected service. Nothing for a site that never set up payments.
+        $checkout = rescue(fn (): array => \App\Support\PremiumAvailability::setupProblems(), [], false);
+
+        if ($checkout !== []) {
+            $webhooks = rescue(fn (): array => \App\Support\PremiumAvailability::missingWebhooks(), [], false);
+            // The webhook value is added on Payment setup (at its field); a plan's ids on Premium plans.
+            $fix = $webhooks !== []
+                ? (($setup = $url('money.setup')) === null ? null : $setup.'#pay-'.($webhooks[0] === 'stripe' ? 'STRIPE_WEBHOOK_SECRET' : 'PAYPAL_WEBHOOK_ID'))
+                : $url('money.plans');
+            $needs[] = [
+                'icon' => 'credit',
+                'tone' => 'warn',
+                'title' => __('Members cannot buy premium right now'),
+                'text' => implode(' ', $checkout),
+                'action' => [__('Set up payments'), $fix],
+            ];
+        }
+
+        // 1.2.3: the videos the update hid because their titles, tags or categories use words that are always blocked
+        // (App\Support\BlockedWordsPass), with the list to review them, until the administrator dismisses it.
+        $hidden = self::dismissed(request(), \App\Support\BlockedWordsPass::NOTICE) ? 0 : \App\Support\BlockedWordsPass::hiddenCount();
+
+        if ($hidden > 0) {
+            $needs[] = [
+                'icon' => 'eye-off',
+                'tone' => 'warn',
+                'title' => trans_choice('1 video was hidden because its title, tags or category use blocked words|:count videos were hidden because their titles, tags or categories use blocked words', $hidden, ['count' => number_format($hidden)]),
+                'text' => __('They are banned, so visitors no longer see them. Review them and unban any video that was hidden by mistake.'),
+                'action' => [__('Review'), route('admin.videos.index', ['status' => \App\Enums\VideoStatus::BANNED->value, 'reason' => \App\Support\BlockedWordsPass::FILTER], false)],
+                'dismiss' => \App\Support\BlockedWordsPass::NOTICE,
+            ];
+        }
+
         if ($counts['failed_imports'] !== []) {
             $first = $counts['failed_imports'][0];
+            $failedMessage = rtrim(Str::limit($first['message'], 90), ': ');
             $needs[] = [
                 'icon' => 'alert-circle',
                 'tone' => 'danger',
                 'title' => trans_choice('1 import failed|:count imports failed', count($counts['failed_imports']), ['count' => count($counts['failed_imports'])]),
-                'text' => trim($first['provider'].': '.Str::limit($first['message'], 90), ': '),
+                'text' => $failedMessage !== '' ? \App\Support\AdminText::labelled((string) $first['provider'], $failedMessage) : (string) $first['provider'],
                 'action' => [__('See details'), route($first['provider'] === 'AVDBAPI' ? 'admin.avdb-import.index' : 'admin.xvid-import.index', [], false)],
             ];
         }
@@ -590,7 +635,7 @@ class AdminController
                 'icon' => 'flag',
                 'tone' => 'accent',
                 'title' => trans_choice('1 report waiting|:count reports waiting', $reports, ['count' => $reports]),
-                'text' => $parts !== [] ? Str::ucfirst(implode(', ', $parts)).'.' : null,
+                'text' => $parts !== [] ? Str::ucfirst(\App\Support\AdminText::list($parts)).'.' : null,
                 'action' => [__('Review'), route('admin.reports.index', [], false)],
             ];
         }
@@ -620,7 +665,8 @@ class AdminController
             ];
         }
 
-        return $needs;
+        // A view-only demo account is not offered a closed page (ViewOnlyDemo::hides()): what sends there is left out.
+        return array_values(array_filter($needs, fn (array $need): bool => ! \App\Http\Middleware\ViewOnlyDemo::hidesUrl($need['action'][1] ?? null)));
     }
 
     /**
@@ -630,14 +676,18 @@ class AdminController
      */
     private function probes(array $counts): array
     {
-        $names = ['schedule', 'disk', 'health'];
+        // 'storage': can private files under storage/ be downloaded (checked once a day, after the page appears).
+        $names = ['schedule', 'disk', 'health', 'storage'];
 
         // The providers are only asked while imports are scheduled.
         if ($counts['import_schedules'] > 0) {
             $names[] = 'provider';
         }
 
-        return collect($names)->mapWithKeys(fn (string $probe): array => [$probe => StatusProbeController::peek($probe)])->all();
+        return collect($names)->mapWithKeys(fn (string $probe): array => [$probe => StatusProbeController::peek($probe)])
+            // A view-only demo account is not offered a closed page (ViewOnlyDemo::hides()): a check that sends there is left out.
+            ->reject(fn (?array $answer): bool => \App\Http\Middleware\ViewOnlyDemo::hidesUrl(is_array($answer['action'] ?? null) ? (string) ($answer['action']['url'] ?? '') : null))
+            ->all();
     }
 
     /** The old admin's dashboard (one release: the admin's "Use the old admin"). */
@@ -683,7 +733,9 @@ class AdminController
         return view('admin.index', $data + [
             // The old dashboard also offers "Finish update" after a new version is uploaded.
             'pendingMigrations' => PendingMigrations::count(),
-            // ... and a link to Tools > Updates when a newer AVDBCMS is out (F8 §2: no other new page in the old admin).
+            // 1.2.3: and says how many videos the update hid for blocked words, as Home's "Needs you" does
+            'blockedWordsHidden' => self::dismissed(request(), \App\Support\BlockedWordsPass::NOTICE) ? 0 : \App\Support\BlockedWordsPass::hiddenCount(),
+            // ... and a link to Tools > Updates when a newer AVDBCMS is out (no other new page in the old admin).
             'availableRelease' => $this->availableRelease(),
             'todayUsers' => $data['users_count_today'],
             'todayVideos' => $data['videos_count_today'],

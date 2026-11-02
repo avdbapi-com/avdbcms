@@ -16,7 +16,7 @@ use Tests\Feature\Updater\Support\UpdaterScenario;
 use Tests\TestCase;
 
 /**
- * Requests that reach the maintenance hook while the files are swapped (F8 11, 15, 18 "Maintenance hook"): the
+ * Requests that reach the maintenance hook while the files are swapped: the
  * generated storage/framework/maintenance.php, loaded the way public/index.php loads it (before vendor/autoload.php).
  *
  *  - a visitor (any method, any address, with or without a wrong update cookie) gets 503 "This site is being updated.

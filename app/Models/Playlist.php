@@ -30,6 +30,20 @@ class Playlist extends Model
         'sort' => PlaylistSort::class
     ];
 
+    /**
+     * A playlist deleted for good takes its rows with it on every site, whatever way it goes (the studio, the admin, the
+     * member's account, the daily clean-up): its videos' rows and the other members' saves of it. Only the bundled
+     * database's foreign keys removed them; a site installed by the migrations kept them for a playlist that no longer
+     * existed (judge R3-009).
+     */
+    protected static function booted(): void
+    {
+        static::forceDeleting(function (Playlist $playlist): void {
+            \Illuminate\Support\Facades\DB::table('playlist_has_videos')->where('playlist_id', $playlist->getKey())->delete();
+            \Illuminate\Support\Facades\DB::table('favorites_playlist')->where('playlist_id', $playlist->getKey())->delete();
+        });
+    }
+
     public function user() : BelongsTo
     {
         return $this->belongsTo(User::class);
@@ -101,6 +115,12 @@ class Playlist extends Model
 
                 if ($this->is_deletable) {
                     return $value;
+                }
+
+                // R1-147: the stored title of the Watch later list is its identifier ("Watch Later", looked up by
+                // WatchLaterPlaylist::getName()); it reads as the menu's own words in every language
+                if ($value === \App\Playlists\Types\WatchLaterPlaylist::getName()) {
+                    return __('Watch later');
                 }
 
                 return __($value);

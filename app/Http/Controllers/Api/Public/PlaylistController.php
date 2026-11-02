@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\Public;
 use App\Http\Resources\Playlist\PlaylistShowResource;
 use App\Http\Resources\Video\VideoListResource;
 use App\Models\Playlist;
+use App\Support\AdminIpLock;
 use Illuminate\Http\Resources\Json\ResourceCollection;
 
 class PlaylistController
@@ -18,7 +19,7 @@ class PlaylistController
     {
         $viewer = auth()->user();
         $videos = $playlist->videos()
-            ->when(! $viewer?->is_admin && $viewer?->id !== $playlist->user_id,
+            ->when(! AdminIpLock::adminPowersHere($viewer) && $viewer?->id !== $playlist->user_id,
                 fn ($query) => $query->active()->forLocale())
             ->with('user')
             ->paginate(config('site.per_page_videos', 24));

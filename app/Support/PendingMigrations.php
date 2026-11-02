@@ -3,7 +3,6 @@
 namespace App\Support;
 
 use App\Models\Setting;
-use Illuminate\Contracts\Cache\Lock;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -14,16 +13,34 @@ use Throwable;
  * Database changes a newly uploaded version still waits for, and the one-click "Finish update" on Home that applies
  * them. Uploading a release over an older install leaves its migrations pending; the site keeps working (new code
  * checks for new tables and columns) until an administrator finishes the update.
+ *
+ * run() takes them one at a time, in order, while the request's deadline allows (App\Support\TimeBudget: Finish sets
+ * one; the console sets none and runs them all), and says when some are left for the next request ("more"). A host
+ * that ends a request half-way (a time limit that cannot be raised, PHP-FPM's request_terminate_timeout) never holds
+ * the next request up: the lock (App\Support\FinishLock) is released by the operating system and the database when the
+ * request ends, however it ends, and the next request goes on at once. A migration cut off half-way is not recorded as
+ * run, so the next request runs it again (every migration is safe to run twice).
  */
 final class PendingMigrations
 {
     public const CACHE_KEY = 'admin.pending_migrations';
 
-    public const LOCK = 'avd-finish-update';
+    /** The cache lock of the database step (FinishLock::NAME, the same name as 1.2.2's). */
+    public const LOCK = FinishLock::NAME;
+
+    /**
+     * How long the cache lock holds when nobody releases it and no request can tell that its holder is gone (see
+     * FinishLock): longer than a request of Finish works (Updater::BUDGET) plus one slow migration.
+     */
+    public const LOCK_SECONDS = FinishLock::SECONDS;
+
+    /** A new migration starts only with this many seconds left before the deadline (the first one of a request always does). */
+    public const RESERVE = 5.0;
+
+    /** PHP's time limit for the database step, where the host lets set_time_limit() raise it. */
+    private const TIME_LIMIT = 300;
 
     private const CACHE_SECONDS = 600;
-
-    private const LOCK_SECONDS = 300;
 
     /**
      * Names of the migration files that have not run yet. The answer is cached for 10 minutes per set of migration
@@ -81,56 +98,107 @@ final class PendingMigrations
     }
 
     /**
-     * Run every pending migration (under a lock, so two clicks or two administrators never migrate at once), then clear
-     * the caches the new version must not read stale. Safe to call again: with nothing pending it changes nothing.
+     * Run the pending migrations (under a lock, so two clicks or two administrators never migrate at once), one at a
+     * time and in order, then clear the caches the new version must not read stale. With a deadline (TimeBudget) a new
+     * migration starts only while RESERVE seconds are left, the first one of the request always: "more" then says that
+     * some wait for the next request ("left": their names). Safe to call again: with nothing pending it changes nothing.
+     * "took_over": the lock was left by a request the host ended, and this one went on from there.
      *
-     * @return array{ok: bool, busy: bool, ran: array<int, string>, message: string}
+     * @return array{ok: bool, busy: bool, more: bool, ran: array<int, string>, left: array<int, string>, message: string, took_over: bool}
      */
     public static function run(): array
     {
-        $before = self::find(self::files()) ?? [];
+        $files = self::files();
+        $before = self::find($files) ?? [];
 
         if ($before === []) {
             self::forget();
 
-            return ['ok' => true, 'busy' => false, 'ran' => [], 'message' => __('Your site is up to date.')];
+            return ['ok' => true, 'busy' => false, 'more' => false, 'ran' => [], 'left' => [], 'message' => __('Your site is up to date.'), 'took_over' => false];
         }
 
-        $lock = self::acquire();
+        $lock = FinishLock::acquire();
 
-        if ($lock === false) {
-            return ['ok' => false, 'busy' => true, 'ran' => [], 'message' => __('The update is already being finished. Wait a minute, then reload this page.')];
+        if ($lock === null) {
+            return ['ok' => false, 'busy' => true, 'more' => false, 'ran' => [], 'left' => $before, 'message' => __('The update is already being finished. Wait a minute, then reload this page.'), 'took_over' => false];
         }
 
-        if (function_exists('set_time_limit')) {
-            @set_time_limit(self::LOCK_SECONDS);
-        }
+        // The lock never depends on this (a process killed from outside runs no PHP at all, see FinishLock); where PHP
+        // itself ends the request (its time limit, memory), the shutdown also lets the cache lock go at once.
+        $held = new \stdClass();
+        $held->lock = $lock;
+        register_shutdown_function(static function () use ($held): void {
+            if ($held->lock instanceof FinishLock) {
+                $held->lock->release();
+                $held->lock = null;
+            }
+        });
+
+        TimeBudget::raise(self::TIME_LIMIT);
+        $failure = null;
+        $stopped = false;
 
         try {
-            Artisan::call('migrate', ['--force' => true]);
-            $failure = null;
+            foreach ($before as $i => $name) {
+                if ($i > 0 && TimeBudget::left() < self::RESERVE) {
+                    $stopped = true;
+
+                    break;
+                }
+
+                if (! isset($files[$name])) {
+                    continue;
+                }
+
+                Artisan::call('migrate', ['--force' => true, '--path' => [$files[$name]], '--realpath' => true]);
+            }
         } catch (Throwable $e) {
             report($e);
             $failure = $e;
         } finally {
-            self::release($lock);
+            $lock->release();
+            $held->lock = null;
         }
 
         self::clearCaches();
-        $ran = array_values(array_diff($before, self::find(self::files()) ?? $before));
+        $left = self::find(self::files()) ?? $before;
+        $ran = array_values(array_diff($before, $left));
+        $left = array_values(array_intersect($before, $left));
+        $tookOver = $lock->tookOver();
 
         if ($failure !== null) {
             return [
                 'ok' => false,
                 'busy' => false,
+                'more' => false,
                 'ran' => $ran,
+                'left' => $left,
                 'message' => __('The update could not finish: :reason Your site keeps working. Try again, or ask your host to run "php artisan migrate".', [
                     'reason' => Str::limit(trim(class_basename($failure).': '.$failure->getMessage()), 180),
                 ]),
+                'took_over' => $tookOver,
             ];
         }
 
-        return ['ok' => true, 'busy' => false, 'ran' => $ran, 'message' => __('The update is finished.')];
+        // "more" only when the deadline stopped the run: a migration that ran and still counts as pending (one that skips
+        // itself, Laravel's shouldRun() false, is never recorded) must not make the page ask again and again.
+        if ($stopped && $left !== []) {
+            return ['ok' => true, 'busy' => false, 'more' => true, 'ran' => $ran, 'left' => $left,
+                'message' => __('Some of the database changes are done. Click Finish update again for the rest.'), 'took_over' => $tookOver];
+        }
+
+        return ['ok' => true, 'busy' => false, 'more' => false, 'ran' => $ran, 'left' => $left, 'message' => __('The update is finished.'), 'took_over' => $tookOver];
+    }
+
+    /**
+     * The names of the migrations that have not run yet, asked now (not the cached answer of pending()), in the order
+     * they run; null when the database cannot tell.
+     *
+     * @return array<int, string>|null
+     */
+    public static function pendingNow(): ?array
+    {
+        return self::find(self::files());
     }
 
     private static function database(): string
@@ -183,47 +251,6 @@ final class PendingMigrations
             report($e);
 
             return null;
-        }
-    }
-
-    /**
-     * The cache store's lock, or a file lock when the store cannot lock (e.g. the "null" store).
-     *
-     * @return Lock|resource|false
-     */
-    private static function acquire(): mixed
-    {
-        try {
-            $lock = Cache::lock(self::LOCK, self::LOCK_SECONDS);
-
-            return $lock->get() ? $lock : false;
-        } catch (Throwable) {
-            $handle = @fopen(storage_path('framework/'.self::LOCK.'.lock'), 'c');
-
-            if ($handle === false) {
-                return false;
-            }
-
-            if (! flock($handle, LOCK_EX | LOCK_NB)) {
-                fclose($handle);
-
-                return false;
-            }
-
-            return $handle;
-        }
-    }
-
-    private static function release(mixed $lock): void
-    {
-        try {
-            if ($lock instanceof Lock) {
-                $lock->release();
-            } elseif (is_resource($lock)) {
-                flock($lock, LOCK_UN);
-                fclose($lock);
-            }
-        } catch (Throwable) {
         }
     }
 

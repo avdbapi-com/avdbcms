@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\AaPanelRewrite;
 use Illuminate\Support\Facades\Storage;
 use League\Flysystem\PathTraversalDetected;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -16,6 +17,13 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
  * every uploaded avatar, thumbnail or attachment would 404. When the symlink
  * exists the web server serves the file directly and this route is never hit;
  * when it does not, this controller streams the file instead.
+ *
+ * The same files the shipped web server rules hand out, and no others: never a
+ * script file (an upload folder serves pictures) nor a database dump, a log or a
+ * backup copy (App\Support\AaPanelRewrite::SCRIPTS / DUMPS, the expressions of
+ * docs/server-configs/ and the .htaccess files). This route is also reached as
+ * /index.php/storage/... and /<language>/storage/..., which no web server rule
+ * sees (round 1b R1B-018, review BWR-04).
  */
 class StorageFallbackController extends Controller
 {
@@ -27,7 +35,9 @@ class StorageFallbackController extends Controller
             || str_contains($path, chr(0))
             || str_contains($path, '..')
             || str_starts_with($path, '.')
-            || str_contains($path, '/.')) {
+            || str_contains($path, '/.')
+            || preg_match('#'.AaPanelRewrite::SCRIPTS.'#i', $path) === 1
+            || preg_match('#'.AaPanelRewrite::DUMPS.'#i', $path) === 1) {
             throw new NotFoundHttpException();
         }
 

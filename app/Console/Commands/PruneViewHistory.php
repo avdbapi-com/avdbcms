@@ -15,7 +15,7 @@ class PruneViewHistory extends Command
     {
         $deleted = $views->prune(now(), (int) $this->option('chunk'));
 
-        $this->info("Deleted {$deleted} expired raw view row(s).");
+        $this->info("Deleted {$deleted} expired raw view ".\Illuminate\Support\Str::plural('row', (int) $deleted).'.');
 
         return Command::SUCCESS;
     }

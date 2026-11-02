@@ -45,6 +45,12 @@ class AdminPageSmokeTest extends TestCase
         $admin = User::factory()->admin()->create();
         AdminPreferences::set($admin, 'developer_mode', true);
 
+        if ($routeName === 'admin.broadcast.index') {
+            // the new admin's one send form is New notification on the Sent page; this address opens it (judge R1-161)
+            $this->actingAs($admin)->get(route($routeName))->assertRedirect(route('admin.notifications.index', ['new' => 1]).'#new-notification');
+            $routeName = 'admin.notifications.index';
+        }
+
         $html = $this->actingAs($admin)
             ->get(route($routeName))
             ->assertOk()
@@ -158,7 +164,7 @@ class AdminPageSmokeTest extends TestCase
         }
     }
 
-    /** The lists moved to the new table in wave 3: rows, one row-menu template (where rows have actions), one H1. */
+    /** The other lists moved to the new table: rows, one row-menu template (where rows have actions), one H1. */
     public function test_the_other_lists_show_their_rows_in_the_new_admin(): void
     {
         config(['admin.ui' => 'v2', 'admin.operational_tools_enabled' => true]);
@@ -187,7 +193,6 @@ class AdminPageSmokeTest extends TestCase
             'admin.invoices.index' => ['ad-invoice-menu', 'paying_member'],
             'admin.failed-jobs.index' => ['ad-failed-menu', 'Run Avdb Import'],
             'admin.audit.index' => [null, 'settings.update'],
-            'admin.broadcast.index' => [null, 'Big news'],
             'admin.spams.index' => [null, 'name="emails"'],
         ];
 
@@ -221,27 +226,36 @@ class AdminPageSmokeTest extends TestCase
             ->assertSee('Chrome on Windows');
     }
 
-    /** The two form pages send the same fields to the same addresses as the old ones. */
+    /**
+     * The form pages send the same fields to the same addresses as the old ones. The new admin has ONE form to notify
+     * members (judge R1-161): New notification on the Sent page, with every choice of the old "To everyone" tab, whose
+     * address (/admin/broadcast) now opens it; the old admin keeps its Mass Broadcast form.
+     */
     public function test_the_broadcast_and_spam_forms_keep_their_fields(): void
     {
         config(['admin.ui' => 'v2']);
         $admin = User::factory()->admin()->create();
 
-        $broadcast = $this->actingAs($admin)->get(route('admin.broadcast.index'))->assertOk()->getContent();
-        $this->assertStringContainsString('action="'.route('admin.broadcast.send', [], false).'"', $broadcast);
+        $this->actingAs($admin)->get(route('admin.broadcast.index'))
+            ->assertRedirect(route('admin.notifications.index', ['new' => 1]).'#new-notification');
+
+        $notifications = $this->actingAs($admin)->get(route('admin.notifications.index', ['new' => 1]))->assertOk()->getContent();
+        $this->assertStringContainsString('action="'.route('admin.notifications.broadcast', [], false).'"', $notifications);
         foreach (['target', 'user_ids', 'title', 'message'] as $field) {
-            $this->assertStringContainsString('name="'.$field.'"', $broadcast);
+            $this->assertStringContainsString('name="'.$field.'"', $notifications);
         }
 
-        $notifications = $this->actingAs($admin)->get(route('admin.notifications.index'))->assertOk()->getContent();
-        $this->assertStringContainsString('action="'.route('admin.notifications.broadcast', [], false).'"', $notifications);
+        config(['admin.ui' => 'v1']);
+        $broadcast = $this->actingAs($admin)->get(route('admin.broadcast.index'))->assertOk()->getContent();
+        $this->assertStringContainsString('action="'.route('admin.broadcast.send').'"', $broadcast, 'the old admin keeps its Mass Broadcast form');
+        config(['admin.ui' => 'v2']);
 
         $spam = $this->actingAs($admin)->get(route('admin.spams.index'))->assertOk()->getContent();
         $this->assertStringContainsString('action="'.route('admin.spams.update').'"', $spam);
         $this->assertStringContainsString('name="_method" value="PUT"', $spam);
     }
 
-    /** One row in each table the wave-3 lists read (also used by AdminListQueryCountTest). */
+    /** One row in each table the other lists read (also used by AdminListQueryCountTest). */
     public static function seedOtherLists(User $admin, int $n = 1, string $tag = ''): void
     {
         for ($i = 0; $i < $n; $i++) {
@@ -507,13 +521,13 @@ class AdminPageSmokeTest extends TestCase
         $this->actingAs($admin)->from($edit)
             ->post(route('admin.users.toggle-admin', $member))
             ->assertRedirect($edit)
-            ->assertSessionHas('success', 'User promoted to admin successfully.');
+            ->assertSessionHas('success', 'Now an administrator');
         $this->assertTrue($member->fresh()->is_admin);
 
         $this->actingAs($admin)->from($edit)
             ->post(route('admin.users.toggle-admin', $member))
             ->assertRedirect($edit)
-            ->assertSessionHas('success', 'User removed from admin successfully.');
+            ->assertSessionHas('success', 'No longer an administrator');
         $this->assertFalse($member->fresh()->is_admin);
 
         // An admin never takes their own rights away (as the bulk action).
@@ -635,7 +649,8 @@ class AdminPageSmokeTest extends TestCase
                 'deleted' => 1,
             ])
             ->assertJsonFragment([
-                'message' => '1 AVDB videos permanently deleted. 0 orphan AVDB tag(s) were removed. Stop requested for 1 active AVDB import run(s). Removed 2 queued AVDB import/duration job(s).',
+                // counted right (1.2.3): one video, no tag line when no tag was removed
+                'message' => 'Deleted 1 AVDB video permanently. Asked 1 running AVDB import to stop. Removed 2 queued AVDB import or duration jobs.',
             ]);
 
         $this->assertDatabaseMissing('videos', ['id' => $avdbVideo->id]);

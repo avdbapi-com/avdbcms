@@ -4,7 +4,7 @@ namespace App\Services;
 
 use App\Services\Concerns\BuildsRecentPublicVideoQuery;
 use App\Support\BoundedConfig;
-use App\Support\SafeCache;
+use App\Support\DiscoverySnapshots;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Collection;
@@ -23,6 +23,9 @@ class AdaptiveTrendingCollectionsService
     public const int MIN_LOOKBACK_DAYS = 1;
     public const int MAX_LOOKBACK_DAYS = 90;
 
+    /** How long the rail's actors are current (seconds): 10 minutes, as since 1.2.0. */
+    public const int CACHE_SECONDS = 600;
+
     public static function settingsDefaults(): array
     {
         return [
@@ -36,36 +39,47 @@ class AdaptiveTrendingCollectionsService
         ];
     }
 
+    /**
+     * The actors of the videos viewed most in the window, exactly as counted since 1.2.0, current for 10 minutes: counted
+     * by the page where the window holds few view rows, else by the scheduler's task in the background
+     * (App\Support\DiscoverySnapshots; a busy site's 30 days of views take seconds to count).
+     */
     public function collections(): Collection
     {
         if (! config('site.trending_collections_enabled', self::DEFAULT_ENABLED)) {
             return collect();
         }
 
-        $limit = BoundedConfig::integer(
-            'site.trending_collections_limit',
-            self::DEFAULT_LIMIT,
-            self::MIN_LIMIT,
-            self::MAX_LIMIT
-        );
-        $lookbackDays = BoundedConfig::integer(
-            'site.trending_collections_lookback_days',
-            self::DEFAULT_LOOKBACK_DAYS,
-            self::MIN_LOOKBACK_DAYS,
-            self::MAX_LOOKBACK_DAYS
-        );
-        $locale = app()->getLocale();
-        $cacheKey = "home:trending-collections:v3:{$locale}:{$limit}:{$lookbackDays}";
+        $params = [
+            'v' => 3,
+            'locale' => app()->getLocale(),
+            'limit' => BoundedConfig::integer('site.trending_collections_limit', self::DEFAULT_LIMIT, self::MIN_LIMIT, self::MAX_LIMIT),
+            'lookback_days' => BoundedConfig::integer('site.trending_collections_lookback_days', self::DEFAULT_LOOKBACK_DAYS, self::MIN_LOOKBACK_DAYS, self::MAX_LOOKBACK_DAYS),
+        ];
 
-        $resolver = fn () => $this
-            ->recentActorViewCounts(now()->subDays($lookbackDays))
+        return DiscoverySnapshots::answer('actors', $params, self::CACHE_SECONDS, function () use ($params): array {
+            $since = now()->subDays($params['lookback_days']);
+
+            return $this->viewWindow($since)['few'] ? [$this->exactCollections($params, $since), true] : [collect(), false];
+        });
+    }
+
+    /**
+     * The rail's actors for $params (locale, limit, lookback_days), 1.2.2's way: the actors of the active videos (in the
+     * language's rule, not in the bin) viewed since the window's start, by their views, then their videos, then name.
+     *
+     * @param  array<string, scalar>  $params
+     * @param  CarbonInterface|null  $since  the window's start (now minus its days by default)
+     */
+    public function exactCollections(array $params, ?CarbonInterface $since = null): Collection
+    {
+        return $this
+            ->recentActorViewCounts($since ?? now()->subDays(max(1, (int) ($params['lookback_days'] ?? self::DEFAULT_LOOKBACK_DAYS))))
             ->orderByDesc('trending_collections_views_count')
             ->orderByDesc('trending_collections_videos_count')
             ->orderBy('actor_name')
-            ->limit($limit)
+            ->limit(max(1, (int) ($params['limit'] ?? self::DEFAULT_LIMIT)))
             ->get();
-
-        return SafeCache::remember($cacheKey, now()->addMinutes(10), $resolver);
     }
 
     private function recentActorViewCounts(CarbonInterface $since): Builder
@@ -102,11 +116,41 @@ class AdaptiveTrendingCollectionsService
             ->groupByRaw('TRIM(videos.avdb_actor)');
     }
 
+    /** @var array<string, array{daily: bool, few: bool}> viewWindow() of this instance, per window start */
+    private array $viewWindows = [];
+
+    /**
+     * The window's view rows: whether they are the daily view counts (any since the window's start; else each view, as
+     * since 1.2.0) and whether there are few enough of them for the page to count them itself (at most
+     * DiscoverySnapshots::INLINE_ROWS): capped counts of the (date, video) / (time, id) index alone.
+     *
+     * @return array{daily: bool, few: bool}
+     */
+    private function viewWindow(CarbonInterface $since): array
+    {
+        $key = $since->format('Y-m-d H:i:s');
+
+        if (isset($this->viewWindows[$key])) {
+            return $this->viewWindows[$key];
+        }
+
+        $cap = DiscoverySnapshots::inlineRows() + 1;
+        $daily = Schema::hasTable('video_view_daily_stats')
+            ? (int) DB::query()->fromSub(DB::table('video_view_daily_stats')->select('video_view_daily_stats.id')
+                ->where('video_view_daily_stats.view_date', '>=', $since->toDateString())->limit($cap), 'avd_window')->count()
+            : 0;
+
+        if ($daily > 0) {
+            return $this->viewWindows[$key] = ['daily' => true, 'few' => $daily <= DiscoverySnapshots::inlineRows()];
+        }
+
+        $views = (int) DB::query()->fromSub(DB::table('views')->select('views.id')->where('views.view_at', '>=', $since)->limit($cap), 'avd_window')->count();
+
+        return $this->viewWindows[$key] = ['daily' => false, 'few' => $views <= DiscoverySnapshots::inlineRows()];
+    }
+
     private function shouldUseDailyStats(CarbonInterface $since): bool
     {
-        return Schema::hasTable('video_view_daily_stats')
-            && DB::table('video_view_daily_stats')
-                ->where('view_date', '>=', $since->toDateString())
-                ->exists();
+        return $this->viewWindow($since)['daily'];
     }
 }

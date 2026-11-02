@@ -1,7 +1,8 @@
 <?php
-return [
-    'failed_api' => 'Invalid login credentials. Please try again or reset your password.',
-    'password' => 'The provided password is incorrect.',
-    'failed' => 'Invalid login credentials. Please try again or reset your password. <br><a class=\'text-danger fw-bold text-decoration-none\' href=\'/contact\'>Contact</a> our support team for help.',
-    'email_not_verified' => 'Your email is not verified. Please check your mailbox',
-];
+
+return array (
+  'failed' => 'Hindi wastong kredensyal. Pakisubukan muli o i-reset ang iyong password.',
+  'email_not_verified' => 'Hindi pa na-verify ang iyong email. Pakitingnan ang iyong inbox.',
+  'failed_api' => 'Hindi wastong kredensyal. Pakisubukan muli o i-reset ang iyong password.',
+  'password' => 'Mali ang password na inilagay mo.',
+);

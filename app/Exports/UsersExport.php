@@ -43,12 +43,24 @@ class UsersExport implements FromCollection, WithHeadings, WithMapping, WithColu
     {
         return [
             $row->id,
-            $row->username,
-            $row->email,
+            self::cell($row->username),
+            self::cell($row->email),
             $row->is_admin,
             Date::dateTimeToExcel($row->created_at),
             Date::dateTimeToExcel($row->updated_at),
         ];
+    }
+
+    /**
+     * Member text for a spreadsheet cell: a value that starts with = + - @ or a tab / carriage return is a formula to
+     * Excel, LibreOffice and Google Sheets (=HYPERLINK(...) can send what is in other cells to another site). A leading
+     * apostrophe keeps it plain text there and shows nothing extra.
+     */
+    private static function cell(?string $value): string
+    {
+        $value = (string) $value;
+
+        return $value !== '' && str_contains("=+-@\t\r", $value[0]) ? "'".$value : $value;
     }
 
     public function columnFormats(): array

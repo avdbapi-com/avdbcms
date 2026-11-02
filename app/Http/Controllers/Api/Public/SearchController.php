@@ -140,8 +140,9 @@ class SearchController extends Controller
         // public search UI sends the localized label. Compare both forms so
         // mobile and desktop suggestions use the same locale-aware results.
         $needle = mb_strtolower($q);
-        $matchedCategories = Category::query()
-            ->get(['id', 'title', 'slug'])
+        // 1.2.3: no category named with a word that is always blocked (App\Support\ContentSafety)
+        $matchedCategories = \App\Support\ContentSafety::visibleCategories(Category::query()
+            ->get(['id', 'title', 'slug']))
             ->filter(function ($category) use ($needle): bool {
                 $canonical = mb_strtolower((string) $category->title);
                 $localized = mb_strtolower((string) __($category->title));

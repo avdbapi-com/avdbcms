@@ -23,8 +23,9 @@ class ContactController extends Controller
             config('site.admin_email', config('mail.support_mail', config('mail.from.address'))) => config('app.name'),
         ])->notify(new Contact($name, $email, $message));
 
+        // A plain sentence without "!" (member design section 7), saying how the answer comes.
         return redirect()->route('contact.show')
-            ->with('success', __("Thank you for contacting us! We've received your message and will get back to you shortly."));
+            ->with('success', __('Your message is sent. We will answer you by e-mail.'));
 
     }
 }

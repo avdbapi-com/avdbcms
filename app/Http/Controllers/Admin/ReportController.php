@@ -79,7 +79,17 @@ class ReportController extends Controller
 
         abort_unless($reportable instanceof Comment, 404);
 
+        $hides = $reportable->banned_at === null;
         $reportable->update(['banned_at' => now()]);
+
+        // the reports this closes now (a second "Block it" closes none)
+        $closes = Report::query()
+            ->where('reportable_type', $reportable->getMorphClass())
+            ->where('reportable_id', $reportable->id)
+            ->where('status', '!=', ReportStatus::BLOCKED)
+            ->orderBy('id')
+            ->pluck('id')
+            ->all();
 
         Report::query()
             ->where('reportable_type', $reportable->getMorphClass())
@@ -88,11 +98,31 @@ class ReportController extends Controller
                 'status' => ReportStatus::BLOCKED
             ]);
 
+        // Tools > Logs > Admin actions: the comment hidden now, else the reports it closed; nothing when nothing changed
+        // (judge R2CD-RV-03)
+        if ($hides) {
+            AuditLogController::log('comment.hidden', \App\Support\AuditDetails::ids([$reportable->id]));
+        } elseif ($closes !== []) {
+            AuditLogController::log(count($closes) === 1 ? 'report.resolved' : 'reports.resolved', \App\Support\AuditDetails::ids($closes));
+        }
+
         return redirect()->route('admin.index');
 
     }
 
     public function cancel (string $type, Reportable $reportable) : RedirectResponse {
+
+        $resolved = Report::query()
+            ->where('reportable_type', $reportable->getMorphClass())
+            ->where('reportable_id', $reportable->id)
+            ->where('status', '!=', ReportStatus::CANCELLED)
+            ->orderBy('id')
+            ->pluck('id')
+            ->all();
+
+        if ($resolved !== []) {
+            AuditLogController::log(count($resolved) === 1 ? 'report.resolved' : 'reports.resolved', \App\Support\AuditDetails::ids($resolved));
+        }
 
         Report::query()
             ->where('reportable_type', $reportable->getMorphClass())

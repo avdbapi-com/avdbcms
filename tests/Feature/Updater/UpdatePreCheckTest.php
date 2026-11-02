@@ -15,7 +15,7 @@ use Tests\Feature\Updater\Support\UpdaterScenario;
 use Tests\TestCase;
 
 /**
- * The pre-checks (F8 12, 14, 18 "Pre-checks"): an update is refused, with its reason and before anything changes, when
+ * The pre-checks: an update is refused, with its reason and before anything changes, when
  * an import is running, an earlier update still waits for Finish update, the owner put the site into Laravel's own
  * maintenance mode, the release needs a newer PHP or a newer installed version, or OPcache keeps old PHP files and may
  * not be cleared while it does not check time stamps either. The checks run again right before the swap.
@@ -306,7 +306,7 @@ class UpdatePreCheckTest extends TestCase
         $script = $this->box->path('start-in-another-php.php');
         file_put_contents($script, <<<'PHP'
             <?php
-            // Updater::start() in a PHP set up by the test (lane F, UpdatePreCheckTest); argv: base path, site root, release JSON file.
+            // Updater::start() in a PHP set up by the test (UpdatePreCheckTest); argv: base path, site root, release JSON file.
             [, $base, $root, $releaseFile] = $argv;
             require $base.'/vendor/autoload.php';
             $app = require $base.'/bootstrap/app.php';
@@ -342,7 +342,11 @@ class UpdatePreCheckTest extends TestCase
 
         // No on-disk OPcache file cache: with validate_timestamps=0 a php.ini opcache.file_cache would hand the second PHP
         // the code compiled before the last change of the site's files (seen after the AVDBCMS rename: old texts).
-        $command = [PHP_BINARY, '-d', 'opcache.enable_cli=1', '-d', 'opcache.file_cache=', '-d', 'opcache.restrict_api='.$this->box->path('not-this-script')];
+        // opcache.cache_id (Windows): an OPcache of its own. With the same id it joins the shared memory of any other PHP of
+        // this build running on the machine (a test site's server), which another process mapped elsewhere ("Opcode
+        // handlers are unusable due to ASLR": the second PHP never starts). Elsewhere PHP ignores the setting.
+        $command = [PHP_BINARY, '-d', 'opcache.enable_cli=1', '-d', 'opcache.file_cache=', '-d', 'opcache.cache_id=avdbcms-test-'.getmypid().'-'.bin2hex(random_bytes(4)),
+            '-d', 'opcache.restrict_api='.$this->box->path('not-this-script')];
 
         foreach ($settings as $setting) {
             array_push($command, '-d', $setting);

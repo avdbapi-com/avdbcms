@@ -24,7 +24,59 @@
     <div class="col-md-2"><div class="card text-center p-3"><div class="h4 mb-0 text-primary">{{ $stats['pending'] }}</div><small class="text-muted">{{__('Queued Jobs')}}</small></div></div>
     <div class="col-md-2"><div class="card text-center p-3"><div class="h4 mb-0 text-danger">{{ $stats['failed'] }}</div><small class="text-muted">{{__('Failed Jobs')}}</small></div></div>
     <div class="col-md-2"><div class="card text-center p-3"><div class="h4 mb-0">{{ $stats['queue_connection'] }}</div><small class="text-muted">{{__('Queue Driver')}}</small></div></div>
-    <div class="col-md-2"><div class="card text-center p-3"><div class="h4 mb-0">{{ number_format($stats['cron_log_size'] / 1024, 1) }} KB</div><small class="text-muted">{{__('Cron Log')}}</small></div></div>
+    <div class="col-md-2"><div class="card text-center p-3"><div class="h4 mb-0 text-nowrap" dir="ltr">{{ number_format($stats['cron_log_size'] / 1024, 1) }} KB</div><small class="text-muted">{{__('Cron Log')}}</small></div></div>
+</div>
+
+{{-- Who starts the scheduled tasks (the server's cron, only the site after visits, nobody), what this account's crontab
+     holds for this site, and the line to add (App\Support\LaravelSchedulerCron). In the new admin the line fills in
+     after the page appears when the PHP check is not kept yet ($deferred). --}}
+@php($schedulerRun = $scheduler['run'] ?? ['source' => 'none', 'last_cron' => null, 'last_site' => null])
+<div class="card shadow-sm mb-4" id="ad-cron-start" @if (! empty($newAdmin)) data-ad-defer="cron-start"@endif @if (! empty($deferred)) data-ad-defer-probes="{{ route('admin.status.probe', ['probe' => 'php']) }}" aria-busy="true"@endif>
+    <div class="card-header"><h5 class="mb-0"><i class="fa-solid fa-play me-1"></i>{{ __('How the scheduled tasks start') }}</h5></div>
+    <div class="card-body">
+        @if ($schedulerRun['source'] === 'cron')
+            <div class="alert alert-success py-2 mb-2">{{ __("The server's cron starts them every minute. Last run: :time.", ['time' => \Carbon\Carbon::createFromTimestamp((int) $schedulerRun['last_cron'])->diffForHumans()]) }}</div>
+        @elseif ($schedulerRun['source'] === 'site')
+            <div class="alert alert-warning py-2 mb-2">{{ __('Only visits to the site start them now (last run: :time). Without visitors they start late or not at all: add the cron line below.', ['time' => \Carbon\Carbon::createFromTimestamp((int) $schedulerRun['last_site'])->diffForHumans()]) }}</div>
+        @else
+            <div class="alert alert-danger py-2 mb-2">{{ __('They are not running. Add the cron line below.') }}</div>
+        @endif
+        @if (empty($scheduler['windows']))
+            @switch($scheduler['crontab']['state'] ?? 'unknown')
+                @case('current')
+                    <p class="small text-muted mb-2">{{ __("This account's crontab has this site's line.") }}</p>
+                    @break
+                @case('old')
+                    <p class="small text-warning-emphasis mb-2">{{ __("This account's crontab has an older line of this site. The site replaces it by itself; if it is still there in a few minutes, replace it with the line below.") }}</p>
+                    @break
+                @case('off')
+                    <p class="small text-warning-emphasis mb-2">{{ __("This account's crontab has this site's line, switched off (it starts with #). The site leaves it as it is: to run the tasks every minute, remove the # or put the line below in its place.") }}</p>
+                    @break
+                @case('custom')
+                    <p class="small text-warning-emphasis mb-2">{{ __("This account's crontab has a line of this site that was changed by hand. The site leaves it as it is; if the tasks do not run, replace it with the line below.") }}</p>
+                    @break
+                @case('absent')
+                    <p class="small text-muted mb-2">{{ __("This account's crontab has no line of this site. A cron job set up in your hosting panel works as well: use the command for it below.") }}</p>
+                    @break
+            @endswitch
+        @endif
+        @if (! empty($scheduler['line']))
+            <div class="small fw-bold mb-1">{{ ! empty($scheduler['windows']) ? __("Create this site's task in the Windows Task Scheduler with this command (once, in a Command Prompt):") : __('Cron line (every minute):') }}</div>
+            <pre class="small mb-2 p-2 border rounded" dir="ltr" tabindex="0" style="white-space:pre-wrap; word-break:break-all;"><code>{{ $scheduler['line'] }}</code></pre>
+            @if (! empty($scheduler['command']))
+                {{-- A hosting panel's cron job takes the command alone: the panel has fields of its own for "every minute",
+                     and its shell read the "* * * * *" of the line above as file names (round 3 IN-RV-01). --}}
+                <div class="small fw-bold mb-1">{{ __('Command for a cron job in your hosting panel (every minute):') }}</div>
+                <pre class="small mb-2 p-2 border rounded" dir="ltr" tabindex="0" style="white-space:pre-wrap; word-break:break-all;"><code>{{ $scheduler['command'] }}</code></pre>
+            @endif
+            @if (! empty($scheduler['panel_line']))
+                <div class="small fw-bold mb-1">{{ __('If your panel runs cron jobs as root, use this command instead:') }}</div>
+                <pre class="small mb-0 p-2 border rounded" dir="ltr" tabindex="0" style="white-space:pre-wrap; word-break:break-all;"><code>{{ $scheduler['panel_line'] }}</code></pre>
+            @endif
+        @else
+            <p class="small text-muted mb-0">{{ ! empty($deferred) ? __('Checking...') : __('No PHP command line was found on this server, so the cron line cannot be shown.') }}</p>
+        @endif
+    </div>
 </div>
 
 <div class="card shadow-sm mb-4">
@@ -34,7 +86,7 @@
             <div class="text-muted small">{{__('Manual fallback for hosts where cron, background PHP, or queue workers are not running.')}}</div>
         </div>
         <span class="badge bg-{{ $durationBackfill['missing'] > 0 ? 'warning' : 'success' }}">
-            {{ number_format($durationBackfill['missing']) }} {{__('missing')}}
+            {{ trans_choice('1 missing|:count missing', (int) $durationBackfill['missing'], ['count' => number_format((int) $durationBackfill['missing'])]) }}
         </span>
     </div>
     <div class="card-body">
@@ -111,10 +163,10 @@
             <div class="col-lg-4">
                 <div class="border rounded p-3 h-100">
                     <div class="small mb-2">
-                        <div @if (! empty($newAdmin)) data-ad-defer="cron-process"@endif @if (! empty($deferred)) data-ad-defer-probes="{{ route('admin.status.probe', ['probe' => 'php']) }}"@endif><strong>{{__('Process support')}}:</strong> {{ $durationBackfill['php_binary_ok'] === null ? __('Checking...') : ($durationBackfill['process_available'] && $durationBackfill['php_binary_ok'] ? __('Ready') : __('Unavailable')) }}</div>
-                        <div><strong>{{__('Async queue')}}:</strong> {{ $durationBackfill['queue_async'] ? __('Ready') : __('Not active') }}</div>
-                        <div><strong>{{__('Remote lookup')}}:</strong> {{ $durationBackfill['remote_concurrency'] }}x / {{ $durationBackfill['remote_timeout'] }}s</div>
-                        <div><strong>{{__('Last attempt')}}:</strong> {{ $durationBackfill['latest_attempt'] ? \Carbon\Carbon::parse($durationBackfill['latest_attempt'])->diffForHumans() : '-' }}</div>
+                        <div @if (! empty($newAdmin)) data-ad-defer="cron-process"@endif @if (! empty($deferred)) data-ad-defer-probes="{{ route('admin.status.probe', ['probe' => 'php']) }}"@endif><strong>{{ rtrim(\App\Support\AdminText::labelled(__('Process support'), '')) }}</strong>{{ \App\Support\LabelGap::admin() }}{{ $durationBackfill['php_binary_ok'] === null ? __('Checking...') : ($durationBackfill['process_available'] && $durationBackfill['php_binary_ok'] ? __('Ready') : __('Unavailable')) }}</div>
+                        <div><strong>{{ rtrim(\App\Support\AdminText::labelled(__('Async queue'), '')) }}</strong>{{ \App\Support\LabelGap::admin() }}{{ $durationBackfill['queue_async'] ? __('Ready') : __('Not active') }}</div>
+                        <div><strong>{{ rtrim(\App\Support\AdminText::labelled(__('Remote lookup'), '')) }}</strong>{{ \App\Support\LabelGap::admin() }}<wbr><span dir="ltr">{{ $durationBackfill['remote_concurrency'] }}x / {{ $durationBackfill['remote_timeout'] }}s</span></div>
+                        <div><strong>{{ rtrim(\App\Support\AdminText::labelled(__('Last attempt'), '')) }}</strong>{{ \App\Support\LabelGap::admin() }}{{ $durationBackfill['latest_attempt'] ? \Carbon\Carbon::parse($durationBackfill['latest_attempt'])->diffForHumans() : '-' }}</div>
                     </div>
                     <form method="POST" action="{{ route('admin.cron.duration.reset-retries') }}" onsubmit='return confirm(@json(__('Reset retry waiting state for all AVDB videos still missing duration?')))'>
                         @csrf
@@ -156,18 +208,19 @@
                     <td>
                         <span class="badge bg-{{ $task['paused'] ? 'warning' : 'success' }}">{{ $task['paused'] ? __('Paused') : __('Active') }}</span>
                     </td>
-                    <td><code>{{ $task['expression'] ?: '-' }}</code></td>
+                    {{-- codes, times and zones read left to right on an Arabic page, on one line (R2A-052) --}}
+                    <td><code dir="ltr" class="text-nowrap">{{ $task['expression'] ?: '-' }}</code></td>
                     <td>
-                        <code>{{ $task['key'] ?: $task['command'] }}</code>
-                        @if(!empty($task['description']))
-                            <div class="text-muted small">{{ $task['description'] }}</div>
+                        <code dir="ltr">{{ $task['key'] ?: $task['command'] }}</code>
+                        @if(($taskDescription = \App\Http\Controllers\Admin\CronController::describe($task)) !== null)
+                            <div class="text-muted small">{{ $taskDescription }}</div>
                         @endif
                     </td>
                     <td>
                         <div>{{ $task['next_due_date_human'] ?? '-' }}</div>
-                        <small class="text-muted">{{ $task['next_due_date'] ?? '' }}</small>
+                        <small class="text-muted text-nowrap" dir="ltr">{{ $task['next_due_date'] ?? '' }}</small>
                     </td>
-                    <td><small>{{ $task['timezone'] ?? config('app.timezone') }}</small></td>
+                    <td><small dir="ltr">{{ $task['timezone'] ?? config('app.timezone') }}</small></td>
                     <td>
                         @if($task['key'])
                             <div class="d-flex flex-wrap gap-1">
@@ -260,7 +313,8 @@
                     <tbody>
                     @forelse($activityLogs as $log)
                         <tr>
-                            <td><code>{{ $log->action }}</code><div class="text-muted small">{{ $log->details }}</div></td>
+                            {{-- the action in plain words, its key in the tooltip; the details in the admin's language (R2A-051) --}}
+                            <td><b title="{{ $log->action }}">{{ \App\Support\AuditActions::label((string) $log->action) }}</b><div class="text-muted small" style="overflow-wrap:anywhere">{{ \App\Support\AuditDetails::html((string) $log->action, $log->details) }}</div></td>
                             <td class="text-end text-muted small">{{ \Carbon\Carbon::parse($log->created_at)->diffForHumans() }}</td>
                         </tr>
                     @empty
@@ -283,7 +337,10 @@
         <div class="card shadow-sm h-100">
             <div class="card-header"><h5 class="mb-0"><i class="fa-solid fa-rotate me-1"></i>{{__('Schedule Run Log')}}</h5></div>
             <div class="card-body">
-                <pre class="small mb-0" tabindex="0" style="max-height:360px; overflow:auto; white-space:pre-wrap;">{{ implode("\n", $scheduleRunLog ?: [__('No schedule-run.log output yet.')]) }}</pre>
+                <div class="small fw-bold mb-1">{{ __("Started by the server's cron") }}</div>
+                <pre class="small mb-3" dir="ltr" tabindex="0" style="max-height:360px; overflow:auto; white-space:pre-wrap;">{{ implode("\n", $scheduleRunLog ?: [__('No schedule-run.log output yet.')]) }}</pre>
+                <div class="small fw-bold mb-1">{{ __('Started by the site (after visits and by Run Scheduler Now)') }}</div>
+                <pre class="small mb-0" dir="ltr" tabindex="0" style="max-height:360px; overflow:auto; white-space:pre-wrap;">{{ implode("\n", ($siteRunLog ?? []) ?: [__('No schedule-web.log output yet.')]) }}</pre>
             </div>
         </div>
     </div>

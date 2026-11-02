@@ -2,12 +2,19 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Support\AdminIpLock;
 use App\Support\AdminPreferences;
+use App\Support\BlockedAddresses;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
+/**
+ * Members > Blocked addresses: the addresses that cannot open the site, each for good or until its end. Since 1.2.3 the
+ * site really blocks them (App\Support\BlockedAddresses, checked by the Security middleware on every page; up to 1.2.2
+ * this list blocked nobody). An administrator cannot block their own address, and every change takes effect at once.
+ */
 class IpBanController
 {
     public function index(Request $request): View
@@ -42,30 +49,50 @@ class IpBanController
             'duration' => 'nullable|integer|min:0',
         ]);
 
-        // Check if exists
-        if (DB::table('ip_bans')->where('ip_address', $request->ip_address)->exists()) {
+        // Kept in its short form ("2001:db8::7", "203.0.113.7" for "::ffff:203.0.113.7"), as blocks are compared.
+        $address = BlockedAddresses::canonical((string) $request->input('ip_address'));
+        $own = BlockedAddresses::canonical(AdminIpLock::clientIp($request));
+
+        if ($address !== '' && $address === $own) {
             return redirect()->route('admin.ip-bans.index')
-                ->withErrors(['ip_address' => 'This IP is already banned.']);
+                ->withInput()
+                ->withErrors(['ip_address' => __('You cannot block your own address (:ip).', ['ip' => $own])]);
+        }
+
+        if (DB::table('ip_bans')->whereIn('ip_address', array_values(array_unique([$address, (string) $request->input('ip_address')])))->exists()) {
+            return redirect()->route('admin.ip-bans.index')
+                ->withInput()
+                ->withErrors(['ip_address' => __('This address is already blocked.')]);
         }
 
         $duration = (int) $request->input('duration', 0);
 
         DB::table('ip_bans')->insert([
-            'ip_address' => $request->ip_address,
+            'ip_address' => $address,
             'reason' => $request->reason ?? '',
             'expires_at' => $duration > 0 ? now()->addHours($duration) : null,
             'created_at' => now(),
             'updated_at' => now(),
         ]);
 
+        BlockedAddresses::forget();
+        AuditLogController::log('security.address.blocked', $address);
+
         return redirect()->route('admin.ip-bans.index')
-            ->withSuccess("IP {$request->ip_address} banned successfully.");
+            ->withSuccess(__(':ip is blocked: it cannot open your site.', ['ip' => $address]));
     }
 
     public function destroy(int $id): RedirectResponse
     {
-        DB::table('ip_bans')->where('id', $id)->delete();
-        return redirect()->route('admin.ip-bans.index')->withSuccess('IP ban removed.');
+        $address = DB::table('ip_bans')->where('id', $id)->value('ip_address');
+
+        if (DB::table('ip_bans')->where('id', $id)->delete() > 0) {
+            AuditLogController::log('security.address.unblocked', is_string($address) ? $address : null);
+        }
+
+        BlockedAddresses::forget();
+
+        return redirect()->route('admin.ip-bans.index')->withSuccess(__('Address unblocked'));
     }
 
     public function clearExpired(): RedirectResponse
@@ -75,7 +102,13 @@ class IpBanController
             ->where('expires_at', '<', now())
             ->delete();
 
+        BlockedAddresses::forget();
+
+        if ($count > 0) {
+            AuditLogController::log('security.address.blocks_cleared', (string) $count);
+        }
+
         return redirect()->route('admin.ip-bans.index')
-            ->withSuccess("Cleared {$count} expired bans.");
+            ->withSuccess(trans_choice('Cleared 1 ended block.|Cleared :count ended blocks.', $count));
     }
 }

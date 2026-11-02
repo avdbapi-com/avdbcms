@@ -24,7 +24,7 @@ use Tests\Feature\Updater\Support\UpdaterSandbox;
 use Tests\TestCase;
 
 /**
- * The whole one-click update on a throwaway site root (F8 0, 18): GitHub faked, the database dump faked, the swap run
+ * The whole one-click update on a throwaway site root: GitHub faked, the database dump faked, the swap run
  * through the generated maintenance hook exactly as public/index.php would hand it a request (handle($server, $post,
  * $cookies)), Finish on "the new code" (an Updater that plays the next version, built from AppVersion::CURRENT).
  *

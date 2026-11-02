@@ -8,6 +8,7 @@ declare global {
         PRIVATE_CHANNEL: any;
         LANG: string;
         LOCALE_PREFIX: string;
+        SITE_BASE?: string;
         AVD_SETTINGS?: {
             effects?: boolean;
             animeEffects?: boolean;

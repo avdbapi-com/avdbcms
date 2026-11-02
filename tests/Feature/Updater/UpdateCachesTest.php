@@ -9,7 +9,7 @@ use Tests\Feature\Updater\Support\UpdaterScenario;
 use Tests\TestCase;
 
 /**
- * What the new (or, after Undo, the old) code must not inherit from the version before it (F8 12, 13): Blade
+ * What the new (or, after Undo, the old) code must not inherit from the version before it: Blade
  * recompiles a template only when it is newer than its compiled copy, and a move keeps the file's time, so the swap
  * deletes the compiled views and moved files get the time of the move; long-running queue workers are told to restart.
  * Both ways: an update without database changes (Finish update then clears nothing itself), and its undo.

@@ -79,6 +79,12 @@ return [
 
     'asset_url' => env('ASSET_URL'),
 
+    // Clean addresses (/trend) or /index.php/trend in every link the site makes (App\Support\CleanUrls). "auto": clean
+    // where the web server is known to send them to the site (Apache and LiteSpeed with the shipped .htaccess, IIS,
+    // PHP's own server), and on nginx once the site has checked that a clean address reaches it with status 200;
+    // /index.php/... everywhere else, so no link ever ends on the web server's 404 page. true / false: the owner decides.
+    'clean_urls' => env('APP_CLEAN_URLS', 'auto'),
+
     // The layout's theme CSS is served as cached files (resources/css/layout-theme-*.css in
     // public/build). AVD_THEME_CSS_INLINE=true prints the same CSS inline in every page instead,
     // e.g. when a proxy or CDN blocks or mangles /build/assets/*.css (see App\Support\ThemeCss).

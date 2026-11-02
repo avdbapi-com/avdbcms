@@ -1,644 +1,293 @@
-@use('App\Filters\Forms\User\DashboardFiltersForm')
-
 @extends('layouts.user')
 
 @section('title', __('Dashboard'))
 
 @section('content')
-    {!! form(FormBuilder::create(DashboardFiltersForm::class)) !!}
-    <div class="row mb-4">
-        <div class="col-12 col-sm-4 col-md-4 col-xl-3 col-xxl mb-4 mb-xl-0">
-            <div class="card shadow border-primary">
-                <div class="card-body">
-                    <h5 class="card-title text-center text-primary">{{ __('Videos') }}</h5>
-                    <hr>
-                    <div class="d-flex align-items-center justify-content-center gap-4">
-                        <i class="fa-solid fa-video fa-2x"></i>
-                        <p class="card-text text-center fs-1">{{$user->videos_count}}</p>
-                    </div>
-                </div>
-            </div>
+@php
+    use App\Support\Studio\Dashboard;
+    use App\Support\Studio\StudioFormat;
+    use App\Support\Studio\ZoneLabel;
+
+    $f = $figures;
+    $days = $period['days'];
+    $spark = function (array $points) {
+        $paths = Dashboard::sparkPaths($points);
+        if ($paths === null) {
+            return '';
+        }
+        return '<svg class="mk-spark" viewBox="0 0 200 34" preserveAspectRatio="none" aria-hidden="true" focusable="false"><polygon class="mk-spark__area" points="'.e($paths['area']).'"/><polyline class="mk-spark__line" points="'.e($paths['line']).'"/></svg>';
+    };
+    // signed figures keep their sign in front in every direction (Arabic read "12+" and "30%-")
+    $signed = fn (int $value, bool $percent = false) => StudioFormat::signedHtml($value, $percent);
+    $desc = $period['key'] === 'custom'
+        ? __('How your channel did from :from to :to.', ['from' => StudioFormat::date($period['start']), 'to' => StudioFormat::date($period['end'])])
+        : trans_choice('How your channel did in the last :count day.|How your channel did in the last :count days.', $days, ['count' => $days]);
+    $before = trans_choice('on the :count day before|on the :count days before', $days, ['count' => $days]);
+    $periodLinks = ['7' => __('7 days'), '28' => __('28 days'), '90' => __('90 days')];
+    // 1.2.3 round 1 (R1-113): a member who has no video yet is welcomed, not welcomed back. The name is isolated (<bdi>,
+    // R1-025): on an Arabic page a Latin name ending in "_", "." or "!" keeps that character at its own end.
+    $greeting = new \Illuminate\Support\HtmlString(str_replace(':name', '<bdi>'.e($user->username).'</bdi>', e($hasVideos ? __('Welcome back, :name') : __('Welcome, :name'))));
+@endphp
+<div class="avd-mk mk-page">
+    <x-mk.head icon="chart-line" :kicker="__('Studio')" :title="$greeting" :desc="$desc">
+        @if($uploadsAllowed)
+            <x-slot:actions>
+                <button type="button" class="mk-btn mk-btn--primary mk-head__upload" data-bs-toggle="modal" data-bs-target="#video_create"><i class="fa-solid fa-arrow-up-from-bracket" aria-hidden="true"></i><span>{{ __('Upload video') }}</span></button>
+            </x-slot:actions>
+        @endif
+    </x-mk.head>
+    <x-mk.flash refusal />
+
+    <div class="mk-period">
+        <div class="mk-seg" role="group" aria-label="{{ __('Period') }}">
+            @foreach($periodLinks as $key => $label)
+                <a class="mk-seg__item" href="{{ route('user.index', ['period' => $key]) }}" @if($period['key'] === (string) $key) aria-current="true" @endif>{{ $label }}</a>
+            @endforeach
+            <button type="button" class="mk-seg__item" data-bs-toggle="modal" data-bs-target="#mk-dash-dates" @if($period['key'] === 'custom') aria-current="true" @endif>{{ __('Custom') }}</button>
         </div>
-        <div class="col-12 col-sm-4 col-md-4 col-xl-3 col-xxl mb-4 mb-xl-0">
-            <div class="card shadow border-primary">
-                <div class="card-body">
-                    <h5 class="card-title text-center text-primary">{{ __('Subscribers') }}</h5>
-                    <hr>
-                    <div class="d-flex align-items-center justify-content-center gap-4">
-                        <i class="fa-solid fa-user fa-2x"></i>
-                        <p class="card-text text-center fs-1">{{$user->subscribers_count}}</p>
-                    </div>
-                </div>
-            </div>
+        <span class="mk-muted" style="font-size:.8125rem">{{ $period['label'] }}</span>
+    </div>
+
+    <div class="mk-stats">
+        <div class="mk-stat">
+            <span class="mk-stat__label"><i class="fa-solid fa-eye" aria-hidden="true"></i>{{ __('Views') }}</span>
+            <span class="mk-stat__value" title="{{ __(':count views from :from to :to', ['count' => StudioFormat::number($f['views']), 'from' => StudioFormat::shortDate($period['start']), 'to' => StudioFormat::shortDate($period['end'])]) }}">{{ StudioFormat::number($f['views']) }}</span>
+            @if(! $f['daily'])
+                <span class="mk-stat__delta">{{ __('Every view your videos ever had') }}</span>
+            @elseif($f['viewsDelta'] !== null)
+                <span @class(['mk-stat__delta', 'mk-stat__delta--up' => $f['viewsDelta'] > 0, 'mk-stat__delta--down' => $f['viewsDelta'] < 0])>{!! $signed($f['viewsDelta'], true) !!} {{ $before }}</span>
+            @else
+                <span class="mk-stat__delta">{{ __('No views before these days') }}</span>
+            @endif
+            {!! $spark($f['viewsSpark']) !!}
         </div>
-        <div class="col-12 col-sm-4 col-md-4 col-xl-3 col-xxl mb-4 mb-xl-0">
-            <div class="card shadow border-primary">
-                <div class="card-body">
-                    <h5 class="card-title text-center text-primary">{{ __('Views') }}</h5>
-                    <hr>
-                    <div class="d-flex align-items-center justify-content-center gap-4">
-                        <i class="fa-solid fa-eye fa-2x"></i>
-                        <p class="card-text text-center fs-1">{{$user->videos_views_count}}</p>
-                    </div>
-                </div>
-            </div>
+        <div class="mk-stat">
+            <span class="mk-stat__label"><i class="fa-solid fa-user-plus" aria-hidden="true"></i>{{ __('New subscribers') }}</span>
+            <span class="mk-stat__value">{!! $signed($f['subs']) !!}</span>
+            <span class="mk-stat__delta">{{ __(':count in total', ['count' => StudioFormat::number($f['subsTotal'])]) }}</span>
+            {!! $spark($f['subsSpark']) !!}
         </div>
-        <div class="col-12 col-sm-6 col-md-6 col-xl-3 col-xxl mb-4 mb-sm-0">
-            <div class="card shadow border-primary">
-                <div class="card-body">
-                    <h5 class="card-title text-center text-primary">{{ __('Comments') }}</h5>
-                    <hr>
-                    <div class="d-flex align-items-center justify-content-center gap-4">
-                        <i class="fa-solid fa-comment fa-2x"></i>
-                        <p class="card-text text-center fs-1">{{$user->videos_comments_count}}</p>
-                    </div>
-                </div>
-            </div>
+        <div class="mk-stat">
+            <span class="mk-stat__label"><i class="fa-solid fa-comment" aria-hidden="true"></i>{{ __('Comments') }}</span>
+            <span class="mk-stat__value">{{ StudioFormat::number($f['comments']) }}</span>
+            @php $commentsChange = $f['comments'] - $f['commentsPrev']; @endphp
+            <span @class(['mk-stat__delta', 'mk-stat__delta--up' => $commentsChange > 0, 'mk-stat__delta--down' => $commentsChange < 0])>{!! $signed($commentsChange) !!} {{ $before }}</span>
+            {!! $spark($f['commentsSpark']) !!}
         </div>
-        <div class="col-12 col-sm-6 col-md-6 col-xl mt-0 mt-xl-4 mt-xxl-0">
-            <div class="card shadow border-primary">
-                <div class="card-body text-center">
-                    <h5 class="card-title text-center text-primary">{{ __('Interactions') }}</h5>
-                    <hr>
-                    <div class="d-flex align-items-center justify-content-center gap-5">
-                        <div class="d-flex align-items-center justify-content-center gap-2">
-                            <i class="fa-solid fa-thumbs-up fa-2x"></i>
-                            <p class="card-text text-center fs-1">{{$user->videos_likes_count}}</p>
-                        </div>
-                        <div class="d-flex align-items-center justify-content-center gap-2">
-                            <i class="fa-solid fa-thumbs-down fa-2x"></i>
-                            <p class="card-text text-center fs-1">{{$user->videos_dislikes_count}}</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
+        <div class="mk-stat">
+            <span class="mk-stat__label"><i class="fa-solid fa-thumbs-up" aria-hidden="true"></i>{{ __('Likes') }}</span>
+            <span class="mk-stat__value">{{ StudioFormat::number($f['likes']) }}</span>
+            <span class="mk-stat__delta">{{ $f['likesPct'] === null ? __('No ratings in these days') : __(':percent% of ratings are likes', ['percent' => $f['likesPct']]) }}</span>
+            {!! $spark($f['likesSpark']) !!}
         </div>
     </div>
-    @php
-        $studioHealthAlertsEnabled = $studioHealthAlertsEnabled ?? config('site.studio_health_alerts_enabled', \App\Services\StudioHealthAlertsService::DEFAULT_ENABLED);
-        $studioHealthAlerts = $studioHealthAlerts ?? collect();
-    @endphp
-    @if($studioHealthAlertsEnabled)
-        <div class="row mb-4">
-            <div class="col-12">
-                <div class="card h-100">
-                    <div class="card-header d-flex align-items-center gap-3 p-3">
-                        <i class="fa-solid fa-shield-heart"></i>
-                        <h5 class="card-title mb-0">
-                            {{ __('Studio Health Alerts') }}
-                        </h5>
-                    </div>
-                    <div class="card-body">
-                        @if($studioHealthAlerts->isNotEmpty())
-                            <div class="d-flex flex-column flex-xl-row gap-3">
-                                @foreach($studioHealthAlerts as $alert)
-                                    @php
-                                        $alertVideo = $alert['video'] ?? null;
-                                    @endphp
-                                    <div class="border rounded p-3 flex-fill" style="min-width: 0;">
-                                        <div class="d-flex align-items-start gap-3">
-                                            <span class="badge bg-{{ $alert['severity'] ?? 'secondary' }} mt-1">
-                                                <i class="fa-solid fa-{{ $alert['icon'] ?? 'circle-info' }}"></i>
-                                            </span>
-                                            <div class="avd-studio-alert-copy">
-                                                <div class="fw-bold">{{ $alert['title'] ?? __('Studio alert') }}</div>
-                                                @if($alertVideo)
-                                                    <a href="{{ $alertVideo->route }}" class="text-decoration-none d-block text-wrap avd-studio-alert-link" title="{{ $alertVideo->title }}">
-                                                        {{ Str::limit($alertVideo->title, 56) }}
-                                                    </a>
-                                                @endif
-                                                <small class="text-muted">{{ $alert['message'] ?? '' }}</small>
-                                            </div>
-                                        </div>
-                                    </div>
-                                @endforeach
-                            </div>
-                        @else
-                            <div class="text-center py-4 px-3">
-                                <div class="rounded-circle bg-success-subtle text-success d-inline-flex align-items-center justify-content-center mb-3" style="width: 48px; height: 48px;">
-                                    <i class="fa-solid fa-check"></i>
+    @unless($f['daily'])
+        <p class="mk-help"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> {{ __('Daily view totals are switched off on this site: Views counts every view, without a curve.') }}</p>
+    @endunless
+
+    @if(! $hasVideos)
+        <section class="mk-panel">
+            <x-mk.empty icon="clapperboard" :title="__('Upload your first video')" :text="$uploadsAllowed ? __('Your views, comments and subscribers appear here as soon as people watch.') : __('Uploads are switched off on this site.')">
+                @if($uploadsAllowed)
+                    <button type="button" class="mk-btn mk-btn--primary" data-bs-toggle="modal" data-bs-target="#video_create"><i class="fa-solid fa-arrow-up-from-bracket" aria-hidden="true"></i><span>{{ __('Upload video') }}</span></button>
+                @endif
+            </x-mk.empty>
+        </section>
+    @else
+        <div @class(['mk-grid', 'mk-grid--2-1' => $attentionEnabled])>
+            <section class="mk-panel" aria-labelledby="mk-latest-title">
+                <div class="mk-panel__head"><h2 class="mk-panel__title" id="mk-latest-title">{{ __('Latest videos') }}</h2><a class="mk-btn mk-btn--quiet mk-btn--sm" href="{{ route('user.videos.index') }}">{{ __('See all') }}</a></div>
+                @if($latestVideos === [])
+                    <x-mk.empty icon="clapperboard" :title="__('No published videos yet')" :text="__('Drafts and failed uploads are listed in My videos.')" compact />
+                @else
+                    <ul class="mk-rows">
+                        @foreach($latestVideos as $video)
+                            <li class="mk-item">
+                                <a href="{{ $video['edit'] }}" class="mk-item__media mk-item__media--sm" tabindex="-1" aria-hidden="true">
+                                    <span class="mk-thumb">@if($video['poster'])<img src="{{ $video['poster'] }}" alt="" width="160" height="90" loading="lazy" decoding="async">@else<span class="mk-thumb__empty"><i class="fa-regular fa-image"></i></span>@endif @if($video['duration'] !== '')<span class="mk-thumb__dur">{{ $video['duration'] }}</span>@endif</span>
+                                </a>
+                                <div class="mk-item__body">
+                                    <a class="mk-item__title mk-clamp-2" href="{{ $video['edit'] }}" dir="auto">{{ $video['title'] }}</a>
+                                    <div class="mk-row__meta"><span><x-mk.status :kind="$video['kind']" :label="$video['label']" /></span>@if($video['scheduled'] !== null)<span>{{ $video['scheduled'] }}</span>@else<span>{{ trans_choice(':count view|:count views', $video['views'], ['count' => StudioFormat::number($video['views'])]) }}</span><span>{{ trans_choice(':count comment|:count comments', $video['comments'], ['count' => StudioFormat::number($video['comments'])]) }}</span>@endif</div>
                                 </div>
-                                <h5 class="mb-2 mx-auto text-wrap" style="max-width: 22rem; overflow-wrap: anywhere;">
-                                    {{ __('No urgent studio alerts') }}
-                                </h5>
-                                <p class="text-muted mb-0">
-                                    {{ __('Recent uploads, reports, thumbnails, and views are within the current alert rules.') }}
-                                </p>
-                            </div>
-                        @endif
-                    </div>
-                </div>
-            </div>
-        </div>
-    @endif
-    @php
-        $creatorRecoveryChecklistEnabled = $creatorRecoveryChecklistEnabled ?? config('site.creator_recovery_checklist_enabled', \App\Services\CreatorRecoveryChecklistService::DEFAULT_ENABLED);
-        $creatorRecoveryChecklistItems = $creatorRecoveryChecklistItems ?? collect();
-    @endphp
-    @if($creatorRecoveryChecklistEnabled)
-        <div class="row mb-4">
-            <div class="col-12">
-                <div class="card h-100">
-                    <div class="card-header d-flex align-items-center gap-3 p-3">
-                        <i class="fa-solid fa-list-check"></i>
-                        <h5 class="card-title mb-0">
-                            {{ __('Creator Recovery Checklist') }}
-                        </h5>
-                    </div>
-                    <div class="card-body">
-                        @if($creatorRecoveryChecklistItems->isNotEmpty())
-                            <div class="d-flex flex-column flex-lg-row gap-3">
-                                @foreach($creatorRecoveryChecklistItems as $item)
-                                    @php
-                                        $checklistVideo = $item['video'] ?? null;
-                                    @endphp
-                                    <div class="border rounded p-3 flex-fill" style="min-width: 0;">
-                                        <div class="d-flex align-items-start gap-3">
-                                            <span class="badge bg-{{ $item['severity'] ?? 'secondary' }} mt-1">
-                                                <i class="fa-solid fa-{{ $item['icon'] ?? 'circle-check' }}"></i>
-                                            </span>
-                                            <div style="min-width: 0; flex: 1 1 auto; max-width: 100%;">
-                                                <div class="fw-bold">{{ $item['title'] ?? __('Recovery item') }}</div>
-                                                @if($checklistVideo)
-                                                    <div class="text-muted text-wrap" style="max-width: 100%; overflow-wrap: anywhere; word-break: break-word;">
-                                                        {{ Str::limit($checklistVideo->title, 56) }}
-                                                    </div>
+                                <div class="mk-item__aside"><a class="mk-icon-btn mk-icon-btn--muted" href="{{ $video['edit'] }}" title="{{ __('Edit details') }}" aria-label="{{ __('Edit details') }}"><i class="fa-solid fa-pen" aria-hidden="true"></i></a></div>
+                            </li>
+                        @endforeach
+                    </ul>
+                @endif
+            </section>
+
+            @if($attentionEnabled)
+                <section class="mk-panel" aria-labelledby="mk-attn-title">
+                    <div class="mk-panel__head"><h2 class="mk-panel__title" id="mk-attn-title">{{ __('Needs your attention') }}</h2>@if($attention !== [])<span class="mk-count">{{ StudioFormat::number(count($attention)) }}</span>@endif</div>
+                    @if($attention === [])
+                        <p class="mk-note"><i class="fa-solid fa-circle-check" aria-hidden="true" style="color:var(--avd-success)"></i><span>{{ __('All good: nothing needs your attention.') }}</span></p>
+                    @else
+                        <div>
+                            @foreach($attention as $item)
+                                <div class="mk-attn {{ $item['tone'] }}">
+                                    <span class="mk-attn__icon" aria-hidden="true"><i class="fa-solid fa-{{ $item['icon'] }}"></i></span>
+                                    <div class="mk-attn__body"><strong>{{ $item['sentence'] }}</strong>@if($item['line'] !== '')<span class="mk-muted" style="font-size:.8125rem">{{ $item['line'] }}</span>@endif</div>
+                                    <div class="mk-attn__actions">
+                                        @foreach($item['actions'] as $action)
+                                            @if($action['type'] === 'upload')
+                                                @if($uploadsAllowed)
+                                                    <button type="button" class="mk-btn mk-btn--secondary mk-btn--sm" data-bs-toggle="modal" data-bs-target="#video_create"><i class="fa-solid fa-rotate-right" aria-hidden="true"></i><span>{{ $action['label'] }}</span></button>
                                                 @endif
-                                                <small class="text-muted d-block mb-2">{{ $item['message'] ?? '' }}</small>
-                                                @if(!empty($item['action_url']))
-                                                    <a class="btn btn-outline-primary btn-sm" href="{{ $item['action_url'] }}">
-                                                        {{ $item['action_label'] ?? __('Review') }}
-                                                    </a>
-                                                @endif
-                                            </div>
-                                        </div>
+                                            @elseif($action['type'] === 'delete')
+                                                <button type="button" class="mk-btn mk-btn--danger-quiet mk-btn--sm" data-bs-toggle="modal" data-bs-target="#mk-dash-delete" data-action="{{ $action['url'] }}" data-title="{{ $action['title'] }}"><i class="fa-regular fa-trash-can" aria-hidden="true"></i><span>{{ $action['label'] }}</span></button>
+                                            @else
+                                                <a class="mk-btn mk-btn--secondary mk-btn--sm" href="{{ $action['url'] }}">{{ $action['label'] }}</a>
+                                            @endif
+                                        @endforeach
                                     </div>
-                                @endforeach
-                            </div>
-                        @else
-                            <div class="text-center py-4 px-3">
-                                <div class="rounded-circle bg-primary-subtle text-primary d-inline-flex align-items-center justify-content-center mb-3" style="width: 48px; height: 48px;">
-                                    <i class="fa-solid fa-check"></i>
                                 </div>
-                                <h5 class="mb-2 mx-auto text-wrap" style="max-width: 22rem; overflow-wrap: anywhere;">
-                                    {{ __('No stalled creator tasks') }}
-                                </h5>
-                                <p class="text-muted mb-0">
-                                    {{ __('Drafts, failed uploads, and unpublished videos are current under the configured rules.') }}
-                                </p>
-                            </div>
-                        @endif
+                            @endforeach
+                        </div>
+                    @endif
+                </section>
+            @endif
+        </div>
+
+        <div class="mk-grid mk-grid--2-1">
+            <section class="mk-panel" aria-labelledby="mk-dash-comments-title">
+                <div class="mk-panel__head"><h2 class="mk-panel__title" id="mk-dash-comments-title">{{ __('Latest comments') }}</h2><a class="mk-btn mk-btn--quiet mk-btn--sm" href="{{ route('user.comments.index') }}">{{ __('See all') }}</a></div>
+                @if($latestComments === [])
+                    <x-mk.empty icon="comments" :title="__('No comments yet')" :text="__('Comments on your videos appear here.')" compact />
+                @else
+                    <ul class="mk-rows">
+                        @foreach($latestComments as $comment)
+                            <li class="mk-item">
+                                @if($comment['avatar'] !== null)
+                                    <img class="mk-avatar" style="--mk-av:36px" src="{{ $comment['avatar'] }}" alt="" width="36" height="36" loading="lazy" decoding="async">
+                                @else
+                                    <span class="mk-avatar" style="--mk-av:36px" aria-hidden="true"></span>
+                                @endif
+                                <div class="mk-item__body">
+                                    <div><strong><bdi>{{ $comment['author'] ?? __('Deleted member') }}</bdi></strong> <span class="mk-muted" style="font-size:.8125rem">&nbsp;· {{ $comment['at'] ? StudioFormat::ago(\Carbon\CarbonImmutable::parse($comment['at'])) : '' }}</span></div>
+                                    {{-- R1-025: a comment keeps its own direction in every language; names and titles are isolated --}}
+                                    <p class="mk-clamp-2" data-mk-clamp dir="auto">{{ $comment['content'] }}</p>
+                                    @if($comment['video'] !== null)
+                                        <span class="mk-muted mk-ref-line" style="font-size:.8125rem">{!! strtr(e(__('on :title')), [':title' => '<a class="mk-quiet-link mk-ref-line__fit" href="'.e($comment['video']['url']).'" dir="auto">'.e($comment['video']['title']).'</a>']) !!}</span>
+                                    @endif
+                                </div>
+                                <div class="mk-item__aside">
+                                    <button type="button" class="mk-icon-btn mk-icon-btn--muted mk-icon-btn--danger" title="{{ __('Remove comment') }}" aria-label="{{ __('Remove comment') }}" data-bs-toggle="modal" data-bs-target="#mk-remove-comment" data-action="{{ $comment['destroy'] }}"><i class="fa-regular fa-trash-can" aria-hidden="true"></i></button>
+                                </div>
+                            </li>
+                        @endforeach
+                    </ul>
+                @endif
+            </section>
+            <section class="mk-panel" aria-labelledby="mk-dash-subs-title">
+                <div class="mk-panel__head"><h2 class="mk-panel__title" id="mk-dash-subs-title">{{ __('New subscribers') }}</h2><a class="mk-btn mk-btn--quiet mk-btn--sm" href="{{ route('user.subscribers') }}">{{ __('See all') }}</a></div>
+                @if($subscribers === [])
+                    <x-mk.empty icon="users" :title="__('No subscribers yet')" :text="__('People who follow your channel appear here.')" compact />
+                @else
+                    <ul class="mk-rows">
+                        @foreach($subscribers as $fan)
+                            {{-- R1-021: the time stays at the row end, on the avatar's line (mk-item--timed) --}}
+                            <li class="mk-item mk-item--timed">
+                                @if($fan['name'] !== null)
+                                    <img class="mk-avatar" style="--mk-av:36px" src="{{ $fan['avatar'] }}" alt="" width="36" height="36" loading="lazy" decoding="async">
+                                    <div class="mk-item__body">
+                                        <a class="mk-item__title" href="{{ $fan['url'] }}"><bdi>{{ $fan['name'] }}</bdi></a>
+                                        @if($showSubscriberCounts && ! $fan['hidesCount'])
+                                            <span class="mk-muted" style="font-size:.8125rem">{{ $fan['count'] === 0 ? __('No subscribers yet') : trans_choice(':count subscriber|:count subscribers', $fan['count'], ['count' => StudioFormat::number($fan['count'])]) }}</span>
+                                        @endif
+                                    </div>
+                                @else
+                                    <span class="mk-avatar" style="--mk-av:36px" aria-hidden="true"></span>
+                                    <div class="mk-item__body"><span class="mk-muted">{{ __('Deleted member') }}</span></div>
+                                @endif
+                                <span class="mk-item__time">{{ $fan['at'] ? StudioFormat::ago(\Carbon\CarbonImmutable::parse($fan['at'])) : '' }}</span>
+                            </li>
+                        @endforeach
+                    </ul>
+                @endif
+            </section>
+        </div>
+
+        @if($tipsEnabled && $tips !== [])
+            <section class="mk-panel" aria-labelledby="mk-tips-title">
+                <div class="mk-panel__head"><h2 class="mk-panel__title" id="mk-tips-title">{{ __('Tips for your videos') }}</h2></div>
+                <ul class="mk-rows">
+                    @foreach($tips as $tip)
+                        <li class="mk-item">
+                            <span class="mk-attn__icon" aria-hidden="true"><i class="fa-solid fa-{{ $tip['icon'] }}"></i></span>
+                            <div class="mk-item__body"><strong>{{ $tip['title'] }}</strong><span class="mk-muted" style="font-size:.8125rem">{{ $tip['text'] }}</span></div>
+                            <div class="mk-item__aside"><a class="mk-btn mk-btn--secondary mk-btn--sm" href="{{ $tip['url'] }}">{{ $tip['action'] }}</a></div>
+                        </li>
+                    @endforeach
+                </ul>
+            </section>
+        @endif
+
+        {{-- Remove a comment from the dashboard: the same confirmation as the Comments page. --}}
+        <div class="modal fade" id="mk-remove-comment" tabindex="-1" aria-labelledby="mk-remove-comment-title" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered mk-dialog mk-confirm">
+                <div class="modal-content avd-mk">
+                    <div class="mk-sheet__head">
+                        <h2 class="mk-sheet__title" id="mk-remove-comment-title">{{ __('Remove this comment?') }}</h2>
+                        <button type="button" class="mk-icon-btn mk-icon-btn--muted" data-bs-dismiss="modal" aria-label="{{ __('Close') }}" title="{{ __('Close') }}"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
                     </div>
+                    <div class="mk-sheet__body"><p class="mk-sheet__lead">{{ __('The comment and its replies are removed from your video. You can\'t undo this.') }}</p></div>
+                    <div class="mk-sheet__foot">
+                        <button type="button" class="mk-btn mk-btn--secondary" data-bs-dismiss="modal" data-mk-autofocus>{{ __('Cancel') }}</button>
+                        <button type="submit" class="mk-btn mk-btn--danger" form="mk-remove-comment-form"><i class="fa-regular fa-trash-can" aria-hidden="true"></i><span>{{ __('Remove comment') }}</span></button>
+                    </div>
+                    <form id="mk-remove-comment-form" method="POST" action="" data-mk-action-from hidden>@csrf @method('DELETE')</form>
+                </div>
+            </div>
+        </div>
+
+        {{-- Delete a failed upload from "Needs your attention". --}}
+        <div class="modal fade" id="mk-dash-delete" tabindex="-1" aria-labelledby="mk-dash-delete-title" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered mk-dialog mk-confirm">
+                <div class="modal-content avd-mk">
+                    <div class="mk-sheet__head">
+                        <h2 class="mk-sheet__title" id="mk-dash-delete-title">{{ __('Delete this video?') }}</h2>
+                        <button type="button" class="mk-icon-btn mk-icon-btn--muted" data-bs-dismiss="modal" aria-label="{{ __('Close') }}" title="{{ __('Close') }}"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+                    </div>
+                    <div class="mk-sheet__body"><p class="mk-sheet__lead"><strong data-mk-title dir="auto"></strong></p><x-mk.alert type="danger">{{ __('You can\'t undo this. The failed upload and its pictures are deleted.') }}</x-mk.alert></div>
+                    <div class="mk-sheet__foot">
+                        <button type="button" class="mk-btn mk-btn--secondary" data-bs-dismiss="modal" data-mk-autofocus>{{ __('Cancel') }}</button>
+                        <button type="submit" class="mk-btn mk-btn--danger" form="mk-dash-delete-form"><i class="fa-regular fa-trash-can" aria-hidden="true"></i><span>{{ __('Delete video') }}</span></button>
+                    </div>
+                    <form id="mk-dash-delete-form" method="POST" action="" data-mk-action-from hidden>@csrf @method('DELETE')</form>
                 </div>
             </div>
         </div>
     @endif
-    @php
-        $creatorQualityPulseEnabled = $creatorQualityPulseEnabled ?? config('site.creator_quality_pulse_enabled', \App\Services\CreatorQualityPulseService::DEFAULT_ENABLED);
-        $creatorQualityPulseVideos = $creatorQualityPulseVideos ?? collect();
-    @endphp
-    @if($creatorQualityPulseEnabled)
-        <div class="row mb-4">
-            <div class="col-12">
-                <div class="card h-100">
-                    <div class="card-header d-flex align-items-center gap-3 p-3">
-                        <i class="fa-solid fa-gauge-high"></i>
-                        <h5 class="card-title mb-0">
-                            {{ __('Creator Quality Pulse') }}
-                        </h5>
-                    </div>
-                    <div class="card-body">
-                        @if($creatorQualityPulseVideos->isNotEmpty())
-                            <div class="table-responsive">
-                                <table class="table align-middle">
-                                    <thead>
-                                    <tr>
-                                        <th scope="col" class="w-40" style="min-width: 260px">{{ __('Video') }}</th>
-                                        <th scope="col">{{ __('Recent views') }}</th>
-                                        <th scope="col">{{ __('Recent comments') }}</th>
-                                        <th scope="col">{{ __('Thumbnail') }}</th>
-                                        <th scope="col" style="min-width: 160px">{{ __('Pulse') }}</th>
-                                    </tr>
-                                    </thead>
-                                    <tbody>
-                                    @foreach($creatorQualityPulseVideos as $video)
-                                        @php
-                                            $pulseScore = (int) $video->creator_quality_score;
-                                        @endphp
-                                        <tr>
-                                            <td class="align-middle">
-                                                <div class="d-flex gap-3 align-items-center">
-                                                    <a href="{{$video->route}}">
-                                                        @include('users.videos.partials.thumbnail', ['video' => $video])
-                                                    </a>
-                                                    <small>{{Str::limit($video->title, 42)}}</small>
-                                                </div>
-                                            </td>
-                                            <td class="align-middle">{{ trans_choice('views', (int) $video->creator_quality_views_count) }}</td>
-                                            <td class="align-middle">{{ trans_choice('comments', (int) $video->creator_quality_comments_count) }}</td>
-                                            <td class="align-middle">
-                                                <span class="badge bg-{{ $video->creator_quality_thumbnail_ready ? 'success' : 'secondary' }}">
-                                                    {{ $video->creator_quality_thumbnail_ready ? __('Ready') : __('Missing') }}
-                                                </span>
-                                            </td>
-                                            <td class="align-middle">
-                                                <div class="d-flex align-items-center gap-2">
-                                                    <div class="progress flex-grow-1" style="height: .6rem;">
-                                                        <div
-                                                            class="progress-bar bg-primary"
-                                                            role="progressbar"
-                                                            style="width: {{ $pulseScore }}%;"
-                                                            aria-valuenow="{{ $pulseScore }}"
-                                                            aria-valuemin="0"
-                                                            aria-valuemax="100"
-                                                        ></div>
-                                                    </div>
-                                                    <span class="small fw-bold">{{ $pulseScore }}</span>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    @endforeach
-                                    </tbody>
-                                </table>
-                            </div>
-                        @else
-                            <div class="text-center my-3 px-3">
-                                <i class="fa-solid fa-gauge-high fa-2x"></i>
-                                <h5 class="my-3 mx-auto text-wrap" style="max-width: 22rem; overflow-wrap: anywhere;">{{ __('Upload videos to build your quality pulse') }}</h5>
-                                <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#video_create">
-                                    <i class="fa-solid fa-upload"></i>
-                                    {{ __('Import') }}
-                                </button>
-                            </div>
-                        @endif
-                    </div>
-                    <div class="card-footer">
-                        <a href="{{route('user.videos.index')}}" class="btn btn-primary btn-sm">
-                            <i class="fa-solid fa-eye"></i>&nbsp;
-                            {{ __('Review videos') }}
-                        </a>
-                    </div>
+
+    {{-- Custom dates of the dashboard's period (a dialog in the look's pop-up window style). --}}
+    <div class="modal fade" id="mk-dash-dates" tabindex="-1" aria-labelledby="mk-dash-dates-title" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered mk-dialog">
+            <div class="modal-content avd-mk">
+                <div class="mk-sheet__head">
+                    <h2 class="mk-sheet__title" id="mk-dash-dates-title">{{ __('Custom dates') }}</h2>
+                    <button type="button" class="mk-icon-btn mk-icon-btn--muted" data-bs-dismiss="modal" aria-label="{{ __('Close') }}" title="{{ __('Close') }}"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
                 </div>
-            </div>
-        </div>
-    @endif
-    <div class="row mb-4">
-        <div class="col-xl-7 mb-4 mb-xl-0">
-            <div class="card h-100">
-                <div class="card-header d-flex align-items-center gap-3 p-3">
-                    <i class="fa-solid fa-video"></i>
-                    <h5 class="card-title mb-0">
-                        {{ __('Last uploaded videos') }}
-                    </h5>
-                </div>
-                <div class="card-body">
-                    @if($user->videos_count || request()->all())
-                        <div class="table-responsive">
-                            <table class="table">
-                            <thead>
-                            <tr>
-                                <th scope="col" class="w-35" style="min-width: 250px">{{ __('Video') }}</th>
-                                <th scope="col" class="w-15" >{{ __('Status') }}</th>
-                                <th scope="col" class="w-10">{{ __('Views') }}</th>
-                                <th scope="col" class="w-10">{{ __('Comments') }}</th>
-                                <th scope="col" class="w-20">{{ __('Interactions') }}</th>
-                                <th scope="col" class="w-10">{{ __('Actions') }}</th>
-                            </tr>
-                            </thead>
-                            <tbody>
-                                @forelse($user->videos as $video)
-                                    <tr>
-                                        <td class="align-middle d-flex gap-3 align-items-center">
-                                            <a href="{{$video->route}}">
-                                                @include('users.videos.partials.thumbnail', ['video' => $video])
-                                            </a>
-                                            <small>{{Str::limit($video->title, 30)}}</small>
-                                        </td>
-                                        <td class="align-middle">
-                                            @include('videos.status')
-                                        </td>
-                                        <td class="align-middle">{{$video->views}}</td>
-                                        <td class="align-middle">
-                                            @if($video->comments_count)
-                                                <a href="{{route('user.comments.index') .'?video='.$video->id}}" class="badge bg-info text-decoration-none">
-                                                    {{trans_choice('comments', $video->comments_count)}}
-                                                </a>
-                                            @else
-                                                <div class="badge bg-secondary">
-                                                    {{ __('No comments') }}
-                                                </div>
-                                            @endif
-                                        </td>
-                                        <td class="align-middle">
-                                            @include('users.partials.interactions', ['item' => $video])
-                                        </td>
-                                        <td class="align-middle text-center">
-                                            @can('update', $video)
-                                                @if($video->is_draft)
-                                                    <a href="{{route('user.videos.create', $video)}}" title="{{__('Edit draft')}}">
-                                                        <i class="fa-solid fa-pen"></i>
-                                                    </a>
-                                                @else
-                                                    <a href="{{route('user.videos.edit', $video)}}" title="{{__('Edit video')}}">
-                                                        <i class="fa-solid fa-pen"></i>
-                                                    </a>
-                                                @endif
-                                            @endcan
-                                        </td>
-                                    </tr>
-                                @empty
-                                    <tr class="bg-light">
-                                        <td colspan="7" class="text-center">
-                                            <i class="fa-solid fa-video-slash fa-2x my-3"></i>
-                                            <p class="fw-bold">{{ __('No matching videos for this period') }}</p>
-                                        </td>
-                                    </tr>
-                                @endforelse
-                            </tbody>
-                        </table>
+                <form class="mk-sheet__body" method="GET" action="{{ route('user.index') }}" id="mk-dash-dates-form">
+                    <input type="hidden" name="period" value="custom">
+                    <div class="mk-form">
+                        <div class="mk-form__row mk-form__row--2">
+                            <div class="mk-field"><label class="mk-label" for="mk-dash-from">{{ __('Start date') }}</label><input class="mk-input" type="date" id="mk-dash-from" name="from" value="{{ $period['from'] }}" max="{{ $period['to'] }}" required></div>
+                            <div class="mk-field"><label class="mk-label" for="mk-dash-to">{{ __('End date') }}</label><input class="mk-input" type="date" id="mk-dash-to" name="to" value="{{ $period['to'] }}" max="{{ \Carbon\CarbonImmutable::now(ZoneLabel::zone())->toDateString() }}" required></div>
                         </div>
-                    @else
-                        <div class="text-center my-3">
-                            <i class="fa-solid fa-upload fa-2x"></i>
-                            <h5 class="my-3">{{ __('Import your first video') }}</h5>
-                            <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#video_create">
-                                <i class="fa-solid fa-plus"></i>
-                                {{ __('Import') }}
-                            </button>
-                        </div>
-                    @endif
-                </div>
-                <div class="card-footer">
-                    <div class="d-flex flex-column flex-sm-row align-items-center justify-content-between gap-2">
-                        <a href="{{route('user.videos.index')}}" class="btn btn-primary btn-sm w-100 w-sm-auto">
-                            <i class="fa-solid fa-eye"></i>&nbsp;
-                            {{ __('See all videos') }}
-                        </a>
-                        <button class="btn btn-success btn-sm w-100 w-sm-auto" data-bs-toggle="modal" data-bs-target="#video_create">
-                            <i class="fa-solid fa-upload"></i>
-                            {{ __('Import new video') }}
-                        </button>
+                        <p class="mk-help">{{ __('Dates use the site\'s time zone (:city). Both days are included.', ['city' => ZoneLabel::city()]) }}</p>
                     </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-xl-5">
-            <div class="card h-100">
-                <div class="card-header d-flex align-items-center gap-3 p-3">
-                    <i class="fa-solid fa-user"></i>
-                    <h5 class="card-title mb-0">
-                        {{ __('Last subscribers')}}
-                    </h5>
-                </div>
-                <div class="card-body">
-                    @if($user->subscribers_count || request()->all())
-                    <div class="table-responsive">
-                        <table class="table">
-                            <thead>
-                            <tr>
-                                <th scope="col">{{ __('Channel') }}</th>
-                                <th scope="col" style="min-width: 100px;">{{ __('Date') }}</th>
-                                <th scope="col">{{ __('Subscribers') }}</th>
-                            </tr>
-                            </thead>
-                            <tbody>
-                            @forelse($user->subscribers as $subscriber)
-                                <tr>
-                                    <td class="align-middle">
-                                        <a href="{{$subscriber->route}}" class="d-flex align-items-center gap-2 text-decoration-none">
-                                            <img class="rounded-circle" src="{{$subscriber->avatar_url}}" alt="{{$subscriber->username}} avatar" style="width: 45px;">
-                                            <span>{{$subscriber->username}}</span>
-                                        </a>
-                                    </td>
-                                    <td class="align-middle">
-                                        <div class="text-sm" data-bs-toggle="tooltip" data-bs-title="{{$subscriber->pivot->subscribe_at->translatedFormat('d F Y - H:i')}}">
-                                            {{$subscriber->pivot->subscribe_at->diffForHumans()}}
-                                        </div>
-                                    </td>
-                                    <td class="align-middle">
-                                        <div class="text-sm">
-                                            {{trans_choice('subscribers', $subscriber->subscribers_count)}}
-                                        </div>
-                                    </td>
-                                </tr>
-                            @empty
-                                <tr class="bg-light">
-                                    <td colspan="7" class="text-center">
-                                        <i class="fa-solid fa-user-slash fa-2x my-3"></i>
-                                        <p class="fw-bold">{{ __('No matching subscribers for this period') }}</p>
-                                    </td>
-                                </tr>
-                            @endforelse
-                            </tbody>
-                        </table>
-                    </div>
-                    @else
-                        <div class="text-center my-3">
-                            <i class="fa-solid fa-user-slash fa-2x"></i>
-                            <h5 class="my-3">{{ __('No subscribers yet') }}</h5>
-                        </div>
-                    @endif
-                </div>
-                <div class="card-footer">
-                    <div class="d-flex gap-2">
-                        <a href="{{route('user.subscribers')}}" class="btn btn-primary btn-sm">
-                            <i class="fa-solid fa-eye"></i>&nbsp;
-                            {{ __('See all subscribers') }}
-                        </a>
-                    </div>
+                </form>
+                <div class="mk-sheet__foot">
+                    <button type="button" class="mk-btn mk-btn--secondary" data-bs-dismiss="modal">{{ __('Cancel') }}</button>
+                    <button type="submit" class="mk-btn mk-btn--primary" form="mk-dash-dates-form">{{ __('Apply dates') }}</button>
                 </div>
             </div>
         </div>
     </div>
-    <div class="row mb-4">
-        <div class="col-xl-7 mb-4 mb-xl-0">
-            <div class="card h-100">
-                <div class="card-header d-flex align-items-center gap-3 p-3">
-                    <i class="fa-solid fa-comment"></i>
-                    <h5 class="card-title mb-0">
-                        {{ __('Last comments on my videos') }}
-                    </h5>
-                </div>
-                <div class="card-body">
-                    @if($user->videos_comments_count || request()->all())
-                        <div class="table-responsive">
-                            <table class="table">
-                                <thead>
-                                <tr>
-                                    <th scope="col" class="w-20" >{{ __('Video') }}</th>
-                                    <th scope="col" class="w-55" style="min-width: 260px">{{ __('Comment') }}</th>
-                                    <th scope="col" class="w-10">{{ __('Replies') }}</th>
-                                </tr>
-                                </thead>
-                                <tbody>
-                                @forelse($user->videos_comments as $comment)
-                                    <tr>
-                                        <td class="align-start">
-                                            <div class="d-flex gap-3 align-items-center">
-                                                @if($comment->video)
-                                                    <a href="{{$comment->video->route}}">
-                                                        @include('users.videos.partials.thumbnail', ['video' => $comment->video])
-                                                    </a>
-                                                @else
-                                                    <span class="text-muted text-sm"><i class="fa-solid fa-video-slash me-1"></i>{{__('Deleted')}}</span>
-                                                @endif
-                                            </div>
-                                        </td>
-                                        <td class="align-middle">
-                                            <div class="d-flex gap-3 align-items-center">
-                                                @if($comment->user)
-                                                    <a href="{{$comment->user->route}}">
-                                                        <img class="rounded-circle" src="{{$comment->user->avatar_url}}" alt="{{$comment->user->username}} avatar" style="width: 45px;">
-                                                    </a>
-                                                    <div>
-                                                        <div class="d-flex align-items-center">
-                                                            <a href="{{$comment->user->route}}" class="text-decoration-none text-sm">{{$comment->user->username}}</a>
-                                                            <small class="text-muted" data-bs-toggle="tooltip" data-bs-title="{{$comment->created_at->translatedFormat('d F Y - H:i')}}">&nbsp;• {{$comment->created_at->diffForHumans()}}</small>
-                                                        </div>
-                                                        <x-expand-item max="180" class="d-block">
-                                                            {{$comment->content}}
-                                                        </x-expand-item>
-                                                    </div>
-                                                @else
-                                                    <span class="text-muted"><i class="fa-solid fa-user-slash me-1"></i></span>
-                                                    <div>
-                                                        <div class="d-flex align-items-center">
-                                                            <span class="text-muted text-sm">{{__('Deleted user')}}</span>
-                                                            <small class="text-muted">&nbsp;• {{$comment->created_at->diffForHumans()}}</small>
-                                                        </div>
-                                                        <x-expand-item max="180" class="d-block">
-                                                            {{$comment->content}}
-                                                        </x-expand-item>
-                                                    </div>
-                                                @endif
-                                            </div>
-                                        </td>
-                                        <td class="align-middle">
-                                            @if($comment->replies_count)
-                                                <div class="badge bg-info">
-                                                    {{trans_choice('replies', $comment->replies_count)}}
-                                                </div>
-                                            @else
-                                                <div class="badge bg-secondary">
-                                                    {{ __('No replies') }}
-                                                </div>
-                                            @endif
-                                        </td>
-                                    </tr>
-                                @empty
-                                    <tr class="bg-light">
-                                        <td colspan="7" class="text-center">
-                                            <i class="fa-solid fa-comment-slash fa-2x my-3"></i>
-                                            <p class="fw-bold">{{ __('No matching comments for this period') }}</p>
-                                        </td>
-                                    </tr>
-                                @endforelse
-                                </tbody>
-                            </table>
-                        </div>
-                    @else
-                        <div class="text-center my-3">
-                            <i class="fa-solid fa-comment-slash fa-2x"></i>
-                            <h5 class="my-3">{{ __('No comments yet') }}</h5>
-                        </div>
-                    @endif
-                </div>
-                <div class="card-footer">
-                    <div class="d-flex gap-2">
-                        <a href="{{route('user.comments.index')}}" class="btn btn-primary btn-sm">
-                            <i class="fa-solid fa-eye"></i>&nbsp;
-                            {{ __('See all comments') }}
-                        </a>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-xl-5">
-            <div class="card h-100">
-                <div class="card-header d-flex align-items-center gap-3 p-3">
-                    <i class="fa-solid fa-thumbs-up"></i>
-                    <h5 class="card-title mb-0">
-                        {{ __('Last interactions on my videos') }}
-                    </h5>
-                </div>
-                <div class="card-body">
-                    @if($user->videos_interactions_count || request()->all())
-                        <div class="table-responsive">
-                            <table class="table">
-                            <thead>
-                            <tr>
-                                <th scope="col">{{ __('Video') }}</th>
-                                <th scope="col" style="min-width: 150px;">{{ __('User') }}</th>
-                                <th scope="col">{{ __('Interaction') }}</th>
-                            </tr>
-                            </thead>
-                            <tbody>
-                                @forelse($user->videos_interactions as $interaction)
-                                <tr>
-                                    <td class="align-middle">
-                                        @if($interaction->likeable)
-                                            <a href="{{$interaction->likeable->route}}">
-                                                @include('users.videos.partials.thumbnail', ['video' => $interaction->likeable])
-                                            </a>
-                                        @else
-                                            <span class="text-muted text-sm"><i class="fa-solid fa-video-slash me-1"></i>{{__('Deleted')}}</span>
-                                        @endif
-                                    </td>
-                                    <td class="align-middle">
-                                        @if($interaction->user)
-                                            <a href="{{$interaction->user->route}}" class="d-flex align-items-center gap-2 text-decoration-none">
-                                                <img class="rounded-circle" src="{{$interaction->user->avatar_url}}" alt="{{$interaction->user->username}} avatar" style="width: 45px;">
-                                                <div class="d-flex flex-column text-sm">
-                                                    <span>{{$interaction->user->username}}</span>
-                                                    <span class="text-muted" data-bs-toggle="tooltip" data-bs-title="{{$interaction->perform_at->translatedFormat('d F Y - H:i')}}">{{$interaction->perform_at->diffForHumans()}}</span>
-                                                </div>
-                                            </a>
-                                        @else
-                                            <div class="d-flex align-items-center gap-2">
-                                                <span class="text-muted"><i class="fa-solid fa-user-slash"></i></span>
-                                                <span class="text-muted text-sm">{{__('Deleted user')}}</span>
-                                            </div>
-                                        @endif
-                                    </td>
-                                    <td class="align-middle">
-                                        @if($interaction->status)
-                                            <div class="badge bg-success">
-                                                <i class="fa-solid fa-thumbs-up"></i>
-                                            </div>
-                                        @else
-                                            <div class="badge bg-danger">
-                                                <i class="fa-solid fa-thumbs-down"></i>
-                                            </div>
-                                        @endif
-                                    </td>
-                                </tr>
-                                @empty
-                                    <tr class="bg-light">
-                                        <td colspan="7" class="text-center">
-                                            <i class="fa-solid fa-bell-slash fa-2x my-3"></i>
-                                            <p class="fw-bold">{{ __('No matching interactions for this period') }}</p>
-                                        </td>
-                                    </tr>
-                                @endforelse
-                            </tbody>
-                        </table>
-                        </div>
-                    @else
-                        <div class="text-center my-3">
-                            <i class="fa-solid fa-eye-slash fa-2x"></i>
-                            <h5 class="my-3">{{ __('No interactions yet') }}</h5>
-                        </div>
-                    @endif
-                </div>
-                <div class="card-footer">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <a href="{{route('user.videos.index')}}" class="btn btn-primary btn-sm">
-                            <i class="fa-solid fa-eye"></i>&nbsp;
-                            {{ __('See all interactions') }}
-                        </a>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+</div>
 @endsection
+
+@push('scripts')
+    @include('users.partials.studio-scripts', ['studioScriptsParts' => ['readmore', 'confirm']])
+@endpush

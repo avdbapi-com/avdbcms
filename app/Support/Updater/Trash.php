@@ -17,27 +17,38 @@ use UnexpectedValueException;
  *
  * The trash is emptied later, in short slices: purge($seconds) deletes until its time is up, and the next purge goes
  * on from there (Updater::tidy(): Tools > Updates asks for slices while it is open, the scheduler every five minutes,
- * Undo before it takes the site down, a new update before it measures the free space).
+ * a new update before it measures the free space, and an undo back to 1.2.0 before it takes the site down: 1.2.0 knows
+ * nothing of the trash, while 1.2.1 and later empty it themselves after an undo).
  *
- * Only paths inside the work folder are taken. A path that cannot be renamed (on Windows a file somebody holds open, a
- * virus scanner looking at a new file) is deleted where it is for a short time; what is left there is found again by
- * Updater::tidy().
+ * Only paths inside the work folder are taken, and the stale-<16 hex> folders the old file cache of 1.2.2 and earlier
+ * moved into (storage/framework/cache, App\Support\StorageHider): Updater::tidy() hands them over, so the tens of
+ * thousands of expired cache entries a busy site had go in the same short slices. A path that cannot be renamed (on
+ * Windows a file somebody holds open, a virus scanner looking at a new file; a cache folder on another disk) is deleted
+ * where it is for a short time; what is left there is found again by Updater::tidy().
  */
 final class Trash
 {
     /** Tries of a rename that is refused for a moment (a file being scanned), 50 ms apart. */
     private const TRIES = 3;
 
+    /**
+     * Tests: the seconds every delete of a file or a folder takes at least, as on a slow disk (null: as fast as the disk
+     * is), so the slices of purge() show on any disk (ext4 deletes a whole work folder inside one slice).
+     */
+    public static ?float $slowDisk = null;
+
     public function __construct(private readonly UpdatePaths $paths)
     {
     }
 
     /**
-     * Move $path (a folder or a file in storage/app/updates) into the trash. True when it is out of the way (moved, or
-     * not there at all); false when it had to be deleted in place and some of it is still there.
+     * Move $path (a folder or a file in storage/app/updates, or a stale cache folder) into the trash. True when it is
+     * out of the way (moved, or not there at all); false when it had to be deleted in place and some of it is still
+     * there. $deleted: how many files and folders were deleted in place.
      */
-    public function put(string $path, float $seconds = 2.0): bool
+    public function put(string $path, float $seconds = 2.0, ?int &$deleted = null): bool
     {
+        $deleted = 0;
         $path = $this->own($path);
 
         if (! self::exists($path)) {
@@ -62,7 +73,10 @@ final class Trash
             }
         }
 
-        return self::delete($path, microtime(true) + max(0.0, $seconds))['done'];
+        $result = self::delete($path, microtime(true) + max(0.0, $seconds));
+        $deleted = $result['deleted'];
+
+        return $result['done'];
     }
 
     /**
@@ -138,6 +152,53 @@ final class Trash
     }
 
     /**
+     * How many files and folders the trash holds (what purge() counts as deleted), or null when counting them took
+     * longer than $seconds (or the trash cannot be read). Links are counted, never followed.
+     */
+    public function count(float $seconds): ?int
+    {
+        $trash = $this->paths->trash();
+
+        if (! is_dir($trash)) {
+            return 0;
+        }
+
+        $deadline = microtime(true) + max(0.0, $seconds);
+        $count = 0;
+
+        try {
+            foreach (scandir($trash) ?: [] as $name) {
+                if ($name === '.' || $name === '..') {
+                    continue;
+                }
+
+                if (microtime(true) >= $deadline) {
+                    return null;
+                }
+
+                $path = $trash.'/'.$name;
+                $count++;
+
+                if (is_link($path) || ! is_dir($path)) {
+                    continue;
+                }
+
+                foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($path, FilesystemIterator::SKIP_DOTS), RecursiveIteratorIterator::SELF_FIRST) as $item) {
+                    $count++;
+
+                    if (microtime(true) >= $deadline) {
+                        return null;
+                    }
+                }
+            }
+        } catch (UnexpectedValueException) {
+            return null;
+        }
+
+        return $count;
+    }
+
+    /**
      * Delete what is in the trash for at most $seconds (one purge at a time: while another runs, this one answers at
      * once with busy). 'deleted' counts the files and folders this purge removed; 'pending' says whether anything is
      * left.
@@ -200,6 +261,7 @@ final class Trash
     private static function delete(string $path, float $deadline): array
     {
         if (is_link($path) || ! is_dir($path)) {
+            self::slowDisk();
             $gone = self::remove($path);
 
             return ['done' => $gone, 'deleted' => $gone ? 1 : 0];
@@ -216,6 +278,7 @@ final class Trash
                 }
 
                 $name = $item->getPathname();
+                self::slowDisk();
 
                 if ($item->isDir() && ! $item->isLink() ? @rmdir($name) : self::remove($name)) {
                     $deleted++;
@@ -226,11 +289,27 @@ final class Trash
             return ['done' => false, 'deleted' => $deleted];
         }
 
+        self::slowDisk();
+
         if (@rmdir($path)) {
             return ['done' => true, 'deleted' => $deleted + 1];
         }
 
         return ['done' => ! self::exists($path), 'deleted' => $deleted];
+    }
+
+    /** Tests (self::$slowDisk): wait as a slow disk would before a delete; the purge's clock (microtime) moves on that far. */
+    private static function slowDisk(): void
+    {
+        if (self::$slowDisk === null || self::$slowDisk <= 0.0) {
+            return;
+        }
+
+        $until = microtime(true) + self::$slowDisk;
+
+        do {
+            usleep(max(1, (int) ceil(($until - microtime(true)) * 1_000_000)));
+        } while (microtime(true) < $until);
     }
 
     /**
@@ -272,7 +351,10 @@ final class Trash
         return is_dir($trash) || @mkdir($trash, 0755, true) || is_dir($trash);
     }
 
-    /** A path of the work folder (never the work folder itself, never the trash or anything in it), with "/". */
+    /**
+     * A path of the work folder (never the work folder itself, never the trash or anything in it), or one stale cache
+     * folder (storage/framework/cache/stale-<16 hex>, see App\Support\StorageHider), with "/".
+     */
     private function own(string $path): string
     {
         $path = rtrim(str_replace('\\', '/', $path), '/');
@@ -280,11 +362,23 @@ final class Trash
         $trash = $work.'/.trash';
         $relative = str_starts_with($path, $work.'/') ? substr($path, strlen($work) + 1) : '';
 
+        if ($relative === '' && $this->staleCache($path)) {
+            return $path;
+        }
+
         if ($relative === '' || $path === $trash || str_starts_with($path, $trash.'/') || in_array('..', explode('/', $relative), true)) {
             throw new LogicException('Only the updater\'s own work files go to its trash: '.$path);
         }
 
         return $path;
+    }
+
+    /** Is $path (with "/") a stale-<16 hex> folder of the old file cache, right in storage/framework/cache? */
+    private function staleCache(string $path): bool
+    {
+        $cache = rtrim(str_replace('\\', '/', $this->paths->storage), '/').'/framework/cache';
+
+        return dirname($path) === $cache && preg_match('/^stale-[0-9a-f]{16}\z/', basename($path)) === 1;
     }
 
     /** "<name>-<YmdHis>-<6 hex>": unique, and says what it was and since when it waits. */

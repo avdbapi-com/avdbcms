@@ -71,8 +71,8 @@ html[data-bs-theme="light"][data-avd-flavor="peach"] {
   --avd-brand-gradient: linear-gradient(135deg, #c85017 0%, #c54983 100%);
   --avd-focus: #aa3e01;
   --avd-chip-active-bg: #c85017;
-  --avd-btn-bg: #c85017;
-  --avd-play-bg: #c85017;
+  --avd-btn-bg: #c74f16;
+  --avd-play-bg: #c74f16;
   --avd-badge-bg: #c85017;
   --avd-new-bg: #6b4eff;
   --avd-kicker-color: #aa3e01;

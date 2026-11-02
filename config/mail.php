@@ -66,7 +66,7 @@ return [
             'transport' => 'log',
             // Fresh installs ship MAIL_MAILER=log + LOG_LEVEL=error, which silently
             // dropped every "logged" email (the log transport writes at debug level).
-            // Route them to a dedicated storage/logs/mail.log so admins can inspect
+            // Route them to a dedicated mail log (storage/logs/mail-....log) so admins can inspect
             // password resets / test mails before SMTP is configured.
             'channel' => env('MAIL_LOG_CHANNEL', 'mail'),
         ],

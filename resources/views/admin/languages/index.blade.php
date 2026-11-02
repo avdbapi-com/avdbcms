@@ -6,7 +6,7 @@
     <div class="d-flex justify-content-between align-items-center my-3">
         <div>
             <h2 class="mb-0">🌐 {{ __('Languages') }}</h2>
-            <small class="text-muted">{{ __(':count languages — :keys translation keys in reference', ['count' => $stats->count(), 'keys' => $referenceCount]) }}</small>
+            <small class="text-muted">{{ __('Languages: :count. Texts in the English reference: :keys.', ['count' => number_format($stats->count()), 'keys' => number_format((int) $referenceCount)]) }}</small>
         </div>
         <div class="d-flex gap-2">
             <button class="btn btn-outline-primary d-flex align-items-center gap-2"
@@ -106,7 +106,7 @@
                                 <small class="text-nowrap text-muted">
                                     {{ $stat['filled'] }}/{{ $stat['total'] }}
                                     @if($stat['missing'] > 0)
-                                        <span class="text-danger">{{ __('(:count missing)', ['count' => $stat['missing']]) }}</span>
+                                        <span class="text-danger">({{ trans_choice('1 missing|:count missing', (int) $stat['missing'], ['count' => number_format((int) $stat['missing'])]) }})</span>
                                     @endif
                                 </small>
                             </div>
@@ -128,8 +128,8 @@
                                     <i class="fa-solid fa-gear" aria-hidden="true"></i>
                                 </a>
 
-                                {{-- Export --}}
-                                @if($stat['hasFile'] || $stat['isDefault'])
+                                {{-- Export (a view-only demo account is not offered a closed page: ViewOnlyDemo::hides()) --}}
+                                @if(($stat['hasFile'] || $stat['isDefault']) && ! \App\Http\Middleware\ViewOnlyDemo::hides('admin.languages.export'))
                                 <a href="{{ route('admin.languages.export', $stat['locale']) }}"
                                    class="btn btn-sm btn-outline-secondary"
                                    title="{{__('Export JSON')}}"
@@ -142,7 +142,7 @@
                                 @if(!$stat['isDefault'])
                                 <form method="POST"
                                       action="{{ route('admin.languages.set-default', $lang) }}"
-                                      onsubmit='return confirm({!! json_encode(__('Set :label as default language? This will change the bare URL (no prefix) to this language.', ['label' => $stat['label']])) !!})'>
+                                      onsubmit='return confirm({!! json_encode(__('Set :label as default language? This will change the bare URL (no prefix) to this language.', ['label' => $stat['label']]), JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_TAG | JSON_HEX_AMP) !!})'>
                                     @csrf
                                     <button type="submit"
                                             class="btn btn-sm btn-outline-warning"
@@ -157,7 +157,7 @@
                                 @if(!$stat['isDefault'])
                                 <form method="POST"
                                       action="{{ route('admin.languages.toggle-active', $lang) }}"
-                                      onsubmit='return confirm({!! json_encode(__(':action :label?', ['action' => $stat['isActive'] ? __('Deactivate') : __('Activate'), 'label' => $stat['label']])) !!})'>
+                                      onsubmit='return confirm({!! json_encode(__(':action :label?', ['action' => $stat['isActive'] ? __('Deactivate') : __('Activate'), 'label' => $stat['label']]), JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_TAG | JSON_HEX_AMP) !!})'>
                                     @csrf
                                     <button type="submit"
                                             class="btn btn-sm {{ $stat['isActive'] ? 'btn-outline-secondary' : 'btn-outline-success' }}"
@@ -170,7 +170,7 @@
                                 {{-- Delete --}}
                                 <form method="POST"
                                       action="{{ route('admin.languages.destroy', $lang) }}"
-                                      onsubmit='return confirm({!! json_encode(__('Delete :label? Translation JSON files will be kept.', ['label' => $stat['label']])) !!})'>
+                                      onsubmit='return confirm({!! json_encode(__('Delete :label? Translation JSON files will be kept.', ['label' => $stat['label']]), JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_TAG | JSON_HEX_AMP) !!})'>
                                     @csrf
                                     @method('DELETE')
                                     <button type="submit" class="btn btn-sm btn-outline-danger" title="{{__('Delete')}}"

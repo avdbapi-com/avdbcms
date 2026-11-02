@@ -3,7 +3,6 @@
 namespace App\Filters\Drivers;
 
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Str;
 
 class MySQLFilter extends DriverFilter
 {
@@ -21,16 +20,20 @@ class MySQLFilter extends DriverFilter
      */
     protected Builder $builder;
 
+    /**
+     * Each query key that names a filter of this class (DriverFilter::filterMethod(): its own public methods, with a
+     * value that fits) narrows the query; every other key is left alone, so a crafted address lists as usual.
+     */
     public function apply(Builder $builder) : Builder
     {
+        $this->builder = $builder;
+
         foreach ($this->receivedFilters() as $name => $value) {
+            $method = $this->filterMethod($name, $value);
 
-            $this->builder = $builder;
-
-            $method = Str::camel($name);
-
-            if (method_exists($this, $method)) {
-                call_user_func_array([$this, $method], [$value]);
+            if ($method !== null) {
+                $this->builder = $builder;
+                $this->{$method}($value);
             }
         }
 

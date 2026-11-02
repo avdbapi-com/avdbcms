@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Support\AuditDetails;
 use App\Support\AdminPreferences;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -41,7 +42,7 @@ class PageController
             'sort_order' => 'nullable|integer',
         ]);
 
-        DB::table('custom_pages')->insert([
+        $id = DB::table('custom_pages')->insertGetId([
             'title' => $request->title,
             'slug' => $request->slug,
             'content' => $request->content,
@@ -55,7 +56,10 @@ class PageController
             'updated_at' => now(),
         ]);
 
-        return redirect()->route('admin.pages.index')->withSuccess('Page created.');
+        // Tools > Logs > Admin actions (R3-019): the page by its title and number.
+        AuditLogController::log('page.created', AuditDetails::titled((object) ['id' => $id, 'title' => (string) $request->title]));
+
+        return redirect()->route('admin.pages.index')->withSuccess(__('Page created'));
     }
 
     public function edit(int $id): View
@@ -75,7 +79,8 @@ class PageController
             'meta_description' => 'nullable|string|max:500',
         ]);
 
-        DB::table('custom_pages')->where('id', $id)->update([
+        $before = DB::table('custom_pages')->where('id', $id)->first();
+        $values = [
             'title' => $request->title,
             'slug' => $request->slug,
             'content' => $request->content,
@@ -85,22 +90,53 @@ class PageController
             'show_in_footer' => $request->has('show_in_footer'),
             'show_in_header' => $request->has('show_in_header'),
             'sort_order' => $request->sort_order ?? 0,
-            'updated_at' => now(),
-        ]);
+        ];
+        DB::table('custom_pages')->where('id', $id)->update($values + ['updated_at' => now()]);
 
-        return redirect()->route('admin.pages.index')->withSuccess('Page updated.');
+        // Which fields changed, never their text (R3-019); a save that changed nothing writes nothing.
+        if ($before !== null) {
+            $fields = ['title' => 'title', 'slug' => 'address', 'content' => 'text', 'meta_title' => 'search_title', 'meta_description' => 'search_description',
+                'is_published' => 'published', 'show_in_footer' => 'footer_link', 'show_in_header' => 'header_link', 'sort_order' => 'order'];
+            $changed = [];
+
+            foreach ($fields as $column => $field) {
+                $old = $before->{$column} ?? null;
+                $new = $values[$column];
+
+                if (is_bool($new) ? (bool) $old !== $new : (string) ($old ?? '') !== (string) ($new ?? '')) {
+                    $changed[] = $field;
+                }
+            }
+
+            if ($changed !== []) {
+                AuditLogController::log('page.updated', AuditDetails::titled((object) ['id' => $id, 'title' => (string) $request->title]).': '.implode(', ', $changed));
+            }
+        }
+
+        return redirect()->route('admin.pages.index')->withSuccess(__('Changes saved.'));
     }
 
     public function destroy(int $id): RedirectResponse
     {
-        DB::table('custom_pages')->where('id', $id)->delete();
-        return redirect()->route('admin.pages.index')->withSuccess('Page deleted.');
+        $page = DB::table('custom_pages')->where('id', $id)->first(['id', 'title']);
+
+        if ($page !== null && DB::table('custom_pages')->where('id', $id)->delete() > 0) {
+            AuditLogController::log('page.deleted', AuditDetails::titled($page));
+        }
+
+        return redirect()->route('admin.pages.index')->withSuccess(__('Page deleted'));
     }
 
     public function togglePublish(int $id): RedirectResponse
     {
-        $current = DB::table('custom_pages')->where('id', $id)->value('is_published');
-        DB::table('custom_pages')->where('id', $id)->update(['is_published' => !$current, 'updated_at' => now()]);
-        return redirect()->route('admin.pages.index')->withSuccess('Page ' . (!$current ? 'published' : 'unpublished') . '.');
+        $page = DB::table('custom_pages')->where('id', $id)->first(['id', 'title', 'is_published']);
+        $current = $page?->is_published;
+
+        if ($page !== null) {
+            DB::table('custom_pages')->where('id', $id)->update(['is_published' => !$current, 'updated_at' => now()]);
+            AuditLogController::log($current ? 'page.unpublished' : 'page.published', AuditDetails::titled($page));
+        }
+
+        return redirect()->route('admin.pages.index')->withSuccess($current ? __('Page unpublished') : __('Page published'));
     }
 }

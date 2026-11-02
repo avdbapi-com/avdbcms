@@ -87,16 +87,27 @@ class BackupController
     {
         $result = app(DatabaseBackup::class)->create('backup_');
 
+        if ($result['ok']) {
+            AuditLogController::log('tools.backup.created', isset($result['file']) && is_string($result['file']) ? basename($result['file']) : null);
+        }
+
         return $result['ok']
             ? redirect()->route('admin.backups.index')->withSuccess($result['message'])
             : redirect()->route('admin.backups.index')->withErrors(['backup' => $result['message']]);
     }
 
-    public function download(string $filename): \Symfony\Component\HttpFoundation\BinaryFileResponse
+    public function download(string $filename): \Symfony\Component\HttpFoundation\BinaryFileResponse|RedirectResponse
     {
         $path = storage_path('app/backups/' . basename($filename));
         if (! file_exists($path)) {
             abort(404);
+        }
+
+        // a backup another user of the server wrote (root's cron) that the site may not read: the list says so (no 500)
+        if (! \App\Logs\ReadableLogViewer::readable($path)) {
+            return redirect()->route('admin.backups.index')->withErrors([
+                'backup' => __('The site has no permission to read the backup :file.', ['file' => basename($filename)]),
+            ]);
         }
 
         return response()->download($path);
@@ -105,8 +116,9 @@ class BackupController
     public function destroy(string $filename): RedirectResponse
     {
         $path = storage_path('app/backups/' . basename($filename));
-        if (file_exists($path)) {
-            @unlink($path);
+        // written when the file is gone (a file the site may not delete stays, and so does the log)
+        if (file_exists($path) && @unlink($path)) {
+            AuditLogController::log('tools.backup.deleted', basename($filename));
         }
 
         return redirect()->route('admin.backups.index')

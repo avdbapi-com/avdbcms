@@ -16,8 +16,8 @@ html[data-bs-theme="dark"][data-avd-flavor="blue"] {
   --avd-on-accent: #ffffff;
   --avd-brand-gradient: linear-gradient(135deg, #4e6bec 0%, #0a0a0a 100%);
   --avd-focus: #5c7cff;
-  --avd-btn-bg: #4e6bec;
-  --avd-play-bg: #4e6bec;
+  --avd-btn-bg: #4c69ea;
+  --avd-play-bg: #4c69ea;
   --avd-badge-bg: #4e6bec;
   --avd-new-bg: #0038ff;
   --avd-new-text: #ffffff;

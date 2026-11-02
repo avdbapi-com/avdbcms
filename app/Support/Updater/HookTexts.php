@@ -6,7 +6,7 @@ namespace App\Support\Updater;
  * The texts of the maintenance hook (storage/framework/maintenance.php): the "being updated" page for visitors, the
  * Finish/Undo page of the administrator who started the swap, and the messages of its JSON answers. The hook runs
  * without Laravel, so they are translated here, while Laravel still runs, into the site's default language and written
- * into the hook with it (F8 17). Placeholders (:done, :total, :left) stay as they are: the hook fills them in.
+ * into the hook with it. Placeholders (:done, :total, :left) stay as they are: the hook fills them in.
  * Every text is a literal __() call, so scripts/i18n_check.php finds it.
  *
  * $kind "update" is a one-click update, "undo" is Undo this update (the same swap, the other way).

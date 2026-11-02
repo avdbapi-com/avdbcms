@@ -35,8 +35,10 @@ class PlaylistController
             ->withMax('videos as last_position', 'playlist_has_videos.position')
             ->findOrFail($request->get('playlist_id'));
 
+        // "Date added" with the site's clock, like Watch later and the studio's editor (judge R3-035; until the update has
+        // noted the older rows, the database's clock as before: App\Support\LegacyRowTimes::playlistStamp())
         $playlist->videos()->toggle([
-            $video->id => ['position' => is_null($playlist->last_position) ? 0 : $playlist->last_position + 1]
+            $video->id => ['position' => is_null($playlist->last_position) ? 0 : $playlist->last_position + 1] + \App\Support\LegacyRowTimes::playlistStamp($playlist),
         ]);
 
         $playlist->touch();

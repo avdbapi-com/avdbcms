@@ -1,16 +1,2 @@
-@component('mail::message')
-
-# Hello {{$notifiable->username}}.
-
-You are receiving this email because your account has been suspended for violating our <a target="_blank" class="text-danger fw-bold" href="{{ url('/terms') }}">{{__('Terms of Service')}}</a>.
-
-If you want contest this decision, please contact our support.
-
-@component('mail::button', ['url' => route('contact.show')])
-    Contact Support
-@endcomponent
-
-Regards, {{ config('app.name') }}
-
-@endcomponent
-
+{{-- The account was suspended (App\Notifications\Account\BanAccount). The HTML part (member design 6.21); the plain-text part: mails.text.account.ban. The words: App\Notifications\Support\MemberMail. --}}
+@include('mails.layouts.html', ['mail' => \App\Notifications\Support\MemberMail::ban($notifiable)])

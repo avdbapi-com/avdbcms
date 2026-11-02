@@ -53,7 +53,7 @@ class RunScheduledAvdbImports extends Command
             $this->runSchedule($schedule);
         });
 
-        $this->line("Checked {$count} AVDB import schedule(s).");
+        $this->line("Checked {$count} AVDB import ".\Illuminate\Support\Str::plural('schedule', (int) $count).'.');
 
         return self::SUCCESS;
     }

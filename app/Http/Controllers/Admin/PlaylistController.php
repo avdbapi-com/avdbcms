@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Models\Playlist;
 use App\Support\AdminPreferences;
+use App\Support\AuditDetails;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -29,10 +30,12 @@ class PlaylistController
 
     public function destroy(Playlist $playlist): RedirectResponse
     {
+        $name = AuditDetails::titled($playlist);
         $playlist->videos()->detach();
         $playlist->forceDelete();
+        AuditLogController::log('playlist.deleted', $name);
 
         return redirect()->route('admin.playlists.index')
-            ->withSuccess('Playlist deleted successfully.');
+            ->withSuccess(__('Playlist deleted'));
     }
 }

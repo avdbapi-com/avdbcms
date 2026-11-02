@@ -4,7 +4,7 @@
 <div class="d-flex justify-content-between align-items-center my-3">
     <h2><i class="fa-solid fa-photo-film me-2"></i>{{__('Media Library')}}</h2>
     <div class="d-flex gap-2 align-items-center">
-        <small class="text-muted">{{ $totalDirs }} folders, {{ $totalFiles }} files, {{ round($totalSize / 1048576, 2) }} MB</small>
+        <small class="text-muted">{{ \App\Support\AdminText::html(\App\Support\AdminText::list([trans_choice('1 folder|:count folders', (int) $totalDirs, ['count' => number_format((int) $totalDirs)]), trans_choice('1 file|:count files', (int) $totalFiles, ['count' => number_format((int) $totalFiles)]), ':size']), [':size' => '<span dir="ltr" class="text-nowrap">'.e(round($totalSize / 1048576, 2).' MB').'</span>']) }}</small>
     </div>
 </div>
 <hr>
@@ -63,9 +63,9 @@
             </td>
             <td class="align-middle">
                 @if($file['size'] > 1048576)
-                    {{ round($file['size'] / 1048576, 2) }} MB
+                    <span dir="ltr" class="text-nowrap">{{ round($file['size'] / 1048576, 2) }} MB</span>
                 @else
-                    {{ round($file['size'] / 1024, 1) }} KB
+                    <span dir="ltr" class="text-nowrap">{{ round($file['size'] / 1024, 1) }} KB</span>
                 @endif
             </td>
             <td class="align-middle"><small>{{ date('M d, Y H:i', $file['modified']) }}</small></td>

@@ -79,14 +79,15 @@
     @endphp
 
     @php
-        // Grid-ad context and heading icon of the layouts whose page is hero + chips + feed; grid_modern adds
-        // the discovery widgets below.
+        // List-ad context and heading icon of the layouts whose page is hero + chips + feed; grid_modern adds
+        // the discovery widgets below. Their main list is the homepage feed ("home_feed": Money > Ads > "Ad code for the
+        // main homepage list", App\Support\ListAdContexts); grid_modern's main list ("new_videos") has its own.
         $homeFeedLayouts = [
-            'youtube_spotlight' => ['yt_spotlight_feed', 'compass'],
-            'cinema_carousel' => ['cinema_feed', 'film'],
-            'bento_mosaic' => ['bento_feed', 'table-cells-large'],
-            'tiktok_shorts' => ['shorts_feed', 'fire'],
-            'cyberpunk_hud' => ['cyber_feed', 'bolt'],
+            'youtube_spotlight' => ['home_feed', 'compass'],
+            'cinema_carousel' => ['home_feed', 'film'],
+            'bento_mosaic' => ['home_feed', 'table-cells-large'],
+            'tiktok_shorts' => ['home_feed', 'fire'],
+            'cyberpunk_hud' => ['home_feed', 'bolt'],
         ];
     @endphp
 
@@ -157,6 +158,10 @@
             <div id="avdSmartDiscoveryTrack" class="avd-discovery-track" tabindex="0" role="region" aria-label="{{ __($homeWidgetText('smart_discovery_rail_title', 'Tags with the most videos')) }}">
                 @foreach($discoveryRailItems as $item)
                     @php
+                        if ($usingDiscoveryFallback) {
+                            // perf-7: a category's icon from data gets its rule in the layout's head (IconSubset)
+                            \App\Support\IconSubset::remember($item->icon_name);
+                        }
                         $discoveryItemTitle = $usingDiscoveryFallback ? __($item->title) : $item->localized_name;
                         $discoveryItemUrl = $usingDiscoveryFallback
                             ? locale_url(route('pages.category', $item->slug))
@@ -210,6 +215,9 @@
             ? collect($categories ?? [])->take($creatorSpotlightLimit)
             : collect();
         $usingCreatorFallback = $creatorSpotlightCreators->isEmpty() && $creatorSpotlightFallbackCategories->isNotEmpty();
+        if ($usingCreatorFallback) {
+            \App\Support\IconSubset::remember(...$creatorSpotlightFallbackCategories->pluck('icon_name')->values()->all());
+        }
     @endphp
     @if($creatorSpotlightEnabled && ($creatorSpotlightCreators->isNotEmpty() || $creatorSpotlightFallbackCategories->isNotEmpty()))
         <section id="home-widget-creator-spotlight" class="avd-creator-spotlight px-3 px-sm-0 mb-4" aria-label="{{ __($homeWidgetText('creator_spotlight_kicker', 'Creator spotlight')) }}" data-avd-home-widget="creator_spotlight" data-avd-motion-direction="{{ $homeWidgetMotionDirection('creator_spotlight', 'right') }}">
@@ -334,6 +342,9 @@
             <div id="avdTrendingActorsTrack" class="avd-discovery-track" tabindex="0" role="region" aria-label="{{ __($homeWidgetText('trending_collections_title', 'Actors viewers are watching now')) }}">
                 @foreach($trendingCollections->isNotEmpty() ? $trendingCollections : $fallbackTrendingCollections as $collection)
                     @php
+                        if ($usingTrendingCollectionsFallback) {
+                            \App\Support\IconSubset::remember($collection->icon_name);
+                        }
                         $trendingActorName = $usingTrendingCollectionsFallback ? null : trim((string) ($collection->actor_name ?? ''));
                         $trendingCollectionUrl = $usingTrendingCollectionsFallback
                             ? locale_url(route('pages.category', $collection->slug))
@@ -378,7 +389,8 @@
     </div>
 
     @if($homeMainFeed['enabled'])
-        <section class="avd-home-feed px-2 px-sm-0" aria-labelledby="avdHomeFeedTitle">
+        {{-- R1-151: the page gutter of the phone mockups (16px; the cards sat 8px from the edges) --}}
+        <section class="avd-home-feed px-3 px-sm-0" aria-labelledby="avdHomeFeedTitle">
             <x-theme.section-head
                 :title="__(\App\Support\ThemeStructure::voice('feed'))"
                 :kicker="filled(\App\Support\ThemeStructure::voice('feed_kicker')) ? __(\App\Support\ThemeStructure::voice('feed_kicker')) : null"
@@ -396,5 +408,6 @@
         </section>
     @endif
     @endif
-    @includeWhen($showPremiumModal, 'modals.premium')
+    {{-- The Welcome to Premium sheet is shown on /premium (?checkout=success) since 1.2.3, never on the home page with its
+         ads (member design 6.16, OD-M10): PageController@home sends /?premium there. --}}
 @endsection

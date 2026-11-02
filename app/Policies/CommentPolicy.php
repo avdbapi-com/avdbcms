@@ -5,6 +5,7 @@ namespace App\Policies;
 use App\Models\User;
 use App\Models\Comment;
 use App\Models\Video;
+use App\Support\AdminIpLock;
 use Illuminate\Auth\Access\HandlesAuthorization;
 use Illuminate\Auth\Access\Response;
 
@@ -16,7 +17,7 @@ class CommentPolicy
 
     public function before(?User $user, string $ability): bool|null
     {
-        if (in_array($ability, self::ADMIN_ABILITIES) && $user?->is_admin) {
+        if (in_array($ability, self::ADMIN_ABILITIES) && AdminIpLock::adminPowersHere($user)) {
             return true;
         }
 
@@ -34,7 +35,7 @@ class CommentPolicy
     {
         return ($video->is_public && $video->allow_comments) || $video->user()->is($user)
             ? Response::allow()
-            : Response::denyWithStatus(404, !$video->is_public ? 'This video is private' : 'Comments are turned off');
+            : Response::denyWithStatus(404, !$video->is_public ? __('This video is private') : __('Comments are turned off'));
     }
 
     /**
@@ -72,7 +73,7 @@ class CommentPolicy
     {
         return ($video->is_public && $video->allow_comments) || $video->user()->is($user)
             ? Response::allow()
-            : Response::denyWithStatus(404, !$video->is_public ? 'This video is private' : 'Comments are turned off');
+            : Response::denyWithStatus(404, !$video->is_public ? __('This video is private') : __('Comments are turned off'));
     }
 
     /**
@@ -86,7 +87,7 @@ class CommentPolicy
     {
         return ($comment->user->is($user) && $comment->video->is_public) || ($comment->video->user()->is($user) && $comment->user->is($user))
             ? Response::allow()
-            : Response::denyWithStatus(404, 'This video is private');
+            : Response::denyWithStatus(404, __('This video is private'));
     }
 
     /**
@@ -114,7 +115,7 @@ class CommentPolicy
     {
         return $comment->video->is_public && $comment->user->isNot($user) && !$comment->is_banned && !$comment->reportByAuthUser
             ? Response::allow()
-            : Response::denyWithStatus(403, 'You are not authorized to report this comment');
+            : Response::denyWithStatus(403, __('You are not authorized to report this comment'));
     }
 
     /**
@@ -128,7 +129,7 @@ class CommentPolicy
     {
         return $comment->is_active || $comment->user->is($user)
             ? Response::allow()
-            : Response::denyWithStatus(403, 'You are not authorized to interact with this comment');
+            : Response::denyWithStatus(403, __('You are not authorized to interact with this comment'));
     }
 
     /**

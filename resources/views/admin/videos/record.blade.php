@@ -28,7 +28,7 @@
             __('Likes') => number_format((int) $video->likes_count),
             __('Comments') => number_format((int) $video->comments_count),
             __('Duration') => $video->duration ?: null,
-            __('File size') => $video->size ? round($video->size / 1048576, 1).' MB' : null,
+            __('File size') => $video->size ? new \Illuminate\Support\HtmlString('<bdi dir="ltr" class="text-nowrap">'.e(round($video->size / 1048576, 1).' MB').'</bdi>') : null,
             __('Added') => $date($video->created_at),
             __('Published') => $date($video->published_at),
             __('Scheduled') => $video->scheduled_at ? $date($video->scheduled_at) : null,

@@ -52,7 +52,7 @@ class RunScheduledXvidImports extends Command
             $this->runSchedule($schedule);
         });
 
-        $this->line("Checked {$count} XVIDAPI import schedule(s).");
+        $this->line("Checked {$count} XVIDAPI import ".\Illuminate\Support\Str::plural('schedule', (int) $count).'.');
 
         return self::SUCCESS;
     }

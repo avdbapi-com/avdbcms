@@ -9,7 +9,7 @@
 | its pages (level basic = always shown, advanced = behind "N more",
 | expert = Developer mode only), every admin route name mapped to its page
 | (breadcrumbs, active item, search), merged pages' tabs and the search
-| synonyms. Generated from the admin redesign spec (ia + mapping); labels
+| synonyms, kept by hand (it began as the admin redesign's page map); labels
 | and descriptions are English translation keys.
 |
 | Read through App\Support\AdminNav.
@@ -244,13 +244,10 @@ return [
                     'level' => 'basic',
                     'template' => 'T2',
                     'description' => 'Notify one member or everyone. See what was sent before.',
-                    'primary' => ['label' => 'New notification', 'route' => 'admin.notifications.index'],
+                    // one form (New notification, on this page; /admin/broadcast, the old To everyone tab, opens it)
+                    'primary' => ['label' => 'New notification', 'route' => 'admin.broadcast.index'],
                     'replaces' => ['Communication > Notifications', 'Communication > Mass Broadcast'],
                     'sidebar' => true,
-                    'tabs' => [
-                        ['label' => 'Sent', 'route' => 'admin.notifications.index'],
-                        ['label' => 'To everyone', 'route' => 'admin.broadcast.index'],
-                    ],
                 ],
                 'community.spam' => [
                     'label' => 'Spam filter',
@@ -791,7 +788,7 @@ return [
                         ['label' => 'PHP', 'route' => 'admin.phpinfo.index'],
                     ],
                 ],
-                // The one-click updater (F8): reachable by every admin; installing needs the operational tools.
+                // The one-click updater: reachable by every admin; installing needs the operational tools.
                 'tools.updates' => [
                     'label' => 'Updates',
                     'route' => 'admin.updates.index',

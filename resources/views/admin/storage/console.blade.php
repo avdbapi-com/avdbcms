@@ -67,7 +67,7 @@
                             @if ($dir === null)
                                 <span class="ad-skeleton" aria-hidden="true"></span>
                             @else
-                                {{ $dir['formatted_size'] ?? '0 B' }}
+                                <span dir="ltr" class="text-nowrap">{{ $dir['formatted_size'] ?? '0 B' }}</span>
                             @endif
                         </td>
                         <td class="is-actions">

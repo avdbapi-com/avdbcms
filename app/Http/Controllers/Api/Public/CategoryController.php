@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\Public;
 use App\Http\Resources\Video\VideoListResource;
 use App\Models\Category;
 use App\Services\PublicVideoFeedService;
+use App\Support\SafeCursor;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\ResourceCollection;
@@ -15,7 +16,11 @@ class CategoryController
 {
     public function videos(Request $request, Category $category, PublicVideoFeedService $feeds): JsonResponse|ResourceCollection
     {
-        $cursor = (string) $request->query('cursor', '');
+        // 1.2.3: a category named with a word that is always blocked never comes here: its number answers like one that
+        // does not exist, at the binding (Category::resolveRouteBinding(), round 3, R3-080)
+
+        // The page and the guest cache key both come from the query string's cursor (SafeCursor::fromQuery).
+        $cursor = SafeCursor::fromQuery($request);
         $locale = app()->getLocale();
         $perPage = (int) config('site.per_page_videos', 24);
         $isGuest = ! Auth::check();
@@ -29,10 +34,7 @@ class CategoryController
             }
         }
 
-        $videos = $feeds
-            ->category($category)
-            ->with('user')
-            ->cursorPaginate($perPage);
+        $videos = $feeds->page($feeds->category($category)->with('user'), $perPage, $cursor);
 
         $resource = VideoListResource::collection($videos);
 

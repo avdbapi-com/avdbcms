@@ -7,7 +7,7 @@ use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 
 /**
- * GitHub for the updater's feature tests (Http::fake), answering the way GitHub does (F8 4, 6, 7):
+ * GitHub for the updater's feature tests (Http::fake), answering the way GitHub does:
  *
  *  - api.github.com/repos/<repo>/releases/latest: the release JSON with both update assets (or $api, or a dropped
  *    connection with $apiFailure);

@@ -1,0 +1,14 @@
+// Every Font Awesome Free 6.7.2 icon (perf-7, 1.2.3): the main CSS carries only the icons the site's code
+// names (resources/sass/_fontawesome.scss, generated). This full set loads, once, only where an icon still finds no rule:
+// resources/js/layout/icons.ts imports it when a page shows an icon outside the subset that the layout did not print
+// either (App\Support\IconSubset::extraCss()), and the old admin layout links it (its pages name icons of their own).
+// The same font files and font-display swap as the main CSS: nothing downloads twice.
+$fa-font-display: swap;
+// Relative to app.scss, the entry the compiled urls are resolved from (Vite does not rebase the package's interpolated
+// "#{$fa-font-path}" urls): the same node_modules files, and manifest keys, as all.css had.
+$fa-font-path: "../../node_modules/@fortawesome/fontawesome-free/webfonts";
+
+@import "@fortawesome/fontawesome-free/scss/fontawesome";
+@import "@fortawesome/fontawesome-free/scss/solid";
+@import "@fortawesome/fontawesome-free/scss/regular";
+@import "@fortawesome/fontawesome-free/scss/brands";

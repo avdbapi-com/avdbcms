@@ -11,15 +11,15 @@ use Tests\Feature\Updater\Support\UpdaterScenario;
 use Tests\TestCase;
 
 /**
- * What Tools > Updates says around a run (1.2.1, B3-B5 and the wording found in the 1.2.0 tests):
+ * What Tools > Updates says around a run (1.2.1, found while testing 1.2.0):
  *
- *  - B3: after an Undo, "Show details" still shows the undo's step log (kept before its work folder goes);
+ *  - after an Undo, "Show details" still shows the undo's step log (kept before its work folder goes);
  *  - after an Undo, "Last change: <date>, the update to AVDBCMS X was undone" (not "Last updated ..., from AVDBCMS X",
  *    which read as if the site had been updated), also from a state.json an older version wrote; and the empty list
  *    of update backups says the undo used the last one (not "No update backups yet.");
  *  - during an Undo the panel says "Keep this page open until it says your files are back.";
- *  - B4: while the database backup has not listed its tables, "Backing up the database..." (no "table 0 of 0");
- *  - B5: the result card of the run before carries the mark the script hides it by when a new run starts.
+ *  - while the database backup has not listed its tables, "Backing up the database..." (no "table 0 of 0");
+ *  - the result card of the run before carries the mark the script hides it by when a new run starts.
  */
 class UpdatesPageTextsTest extends TestCase
 {

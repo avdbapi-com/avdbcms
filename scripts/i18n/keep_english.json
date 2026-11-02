@@ -61,6 +61,7 @@
         "(FontAwesome)",
         "e.g. Tiếng Việt, Français",
         ":action :label?",
+        ":label:",
         "UUID",
         "SEO",
         "API",
@@ -120,6 +121,11 @@
         "CRT Terminal: VT323 + IBM Plex Mono",
         "KB",
         "MB",
+        ":size B",
+        ":size KB",
+        ":size MB",
+        ":size GB",
+        ":size TB",
         "ms",
         "px",
         "TLS",
@@ -134,7 +140,14 @@
         ":kind #:id",
         "Cloudflare Turnstile",
         "Horizon",
+        "Artisan CLI",
+        "Premium",
+        ":site Premium",
         "Umami",
-        "Upload18 API URL"
+        "Upload18 API URL",
+        "URL",
+        "Hentai",
+        "HTTP",
+        ":label: :value"
     ]
 }

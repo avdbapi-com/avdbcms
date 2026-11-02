@@ -15,7 +15,7 @@
     @endphp
 
     <x-admin.page-header page="money.plans" :title="$title"
-        :description="$plan->exists ? $plan->price.' '.((int) $plan->duration === 12 ? __('per year') : __('per month')) : __('A plan is what members pay for premium: a price, monthly or yearly.')"
+        :description="$plan->exists ? \App\Support\PremiumAvailability::price($plan).' '.((int) $plan->duration === 12 ? __('per year') : __('per month')) : __('A plan is what members pay for premium: a price, monthly or yearly.')"
         :crumbs="[['label' => __('Money'), 'url' => route('admin.money.index')], ['label' => __('Plans'), 'url' => route('admin.plans.index')], ['label' => \Illuminate\Support\Str::limit($title, 40), 'url' => null]]"
         :tabs="[]">
         <x-slot:actions>

@@ -6,15 +6,15 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <{{ $titleTag }} class="h3"><i class="fa-solid fa-file-code me-2"></i>{{__('.env File Editor')}}</{{ $titleTag }}>
     <div>
-        <span class="badge bg-secondary me-2"><i class="fa-solid fa-lines-leaning me-1"></i>{{ $lineCount }} {{__('lines')}}</span>
-        <span class="badge bg-secondary me-2"><i class="fa-solid fa-hard-drive me-1"></i>{{ number_format($fileSize) }} {{__('bytes')}}</span>
-        <span class="badge bg-info"><i class="fa-solid fa-clock me-1"></i>{{__('Modified')}}: {{ $lastModified }}</span>
+        <span class="badge bg-secondary me-2"><i class="fa-solid fa-lines-leaning me-1"></i>{{ trans_choice('1 line|:count lines', (int) $lineCount, ['count' => number_format((int) $lineCount)]) }}</span>
+        <span class="badge bg-secondary me-2"><i class="fa-solid fa-hard-drive me-1"></i>{{ trans_choice('1 byte|:count bytes', (int) $fileSize, ['count' => number_format((int) $fileSize)]) }}</span>
+        <span class="badge bg-info"><i class="fa-solid fa-clock me-1"></i>{{ \App\Support\AdminText::labelled(__('Modified'), (string) $lastModified) }}</span>
     </div>
 </div>
 
 <div class="alert alert-warning">
     <i class="fa-solid fa-triangle-exclamation me-1"></i>
-    <strong>{{__('Caution')}}:</strong> {{__('Editing this file directly can break your application. A backup is created automatically on each save. Changes take effect immediately after config cache is cleared.')}}
+    <strong>{{ rtrim(\App\Support\AdminText::labelled(__('Caution'), '')) }}</strong>{{ \App\Support\LabelGap::admin() }}{{__('Editing this file directly can break your application. A backup is created automatically on each save. Changes take effect immediately after config cache is cleared.')}}
 </div>
 
 <div class="card shadow">
@@ -33,4 +33,12 @@
         </div>
     </form>
 </div>
+
+@if (\App\Support\AdminPreferences::usesNewAdmin())
+    {{-- "API access from other sites" (config/admin_settings.php tools.developer): the CORS rules of the old Settings tab
+         API, saved like every settings page (one save bar, the consequence asked before a risky change). --}}
+    <div class="ad-page-settings" id="page-settings" style="margin-top:40px">
+        @include('admin.settings.partials.form', app(\App\Http\Controllers\Admin\SettingsPageController::class)->form(request(), 'tools.developer'))
+    </div>
+@endif
 @endsection

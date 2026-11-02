@@ -1,0 +1,266 @@
+// "Today's design" sheet (components/layout.blade.php, #dailyAestheticModal): its own entry (vite.config.ts 'daily-sheet'),
+// printed only where the sheet is ($showDailyPill) and loaded without holding the first paint (media="print", then
+// "all" once loaded or when the sheet opens): the sheet shows only after a click, so the main CSS that every visitor
+// parses before the first paint no longer carries its rules (round 1 review RV-FC-08). Plain CSS on the look's tokens;
+// the kit's dialog parts (.mk-dialog, .mk-sheet__*) stay in member/_shared.scss (main CSS).
+
+// The "Today's design" sheet (#dailyAestheticModal): the kit's dialog (member/_shared.scss .mk-dialog, .mk-sheet__*: a
+// centred, side or bottom sheet as the look's pop-up style says) in the look's own colours, in both modes. It was white
+// text on a fixed dark panel (unreadable in the light looks). Calm: hover and focus change colours, borders and shadows.
+.avd-daily-sheet.modal-dialog {
+    --bs-modal-width: 520px;
+}
+
+.avd-daily-sheet__head {
+    display: grid;
+    flex: 1 1 auto;
+    gap: 0.2rem;
+    min-inline-size: 0;
+}
+
+.avd-daily-sheet__kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    color: var(--avd-brand-ink);
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.avd-daily-sheet__meta,
+.avd-daily-sheet__hint {
+    margin: 0;
+    color: var(--avd-muted);
+    font-size: 0.8125rem;
+}
+
+.avd-daily-sheet__holiday {
+    color: var(--avd-text);
+    font-weight: 600;
+}
+
+.avd-daily-sheet__mood {
+    margin: 0;
+    padding: 0.7rem 0.9rem;
+    border-inline-start: 3px solid var(--avd-brand-fill, var(--avd-brand));
+    border-radius: var(--mk-r-inner, 10px);
+    background: var(--avd-surface-2);
+    color: var(--avd-text);
+    font-style: italic;
+}
+
+.avd-daily-sheet__part {
+    display: grid;
+    gap: 0.45rem;
+}
+
+.avd-daily-sheet__label {
+    margin: 0;
+    color: var(--avd-text);
+    font-size: 0.875rem;
+    font-weight: 700;
+}
+
+.avd-daily-sheet__row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem 0.75rem;
+}
+
+// The colours' part is a size container: where the sheet is narrow (a phone's bottom sheet, a tablet's side sheet) the
+// three colours become rows (chip, name, code), so every colour name has the row's width and stays whole in any
+// language ("Couleur d'accentuation", "Дополнительный цвет"); wider sheets keep the three cards.
+.avd-daily-sheet__colours {
+    container: avd-daily-colours / inline-size;
+}
+
+.avd-daily-sheet__swatches {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.5rem;
+}
+
+.avd-daily-swatch {
+    display: grid;
+    gap: 0.2rem;
+    min-inline-size: 0;
+    padding: 0.5rem;
+    border: 1px solid var(--avd-border);
+    border-radius: var(--mk-r-inner, 10px);
+    background: var(--avd-surface-1, var(--avd-surface-2));
+    color: var(--avd-text);
+    font: inherit;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 120ms ease, background-color 120ms ease;
+}
+
+.avd-daily-swatch__chip {
+    display: block;
+    block-size: 28px;
+    border-radius: 6px;
+    box-shadow: inset 0 0 0 1px rgba(var(--avd-shade-rgb, 0, 0, 0), 0.15);
+}
+
+// A colour's name is never cut: in the three cards it may take more lines (a long word breaks with a hyphen where the
+// language allows it), in the rows it has the row's width. (It was clamped to two lines: "Couleur d'accentua-".)
+.avd-daily-swatch__name {
+    display: block;
+    min-inline-size: 0;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    line-height: 1.3;
+    overflow-wrap: break-word;
+    hyphens: auto;
+    text-wrap: balance;
+}
+
+.avd-daily-swatch__code {
+    color: var(--avd-muted);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.75rem;
+}
+
+// (after the cards' own rules, which it overrides)
+@container avd-daily-colours (max-width: 419.98px) {
+    .avd-daily-sheet__swatches {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 0.375rem;
+    }
+
+    .avd-daily-swatch {
+        grid-template-columns: 2.5rem minmax(0, 1fr) auto;
+        align-items: center;
+        column-gap: 0.75rem;
+        text-align: start;
+    }
+
+    .avd-daily-swatch__chip {
+        block-size: 1.75rem;
+    }
+
+    .avd-daily-swatch__code {
+        white-space: nowrap;
+    }
+}
+
+// The glow choices share the row equally while their words fit; a longer word ("Сбалансированный") takes the width it
+// needs and the others share the rest; only when the three cannot fit side by side does the row wrap. A choice keeps
+// its word on one line and is never cut (it was: the three thirds clipped "Сбалансированный" on both sides).
+.avd-daily-sheet__choices {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    padding: 0.25rem;
+    border: 1px solid var(--avd-border);
+    border-radius: var(--mk-r-btn, 10px);
+    background: var(--avd-surface-2);
+}
+
+.avd-daily-sheet__choices .avd-daily-choice {
+    flex: 1 1 0;
+    min-inline-size: max-content;
+    padding-inline: 0.375rem;
+    white-space: nowrap;
+}
+
+.avd-daily-choice {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    max-inline-size: 100%;
+    min-block-size: var(--mk-ctl-h, 40px);
+    padding: 0.25rem 0.75rem;
+    border: 0;
+    border-radius: max(0px, calc(var(--mk-r-btn, 10px) - 3px));
+    background: transparent;
+    color: var(--avd-text);
+    font: inherit;
+    font-size: 0.875rem;
+    font-weight: 600;
+    line-height: 1.25;
+    text-align: center;
+    overflow-wrap: break-word;
+    cursor: pointer;
+    transition: background-color 120ms ease, box-shadow 120ms ease, color 120ms ease;
+}
+
+.avd-daily-sheet__choices .avd-daily-choice.active {
+    background: var(--avd-surface-solid, var(--avd-bg));
+    box-shadow: 0 1px 2px rgba(var(--avd-shade-rgb, 0, 0, 0), 0.2), inset 0 0 0 1px var(--avd-border-strong, var(--avd-border));
+}
+
+.avd-daily-sheet__sound {
+    justify-self: start;
+    border: 1px solid var(--avd-border);
+}
+
+.avd-daily-sheet__sound[aria-pressed="true"] i {
+    color: var(--avd-brand-ink);
+}
+
+.avd-daily-sheet__accent {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.avd-daily-sheet__picker {
+    flex: none;
+    inline-size: 44px;
+    block-size: 44px;
+    padding: 2px;
+    border: 1px solid var(--avd-border);
+    border-radius: var(--mk-r-inner, 10px);
+    background: transparent;
+    cursor: pointer;
+}
+
+.avd-daily-sheet__accent-text {
+    display: grid;
+    gap: 0.1rem;
+    min-inline-size: 0;
+}
+
+.avd-daily-sheet__accent-name {
+    color: var(--avd-text);
+    font-weight: 700;
+    overflow-wrap: anywhere;
+}
+
+.avd-daily-sheet__tomorrow {
+    padding-block-start: 0.85rem;
+    border-block-start: 1px solid var(--avd-divider, var(--avd-border));
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .avd-daily-swatch:hover {
+        border-color: var(--avd-border-strong, var(--avd-border));
+        background: var(--avd-surface-2);
+    }
+
+    .avd-daily-choice:not(.active):hover {
+        background: var(--avd-surface-hover, var(--avd-surface-3, var(--avd-surface-2)));
+    }
+}
+
+.avd-daily-swatch:focus-visible,
+.avd-daily-choice:focus-visible,
+.avd-daily-sheet__picker:focus-visible {
+    outline: 2px solid var(--avd-focus, var(--avd-brand));
+    outline-offset: 2px;
+}
+
+// Touch screens: every control of the sheet is a 44px target.
+@media (pointer: coarse) {
+    .avd-daily-choice {
+        min-block-size: 44px;
+    }
+
+    .avd-daily-swatch {
+        min-block-size: 44px;
+    }
+}

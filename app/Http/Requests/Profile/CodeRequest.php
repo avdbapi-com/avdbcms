@@ -27,4 +27,20 @@ class CodeRequest extends FormRequest
             'code' => ['required', 'digits:5']
         ];
     }
+
+    /**
+     * The code field's errors in plain words, under the field like the code's other answers (R1-115, R1-121: Laravel's
+     * "The code must be 5 digits." was English in most languages).
+     *
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        $message = __('The code has 5 digits. Check the text message and try again.');
+
+        return [
+            'code.required' => $message,
+            'code.digits' => $message,
+        ];
+    }
 }

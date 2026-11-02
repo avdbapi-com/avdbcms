@@ -36,8 +36,8 @@
                 @if($resultsCount)
                     <span class="avd-meta-chip">{{trans_choice('results', $resultsCount)}}</span>
                 @endif
-                <button type="button" class="btn btn-primary btn-sm d-flex align-items-center gap-2 avd-search-filter-toggle" @click="filters = !filters" aria-controls="search-filters" :aria-expanded="filters">
-                    <i class="fa-solid fa-filter"></i>
+                <button type="button" class="btn btn-primary btn-sm d-flex align-items-center gap-2 avd-search-filter-toggle" @click="filters = !filters" aria-controls="search-filters" aria-expanded="{{ !empty($filters) ? 'true' : 'false' }}" :aria-expanded="filters.toString()">
+                    <i class="fa-solid fa-filter" aria-hidden="true"></i>
                     <span>{{ __('Filters') }}</span>
                 </button>
             </div>
@@ -50,7 +50,9 @@
             @endif
             <div class="col-12 col-sm-6 col-lg">
                 <label for="date" class="form-label fw-bold">{{ __('Upload Date') }}</label>
-                <select id="date" name="date" class="form-select" aria-label="{{__('Upload Date')}}">
+                {{-- Short lists stay native (member design 5.9): a searchable control replaced them with a taller one and
+                     pushed the results down (watch-13). --}}
+                <select id="date" name="date" class="form-select" aria-label="{{__('Upload Date')}}" data-native-select>
                     <option selected value="">{{ __('All') }}</option>
                     @foreach(['hour' => __('Last hour') ,'today' => __('Today'), 'week' => __('This week'), 'month' => __('This month'), 'year' => __('This year')] as $value => $label)
                         <option @selected(($filters['date'] ?? null) === $value) value="{{$value}}">{{$label}}</option>
@@ -59,7 +61,7 @@
             </div>
             <div class="col-12 col-sm-6 col-lg">
                 <label for="duration" class="form-label fw-bold">{{ __('Duration') }}</label>
-                <select id="duration" name="duration" class="form-select" aria-label="{{__('Duration')}}">
+                <select id="duration" name="duration" class="form-select" aria-label="{{__('Duration')}}" data-native-select>
                     <option selected value="">{{ __('All') }}</option>
                     @foreach(['4' => __('Under 4 minutes') , '4-20' => __('4-20 minutes'), '20' => __('Over 20 minutes')] as $value => $label)
                         <option @selected(($filters['duration'] ?? null) == $value) value="{{$value}}">{{$label}}</option>
@@ -81,7 +83,8 @@
         <div class="col-12 col-xl-10 offset-xl-1">
             @if($resultsCount)
                 @foreach($results as $result)
-                    @include('search.'.$result->type, [$result->type => $result])
+                    {{-- The first two pictures load at once: the largest pictures of the first screen (perf-3). --}}
+                    @include('search.'.$result->type, [$result->type => $result, 'eagerThumb' => $loop->index < 2])
                     @if(\App\Support\FeedAdSlots::listAdAfter($loop->iteration, $loop->count, \App\Support\FeedAdSlots::adEvery(config('site.ad_grid_position', 6))))
                         <x-feed-ad-slot context="search_results" class="mb-3" />
                     @endif

@@ -116,6 +116,6 @@ class OAuthAvailabilityTest extends TestCase
 
         $this->get(route('registration'))
             ->assertRedirect(route('login'))
-            ->assertSessionHas('error', 'Registration is currently disabled.');
+            ->assertSessionHas('error', 'Sign-ups are closed');
     }
 }

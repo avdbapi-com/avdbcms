@@ -53,14 +53,14 @@ class EmailTestController
             if (config('mail.default') === 'log') {
                 // The log transport never delivers anything; say so instead of "sent".
                 return redirect()->route('admin.email-test.index')
-                    ->withSuccess(__('Mailer is "log": the test email for :to was written to storage/logs/mail.log, not delivered. Configure SMTP in Settings → Email to send real mail.', ['to' => $request->to]));
+                    ->withSuccess(__('Mailer is "log": the test email for :to was written to the mail log (Tools > Logs, the file mail-....log in storage/logs), not delivered. Configure SMTP in Settings → Email to send real mail.', ['to' => $request->to]));
             }
 
             return redirect()->route('admin.email-test.index')
-                ->withSuccess("Test email sent to {$request->to}!");
+                ->withSuccess(__('Test email sent to :to.', ['to' => (string) $request->to]));
         } catch (\Exception $e) {
             return redirect()->route('admin.email-test.index')
-                ->withErrors(['email' => 'Failed: ' . $e->getMessage()]);
+                ->withErrors(['email' => __('The test email was not sent: :error', ['error' => $e->getMessage()])]);
         }
     }
 }

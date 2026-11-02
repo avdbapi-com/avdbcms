@@ -12,13 +12,13 @@ use Illuminate\Support\Str;
 use Tests\TestCase;
 
 /**
- * AVDBCMS 1.2.1, lane A (admin pages): the XVIDAPI "Add New Scheduled Cron" card and its placeholder, the AVDB filter
+ * AVDBCMS 1.2.1, the admin pages: the XVIDAPI "Add New Scheduled Cron" card and its placeholder, the AVDB filter
  * placeholders and category names, Tools > Backups wording and sizes, the Arabic name on Settings > Languages and the
  * help text of "Bottom bar on phones". Review follow-ups: the old admin's import pages in light mode (dark fields and
  * the "Live Ecosystem" cards), the backup's age on phones (in the size cell, not after the file name).
  *
- * Proposed for tests/Feature/ (lane A does not own tests/). The translation test at the end needs the lane's
- * i18n.json applied to lang/*.json.
+ * The translation test at the end needs the release's
+ * translations in lang/*.json.
  */
 class AdminLaneA121Test extends TestCase
 {
@@ -56,11 +56,13 @@ class AdminLaneA121Test extends TestCase
 
         $html = $this->newAdminPage(route('admin.backups.index'));
 
-        $this->assertStringContainsString('1 backup takes 35.3 KB on the server.', $html);
+        // the size set apart left to right inside the sentence (<bdi dir="ltr">): the text without the tags
+        $this->assertStringContainsString('1 backup takes 35.3 KB on the server.', strip_tags($html));
         $this->assertStringNotContainsString('1 backups', $html);
         $this->assertStringNotContainsString('0.0 MB', $html);
-        // The Size column never wraps ("0.0 / MB" at 1440 px); on phones the backup's age follows the size there.
-        $this->assertMatchesRegularExpression('#<td class="c-meta is-num text-nowrap">35\.3 KB<small class="ad-phone-only">[^<]+</small></td>#', $html);
+        // The Size column never wraps ("0.0 / MB" at 1440 px); on phones the backup's age follows the size there. The
+        // size reads left to right on an Arabic page too (R2CD-RV-05).
+        $this->assertMatchesRegularExpression('#<td class="c-meta is-num text-nowrap"><span dir="ltr">35\.3 KB</span><small class="ad-phone-only">[^<]+</small></td>#', $html);
     }
 
     public function test_on_phones_the_backup_age_sits_in_the_size_cell_not_after_the_file_name(): void
@@ -92,9 +94,9 @@ class AdminLaneA121Test extends TestCase
 
         $html = $this->newAdminPage(route('admin.backups.index'));
 
-        $this->assertStringContainsString('3 backups take 2.5 MB on the server.', $html);
+        $this->assertStringContainsString('3 backups take 2.5 MB on the server.', strip_tags($html));
         foreach (['2 MB', '512 KB', '300 B'] as $size) {
-            $this->assertStringContainsString('<td class="c-meta is-num text-nowrap">'.$size.'<small class="ad-phone-only">', $html);
+            $this->assertStringContainsString('<td class="c-meta is-num text-nowrap"><span dir="ltr">'.$size.'</span><small class="ad-phone-only">', $html);
         }
     }
 
@@ -104,7 +106,7 @@ class AdminLaneA121Test extends TestCase
 
         $html = $this->newAdminPage(route('admin.backups.index'));
 
-        $this->assertStringContainsString('1 backup takes 2 KB on the server.', $html);
+        $this->assertStringContainsString('1 backup takes 2 KB on the server.', strip_tags($html));
         $this->assertStringContainsString('data-id="backup_x.sql"', $html);
         $this->assertStringNotContainsString('data-id=".htaccess"', $html);
         $this->assertStringNotContainsString('data-id=".gitkeep"', $html);
@@ -132,7 +134,7 @@ class AdminLaneA121Test extends TestCase
 
         $html = $this->actingAs($admin)->get(route('admin.backups.index'))->assertOk()->getContent();
 
-        $this->assertStringContainsString('<td class="align-middle text-nowrap">35.3 KB</td>', $html);
+        $this->assertStringContainsString('<td class="align-middle text-nowrap"><span dir="ltr" class="text-nowrap">35.3 KB</span></td>', $html);
         $this->assertStringNotContainsString('0.03 MB', $html);
     }
 
@@ -321,7 +323,7 @@ class AdminLaneA121Test extends TestCase
         $this->assertStringNotContainsString('Home, Trending, Upload and Account buttons', $html);
     }
 
-    // ------------------------------------------------------------------ Translations (after i18n.json is applied)
+    // ------------------------------------------------------------------ Translations (the release's lang/*.json)
 
     public function test_every_language_file_has_the_new_texts_and_none_of_the_removed_ones(): void
     {

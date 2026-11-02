@@ -40,22 +40,46 @@ class RedirectController
             'updated_at' => now(),
         ]);
 
+        AuditLogController::log('redirect.created', self::describe((object) $request->only('source', 'destination', 'status_code')));
+
         return redirect()->route('admin.redirects.index')
-            ->withSuccess('Redirect rule created.');
+            ->withSuccess(__('Redirect created'));
     }
 
     public function destroy(int $id): RedirectResponse
     {
-        DB::table('redirects')->where('id', $id)->delete();
+        $redirect = DB::table('redirects')->where('id', $id)->first();
+
+        if ($redirect !== null && DB::table('redirects')->where('id', $id)->delete() > 0) {
+            AuditLogController::log('redirect.deleted', self::describe($redirect));
+        }
+
         return redirect()->route('admin.redirects.index')
-            ->withSuccess('Redirect deleted.');
+            ->withSuccess(__('Redirect deleted'));
     }
 
     public function toggle(int $id): RedirectResponse
     {
-        $current = DB::table('redirects')->where('id', $id)->value('is_active');
-        DB::table('redirects')->where('id', $id)->update(['is_active' => !$current, 'updated_at' => now()]);
+        $redirect = DB::table('redirects')->where('id', $id)->first();
+        $current = $redirect?->is_active;
+
+        if ($redirect !== null) {
+            DB::table('redirects')->where('id', $id)->update(['is_active' => ! $current, 'updated_at' => now()]);
+            AuditLogController::log($current ? 'redirect.off' : 'redirect.on', self::describe($redirect));
+        }
+
         return redirect()->route('admin.redirects.index')
-            ->withSuccess('Redirect ' . (!$current ? 'activated' : 'deactivated') . '.');
+            ->withSuccess($current ? __('Redirect turned off') : __('Redirect turned on'));
+    }
+
+    /**
+     * A redirect in Tools > Logs > Admin actions (R3-019): "/old-page -> /new-page (301)", the site's own addresses and
+     * the code, read left to right in every language (App\Support\AuditDetails sets them apart).
+     */
+    private static function describe(object $redirect): string
+    {
+        $cut = static fn (mixed $address): string => \Illuminate\Support\Str::limit(trim((string) $address), 200);
+
+        return $cut($redirect->source ?? '').' -> '.$cut($redirect->destination ?? '').' ('.(int) ($redirect->status_code ?? 0).')';
     }
 }

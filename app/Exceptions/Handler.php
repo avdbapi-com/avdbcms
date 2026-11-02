@@ -2,8 +2,11 @@
 
 namespace App\Exceptions;
 
+use App\Http\Middleware\Authenticate;
+use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Exceptions\Handler as ExceptionHandler;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Session\TokenMismatchException;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Auth;
@@ -76,7 +79,12 @@ class Handler extends ExceptionHandler
             if ($e->getPrevious() instanceof TokenMismatchException){
                 return __('Your Session has expired. Please login again to continue.');
             } else {
-                return $e->getMessage();
+                // A refusal's sentence (the policies' "This video is private", "Comments are turned off" ...) in the
+                // request's language, as the error pages print it; a sentence without a translation stays as it is.
+                $message = $e->getMessage();
+                $translated = $message !== '' ? __($message) : $message;
+
+                return is_string($translated) ? $translated : $message;
             }
         } else {
             return __('Whoops! An error occurred. Please try again later.');
@@ -86,7 +94,11 @@ class Handler extends ExceptionHandler
     public function render($request, Throwable $e)
     {
         if ($e instanceof TokenMismatchException) {
-            $message = __('Your admin session token expired. Refresh the page and try the action again.');
+            // The admin's pages keep their own sentence; a member's or a guest's page timed out (it said "admin
+            // session" to everybody).
+            $message = $request->is('admin', 'admin/*', 'api/admin/*')
+                ? __('Your admin session token expired. Refresh the page and try the action again.')
+                : __('This page timed out. Reload it, then try again.');
 
             if ($request->expectsJson() || $request->ajax()) {
                 return response()->json(['message' => $message], 419);
@@ -105,5 +117,22 @@ class Handler extends ExceptionHandler
         }
 
         return parent::render($request, $e);
+    }
+
+    /**
+     * A guest sent to sign in from a page under a language (/fr/history) comes back to that page with its language
+     * (judge R2A-018): redirect()->guest() remembered the address as the request saw it (public/index.php took the /fr
+     * off), so the address the auth middleware wrote with its language replaces it (App\Http\Middleware\Authenticate).
+     */
+    protected function unauthenticated($request, AuthenticationException $exception)
+    {
+        $response = parent::unauthenticated($request, $exception);
+        $intended = $request->attributes->get(Authenticate::INTENDED);
+
+        if ($response instanceof RedirectResponse && is_string($intended) && $intended !== '' && $request->hasSession()) {
+            $request->session()->put('url.intended', $intended);
+        }
+
+        return $response;
     }
 }

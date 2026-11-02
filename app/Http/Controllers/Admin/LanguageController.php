@@ -148,7 +148,7 @@ class LanguageController
 
         $maxOrder = Language::max('sort_order') ?? 0;
 
-        Language::create([
+        $language = Language::create([
             'code'       => strtolower($data['code']),
             'label'      => $data['label'],
             'emoji'      => $data['emoji'],
@@ -157,6 +157,9 @@ class LanguageController
             'is_active'  => $request->boolean('is_active', true),
             'sort_order' => $maxOrder + 1,
         ]);
+
+        // Tools > Logs > Admin actions (R3-019): "Français (fr)".
+        AuditLogController::log('language.added', self::named($language));
 
         Language::flushCache();
 
@@ -194,6 +197,13 @@ class LanguageController
             'sort_order' => $data['sort_order'] ?? $language->sort_order,
         ]);
 
+        // Which fields changed (R3-019); a save that changed nothing writes nothing.
+        $changed = array_values(array_intersect_key(['label' => 'name', 'emoji' => 'flag', 'direction' => 'direction', 'is_active' => 'active', 'sort_order' => 'order'], $language->getChanges()));
+
+        if ($changed !== []) {
+            AuditLogController::log('language.updated', self::named($language).': '.implode(', ', $changed));
+        }
+
         Language::flushCache();
 
         return redirect()
@@ -212,9 +222,16 @@ class LanguageController
                 ->withErrors(__('Cannot set an inactive language as default.'));
         }
 
+        $changed = (string) Setting::get('default_locale', '') !== (string) $language->code || ! $language->is_default;
+
         Language::where('is_default', true)->update(['is_default' => false]);
         $language->update(['is_default' => true]);
         Setting::set('default_locale', $language->code, 'localization');
+
+        // Tools > Logs > Admin actions (R2A-020): the site's default language is a setting, as on Settings > Site basics.
+        if ($changed) {
+            AuditLogController::log('settings.saved', 'default_locale');
+        }
 
         Language::flushCache();
 
@@ -235,6 +252,7 @@ class LanguageController
         }
 
         $language->update(['is_active' => !$language->is_active]);
+        AuditLogController::log($language->is_active ? 'language.on' : 'language.off', self::named($language));
         Language::flushCache();
 
         $state = $language->is_active ? 'activated' : 'deactivated';
@@ -256,8 +274,10 @@ class LanguageController
 
         $label = $language->label;
         $code  = $language->code;
+        $name  = self::named($language);
 
         $language->delete();
+        AuditLogController::log('language.deleted', $name);
 
         // Optionally delete the translation JSON file
         $jsonPath = $this->langPath . '/' . $code . '.json';
@@ -456,14 +476,17 @@ class LanguageController
         // ── Save JSON file ────────────────────────────────────────────────────
         // The new admin's editor sends one page of keys (partial=1): they replace those keys only. Without it the
         // form holds every key and replaces the file, as it always did.
+        $jsonBefore = $this->loadJson($locale);
         $jsonFiltered = array_filter(
-            $request->boolean('partial') ? array_replace($this->loadJson($locale), $jsonKeys) : $jsonKeys,
+            $request->boolean('partial') ? array_replace($jsonBefore, $jsonKeys) : $jsonKeys,
             fn ($v) => $v !== null && $v !== ''
         );
         File::put(
             $this->langPath . '/' . $locale . '.json',
             $this->jsonForDisk($jsonFiltered)
         );
+        // How many texts this save changed (added, changed or emptied), for Tools > Logs > Admin actions (R3-019).
+        $textsChanged = self::differences($jsonBefore, $jsonFiltered);
 
         // ── Save PHP files ────────────────────────────────────────────────────
         // Group by file prefix and write back as PHP array files
@@ -489,9 +512,14 @@ class LanguageController
                 if (!is_array($existing)) $existing = [];
 
                 $merged  = array_merge($existing, $items);
+                $textsChanged += self::differences(array_filter($existing, 'is_string'), array_filter($merged, 'is_string'));
                 $content = "<?php\nreturn " . $this->phpArrayExport($merged) . ";\n";
                 File::put($phpFile, $content);
             }
+        }
+
+        if ($textsChanged > 0) {
+            AuditLogController::log('language.texts.saved', self::named($language).': '.$textsChanged.' '.($textsChanged === 1 ? 'text' : 'texts'));
         }
 
         // ── Persist new JSON keys to en.json ──────────────────────────────────
@@ -565,11 +593,20 @@ class LanguageController
         if (!is_array($data)) {
             return redirect()
                 ->route('admin.languages.index')
-                ->withErrors('Invalid JSON file — could not parse.');
+                ->withErrors(__('This file is not valid JSON, so it could not be read.'));
         }
 
         $path = $this->langPath . '/' . $locale . '.json';
+        $before = $this->loadJson($locale);
         File::put($path, $this->jsonForDisk($data));
+
+        // Tools > Logs > Admin actions (R3-019): the language and how many of its texts the file changed.
+        $changed = self::differences($before, array_filter($data, 'is_string'));
+
+        if ($changed > 0) {
+            $language = Language::where('code', $locale)->first();
+            AuditLogController::log('language.texts.imported', ($language !== null ? self::named($language) : $locale).': '.$changed.' '.($changed === 1 ? 'text' : 'texts'));
+        }
 
         return redirect()
             ->route('admin.languages.edit', $locale)
@@ -577,6 +614,31 @@ class LanguageController
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
+
+    /** "Français (fr)": a language as Tools > Logs > Admin actions names it (R3-019). */
+    private static function named(Language $language): string
+    {
+        return \Illuminate\Support\Str::limit(trim((string) $language->label), \App\Support\AuditDetails::NAME_MAX).' ('.$language->code.')';
+    }
+
+    /**
+     * How many texts differ between two key => text maps: added, changed or taken out.
+     *
+     * @param  array<string, mixed>  $before
+     * @param  array<string, mixed>  $after
+     */
+    private static function differences(array $before, array $after): int
+    {
+        $count = 0;
+
+        foreach ($after as $key => $text) {
+            if (! array_key_exists($key, $before) || $before[$key] !== $text) {
+                $count++;
+            }
+        }
+
+        return $count + count(array_diff_key($before, $after));
+    }
 
     protected function loadJson(string $locale): array
     {

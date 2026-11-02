@@ -4,6 +4,7 @@
     or 365 days - the "extend" action with that number of days -, delete with Undo), the pager.
 --}}
 @use('App\Support\AdminTheme')
+@use('App\Support\PaymentProviders')
 @extends('layouts.admin')
 
 @section('title', __('Subscribers'))
@@ -52,7 +53,7 @@
             <tr>
                 <td class="c-main"><p><b id="ad-pr-{{ $premium->id }}">{{ $premium->username ?? __('Deleted member') }}</b><small>{{ $premium->user_email }}</small></p></td>
                 <td class="c-meta"><x-admin.status :type="$tone">{{ $state }}</x-admin.status><small class="ad-phone-only">{{ $premium->plan_name ?? __('No plan') }}</small></td>
-                <td class="hide-tab"><p class="ad-cell-two"><b>{{ $premium->plan_name ?? __('No plan') }}</b><small>{{ \Illuminate\Support\Str::headline($premium->payment_provider ?? 'stripe') }}</small></p></td>
+                <td class="hide-tab"><p class="ad-cell-two"><b>{{ $premium->plan_name ?? __('No plan') }}</b><small>{{ PaymentProviders::label($premium->payment_provider) }}</small></p></td>
                 <td class="is-date">{{ $ends?->translatedFormat('j M Y') ?? __('Never') }}</td>
                 <td class="is-actions"><button type="button" class="ad-iconbtn is-more" aria-haspopup="true" aria-labelledby="ad-l-act ad-pr-{{ $premium->id }}" data-id="{{ $premium->id }}" @if ($premium->username !== null) data-user="{{ $premium->user_id }}" @endif></button></td>
             </tr>

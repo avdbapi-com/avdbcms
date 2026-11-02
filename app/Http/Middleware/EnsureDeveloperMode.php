@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Support\AdminNav;
 use App\Support\AdminPreferences;
+use App\Support\AdminSettingsCatalog;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Route;
@@ -43,9 +44,13 @@ class EnsureDeveloperMode
             abort(403, $message);
         }
 
+        $adminPage = AdminNav::current($request)['id'] ?? null;
+
         return response()->view('components.admin.developer-required', [
-            'adminPage' => AdminNav::current($request)['id'] ?? null,
+            'adminPage' => $adminPage,
             'message' => $message,
+            // A search link to one of this page's settings (?setting=key): the page names it and comes back to it.
+            'setting' => AdminSettingsCatalog::developerSettingOf($adminPage, $request->query('setting')),
         ], 403);
     }
 }

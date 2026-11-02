@@ -2,10 +2,10 @@
 
 namespace App\View\Composers;
 
+use App\Models\User;
+use App\Notifications\Support\Inbox;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\View\View;
-use Throwable;
 
 class HeaderComposer
 {
@@ -26,20 +26,18 @@ class HeaderComposer
         ]);
     }
 
+    /**
+     * The bell's unread count: counted up to 100 (the badge shows "99+" from there), kept a minute per member and
+     * forgotten when the member reads or deletes notifications (App\Notifications\Support\Inbox).
+     */
     private function unreadNotificationsCount(): int
     {
         $user = Auth::user();
 
-        if (!$user) {
+        if (!$user instanceof User) {
             return 0;
         }
 
-        try {
-            $cacheKey = 'admin.header.unread_notifications.' . $user->getAuthIdentifier();
-
-            return (int) Cache::remember($cacheKey, now()->addMinutes(1), fn () => $user->unreadNotifications()->count());
-        } catch (Throwable) {
-            return 0;
-        }
+        return Inbox::cachedUnreadCount($user);
     }
 }

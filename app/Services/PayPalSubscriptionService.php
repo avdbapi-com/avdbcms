@@ -7,6 +7,7 @@ use App\Models\Subscription;
 use App\Models\Transaction;
 use App\Models\User;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Log;
 
 class PayPalSubscriptionService
 {
@@ -24,7 +25,9 @@ class PayPalSubscriptionService
         }
 
         $plan = Plan::where('paypal_plan_id', $planId)->first();
-        $user = $fallbackUser ?? $this->userFromResource($resource);
+        // The member the checkout made it for (custom_id, set by PremiumController::subscribePaypal) comes first: the
+        // signed-in member of a return page is only the fallback for a subscription PayPal names nobody for.
+        $user = $this->userFromResource($resource) ?? $fallbackUser;
 
         if (!$plan || !$user) {
             return null;
@@ -56,6 +59,18 @@ class PayPalSubscriptionService
         }
 
         if ($subscription) {
+            // A PayPal subscription that belongs to another member never moves (a return page opened with someone
+            // else's subscription id must not take over their premium).
+            if ($subscription->user_id !== null && (int) $subscription->user_id !== (int) $user->id) {
+                Log::warning('PayPal subscription belongs to another member: not changed.', [
+                    'premium_id' => $subscription->id,
+                    'owner_id' => $subscription->user_id,
+                    'requested_by' => $user->id,
+                ]);
+
+                return null;
+            }
+
             $subscription->update($attributes);
 
             return $subscription->refresh();

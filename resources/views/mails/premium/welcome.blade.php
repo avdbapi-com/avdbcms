@@ -1,21 +1,2 @@
-@component('mail::message')
-
-# Hello {{$notifiable->username}},
-
-@if($notifiable->premium_subscription->trial_ends_at)
-Thank you for subscription to **{{config('app.name')}} Premium** ! Your {{config('plans.trial_period.period')}} days trial begins immediately and will end on {{$notifiable->premium_subscription->trial_ends_at->translatedFormat('M. d, Y')}}. Your payment method will be charged {{$notifiable->premium_subscription->plan->name}} beginning **{{$notifiable->premium_subscription->trial_ends_at->translatedFormat('M. d, Y')}}**.
-@else
-Thank you for subscribing to **{{config('app.name')}} Premium**. Your premium access is now active on the {{$notifiable->premium_subscription->plan->name}} plan.
-@endif
-
-You can manage and cancel your subscription at any time by going to your {{config('app.name')}} <a class="text-decoration-none" href="{{route('user.edit')}}">account</a>.
-
-@component('mail::subcopy')
-You can cancel your {{config('app.name')}} Premium subscription at any time. If you cancel your subscription, you retain access to {{config('app.name')}} Premium until the end of the billing period. No partial refund will be given.
-
-Need help ? Contact our <a href="{{route('contact.show')}}">support</a>. Please don't reply to this email.
-@endcomponent
-
-Regards, {{ config('app.name') }}
-
-@endcomponent
+{{-- Premium is on (App\Notifications\Premium\Welcome). The HTML part (member design 6.21); the plain-text part: mails.text.premium.welcome. The words: App\Notifications\Support\MemberMail. --}}
+@include('mails.layouts.html', ['mail' => \App\Notifications\Support\MemberMail::welcome($notifiable)])

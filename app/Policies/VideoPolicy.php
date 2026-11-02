@@ -5,6 +5,7 @@ namespace App\Policies;
 use App\Support\NumberFormat;
 use App\Models\User;
 use App\Models\Video;
+use App\Support\AdminIpLock;
 use Illuminate\Auth\Access\HandlesAuthorization;
 use Illuminate\Auth\Access\Response;
 
@@ -16,7 +17,7 @@ class VideoPolicy
 
     public function before(?User $user, string $ability): bool|null
     {
-        if (in_array($ability, self::ADMIN_ABILITIES) && $user?->is_admin) {
+        if (in_array($ability, self::ADMIN_ABILITIES) && AdminIpLock::adminPowersHere($user)) {
             return true;
         }
 
@@ -58,27 +59,19 @@ class VideoPolicy
     public function show(?User $user, Video $video): Response|bool
     {
         if ($video->is_banned) {
-            return Response::denyWithStatus(410, 'This video has been removed');
+            return Response::denyWithStatus(410, __('This video has been removed'));
         }
 
         if ($video->user_id && !$video->user) {
-            return Response::denyWithStatus(410, 'This video is no longer available');
+            return Response::denyWithStatus(410, __('This video is no longer available'));
         }
 
-        $locale = app()->getLocale();
-        if (
-            $video->avdb_id
-            && $locale !== 'en'
-            && $locale !== config('app.fallback_locale', 'en')
-            && !$video->translations()->where('locale', $locale)->exists()
-            && !$user?->is_admin
-        ) {
-            return Response::denyWithStatus(404, 'This video is not available in this language');
-        }
+        // No language condition: the page opens in every language, as the lists show the video there (1.2.3, decision of
+        // 29 Oct: App\Support\VideoLanguages::visible()); where it is not indexable the controller answers it with noindex
 
-        return $video->is_public || $video->user()->is($user) || $user?->is_admin
+        return $video->is_public || $video->user()->is($user) || AdminIpLock::adminPowersHere($user)
             ? Response::allow()
-            : Response::denyWithStatus(404, 'This video is private');
+            : Response::denyWithStatus(404, __('This video is private'));
     }
 
 
@@ -93,12 +86,12 @@ class VideoPolicy
     public function file(?User $user, Video $video): Response|bool
     {
         if ($video->trashed()) {
-            return Response::denyWithStatus(404, 'This video is deleted');
+            return Response::denyWithStatus(404, __('This video is deleted'));
         }
 
         return $video->is_public || $video->user()->is($user)
             ? Response::allow()
-            : Response::denyWithStatus(403, 'This video is private');
+            : Response::denyWithStatus(403, __('This video is private'));
     }
 
     /**
@@ -155,7 +148,7 @@ class VideoPolicy
     {
         return $video->user()->is($user) && !$video->is_banned && !$video->is_failed
             ? Response::allow()
-            : Response::denyWithStatus(403, 'You are not authorized to edit this video');
+            : Response::denyWithStatus(403, __('You are not authorized to edit this video'));
     }
 
     /**
@@ -183,7 +176,7 @@ class VideoPolicy
     {
         return $video->user()->isNot($user) && $video->is_public && !$video->isReportedByUser($user)
             ? Response::allow()
-            : Response::denyWithStatus(403, 'You are not authorized to report this video');
+            : Response::denyWithStatus(403, __('You are not authorized to report this video'));
     }
 
     /**
@@ -194,9 +187,11 @@ class VideoPolicy
      */
     public function upload(User $user) : Response|bool
     {
-        // Global admin toggle: allow_uploads
+        // Global admin toggle: allow_uploads. The answers below are read by the member in the upload window: plain
+        // sentences in the member's language (owner question OQ-7, 1.2.3 round 3; they were English in every
+        // language). Only the words change: the checks, their order and the 403 status are as before.
         if (!config('site.allow_uploads', true)) {
-            return Response::denyWithStatus(403, 'Uploads are currently disabled by the administrator.');
+            return Response::denyWithStatus(403, __('Uploads are switched off on this site.'));
         }
 
         // Premium members and administrators (the site's owners) have no count or space limit.
@@ -205,17 +200,23 @@ class VideoPolicy
         }
 
         if ($user->uploaded_videos >= config('plans.free.max_uploads')) {
-            return Response::denyWithStatus(403, 'Sorry ! You are limited to upload maximum ' .config('plans.free.max_uploads'). ' videos with free plan. Upgrade to Premium to upload more videos.');
+            $limit = (int) config('plans.free.max_uploads');
+
+            return Response::denyWithStatus(403, trans_choice(
+                '{1} The free plan allows :count video. Upgrade to Premium to upload more.|[2,*] The free plan allows :count videos. Upgrade to Premium to upload more.',
+                $limit,
+                ['count' => $limit]
+            ));
         }
 
         $user_space = $user->uploaded_videos_size;
         $incomingSize = (int) (request()->get('resumableTotalSize') ?? request()->get('size') ?? 0);
 
         if ($incomingSize > 0 && $user_space + $incomingSize > config('plans.free.max_videos_storage')) {
-            return Response::denyWithStatus(
-                403,
-                'Sorry ! Your space is limited to '.NumberFormat::fileSize(config('plans.free.max_videos_storage')).' with free plan. (Available space : '. NumberFormat::fileSize(config('plans.'.$user->plan.'.max_videos_storage') - $user_space) .'). Upgrade to Premium plan to increase your space storage.'
-            );
+            return Response::denyWithStatus(403, __('The free plan has :size of space for videos and :free of it is left. Upgrade to Premium for more space.', [
+                'size' => NumberFormat::localFileSize(config('plans.free.max_videos_storage')),
+                'free' => NumberFormat::localFileSize(max(0, (int) config('plans.'.$user->plan.'.max_videos_storage') - (int) $user_space)),
+            ]));
         }
 
         return Response::allow();
@@ -260,11 +261,16 @@ class VideoPolicy
     {
         return $video->is_active || $video->user?->is($user)
             ? Response::allow()
-            : Response::denyWithStatus(403, 'You are not authorized to interact with this video');
+            : Response::denyWithStatus(403, __('You are not authorized to interact with this video'));
     }
 
     /**
-     * Determine whether the user can see video interactions.
+     * Determine whether the user can see video interactions: who liked or disliked the video.
+     *
+     * That list is the creator's own information (Studio > Analytics, "See who rated it"); administrators see it through
+     * before() (the admin IP lock applies). Any other member got it for every active video, also when the creator hides
+     * the likes (R1-090): now that member gets exactly the answer of a video id that does not exist (the text
+     * App\Exceptions\Handler gives a missing model), so the answer does not tell which private or deleted ids exist.
      *
      * @param User $user
      * @param Video $video
@@ -272,12 +278,12 @@ class VideoPolicy
      */
     public function interactions(User $user, Video $video): Response|bool
     {
-        if ($video->trashed()) {
-            return Response::denyWithStatus(404, 'This video is deleted');
+        if (! $video->user?->is($user)) {
+            return Response::denyWithStatus(404, __('The route :route could not be found.', ['route' => request()->path()]));
         }
 
-        return $video->is_active || $video->user?->is($user)
-            ? Response::allow()
-            : Response::denyWithStatus(403, 'You are not authorized to see his video interactions');
+        return $video->trashed()
+            ? Response::denyWithStatus(404, 'This video is deleted')
+            : Response::allow();
     }
 }

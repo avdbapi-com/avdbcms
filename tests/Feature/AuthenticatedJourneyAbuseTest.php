@@ -33,9 +33,10 @@ class AuthenticatedJourneyAbuseTest extends TestCase
             'view_at' => now()->subMinute(),
         ]);
 
+        // round 3 R3-081: like a history row that does not exist (it was 403 "You are not authorized to clear this view")
         $this->actingAs($viewer)
             ->deleteJson(route('me.clear', $otherView))
-            ->assertForbidden();
+            ->assertNotFound();
 
         $this->assertDatabaseHas('views', [
             'id' => $otherView->id,

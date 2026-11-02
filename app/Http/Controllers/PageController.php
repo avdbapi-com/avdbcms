@@ -7,7 +7,6 @@ use App\Models\Plan;
 use App\Services\AdaptiveCreatorSpotlightService;
 use App\Services\AdaptiveTrendingCollectionsService;
 use App\Services\SmartDiscoveryRailService;
-use App\Support\SafeCache;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
@@ -22,20 +21,20 @@ class PageController
         AdaptiveCreatorSpotlightService $creatorSpotlight,
         AdaptiveTrendingCollectionsService $trendingCollections,
         PublicVideoFeedService $videoFeedService
-    ): View {
-        $heroFeaturedVideos = SafeCache::remember('home_hero_featured_videos', 180, function () use ($videoFeedService) {
-            return $videoFeedService->trending()
-                ->with(['user', 'category'])
-                ->take(10)
-                ->get();
-        });
+    ): View|RedirectResponse {
+        // A checkout that started before 1.2.3 returns to /?premium: the welcome sheet lives on /premium now, a page
+        // without ads or the popunder (member design 6.16, OD-M10). Every other visitor of / gets the home page.
+        if ($request->has('premium')) {
+            return redirect()->to(locale_url(route('pages.premium', ['checkout' => 'success'])), 302);
+        }
+
+        $heroFeaturedVideos = $videoFeedService->heroVideos();
 
         return view('pages.home', [
             'smartDiscoveryTags' => $smartDiscoveryRail->tags(),
             'creatorSpotlightCreators' => $creatorSpotlight->creators(),
             'trendingCollections' => $trendingCollections->collections(),
             'heroFeaturedVideos' => $heroFeaturedVideos,
-            'showPremiumModal' => $request->has('premium') && Auth::check()
         ]);
     }
 
@@ -59,13 +58,14 @@ class PageController
 
     public function categories(): View
     {
-        $categories = Category::query()
-            ->withCount(['videos' => fn ($query) => $query->active()->forLocale()])
+        // 1.2.3: a category named with a word that is always blocked is not listed (App\Support\ContentSafety); the
+        // counts are the side menu's kept ones (App\Support\CategoryVideoCounts: the same rule, judge R3-022)
+        $categories = \App\Support\CategoryVideoCounts::apply(\App\Support\ContentSafety::visibleCategories(Category::query()
             ->orderBy('position')
             ->orderBy('id')
-            ->get()
+            ->get())
             ->unique('slug')
-            ->values();
+            ->values());
 
         return view('pages.categories', [
             'categories' => $categories
@@ -74,12 +74,14 @@ class PageController
 
     public function category(string $slug): View
     {
-        $category = Category::query()
+        // 1.2.3: not found when it is named with a word that is always blocked (App\Support\ContentSafety)
+        $category = \App\Support\ContentSafety::visibleCategories(Category::query()
             ->where('slug', $slug)
-            ->withCount(['videos' => fn ($query) => $query->active()->forLocale()])
             ->orderBy('position')
             ->orderBy('id')
-            ->firstOrFail();
+            ->get())
+            ->first() ?? abort(404);
+        $category->setAttribute('videos_count', \App\Support\CategoryVideoCounts::of($category));
 
         return view('pages.category', [
             'category' => $category

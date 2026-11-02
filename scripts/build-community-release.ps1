@@ -7,15 +7,29 @@
 # Both zips carry avdbcms-manifest.json at their root: product, version, requires_php, min_from, built_at, files
 # (path -> SHA-256 of every file except bin/, storage/, database/install/) and removed (the paths the previous
 # release's manifest names, its files and its own removed list, that this one does not ship). The .sha256 files are
-# in sha256sum format ("<hex>  <name>" and a line feed). Each
+# in sha256sum format ("<hex>  <name>" and a line feed). Every script of the package (artisan, any file that starts
+# with "#!", *.sh) gets LF line endings first (scripts/release-manifest.php scripts): with CRLF, "./artisan" fails on
+# Linux. Each
 # zip is checked before it gets its final name (Assert-CleanReleaseZip, then scripts/release-manifest.php verify: the
 # zip equals the staging folder, the updater's own entry guard accepts it, ZipArchive and PharData unpack every file
 # with the hash of the manifest; with the previous release's zip, its updater must take the update zip too), and each
 # .sha256 file is checked against its zip after it is written.
 #
+# Every build also makes app/Support/Updater/shipped-texts.json again (scripts/shipped-texts.php), in the project
+# before the copy (-FromStaging: in that staging folder): for each lang/<locale>.json key whose text an older release
+# shipped differently, this release's text and every older one. When an update finishes, the updater gives a language
+# file the owner edited the new text wherever it still has exactly an old one (App\Support\Updater\ShippedTexts); the
+# owner's own texts stay. The old texts come from the previous release's zip (-PreviousManifest: its lang/*.json and
+# the data file it shipped) and from the data file already in the project, so each release needs only the zip of the
+# release before it: no hand work. A build without that zip keeps the old texts the project's file has and says so.
+#
+# The staged public/vendor/log-viewer is copied from the log viewer package the release ships (after Composer), as
+# "php artisan log-viewer:publish" does: otherwise Tools > Logs tells every owner that its assets are outdated.
+#
 #   -Tag vX.Y.Z             refuse to build unless it is exactly "v" + AppVersion::CURRENT (nothing is written then)
-#   -PreviousManifest FILE  the previous release's zip (best: also checks that its updater takes the new update zip)
-#                           or its avdbcms-manifest.json; gives "removed"
+#   -PreviousManifest FILE  the previous release's zip (best: also checks that its updater takes the new update zip,
+#                           and gives the texts it shipped to shipped-texts.json) or its avdbcms-manifest.json; gives
+#                           "removed"
 #   -OutDir DIR             where the four assets go (default: the folder that holds the project)
 #   -FromStaging DIR        package an existing staging folder only (no copy, no translation check, no Composer),
 #                           e.g. one a build left with -KeepStaging; the manifest is written into it
@@ -96,6 +110,7 @@ function Test-SkippedReleasePath {
         'chat-export',
         'current_remote',
         'deploy',
+        'docker',
         'incident_patch',
         'node_modules',
         'ops',
@@ -115,13 +130,15 @@ function Test-SkippedReleasePath {
         return $true
     }
 
-    # The tool files of the R2 working copies (.r2-origin.json, .r2-serve.pid).
+    # The tool files of local working copies (.r2-origin.json, .r2-serve.pid).
     if ($path -like '.r2-*') {
         return $true
     }
 
     if ($path -in @(
         'CURRENT_STATE.md',
+        # The upstream project's development Docker stack (it cannot start; containers: 1Panel).
+        'docker-compose.yml',
         'scratch_themes.json',
         'theme_test_report.json',
         'Makefile',
@@ -138,7 +155,7 @@ function Test-SkippedReleasePath {
         return $true
     }
 
-    # The R1 QA seed posters.
+    # The QA seed posters (test pictures).
     if ($path -eq 'public/images/tr' -or $path.StartsWith('public/images/tr/')) {
         return $true
     }
@@ -297,6 +314,39 @@ function New-PortableReleaseZip {
     }
 }
 
+function Remove-EmptyReleaseFolders {
+    param([string] $Stage)
+
+    # A folder left empty in the project (the last file of database/schema/, images/errors/ or a dialog folder of the
+    # views was deleted; a package's empty folder) is not shipped: new installs would get folders nobody uses, and
+    # updated sites keep them (judge R3-030). Only the runtime folders under storage/ stay as empty placeholders (the
+    # one-click updater skips folder entries). Deepest first, again until none is left (a folder that only held empty
+    # folders goes too).
+    $stageFull = [System.IO.Path]::GetFullPath($Stage).TrimEnd('\', '/')
+    $removed = New-Object System.Collections.Generic.List[string]
+
+    do {
+        $pass = 0
+        $folders = @(Get-ChildItem -LiteralPath $stageFull -Recurse -Directory -Force | Sort-Object { $_.FullName.Length } -Descending)
+        foreach ($folder in $folders) {
+            $relative = $folder.FullName.Substring($stageFull.Length + 1).Replace('\', '/')
+            if ($relative -eq 'storage' -or $relative.StartsWith('storage/')) {
+                continue
+            }
+            if ((Test-Path -LiteralPath $folder.FullName) -and @(Get-ChildItem -LiteralPath $folder.FullName -Force).Count -eq 0) {
+                Assert-PathInside -Child $folder.FullName -Parent $stageFull
+                Remove-Item -LiteralPath $folder.FullName -Force
+                $removed.Add($relative + '/')
+                $pass++
+            }
+        }
+    } while ($pass -gt 0)
+
+    if ($removed.Count -gt 0) {
+        Write-Host ('  empty folders left out of the package: {0} ({1})' -f $removed.Count, (($removed | Sort-Object) -join ', '))
+    }
+}
+
 function Assert-CleanReleaseZip {
     param(
         [string] $ZipPath,
@@ -330,6 +380,10 @@ function Assert-CleanReleaseZip {
             }
             $isDirectoryEntry = $entry.Name -eq ''
             if ($isDirectoryEntry) {
+                # Empty folders only under storage/ (Remove-EmptyReleaseFolders; judge R3-030).
+                if ($name -ne 'storage' -and -not $name.StartsWith('storage/')) {
+                    $forbidden.Add($name + '/ (an empty folder)')
+                }
                 continue
             }
 
@@ -373,6 +427,8 @@ function Assert-CleanReleaseZip {
                 $name.StartsWith('tests/') -or
                 $name.StartsWith('ops/') -or
                 $name.StartsWith('deploy/') -or
+                $name.StartsWith('docker/') -or
+                $name -eq 'docker-compose.yml' -or
                 $name -eq 'Makefile' -or
                 $name -eq 'phpunit.xml' -or
                 $name -eq 'phpstan.neon' -or
@@ -583,6 +639,68 @@ function Test-PreviousUpdater {
     }
 }
 
+function Update-ShippedTexts {
+    param([string] $Tree)
+
+    # app/Support/Updater/shipped-texts.json of $Tree, made again from its language files and the texts the previous
+    # release shipped (see the header). The tool writes nothing when it fails, and the build stops.
+    $tool = Join-Path $PSScriptRoot 'shipped-texts.php'
+    if (-not (Test-Path -LiteralPath $tool -PathType Leaf)) {
+        throw "Missing $tool (it makes app/Support/Updater/shipped-texts.json)"
+    }
+
+    $toolArgs = @("--root=$Tree")
+    if ($PreviousManifest -ne '' -and $PreviousManifest.EndsWith('.zip', [StringComparison]::OrdinalIgnoreCase)) {
+        $toolArgs += "--previous=$(Resolve-FullPath $PreviousManifest)"
+    } else {
+        Write-Warning 'No previous release zip (-PreviousManifest avdbcms-X.Y.Z.zip): shipped-texts.json keeps the old texts it has, and the texts the previous release shipped are not added. Language files owners edited then miss the corrections of this release.'
+    }
+
+    Write-Host 'Shipped texts (app/Support/Updater/shipped-texts.json):'
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        $lines = @(& $script:phpExe -d opcache.enable_cli=0 -d memory_limit=1024M $tool @toolArgs 2>&1)
+        $code = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previous
+    }
+
+    foreach ($line in $lines) {
+        Write-Host ('  ' + [string] $line)
+    }
+    if ($code -ne 0) {
+        throw "scripts/shipped-texts.php failed (exit $code)"
+    }
+}
+
+function Sync-LogViewerAssets {
+    param([string] $Stage)
+
+    # Tools > Logs (the log viewer package) compares its own public/mix-manifest.json with the copy published in
+    # public/vendor/log-viewer and otherwise tells every owner "Front-end assets are outdated. To update, please run
+    # php artisan log-viewer:publish", which shared hosting cannot run. The staged copy is made from the package the
+    # release ships (vendor/ was just installed from composer.lock), as log-viewer:publish would.
+    $source = Join-Path $Stage 'vendor\opcodesio\log-viewer\public'
+    $target = Join-Path $Stage 'public\vendor\log-viewer'
+    if (-not (Test-Path -LiteralPath $source -PathType Container)) {
+        Write-Warning 'vendor/opcodesio/log-viewer/public is missing: public/vendor/log-viewer stays as it is'
+        return
+    }
+    Assert-PathInside -Child $target -Parent $Stage
+    if (Test-Path -LiteralPath $target) {
+        Remove-Item -LiteralPath $target -Recurse -Force
+    }
+    New-Item -ItemType Directory -Path $target -Force | Out-Null
+    Copy-Item -Path (Join-Path $source '*') -Destination $target -Recurse -Force
+    $want = (Get-FileHash -LiteralPath (Join-Path $source 'mix-manifest.json') -Algorithm SHA256).Hash
+    $have = (Get-FileHash -LiteralPath (Join-Path $target 'mix-manifest.json') -Algorithm SHA256).Hash
+    if ($want -ne $have) {
+        throw 'public/vendor/log-viewer does not match the log viewer package after the copy'
+    }
+    Write-Host '  public/vendor/log-viewer: the assets of the log viewer package the release ships'
+}
+
 function Assert-StagingFolder {
     param([string] $Folder)
 
@@ -636,6 +754,14 @@ function Invoke-ReleasePackaging {
             }
         }
     }
+
+    # No empty folder outside storage/ (judge R3-030): the manifest, both zips and their checks see the same tree.
+    Remove-EmptyReleaseFolders -Stage $Stage
+
+    # Scripts get LF line endings before anything is hashed (R1B-022): artisan, and any other file that starts with
+    # "#!" or is a shell file, with CRLF fails on Linux ("./artisan": /usr/bin/env: 'php\r': No such file or
+    # directory). The manifest, both zips and their checks then see the LF copies; verify refuses a CRLF script.
+    Invoke-ReleaseTool @('scripts', "--stage=$Stage") | Out-Null
 
     $manifestArgs = @('manifest', "--stage=$Stage", "--requires-php=$RequiresPhp", "--min-from=$MinFrom")
     if ($PreviousManifest -ne '') {
@@ -697,12 +823,19 @@ if (-not (Test-Path -LiteralPath $releaseTool -PathType Leaf)) {
 if ($FromStaging -ne '') {
     $fromStage = Resolve-FullPath $FromStaging
     Assert-StagingFolder -Folder $fromStage
+    # The version and the -Tag check first (a wrong tag changes nothing), then the shipped texts of that folder.
+    Get-ReleaseVersion -Tree $fromStage | Out-Null
+    Update-ShippedTexts -Tree $fromStage
     Invoke-ReleasePackaging -Stage $fromStage -OutFolder $outDirFull
     return
 }
 
 # The version of the code and the -Tag check come first: a wrong tag changes nothing.
 $version = Get-ReleaseVersion -Tree $root
+
+# The texts older releases shipped, for the language files owners edited (see the header): in the project, so the copy
+# below, the release zips and the repository all have the same file.
+Update-ShippedTexts -Tree $root
 
 New-Item -ItemType Directory -Path $stageRoot -Force | Out-Null
 Assert-PathInside -Child $stage -Parent $stageRoot
@@ -796,6 +929,8 @@ try {
     $ErrorActionPreference = 'Stop'
 }
 
+Sync-LogViewerAssets -Stage $stage
+
 foreach ($dir in @(
     'storage/app',
     'storage/app/public',
@@ -814,7 +949,7 @@ foreach ($dir in @(
 }
 
 # Ensure no forbidden runtime files exist in the staging directory before zipping
-foreach ($dirName in @('scripts', 'tests', 'ops', 'deploy', '.agents', '.tools', '.playwright-mcp', '.vscode', '.idea', 'scratch', 'build', 'chat-export', '.tmp-npm-cache', '.tmp-playwright', '.tmp-playwright-browsers')) {
+foreach ($dirName in @('scripts', 'tests', 'ops', 'deploy', 'docker', '.agents', '.tools', '.playwright-mcp', '.vscode', '.idea', 'scratch', 'build', 'chat-export', '.tmp-npm-cache', '.tmp-playwright', '.tmp-playwright-browsers')) {
     $dirPath = Join-Path $stage $dirName
     if (Test-Path $dirPath) {
         Remove-Item -LiteralPath $dirPath -Recurse -Force -ErrorAction SilentlyContinue
@@ -837,6 +972,7 @@ Get-ChildItem -Path $stage -Recurse -File -Force -ErrorAction SilentlyContinue |
     $leaf -like 'live_*.png' -or
     $leaf -like 'avdb-import-*' -or
     $leaf -eq 'CURRENT_STATE.md' -or
+    $leaf -eq 'docker-compose.yml' -or
     $leaf -eq 'scratch_themes.json' -or
     $leaf -eq 'theme_test_report.json' -or
     $leaf -eq 'Makefile' -or

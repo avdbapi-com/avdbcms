@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Support\AppearanceDraft;
+use App\Support\VisitorChoices;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -18,6 +19,43 @@ class EdgeCacheVideoHtml
      */
     public function handle(Request $request, Closure $next): Response
     {
+        return self::neverSharedWithCookies($this->edgeCache($request, $next));
+    }
+
+    /**
+     * The last word on every answer of the web group (this middleware runs first, so it sees the cookies the session,
+     * the CSRF token and "remember me" added on the way out): an answer that sets a cookie is that visitor's alone
+     * (R1-087). A sitemap, a public-disk file or any other answer marked public that a member's browser fetched carried
+     * the member's live session cookie, and a shared cache that keeps Set-Cookie would hand it to the next visitor. Such
+     * an answer becomes private; the browser may still keep it (max-age stays), CDNs never. Answers without cookies
+     * (a guest's public pages, whose session cookies edgeCache() removes, and the cookie-less picture routes) keep
+     * their public headers.
+     */
+    public static function neverSharedWithCookies(Response $response): Response
+    {
+        if ($response->headers->getCookies() === []) {
+            return $response;
+        }
+
+        $cacheControl = strtolower((string) $response->headers->get('Cache-Control', ''));
+        $shared = str_contains($cacheControl, 'public') || str_contains($cacheControl, 's-maxage');
+
+        foreach (['CDN-Cache-Control', 'Cloudflare-CDN-Cache-Control'] as $header) {
+            $value = strtolower(trim((string) $response->headers->get($header, '')));
+            $shared = $shared || ($value !== '' && $value !== 'no-store' && ! str_contains($value, 'private'));
+        }
+
+        if (! $shared) {
+            return $response;
+        }
+
+        PublicCacheForGuests::makePrivate($response);
+
+        return $response;
+    }
+
+    private function edgeCache(Request $request, Closure $next): Response
+    {
         $response = $next($request);
 
         // A preview for one visitor (an admin's draft, ?theme=, ?theme_mode=, ?daily_design=, ...) is never public:
@@ -26,8 +64,28 @@ class EdgeCacheVideoHtml
             return AppearanceDraft::markPrivate($response);
         }
 
+        // A demo site's visitor choices (App\Support\VisitorChoices): while "Let visitors try the looks" or the demo ads
+        // switch is on, a page shows the look and the ads of the visitor's own cookies, so no page is shared by a CDN or
+        // another visitor's cache (a guest's watch page included, which its controller makes public). Both off: as before.
+        if (VisitorChoices::anyOn() && str_contains(strtolower((string) $response->headers->get('Content-Type', '')), 'text/html')) {
+            return VisitorChoices::markPrivate($response);
+        }
+
         // Only apply to safe GET and HEAD requests
         if (! in_array($request->method(), ['GET', 'HEAD'], true)) {
+            return $response;
+        }
+
+        // A page that showed one visitor's flashed message (a toast such as "Your account is closed", a status line, form
+        // errors) is that visitor's, never the public copy of the address, even when its controller made it public (the
+        // watch page does for guests). The flash data is gone from the session by now (StartSession ages it when it
+        // saves, inside this middleware), so the layout marks such a page while it renders (App\Support\OneTimePage).
+        if (class_exists(\App\Support\OneTimePage::class) && \App\Support\OneTimePage::isMarked($request)) {
+            $response->headers->set('Cache-Control', 'no-store, private');
+            $response->headers->set('CDN-Cache-Control', 'no-store');
+            $response->headers->set('Cloudflare-CDN-Cache-Control', 'no-store');
+            $response->headers->remove('Expires');
+
             return $response;
         }
 

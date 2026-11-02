@@ -1,4 +1,4 @@
-// Seasonal ambient particles of the Daily Aesthetic badge (perf plan step 25c): the layout's canvas
+// Seasonal ambient particles of the Daily Aesthetic badge: the layout's canvas
 // engine, moved out of the inline HUD script into a chunk that only the rich tier downloads (lower
 // tiers never ran it: their canvas is hidden by resources/js/layout/core.ts without this chunk).
 //
@@ -39,8 +39,12 @@ export const hideAtmosphere = (canvas: HTMLCanvasElement): void => {
     };
 };
 
+// Never on a member page (html[data-avd-member], member design 4.1a): a member page has 0 animation-frame loops at
+// rest, and this one is invisible to document.getAnimations(). The layout does not print the canvas there either.
+const memberPage = (): boolean => document.documentElement.hasAttribute('data-avd-member');
+
 export const startAtmosphere = (canvas: HTMLCanvasElement, daily: DailyConfig, initiallyEnabled: boolean): void => {
-    const ctx = rich() && canvas.getContext ? canvas.getContext('2d') : null;
+    const ctx = rich() && !memberPage() && canvas.getContext ? canvas.getContext('2d') : null;
 
     if (!ctx) {
         hideAtmosphere(canvas);

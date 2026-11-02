@@ -3,7 +3,12 @@
     // the theme's header deco adds its piece (masthead, crest...). See App\Support\ThemeStructure.
     $structure = \App\Support\ThemeStructure::resolve();
     $headerStyle = \App\Support\ThemeStructure::headerStyle();
-    $headerDeco = $structure['header_deco'];
+    // Back-office pages (studio, account, v1 admin) take the plain bar: no newspaper masthead with its dateline
+    // (studio-40) and no centred crest whose letter-spaced name was cut to "AVDBCMS DE..." next to the studio menu
+    // (studio-37). The look's colours, fonts and shapes stay.
+    $headerDeco = ($isBackOfficeLayout ?? false) && in_array($structure['header_deco'], ['masthead', 'crest'], true)
+        ? 'none'
+        : $structure['header_deco'];
     // Back-office pages (account, v1 admin) keep their always-pinned menu and the v1 rule.
     $sidebarPinned = ($isBackOfficeLayout ?? false) ? $show_sidebar : \App\Support\ThemeStructure::sidebarPinned();
     $twoRow = $headerStyle === 'full_megabar' && ! ($isBackOfficeLayout ?? false);
@@ -24,7 +29,7 @@
     }
     if ($twoRow && config('site.sidebar_explore_enabled', true)) {
         try {
-            $headerCategories = \Illuminate\Support\Facades\Cache::rememberForever('categories', fn () => \App\Models\Category::query()->where('in_menu', true)->ordered()->get());
+            $headerCategories = \Illuminate\Support\Facades\Cache::rememberForever('categories', fn () => \App\Support\ContentSafety::visibleCategories(\App\Models\Category::query()->where('in_menu', true)->ordered()->get()));
         } catch (\Throwable) {
             $headerCategories = collect();
         }
@@ -33,13 +38,16 @@
         }
     }
 @endphp
+{{-- Maintenance mode is on while this visitor sees the site (an administrator, the preview link, an allowed address). --}}
+@include('layouts.partials.maintenance-notice')
 <nav @class([
     'navbar avd-header header px-2',
     'avd-header--'.$headerStyle,
     'sticky-top' => ($cssStickyHeaderEnabled ?? true) && $headerStyle !== 'transparent_overlay',
     'navbar-expand-md' => $sidebarPinned,
 ]) x-data="{search:false}" data-avd-header>
-    <div class="container-fluid avd-header-inner" x-show.important="!search" x-cloak>
+    {{-- Never cloaked (perf-9): the bar shows from the first paint; Alpine only hides it while the phone search is open. --}}
+    <div class="container-fluid avd-header-inner" x-show.important="!search">
         {{-- Every bar is two blocks (start, actions): below 992px the header is a two-column grid (header.scss). --}}
         @if($headerDeco === 'masthead')
             {{-- Newspaper masthead: date line, centred title, actions; the sections follow in the second row. --}}
@@ -66,7 +74,7 @@
                 @include('layouts.menus.headers.nav', ['links' => $headerLinks, 'navClass' => 'avd-hnav d-none d-lg-flex'])
             @endif
             @if(config('site.header_search_enabled', true) && ! $searchIcon)
-                <search-bar class="col-6 col-xl-5 col-xxl-4 d-none d-lg-block" searchurl="{{ locale_url(route('search.index')) }}" responsive></search-bar>
+                <search-bar class="col-6 col-xl-5 col-xxl-4 d-none d-lg-block" searchurl="{{ locale_url(route('search.index')) }}" responsive>@include('layouts.menus.headers.search-fallback')</search-bar>
             @endif
             @include('layouts.menus.headers.actions')
             @if($headerDeco === 'titlebar')
@@ -84,7 +92,7 @@
             <button id="mobile-search-close" @click="search = false" class="avd-icon-button flex-shrink-0" type="button" aria-controls="mobile-search-panel" aria-label="{{__('Close search')}}">
                 <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>
             </button>
-            <search-bar id="mobile-search-bar" class="w-100" searchurl="{{ locale_url(route('search.index')) }}"></search-bar>
+            <search-bar id="mobile-search-bar" class="w-100" searchurl="{{ locale_url(route('search.index')) }}">@include('layouts.menus.headers.search-fallback')</search-bar>
         </div>
     @endif
 </nav>

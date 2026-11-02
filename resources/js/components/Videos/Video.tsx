@@ -113,7 +113,7 @@ export const Video = memo(({video, actions, priority = false, firstPage = false}
                     />
                     {video.formated_duration && <span className="avd-duration">{video.formated_duration}</span>}
                     {video.is_private && (
-                        <span className="avd-status-chip position-absolute top-0 start-0 m-2">
+                        <span className="avd-status-chip position-absolute top-0 avd-at-start m-2">
                             <i className="fa-solid fa-lock"></i>
                             {t('Private')}
                         </span>

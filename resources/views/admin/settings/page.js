@@ -146,7 +146,15 @@
         if (keyPassword) keyPassword.hidden = !keysChanged;
         dirty = count > 0;
         bar.hidden = !dirty;
-        bar.querySelector('[data-changes]').textContent = count === 1 ? T.one : T.many.replace(':count', count);
+        bar.querySelector('[data-changes]').textContent = counted(T.changes, count);
+    }
+
+    // "3 unsaved changes" in the admin's language: the admin script picks the form as the server does (three in
+    // Russian, six in Arabic); without it, the first form for 1 and the last for any other number.
+    function counted(line, count) {
+        if (typeof window.adminPlural === 'function') return window.adminPlural(line, count);
+        var forms = String(line).split('|').map(function (form) { return form.replace(/^[{[][\d,.*]*[}\]]\s*/, ''); });
+        return (count === 1 ? forms[0] : forms[forms.length - 1]).split(':count').join(String(count));
     }
 
     function toast(text, type) {
@@ -407,6 +415,8 @@
                 });
                 showErrors({});
                 toast([r.data.message || T.saved].concat(r.data.notes || []).join(' '));
+                // Saved, but something to do (the site's robots.txt could not be written): stays until closed.
+                if (r.data.warnings && r.data.warnings.length) toast(r.data.warnings.join(' '), 'error');
                 return true;
             }
             if (r.res.status === 422) showErrors(r.data.errors || {});
@@ -641,7 +651,10 @@
     var lazy = rows.filter(function (row) { return row.dataset.lazy; });
     if (lazy.length && config.values) {
         var keys = lazy.map(function (row) { return row.dataset.key; }).join(',');
-        fetch(config.values + '?keys=' + encodeURIComponent(keys), { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+        // A background GET (App\Http\Middleware\BackgroundRequest): it never uses up the page's one-time messages.
+        var lazyHeaders = { 'Accept': 'application/json' };
+        lazyHeaders[config.background || 'X-Background-Request'] = '1';
+        fetch(config.values + '?keys=' + encodeURIComponent(keys), { credentials: 'same-origin', headers: lazyHeaders })
             .then(function (res) { return res.ok ? res.json() : Promise.reject(res.status); })
             .then(function (data) {
                 lazy.forEach(function (row) {

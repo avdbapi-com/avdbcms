@@ -1,4 +1,4 @@
-// Feed skeletons and reserved feed space (perf plan step 20).
+// Feed skeletons and reserved feed space.
 //
 // <x-videos-area> (resources/views/components/videos-area.blade.php) server-renders the skeleton grid that
 // VideosList renders while it loads, so each feed has its final size from the first paint. The rules below

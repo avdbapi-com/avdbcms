@@ -19,9 +19,9 @@
                 </div>
             </div>
             <div class="col-md-4 text-end">
-                <strong>{{ number_format($disk['used'] / 1073741824, 2) }} GB</strong> {{__('used of')}}
-                <strong>{{ number_format($disk['total'] / 1073741824, 2) }} GB</strong>
-                <br><small class="text-muted">{{ number_format($disk['free'] / 1073741824, 2) }} GB {{__('free')}}</small>
+                <strong dir="ltr" class="text-nowrap">{{ number_format($disk['used'] / 1073741824, 2) }} GB</strong> {{__('used of')}}
+                <strong dir="ltr" class="text-nowrap">{{ number_format($disk['total'] / 1073741824, 2) }} GB</strong>
+                <br><small class="text-muted"><span dir="ltr" class="text-nowrap">{{ number_format($disk['free'] / 1073741824, 2) }} GB</span> {{__('free')}}</small>
             </div>
         </div>
     </div>
@@ -39,8 +39,9 @@
                 @foreach($directories as $name => $dir)
                 <tr>
                     <td><i class="fa-solid fa-folder text-warning me-1"></i><code>{{ $name }}</code></td>
-                    <td><span class="badge bg-secondary">{{ number_format($dir['files']) }}</span></td>
-                    <td><strong>{{ $dir['formatted_size'] ?? '0 B' }}</strong></td>
+                    {{-- Counted for a few seconds at most (status probe "folders"): "+" when a folder holds more. --}}
+                    <td><span class="badge bg-secondary">{{ number_format($dir['files']) }}@if (! empty($dir['partial']))+@endif</span></td>
+                    <td><strong dir="ltr" class="text-nowrap">{{ $dir['formatted_size'] ?? '0 B' }}@if (! empty($dir['partial']))+@endif</strong></td>
                     <td>
                         @if($dir['exists'])
                             <span class="badge bg-success">{{__('Exists')}}</span>
@@ -72,5 +73,8 @@
             </tbody>
         </table>
     </div>
+    @if (collect($directories)->contains(fn ($dir) => ! empty($dir['partial'])))
+        <div class="card-footer small text-muted">{{ __('Some folders hold too many files to count in a few seconds: their sizes are at least what is shown.') }}</div>
+    @endif
 </div>
 @endsection

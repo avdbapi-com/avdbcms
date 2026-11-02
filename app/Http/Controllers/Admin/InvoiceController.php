@@ -26,10 +26,11 @@ class InvoiceController
 
             return view('admin.invoices.list', [
                 'invoices' => $query->paginate(AdminPagination::perPage($request, 25))->withQueryString(),
-                'stats' => AdminCache::remember('invoices.totals.v1', now()->addMinute(), function (): array {
-                    $row = DB::table('transactions')->selectRaw('COUNT(*) as total_count, SUM(amount) / 100 as total_amount, SUM(tax) / 100 as total_tax, SUM(fee) / 100 as total_fee')->first();
+                // In cents, as stored: the page writes them in the site's currency (R1B-024; v2 of the key: v1 held units).
+                'stats' => AdminCache::remember('invoices.totals.v2', now()->addMinute(), function (): array {
+                    $row = DB::table('transactions')->selectRaw('COUNT(*) as total_count, SUM(amount) as total_amount, SUM(tax) as total_tax, SUM(fee) as total_fee')->first();
 
-                    return ['count' => (int) ($row->total_count ?? 0), 'amount' => (float) ($row->total_amount ?? 0), 'tax' => (float) ($row->total_tax ?? 0), 'fee' => (float) ($row->total_fee ?? 0)];
+                    return ['count' => (int) ($row->total_count ?? 0), 'amount' => (int) ($row->total_amount ?? 0), 'tax' => (int) ($row->total_tax ?? 0), 'fee' => (int) ($row->total_fee ?? 0)];
                 }),
             ]);
         }
@@ -41,12 +42,16 @@ class InvoiceController
                 ->orWhere('email', 'like', '%'.$request->user.'%'));
         }
 
-        $stats = DB::table('transactions')->selectRaw('
-            COUNT(*) as total_count,
-            SUM(amount) / 100 as total_amount,
-            SUM(tax) / 100 as total_tax,
-            SUM(fee) / 100 as total_fee
-        ')->first();
+        // The totals in cents, 0 without any payment (SUM() of no rows is NULL, which the page printed through
+        // number_format(null): a deprecation notice each, an error in PHP 9; R1B-024). The page writes them in the
+        // site's currency, like the member's invoices.
+        $row = DB::table('transactions')->selectRaw('COUNT(*) as total_count, SUM(amount) as total_amount, SUM(tax) as total_tax, SUM(fee) as total_fee')->first();
+        $stats = (object) [
+            'total_count' => (int) ($row->total_count ?? 0),
+            'total_amount' => (int) ($row->total_amount ?? 0),
+            'total_tax' => (int) ($row->total_tax ?? 0),
+            'total_fee' => (int) ($row->total_fee ?? 0),
+        ];
 
         return view('admin.invoices.index', [
             'invoices' => $query->paginate(\App\Support\AdminPagination::perPage(null, 20))->withQueryString(),

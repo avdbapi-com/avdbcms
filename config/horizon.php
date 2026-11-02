@@ -70,7 +70,8 @@ return [
     |
     */
 
-    'middleware' => ['web', 'admin', 'admin.ops', \App\Http\Middleware\EnsureHorizonAvailable::class],
+    // AuditHorizonActions: a retry from the dashboard is written in Tools > Logs > Admin actions (R3-019).
+    'middleware' => ['web', 'admin', 'admin.ops', \App\Http\Middleware\EnsureHorizonAvailable::class, \App\Http\Middleware\AuditHorizonActions::class],
 
     /*
     |--------------------------------------------------------------------------

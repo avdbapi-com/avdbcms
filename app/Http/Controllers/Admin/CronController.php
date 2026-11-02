@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Admin;
 
 use App\Models\Video;
 use App\Support\AdminPreferences;
+use App\Support\AppendLog;
 use App\Support\AvdbDurationBackfill;
 use App\Support\CronControl;
+use App\Support\LaravelSchedulerCron;
 use App\Support\PhpBinary;
 use App\Support\RuntimeEnv;
 use App\Support\ShellRunner;
@@ -56,10 +58,12 @@ class CronController
             ? DB::table('jobs')->orderBy('available_at')->limit(10)->get()
             : collect();
 
-        $cronLog = $this->readLogTail(storage_path('logs/cron.log'), 80);
-        $scheduleRunLog = $this->readLogTail(storage_path('logs/schedule-run.log'), 80);
+        $cronLog = $this->readLogTail(storage_path(LaravelSchedulerCron::TASK_LOG), 80);
+        $scheduleRunLog = $this->readLogTail(storage_path(LaravelSchedulerCron::CRON_LOG), 80);
+        $siteRunLog = $this->readLogTail(storage_path(LaravelSchedulerCron::SITE_LOG), 80);
         $durationLog = $this->readLogTail(storage_path('logs/avdb-duration-sync.log'), 80);
         $activityLogs = $this->activityLogs('cron.');
+        $scheduler = $this->schedulerState($deferred, $durationBackfill);
 
         return view('admin.cron.index', compact(
             'newAdmin',
@@ -71,21 +75,48 @@ class CronController
             'queuedJobs',
             'cronLog',
             'scheduleRunLog',
+            'siteRunLog',
             'durationLog',
-            'activityLogs'
+            'activityLogs',
+            'scheduler'
         ));
+    }
+
+    /**
+     * Who starts the scheduled tasks and the cron line this site needs (judge R1B-004/R1B-006): the system cron (its
+     * runs are stamped by schedule:run itself), only the site after page requests, or nobody; what this account's
+     * crontab holds for the site; the line to add, for the PHP binary the "php" status probe found.
+     *
+     * @param  array<string, mixed>  $durationBackfill
+     * @return array<string, mixed>
+     */
+    private function schedulerState(bool $deferred, array $durationBackfill): array
+    {
+        $php = ($durationBackfill['php_binary_ok'] ?? false) ? (string) ($durationBackfill['php_binary'] ?? '') : '';
+        $windows = \App\Support\Environment::isWindows();
+
+        return [
+            'run' => LaravelSchedulerCron::runStatus(),
+            'windows' => $windows,
+            'crontab' => $deferred ? ['state' => 'unknown', 'lines' => []] : LaravelSchedulerCron::crontabState(),
+            'line' => $php !== '' ? LaravelSchedulerCron::lineFor($php) : null,
+            // a hosting panel's cron job: the same command without the crontab's schedule (round 3 IN-RV-01)
+            'command' => $php !== '' && ! $windows ? LaravelSchedulerCron::commandFor($php) : null,
+            'panel_line' => $php !== '' && ! $windows ? LaravelSchedulerCron::panelLineFor($php) : null,
+        ];
     }
 
     public function runScheduler(): RedirectResponse
     {
-        $ok = $this->runBackgroundArtisan(['schedule:run'], storage_path('logs/schedule-run.log'));
+        // A run of the site, not of the system cron: its own log, and the status still tells whether a cron runs.
+        $ok = LaravelSchedulerCron::startSiteRun($this->phpBinary());
         if (! $ok) {
-            return back()->withErrors('Could not start schedule:run. Check PHP process support.');
+            return back()->withErrors(__('The scheduled tasks could not be started. Check that PHP may start processes on this server.'));
         }
 
         $this->audit('cron.scheduler.run', 'Started schedule:run in the background.');
 
-        return back()->withSuccess('Scheduler run started in the background.');
+        return back()->withSuccess(__('The scheduled tasks are running in the background.'));
     }
 
     public function interruptScheduler(): RedirectResponse
@@ -94,9 +125,9 @@ class CronController
             Artisan::call('schedule:interrupt');
             $this->audit('cron.scheduler.interrupt', 'Sent schedule interrupt signal.');
 
-            return back()->withSuccess('Schedule interrupt signal sent.');
+            return back()->withSuccess(__('The scheduled tasks were asked to stop.'));
         } catch (\Throwable $e) {
-            return back()->withErrors('Could not interrupt scheduler: '.Str::limit($e->getMessage(), 180));
+            return back()->withErrors(__('The scheduled tasks could not be stopped: :error', ['error' => Str::limit($e->getMessage(), 180)]));
         }
     }
 
@@ -104,48 +135,48 @@ class CronController
     {
         $command = $this->validatedTaskCommand($request);
         if ($command === null) {
-            return back()->withErrors('Scheduled task was not found.');
+            return back()->withErrors(__('This scheduled task was not found.'));
         }
 
         $ok = $this->runBackgroundArtisan($this->artisanArguments($command), storage_path('logs/cron.log'));
         if (! $ok) {
-            return back()->withErrors('Could not start scheduled task. Check PHP process support.');
+            return back()->withErrors(__('The scheduled task could not be started. Check that PHP may start processes on this server.'));
         }
 
         $this->audit('cron.task.run', "Started scheduled task: {$command}");
 
-        return back()->withSuccess('Scheduled task started.');
+        return back()->withSuccess(__('Scheduled task started'));
     }
 
     public function pauseTask(Request $request): RedirectResponse
     {
         $command = $this->validatedTaskCommand($request);
         if ($command === null) {
-            return back()->withErrors('Scheduled task was not found.');
+            return back()->withErrors(__('This scheduled task was not found.'));
         }
 
         CronControl::pause($command);
         $this->audit('cron.task.pause', "Paused scheduled task: {$command}");
 
-        return back()->withSuccess('Scheduled task paused.');
+        return back()->withSuccess(__('Scheduled task paused'));
     }
 
     public function resumeTask(Request $request): RedirectResponse
     {
         $command = $this->validatedTaskCommand($request);
         if ($command === null) {
-            return back()->withErrors('Scheduled task was not found.');
+            return back()->withErrors(__('This scheduled task was not found.'));
         }
 
         CronControl::resume($command);
         $this->audit('cron.task.resume', "Resumed scheduled task: {$command}");
 
-        return back()->withSuccess('Scheduled task resumed.');
+        return back()->withSuccess(__('Scheduled task resumed'));
     }
 
     public function clearLogs(): RedirectResponse
     {
-        foreach ([storage_path('logs/cron.log'), storage_path('logs/schedule-run.log'), storage_path('logs/avdb-duration-sync.log')] as $path) {
+        foreach ([storage_path(LaravelSchedulerCron::TASK_LOG), storage_path(LaravelSchedulerCron::CRON_LOG), storage_path(LaravelSchedulerCron::SITE_LOG), storage_path('logs/avdb-duration-sync.log')] as $path) {
             if (is_file($path)) {
                 file_put_contents($path, '', LOCK_EX);
             }
@@ -153,7 +184,7 @@ class CronController
 
         $this->audit('cron.logs.clear', 'Cleared cron logs.');
 
-        return back()->withSuccess('Cron logs cleared.');
+        return back()->withSuccess(__('Scheduled task logs cleared'));
     }
 
     public function startDurationBackfill(Request $request): RedirectResponse
@@ -194,7 +225,7 @@ class CronController
     public function resetDurationRetries(): RedirectResponse
     {
         if (! Schema::hasTable('videos')) {
-            return back()->withErrors('Videos table was not found.');
+            return back()->withErrors(__('The videos table was not found.'));
         }
 
         $updates = [];
@@ -207,7 +238,7 @@ class CronController
         }
 
         if ($updates === []) {
-            return back()->withSuccess('No duration retry tracking columns were found.');
+            return back()->withSuccess(__('Nothing to reset: this database keeps no duration retries.'));
         }
 
         $countQuery = Video::query()->withoutGlobalScopes();
@@ -221,9 +252,9 @@ class CronController
             ->update($updates);
 
         AvdbDurationBackfill::clearPriorityQueue();
-        $this->audit('cron.duration.reset', "Reset duration retry tracking for {$count} missing-duration AVDB video(s).");
+        $this->audit('cron.duration.reset', "Reset duration retry tracking for {$count} missing-duration AVDB ".Str::plural('video', $count).'.');
 
-        return back()->withSuccess("Reset duration retry tracking for {$count} missing-duration AVDB video(s). Start duration sync again to retry them now.");
+        return back()->withSuccess(trans_choice('1 AVDB video still missing its duration will be tried again. Start the duration sync to try it now.|:count AVDB videos still missing their duration will be tried again. Start the duration sync to try them now.', $count));
     }
 
     public function durationStatus(): JsonResponse
@@ -251,7 +282,7 @@ class CronController
                 'success' => true,
                 'done' => true,
                 'mode' => 'none',
-                'message' => 'No AVDB videos need duration sync.',
+                'message' => __('No AVDB videos need duration sync.'),
                 'cleared_queued_jobs' => $clearedQueuedJobs,
                 'stats' => $stats,
             ]);
@@ -271,9 +302,9 @@ class CronController
             ]);
         }
 
-        $message = $process['message'].' Running browser-safe duration batches instead.';
+        $message = $process['message'].' '.__('Running browser-safe duration batches instead.');
         if ($clearedQueuedJobs > 0) {
-            $message .= " Cleared {$clearedQueuedJobs} stale queued duration job(s).";
+            $message .= ' '.trans_choice('Removed 1 old queued duration job.|Removed :count old queued duration jobs.', $clearedQueuedJobs);
         }
 
         $this->audit('cron.duration.runner.web', $message);
@@ -314,6 +345,57 @@ class CronController
             'batch' => $batch,
             'stats' => $stats,
         ], $result['available'] ? 200 : 422);
+    }
+
+    /**
+     * What each scheduled task does, in plain words for Tools > Scheduled tasks, by its artisan command. The commands'
+     * own descriptions are written for developers (some in broken English, some empty); this page translates its own.
+     * Every command the Kernel schedules has one (tests/Feature/ScheduledTaskPlainWordsTest.php).
+     */
+    private const TASK_DESCRIPTIONS = [
+        'video:published' => 'Tells subscribers when a scheduled video becomes public',
+        'upload18:finish-pending' => 'Finishes member uploads that Upload18 completed after the upload page was closed',
+        'premium:trial_end' => 'E-mails members whose free trial ends soon (days before the end: :days)',
+        'premium:card_expiration' => 'E-mails members whose card expires at the end of the month',
+        'users:delete-unconfirmed' => 'Removes new accounts whose e-mail address was never confirmed in time',
+        'videos:delete_expired_chunks' => 'Deletes the pieces of uploads that were never finished',
+        'views:prune-history' => 'Deletes view history older than you keep it (Settings > Advanced)',
+        'queue:cleanup-stale' => 'Removes old rows from the tables of the background jobs',
+        'avdb:schedules:run' => 'Runs the AVDBAPI imports that are due',
+        'xvid:schedules:run' => 'Runs the XVIDAPI imports that are due',
+        'avdb:queue-duration-sync' => 'Looks up the running time of AVDBAPI videos that have none',
+        'scout:import' => 'Adds the videos to the search index',
+        'sanctum:prune-expired' => 'Removes expired API keys',
+        'auth:clear-resets' => 'Removes expired password reset links',
+        'cleanup:purge-trashed' => 'Deletes for good the deleted records that were still kept (a safety clean-up)',
+        'videos:purge-orphaned' => 'Deletes for good the videos of deleted accounts',
+        'updates:tidy' => 'Deletes the work files of finished one-click updates, a few seconds at a time',
+        'videos:recount-engagement' => 'Counts the likes, dislikes and comments of every video again, a little at a time',
+        'notifications:tidy' => 'Finishes long notification work and removes old notifications in small batches',
+        'history:fix-old-times' => 'After the update to 1.2.3, sets the older times of history, subscription, playlist, like and dislike entries to the site time zone, a little at a time',
+        'videos:hide-blocked-words' => 'After the update to 1.2.3, hides the videos whose titles, tags or categories use words that are always blocked, a little at a time',
+        'notifications:index' => 'On sites with many notifications, finishes the part of the update that keeps the "Unread" notifications tab fast',
+        'videos:index' => 'On sites with many videos, finishes the part of the update that keeps the video lists and counts fast',
+        'discovery:snapshots' => 'On sites with many videos, counts the popular tags, creators and actors of the home page and checks the search suggestions in the background',
+        'queue:work' => 'Runs the background jobs that are waiting',
+    ];
+
+    /** A task's description for the page: this page's own words for a known command, else the command's own. */
+    public static function describe(array $task): ?string
+    {
+        $command = (string) ($task['command'] ?? '');
+
+        // "php artisan video:published", "'/usr/bin/php' 'artisan' video:published --seconds=50", "artisan "scout:import" ..."
+        if (preg_match('/artisan[\'"]?\s+[\'"]?([\w:\-]+)/', $command, $match) === 1 && isset(self::TASK_DESCRIPTIONS[$match[1]])) {
+            // The trial reminder goes out as many days before the end as the admin set (Money > Premium plans).
+            $replace = $match[1] === 'premium:trial_end' ? ['days' => (int) config('plans.trial_period.email_reminder', 7)] : [];
+
+            return __(self::TASK_DESCRIPTIONS[$match[1]], $replace);
+        }
+
+        $description = trim((string) ($task['description'] ?? ''));
+
+        return $description === '' ? null : __($description);
     }
 
     /**
@@ -606,7 +688,7 @@ class CronController
                 'available' => false,
                 'videos' => 0,
                 'jobs' => 0,
-                'message' => 'Inline duration sync failed: '.Str::limit($e->getMessage(), 180),
+                'message' => __('The duration sync failed: :error', ['error' => Str::limit($e->getMessage(), 180)]),
             ];
         }
 
@@ -615,14 +697,17 @@ class CronController
         $missingAfter = $this->missingDurationCount();
         $resolved = max(0, $missingBefore - $missingAfter);
         $message = $status === 0
-            ? "Ran one inline AVDB duration batch for up to {$limit} video(s) in ".round($elapsedMs / 1000, 1)."s. Missing before: {$missingBefore}; after: {$missingAfter}; resolved now: {$resolved}."
-            : 'Inline AVDB duration batch returned an error.';
+            ? trans_choice('Ran one duration batch for up to 1 video in :seconds s.|Ran one duration batch for up to :count videos in :seconds s.', $limit, ['seconds' => round($elapsedMs / 1000, 1)])
+                .' '.__('Missing before: :before. Missing now: :after. Found now: :found.', ['before' => $missingBefore, 'after' => $missingAfter, 'found' => $resolved])
+            : __('The duration batch stopped with an error.');
 
         if ($clearedQueuedJobs > 0) {
-            $message .= " Cleared {$clearedQueuedJobs} stale queued duration job(s) first.";
+            $message .= ' '.trans_choice('Removed 1 old queued duration job.|Removed :count old queued duration jobs.', $clearedQueuedJobs);
         }
 
-        if ($output !== '') {
+        // The command's own lines (English, one per video found) only when the batch stopped with an error: then they say
+        // why. A batch that ran is fully told by the counts above, in the admin's language.
+        if ($status !== 0 && $output !== '') {
             $message .= ' '.Str::limit($output, 500);
         }
 
@@ -682,16 +767,8 @@ class CronController
      */
     private function readLogTail(string $path, int $lines = 60): array
     {
-        if (! is_file($path) || ! is_readable($path)) {
-            return [];
-        }
-
-        $content = file($path, FILE_IGNORE_NEW_LINES);
-        if (! is_array($content)) {
-            return [];
-        }
-
-        return array_slice($content, -$lines);
+        // From the end of the file: a big log is never read whole into memory.
+        return AppendLog::tail($path, $lines);
     }
 
     private function activityLogs(string $prefix): array

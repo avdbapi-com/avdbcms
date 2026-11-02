@@ -47,12 +47,13 @@
         @foreach ($resets as $reset)
             @php
                 $asked = \Illuminate\Support\Carbon::parse($reset->created_at);
-                $key = 'ad-r-'.substr(md5($reset->email), 0, 10);
+                // A row key nobody can compute from a guessed address (an md5 of it would confirm the guess offline).
+                $key = 'ad-r-'.substr(hash_hmac('sha256', (string) $reset->email, (string) config('app.key')), 0, 10);
             @endphp
             <tr>
                 <td class="c-main"><p><b id="{{ $key }}">{{ $reset->email }}</b></p></td>
                 <td class="c-meta">@if ($reset->user_id){{ $reset->username }} <x-admin.status :type="$reset->email_verified_at ? 'ok' : 'warn'">{{ $reset->email_verified_at ? __('Email confirmed') : __('Email not confirmed') }}</x-admin.status>@else<x-admin.status type="off">{{ __('No member with this email') }}</x-admin.status>@endif</td>
-                <td class="is-date" title="{{ $asked->translatedFormat('j M Y, H:i') }}">{{ $asked->diffForHumans(short: true) }}</td>
+                <td class="is-date" title="{{ $asked->translatedFormat('j M Y, H:i') }}">{{ $asked->diffForHumans(short: \App\Support\AdminText::shortTimes()) }}</td>
                 <td class="is-actions"><button type="button" class="ad-iconbtn is-more" aria-haspopup="true" aria-labelledby="ad-l-act {{ $key }}" data-id="{{ $key }}" data-url="{{ route('admin.password-resets.delete', $reset->email, false) }}" @if ($reset->user_id) data-user="{{ $reset->user_id }}" @endif></button></td>
             </tr>
         @endforeach

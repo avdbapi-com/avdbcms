@@ -64,13 +64,21 @@ class ContactMessageController
 
     public function destroy(int $id): RedirectResponse
     {
-        DB::table('contact_messages')->where('id', $id)->delete();
-        return redirect()->route('admin.contacts.index')->withSuccess('Message deleted.');
+        if (DB::table('contact_messages')->where('id', $id)->delete() > 0) {
+            AuditLogController::log('message.deleted', \App\Support\AuditDetails::ids([$id]));
+        }
+
+        return redirect()->route('admin.contacts.index')->withSuccess(__('Message deleted'));
     }
 
     public function markAllRead(): RedirectResponse
     {
-        DB::table('contact_messages')->where('is_read', false)->update(['is_read' => true]);
-        return redirect()->route('admin.contacts.index')->withSuccess('All messages marked as read.');
+        $count = DB::table('contact_messages')->where('is_read', false)->update(['is_read' => true]);
+
+        if ($count > 0) {
+            AuditLogController::log('messages.all_read', (string) $count);
+        }
+
+        return redirect()->route('admin.contacts.index')->withSuccess(__('All messages marked as read'));
     }
 }

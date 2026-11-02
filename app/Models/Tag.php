@@ -37,6 +37,13 @@ class Tag extends Model
                 $translatedName = trim((string) ($translation?->name ?? ''));
                 $jsonName = __($this->name);
 
+                // 1.2.3: never a translation that uses a word that is always blocked (App\Support\ContentSafety: a child,
+                // a school-age minor) where the tag's own name does not; the tag's own name then
+                if (! \App\Support\ContentSafety::hides($this->name)) {
+                    $translatedName = \App\Support\ContentSafety::hides($translatedName) ? '' : $translatedName;
+                    $jsonName = \App\Support\ContentSafety::hides($jsonName) ? $this->name : $jsonName;
+                }
+
                 if ($jsonName !== $this->name && ($translatedName === '' || preg_match('/^[\x00-\x7F]+$/', $translatedName))) {
                     return $jsonName;
                 }

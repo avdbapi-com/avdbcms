@@ -159,16 +159,25 @@ class AdminIpWhitelistTrustTest extends TestCase
         $server = $_SERVER;
         config(['site.trusted_proxies' => '']);
 
+        // Whether a request from this address counts as coming from a trusted proxy (the list the provider applied).
+        $trusted = fn (string $ip): bool => Request::create('http://example.test/', 'GET', server: ['REMOTE_ADDR' => $ip])->isFromTrustedProxy();
+
         try {
             $_SERVER['REMOTE_ADDR'] = self::ATTACKER;
             $_SERVER['HTTP_CF_RAY'] = '8a1b2c3d4e5f-AMS';
             Request::setTrustedProxies([], Request::HEADER_X_FORWARDED_FOR);
             (new EnvironmentServiceProvider($this->app))->boot();
-            $this->assertSame([], Request::getTrustedProxies());
+            // 1.2.3: without a list the same built-in hops as the TrustProxies middleware (this machine, private
+            // networks, Cloudflare); the caller's own address never joins them, whatever headers it sends.
+            $this->assertFalse($trusted(self::ATTACKER));
+            $this->assertNotContains(self::ATTACKER, Request::getTrustedProxies());
+            $this->assertNotContains('*', Request::getTrustedProxies());
+            $this->assertSame(Request::HEADER_X_FORWARDED_FOR | Request::HEADER_X_FORWARDED_PROTO, Request::getTrustedHeaderSet(), 'never Host, Prefix or Port');
 
             $_SERVER['REMOTE_ADDR'] = self::CLOUDFLARE_EDGE;
             (new EnvironmentServiceProvider($this->app))->boot();
-            $this->assertSame([self::CLOUDFLARE_EDGE], Request::getTrustedProxies());
+            $this->assertTrue($trusted(self::CLOUDFLARE_EDGE));
+            $this->assertFalse($trusted(self::ATTACKER));
         } finally {
             $_SERVER = $server;
             Request::setTrustedProxies([], Request::HEADER_X_FORWARDED_FOR);

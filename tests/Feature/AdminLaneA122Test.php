@@ -33,7 +33,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 /**
- * AVDBCMS 1.2.2, lane A: the "Back up now" size, the plan upload limits on Money > Premium plans (typed in MB or GB,
+ * AVDBCMS 1.2.2, the admin pages: the "Back up now" size, the plan upload limits on Money > Premium plans (typed in MB or GB,
  * stored in bytes), the ready-made XVIDAPI schedule ("Paused", its cron line, the next run when switched on), help
  * texts that say what the settings do, the old admin's Reports statuses, the red zone of the "Automatic" admin colour,
  * the XVIDAPI provider tab and the old admin's red outline buttons in dark mode, and the corrected translations.
@@ -86,11 +86,12 @@ class AdminLaneA122Test extends TestCase
         $response = $this->actingAs($this->admin())->post(route('admin.backups.create'))->assertRedirect(route('admin.backups.index'));
 
         $message = (string) session('success');
-        $this->assertMatchesRegularExpression('/^Database backup created via Pure-PHP: backup_[\d_-]+\.sql(\.gz)? \(26\.4 KB\)$/', $message);
+        // The name ends in a random part (security plan S03): it is the file's name in Tools > Backups.
+        $this->assertMatchesRegularExpression('/^Database backup created via Pure-PHP: backup_[\d_-]+_[0-9a-f]{12}\.sql(\.gz)? \(26\.4 KB\)$/', $message);
         $this->assertStringNotContainsString('MB', $message);
 
         $html = $this->newAdminPage(route('admin.backups.index'));
-        $this->assertStringContainsString('<td class="c-meta is-num text-nowrap">26.4 KB<small', $html);
+        $this->assertStringContainsString('<td class="c-meta is-num text-nowrap"><span dir="ltr">26.4 KB</span><small', $html);
         unset($response);
     }
 
@@ -325,7 +326,7 @@ class AdminLaneA122Test extends TestCase
         $this->assertSame('Hourly XVIDAPI Video Sync', $schedule->name);
         $this->assertFalse($schedule->is_active);
         $this->assertNull($schedule->next_run_at, 'no next run while paused');
-        $this->assertSame('Hourly at :30', $schedule->scheduleLabel());
+        $this->assertSame('Every hour, at minute 30', $schedule->scheduleLabel());
         $this->assertSame('30 * * * *', $schedule->getRawOriginal('expression'), 'the cron line agrees with "Hourly" (the table default is daily 03:00)');
 
         // The scheduler leaves it alone.
@@ -421,7 +422,7 @@ class AdminLaneA122Test extends TestCase
         $this->assertSame('Ad break length', $setting('ad_preroll_duration')['label']);
         $this->assertSame('seconds', $setting('ad_preroll_duration')['suffix']);
         $this->assertStringContainsString('Viewers can skip it after 3 seconds.', $setting('ad_preroll_duration')['help']);
-        // "Ad after every" keeps its words: the list puts that many videos before an ad (lane F).
+        // "Ad after every" keeps its words: the list puts that many videos before an ad.
         $this->assertSame('Number of videos before an ad appears in video lists.', $setting('ad_grid_position')['help']);
 
         // The Ctrl+K rows are generated from the same texts.
@@ -602,7 +603,7 @@ class AdminLaneA122Test extends TestCase
         $this->assertGreaterThanOrEqual(4.5, Contrast::contrast('#ffffff', '#dc3545'));
     }
 
-    // ------------------------------------------------------------------ Translations (after i18n.json is applied)
+    // ------------------------------------------------------------------ Translations (the release's lang/*.json)
 
     public function test_profile_random_director_and_tag_name_use_the_right_words(): void
     {

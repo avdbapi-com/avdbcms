@@ -61,9 +61,15 @@ final class ShellRunner
     /**
      * Run a command in the background (fire and forget).
      *
+     * The command's output is APPENDED to $logFile (">>": every run keeps its lines, a log another process appends to
+     * is never wiped), a log that is never world-writable and is cut to its newest lines once it grows big
+     * (App\Support\AppendLog). A log this process may not write (another account's) does not stop the command: its
+     * output then goes nowhere. $env adds variables to the command's environment (the rest is inherited).
+     *
      * @param  array<int, string>  $command
+     * @param  array<string, string>  $env
      */
-    public static function runBackground(array $command, ?string $logFile = null, ?string $cwd = null): bool
+    public static function runBackground(array $command, ?string $logFile = null, ?string $cwd = null, array $env = []): bool
     {
         if ($command === []) {
             return false;
@@ -75,14 +81,10 @@ final class ShellRunner
 
         try {
             if (Environment::isWindows()) {
-                return self::runWindowsBackground($command, $logFile, $cwd);
+                return self::runWindowsBackground($command, $logFile, $cwd, $env);
             }
 
-            if ($logFile) {
-                @is_dir(dirname($logFile)) || @mkdir(dirname($logFile), 0775, true);
-                @touch($logFile);
-                @chmod($logFile, 0666);
-            }
+            $logFile = $logFile ? AppendLog::prepare($logFile) : null;
 
             // POSIX-safe detached launch for Linux/macOS/BSD cron and web
             // requests. Detach into an independent process session (setsid)
@@ -94,7 +96,7 @@ final class ShellRunner
             // POSIX sh only guarantees single-digit descriptor redirects.
             $closeInheritedDescriptors = 'fd=3; while [ "$fd" -le 9 ]; do eval "exec ${fd}>&-" 2>/dev/null; fd=$((fd + 1)); done';
             $script = sprintf(
-                '%s; if command -v setsid >/dev/null 2>&1; then setsid nohup %s </dev/null >%s 2>&1 & else ( nohup %s </dev/null >%s 2>&1 & ); fi',
+                '%s; if command -v setsid >/dev/null 2>&1; then setsid nohup %s </dev/null >>%s 2>&1 & else ( nohup %s </dev/null >>%s 2>&1 & ); fi',
                 $closeInheritedDescriptors,
                 $escapedCommand,
                 $log,
@@ -102,7 +104,7 @@ final class ShellRunner
                 $log
             );
 
-            $wrapper = new Process(['sh', '-c', $script], $cwd);
+            $wrapper = new Process(['sh', '-c', $script], $cwd, $env !== [] ? $env : null);
             $wrapper->setTimeout(10);
             $wrapper->run();
 
@@ -114,8 +116,9 @@ final class ShellRunner
 
     /**
      * @param  array<int, string>  $command
+     * @param  array<string, string>  $env
      */
-    private static function runWindowsBackground(array $command, ?string $logFile = null, ?string $cwd = null): bool
+    private static function runWindowsBackground(array $command, ?string $logFile = null, ?string $cwd = null, array $env = []): bool
     {
         $cwd ??= getcwd() ?: null;
         $logFile = $logFile ? str_replace('/', '\\', $logFile) : null;
@@ -144,7 +147,7 @@ final class ShellRunner
                 'Bypass',
                 '-Command',
                 $script,
-            ], $cwd);
+            ], $cwd, $env !== [] ? $env : null);
             $powershell->setTimeout(10);
             $powershell->run();
 
@@ -164,7 +167,7 @@ final class ShellRunner
             .$redirect;
 
         try {
-            $wrapper = new Process(['cmd.exe', '/D', '/C', $cmd], $cwd);
+            $wrapper = new Process(['cmd.exe', '/D', '/C', $cmd], $cwd, $env !== [] ? $env : null);
             $wrapper->setTimeout(10);
             $wrapper->run();
 

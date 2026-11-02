@@ -11,7 +11,7 @@ use Tests\Feature\Updater\Support\ZipBuilder;
 use Tests\TestCase;
 
 /**
- * Unpacking (F8 8, 18): ZipArchive and PharData stage byte-identical trees from the same zip (the zip is written in
+ * Unpacking: ZipArchive and PharData stage byte-identical trees from the same zip (the zip is written in
  * plain PHP, so the PharData case runs on every PHP; the ZipArchive case needs ext-zip), every file is checked
  * against the package's manifest, and the work can stop and go on at any file.
  */

@@ -2,22 +2,32 @@ import {QueryClient, QueryClientProvider, useQuery, useQueryClient} from "@tanst
 import {getThumbnails} from "@/api/avdbclip";
 import {ApiError} from "@/components/Commons";
 import {ThumbnailType, ThumbnailStatus} from "@/types";
-import {clsx} from "clsx";
-import { useState, useEffect, useMemo } from 'preact/hooks';
+import { useState, useEffect, useMemo, useRef } from 'preact/hooks';
 import {produce} from "immer";
-import ImageLoaded from "@/components/Images/ImageLoaded";
 import {memo} from "preact/compat";
-import config from "@/config";
 import ImageUpload from "@/components/Images/ImageUpload";
-import {OverlayTrigger, Popover} from "react-bootstrap";
 import { create } from 'zustand'
 import {combine} from "zustand/middleware";
 import {useTranslation} from "react-i18next";
+
+/**
+ * The thumbnail picker of Video details and the draft page (member design 6.4). It renders the kit's picker
+ * (ul.mk-thumbs: radio tiles named "thumbnail", the chosen one with an inset ring and a tick, skeleton tiles for the
+ * pictures still being made, the "Upload picture" tile while the admin allows own pictures), the SAME markup the server
+ * prints inside <thumbnails-select> before this mounts, so the page never moves when it does (studio-25).
+ */
 
 type Props = {
     video: number | string,
     initial?: string,
     allowupload?: boolean | string,
+    /** pictures still expected while a draft is processed (skeleton tiles until they arrive) */
+    expected?: number | string,
+    /** the poster address of a video without an active picture of its own (an import): shown as "Current picture" */
+    poster?: string,
+    /** the picture picked in the server-printed picker before this mounted (components/index.ts): its radio's value,
+     *  '' for "Current picture" */
+    picked?: string,
 }
 
 type ThumbnailsResponse = {
@@ -84,7 +94,10 @@ function allowsUpload(value: boolean | string | undefined): boolean {
     return true;
 }
 
-function Main ({video, initial, allowupload} : Props) {
+/** The value of the "Current picture" tile: an empty thumbnail field keeps the poster (ThumbnailService::save). */
+const CURRENT = -1;
+
+function Main ({video, initial, allowupload, expected, poster, picked} : Props) {
 
     const videoId = Number(video);
     const initialThumbnails = useMemo(() => parseInitialThumbnails(initial), [initial]);
@@ -104,7 +117,20 @@ function Main ({video, initial, allowupload} : Props) {
 
     const queryClient = useQueryClient();
 
+    // A picture picked in the server's picker before this mounted stays picked (1.2.3 round 1, as R1-107 for the
+    // playlist search): chosen before the first render, and the active picture does not take its place on the first
+    // load of the list. Nothing changes when nothing was picked early.
+    const [carried] = useState<number | undefined>(() => {
+        if (typeof picked !== 'string') return undefined;
+        const id = picked === '' ? CURRENT : Number(picked);
+        if (!Number.isFinite(id)) return undefined;
+        useSelectedStore.setState({selected: id});
+        return id;
+    });
+    const keepCarried = useRef(carried !== undefined);
+
     const {selected, setSelected} = useSelectedStore();
+    const { t } = useTranslation();
 
     useEffect(() => {
         if (!window.PRIVATE_CHANNEL) return;
@@ -172,6 +198,10 @@ function Main ({video, initial, allowupload} : Props) {
 
     useEffect(() => {
         if (thumbnails) {
+            if (keepCarried.current) {
+                keepCarried.current = false;
+                return;
+            }
             const activeThumbnail = thumbnails?.data.find(t => t.is_active && (t.status === ThumbnailStatus.GENERATED || t.status === ThumbnailStatus.UPLOADED));
             if (activeThumbnail) {
                 setSelected(activeThumbnail.id);
@@ -182,38 +212,86 @@ function Main ({video, initial, allowupload} : Props) {
 
     useEffect(() => {
         if (selected !== undefined) {
-            const poster = document.getElementById('thumbnail-' + selected)?.getAttribute('src')!;
-            document.querySelector('video')?.setAttribute('poster', poster)
+            const poster = document.getElementById('thumbnail-' + selected)?.getAttribute('src');
+            if (poster) {
+                document.querySelector('.mk-edit video')?.setAttribute('poster', poster);
+            }
         }
     }, [selected]);
 
-
    const uploaded = thumbnails?.data.find(t => t.status === ThumbnailStatus.UPLOADED);
-   const generated = thumbnails?.data.filter(t => t.status !== ThumbnailStatus.UPLOADED);
+   const generated = thumbnails?.data.filter(t => t.status !== ThumbnailStatus.UPLOADED) ?? [];
+   // nothing chosen yet (a draft whose pictures are still being made): keep the active one, whatever its state
+   const fallbackActive = selected === undefined ? thumbnails?.data.find(t => t.is_active) : undefined;
+   // an imported video's poster, while no picture of its own is active
+   const hasActive = thumbnails?.data.some(t => t.is_active && (t.status === ThumbnailStatus.GENERATED || t.status === ThumbnailStatus.UPLOADED)) ?? false;
+   const current = poster && !hasActive ? poster : '';
 
    return (
-       <div className="w-100">
+       <>
            {isError && <ApiError refetch={refetch} error={error}/>}
-           {
-               thumbnails &&
-               <div className="row gx-2 gy-2">
-                   {(canUpload || uploaded) && <Upload thumbnail={uploaded} canUpload={canUpload}/>}
-                   {generated?.map((thumbnail) => <Thumbnail thumbnail={thumbnail}/>)}
-               </div>
-           }
-           <input type="hidden" name="thumbnail" value={selected}/>
-           {canUpload && <input type="file" name='thumbnail_file' className={'d-none'}/>}
-       </div>
+           <ul className="mk-thumbs">
+               {current && <Current source={current}/>}
+               {canUpload && <Upload thumbnail={uploaded}/>}
+               {!canUpload && uploaded && <Tile thumbnail={uploaded} label={t('Your picture')}/>}
+               {generated.map((thumbnail, index) => <Thumbnail thumbnail={thumbnail} index={index + 1}/>)}
+               {Array.from({length: Math.max(0, (Number(expected) || 0) - generated.length)}).map(() => <Waiting/>)}
+               {canUpload && <AddTile hasUpload={Boolean(uploaded)}/>}
+           </ul>
+           {fallbackActive && <input type="hidden" name="thumbnail" value={fallbackActive.id}/>}
+           {canUpload && <input type="file" name='thumbnail_file' className={'d-none'} tabIndex={-1} aria-hidden="true"/>}
+       </>
    )
 }
 
-function Upload ({thumbnail, canUpload} : {thumbnail: ThumbnailType | undefined, canUpload: boolean}) {
-
-    const [upload, setUpload] = useState<string | undefined>(thumbnail?.url);
-    const [hover, setHover] = useState(false);
+/** A picture the member can pick: a radio tile (the inset ring and the tick follow :checked, the kit's CSS). */
+function Tile ({thumbnail, label, source, value}: {thumbnail?: ThumbnailType, label: string, source?: string, value?: number}) {
 
     const {selected, setSelected} = useSelectedStore();
+    const id = value ?? thumbnail?.id ?? 0;
+    const url = source ?? thumbnail?.url;
 
+    return (
+        <li>
+            <label className="mk-thumb-pick">
+                <input type="radio" name="thumbnail" value={id} checked={selected === id} onChange={() => setSelected(id)}/>
+                <span className="mk-thumb">
+                    {url && <img id={'thumbnail-' + id} src={url} alt="" width={160} height={90} loading="lazy" decoding="async"/>}
+                </span>
+                <span className="mk-thumb-pick__tick" aria-hidden="true"><i className="fa-solid fa-check"></i></span>
+                <span className="mk-sr">{label}</span>
+            </label>
+        </li>
+    )
+}
+
+/** "Current picture": the poster an imported video shows today. Checked while nothing else is chosen; its empty value
+ *  keeps it when the form is saved. */
+function Current ({source}: {source: string}) {
+
+    const {selected, setSelected} = useSelectedStore();
+    const { t } = useTranslation();
+
+    return (
+        <li>
+            <label className="mk-thumb-pick">
+                <input type="radio" name="thumbnail" value="" checked={selected === undefined || selected === CURRENT} onChange={() => setSelected(CURRENT)}/>
+                <span className="mk-thumb">
+                    <img src={source} alt="" width={160} height={90} loading="lazy" decoding="async"/>
+                </span>
+                <span className="mk-thumb-pick__tick" aria-hidden="true"><i className="fa-solid fa-check"></i></span>
+                <span className="mk-sr">{t('Current picture')}</span>
+            </label>
+        </li>
+    );
+}
+
+/** The member's own picture (uploaded before, or just cropped). */
+function Upload ({thumbnail} : {thumbnail: ThumbnailType | undefined}) {
+
+    const [upload, setUpload] = useState<string | undefined>(thumbnail?.url);
+
+    const {setSelected} = useSelectedStore();
     const { t } = useTranslation();
 
     useEffect(() => {
@@ -230,153 +308,73 @@ function Upload ({thumbnail, canUpload} : {thumbnail: ThumbnailType | undefined,
 
         window.addEventListener('cropped-thumbnail_file', cropped);
         return () => window.removeEventListener('cropped-thumbnail_file', cropped)
-    }, []);
+    }, [thumbnail?.id]);
 
-    return (
-        <>
-            {canUpload && (
-                <div class={'avd-hidden-file-input'}>
-                    <ImageUpload name={'thumbnail_file'} config={'thumbnail'} readonly/>
-                </div>
-            )}
-            <div class={'col-6'}>
-                {
-                    upload &&
-                    <div
-                        class={'position-relative cursor-pointer w-100'}
-                        onMouseEnter={() => setHover(true)}
-                        onMouseLeave={() => setHover(false)}
-                    >
-                        {canUpload && <div className={clsx('position-absolute top-5 right-5 dropdown z-2', !hover && 'd-none')}>
-                            <button
-                                className="bg-dark bg-opacity-75 dropdown-toggle without-caret rounded-circle w-10 p-2 d-flex align-items-center justify-content-center dot"
-                                type="button"
-                                data-bs-toggle="dropdown"
-                                aria-expanded="false"
-                                onClick={(e) => e.stopPropagation()}
-                            >
-                                <i className="fa-solid fa-ellipsis-vertical text-white fw-bold"></i>
-                            </button>
-                            <ul className="dropdown-menu">
-                                <li>
-                                    <button className="dropdown-item btn btn-file" type={'button'}>
-                                        <label htmlFor="thumbnail_file" className={'text-sm d-flex align-items-center gap-2 cursor-pointer'}>
-                                            <i className="fas fa-image"></i>
-                                            <span>{t('Change')}</span>
-                                        </label>
-                                    </button>
-                                </li>
-                                <li>
-                                    <a download className="dropdown-item d-flex align-items-center gap-2 text-sm" href={upload}>
-                                        <i className="fa-solid fa-download"></i>
-                                        <span>{t('Download')}</span>
-                                    </a>
-                                </li>
-                            </ul>
-                        </div>}
-                        <div
-                            onClick={() => setSelected(thumbnail?.id ?? 0)}
-                            class={clsx('img-fluid opacity-50', hover && 'opacity-100', (selected === 0 || selected === thumbnail?.id) && 'border-4 border-primary opacity-100')}
-                            style={{aspectRatio: '16/9'}}
-                        >
-                        <ImageLoaded
-                            id={`thumbnail-${thumbnail?.id ?? 0}`}
-                            source={upload}
-                            class={clsx('img-fluid cursor-pointer')}
-                            alt="Thumbnail"
-                        />
-                        </div>
-                    </div>
-                }
-                {
-                    !upload && canUpload &&
-                    <div class={'h-100'}>
-                        <div className={'input-file position-relative h-100'}>
-                            <OverlayTrigger
-                                trigger="click"
-                                placement={'top'}
-                                rootClose={true}
-                                overlay={
-                                    <Popover style={{position: 'fixed'}}>
-                                        <Popover.Header as="h3">{t('Recommendations')}</Popover.Header>
-                                        <Popover.Body>
-                                            <ul>
-                                                <li>{t('Make your thumbnail 1280 by 720 pixels (16:9 ratio)')}</li>
-                                                <li>{t('Min size required is')} {config.thumbnail.minWidth} x {config.thumbnail.minHeight}</li>
-                                                <li>{t('Ensure that your thumbnail file is less than')} {config.thumbnail.maxSize}MB</li>
-                                                <li>{t('Use a file PNG, JPEG, JPG, WEBP format')}</li>
-                                            </ul>
-                                        </Popover.Body>
-                                    </Popover>
-                                }
-                            >
-                                <button className="position-absolute p-0 bg-transparent" type="button" style={{top: '10px', right: '10px'}}>
-                                    <i className="fa-solid fa-circle-info"></i>
-                                </button>
-                            </OverlayTrigger>
-                            <label htmlFor="thumbnail_file" className={'rounded h-100 p-0 w-100 d-flex align-items-center justify-content-center border border-1 border-secondary'}>
-                                <div className="text-body">
-                                    <i className="fas fa-image"></i>
-                                    <div className="mt-2 fw-bold">{t('Upload Thumbnail')}</div>
-                                </div>
-                            </label>
-                        </div>
-                    </div>
-                }
-            </div>
-        </>
+    if (!upload) {
+        return null;
+    }
 
-    )
+    return <Tile thumbnail={thumbnail} source={upload} value={thumbnail?.id ?? 0} label={t('Your picture')}/>;
 }
 
-const Thumbnail = memo(({thumbnail} : {thumbnail: ThumbnailType}) => {
-
-    const [hover, setHover] = useState<boolean>(false);
-
-    const {selected, setSelected} = useSelectedStore();
+/**
+ * "Upload picture" (or "Change picture" once there is one): the file field of ImageUpload, which opens the crop sheet.
+ * The field itself lies, invisible, over the whole tile (.mk-thumb-upload, _studio.scss): the tile is its 44px target
+ * and shows its keyboard focus (it was a 1x1 field with no visible focus beside the tile).
+ */
+function AddTile ({hasUpload}: {hasUpload: boolean}) {
 
     const { t } = useTranslation();
 
     return (
-        <div className={'col-6'}>
-            {
-                thumbnail.status === ThumbnailStatus.PENDING && (
-                    <div className={'placeholder-wave h-100 w-100 position-relative'} style='min-height: 100px'>
-                        <span className="placeholder h-100 w-100"></span>
-                        <span className="position-absolute top-50 start-50 translate-middle w-100 text-center text-white">{t('Auto-generating ...')}</span>
-                    </div>
-                )
-            }
-            {
-                thumbnail.status === ThumbnailStatus.GENERATED && (
-                    <div
-                        onClick={() => selected !== thumbnail.id ? setSelected(thumbnail.id) : null}
-                        class={clsx('opacity-50', hover && 'opacity-100', selected === thumbnail.id && 'border-4 border-primary opacity-100')}
-                        style={{aspectRatio: '16/9'}}
-                    >
-                        <ImageLoaded
-                            id={'thumbnail-' + thumbnail.id}
-                            source={thumbnail.url}
-                            class={clsx('img-fluid cursor-pointer')}
-                            onMouseEnter={() => setHover(true)}
-                            onMouseLeave={() => setHover(false)}
-                            alt="Thumbnail"
-                        />
-                    </div>
-
-                )
-            }
-            {
-                thumbnail.status === ThumbnailStatus.ERROR && (
-                    <div
-                        className="w-100 h-100 bg-secondary text-white d-flex justify-content-center align-items-center w-100 h-100" style='min-height: 100px'>
-                        <i className="fa-solid fa-circle-exclamation fa-2x"></i>
-                    </div>
-                )
-            }
-        </div>
+        <li className="mk-thumb-upload">
+            <div className="avd-hidden-file-input">
+                <ImageUpload name={'thumbnail_file'} config={'thumbnail'} readonly/>
+            </div>
+            <label className="mk-thumb-add" htmlFor="thumbnail_file">
+                <i className="fa-solid fa-arrow-up-from-bracket" aria-hidden="true"></i>
+                <span>{hasUpload ? t('Change picture') : t('Upload picture')}</span>
+            </label>
+        </li>
     )
+}
+
+const Thumbnail = memo(({thumbnail, index} : {thumbnail: ThumbnailType, index: number}) => {
+
+    const { t } = useTranslation();
+
+    if (thumbnail.status === ThumbnailStatus.GENERATED) {
+        return <Tile thumbnail={thumbnail} label={t('Picture {number}', {number: index})}/>;
+    }
+
+    if (thumbnail.status === ThumbnailStatus.PENDING) {
+        return <Waiting/>;
+    }
+
+    return (
+        <li>
+            <span className="mk-thumb-pick mk-thumb-wait">
+                <span className="mk-thumb mk-thumb--icon" title={t('This picture could not be made')}><i className="fa-solid fa-circle-exclamation" aria-hidden="true"></i></span>
+                <span className="mk-sr">{t('This picture could not be made')}</span>
+            </span>
+        </li>
+    );
 });
+
+/** A picture still being made: a skeleton tile of the same size. */
+function Waiting () {
+
+    const { t } = useTranslation();
+
+    return (
+        <li>
+            <span className="mk-thumb-pick mk-thumb-wait">
+                <span className="mk-skel" style={{aspectRatio: '16 / 9', inlineSize: '100%'}}></span>
+                <span className="mk-sr">{t('This picture is being made')}</span>
+            </span>
+        </li>
+    );
+}
 
 export function Thumbnails (props : Props) {
 
@@ -391,7 +389,7 @@ export function Thumbnails (props : Props) {
 
     return (
         <QueryClientProvider client={queryClient}>
-            <Main {...props}/>
+            <Main {...props} />
         </QueryClientProvider>
     )
 }

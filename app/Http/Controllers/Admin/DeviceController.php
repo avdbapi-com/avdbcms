@@ -62,18 +62,26 @@ class DeviceController
     public function destroy(Device $device): RedirectResponse
     {
         $device->delete();
-        return redirect()->route('admin.devices.index')->withSuccess('Session/token revoked.');
+        AuditLogController::log('device.signed_out', \App\Support\AuditDetails::ids([$device->getKey()]));
+        return redirect()->route('admin.devices.index')->withSuccess(__('Signed out'));
     }
 
     public function revokeUser(int $userId): RedirectResponse
     {
-        DB::table('personal_access_tokens')->where('tokenable_id', $userId)->delete();
-        return redirect()->route('admin.devices.index')->withSuccess('All sessions for user revoked.');
+        if (DB::table('personal_access_tokens')->where('tokenable_id', $userId)->delete() > 0) {
+            $member = DB::table('users')->where('id', $userId)->first(['id', 'username']);
+            AuditLogController::log('member.devices.signed_out', $member !== null ? \App\Support\AuditDetails::member($member) : '#'.$userId);
+        }
+
+        return redirect()->route('admin.devices.index')->withSuccess(__('All devices of this member signed out'));
     }
 
     public function clearExpired(): RedirectResponse
     {
-        DB::table('personal_access_tokens')->where('expires_at', '<', now())->delete();
-        return redirect()->route('admin.devices.index')->withSuccess('Expired sessions cleared.');
+        if (DB::table('personal_access_tokens')->where('expires_at', '<', now())->delete() > 0) {
+            AuditLogController::log('devices.expired_removed');
+        }
+
+        return redirect()->route('admin.devices.index')->withSuccess(__('Expired sign-ins removed'));
     }
 }

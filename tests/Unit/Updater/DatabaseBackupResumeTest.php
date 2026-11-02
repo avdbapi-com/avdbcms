@@ -9,7 +9,7 @@ use Tests\Feature\Updater\Support\UpdaterSandbox;
 use Tests\TestCase;
 
 /**
- * The update's database backup in steps (F8 10): a step that died after it wrote (a killed process or a memory limit:
+ * The update's database backup in steps: a step that died after it wrote (a killed process or a memory limit:
  * no exception ran, the saved state is the one from before) never leaves rows twice or a broken gzip member in the
  * dump, because the next step first cuts the file back to where the saved state ends; each step's gzip member must read
  * back whole. The dump code itself is MySQL-only, so these states list no tables: resume() then writes only the end

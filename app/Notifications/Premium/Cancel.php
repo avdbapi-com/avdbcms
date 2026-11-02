@@ -2,6 +2,7 @@
 
 namespace App\Notifications\Premium;
 
+use App\Notifications\Support\MemberMail;
 use App\Models\User;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
@@ -40,8 +41,8 @@ class Cancel extends Notification
     protected function buildMailMessage(User $notifiable) : MailMessage
     {
         return (new MailMessage)
-            ->subject(Lang::get('Your ' .config('app.name'). ' Premium subscription has been canceled'))
-            ->markdown('mails.premium.cancel', [
+            ->subject(MemberMail::cancel($notifiable)['subject'])
+            ->view(['mails.premium.cancel', 'mails.text.premium.cancel'], [
                 'notifiable' => $notifiable,
             ]);
     }

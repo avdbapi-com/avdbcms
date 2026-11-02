@@ -1,4 +1,4 @@
-// ad-* components (resources/views/components/admin/*.blade.php). Reference: spec/admin/mockups/src/admin.css.
+// ad-* components (resources/views/components/admin/*.blade.php). Reference: the admin mockups.
 
 // ---------- buttons
 .ad-btn {
@@ -234,6 +234,14 @@
         color: inherit;
         text-decoration: underline;
         text-underline-offset: 2px;
+    }
+
+    // The webhook address of Payment setup (an address to copy): the callout's text colour in the code font, wrapping
+    // anywhere on a phone. The danger ink of <code> is not readable on every tint either (4.3:1 on the dark amber), and
+    // an address is no error.
+    code.ad-checkout-url {
+        color: inherit;
+        overflow-wrap: anywhere;
     }
 }
 
@@ -1454,6 +1462,11 @@ dialog.ad-palette:not([open]) {
 
     .ad-kbd { visibility: hidden; }
     &.is-active .ad-kbd { visibility: visible; }
+
+    // "Developer mode" after a developer page or setting found while Developer mode is off
+    .ad-palette-badge { height: 18px; margin-inline-start: 6px; padding: 0 6px; font: 600 11px/18px var(--font); font-style: normal; vertical-align: 1px; }
+    // "See all 12 settings": opens Settings with the same search
+    &.is-more { color: var(--accent-ink); font-weight: 600; }
 }
 
 .ad-palette-empty {

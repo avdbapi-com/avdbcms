@@ -14,7 +14,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 /**
- * Theme structure (WP5): every header, side menu, hero and watch layout the 12 complete looks combine renders,
+ * Theme structure: every header, side menu, hero and watch layout the 12 complete looks combine renders,
  * shows real data only (no costume text) and keeps colours out of the markup.
  */
 class ThemeStructureRenderTest extends TestCase

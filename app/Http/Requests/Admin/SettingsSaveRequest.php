@@ -5,6 +5,7 @@ namespace App\Http\Requests\Admin;
 use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\Admin\SettingsPageController;
 use App\Models\User;
+use App\Rules\BlockedAddressList;
 use App\Support\AdminIpLock;
 use App\Support\AdminPreferences;
 use Closure;
@@ -13,7 +14,7 @@ use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\Exceptions\HttpResponseException;
 
 /**
- * PUT /admin/settings/save (interface I7): the fields of one admin page, which may belong to several settings groups.
+ * PUT /admin/settings/save: the fields of one admin page, which may belong to several settings groups.
  *
  * Body: groups[group][key] = value, fields[group][] = key (the manifest of the fields the page sent) and optionally
  * clear[group][] = key for a password or key to remove. Only the listed keys are validated, with the rules the legacy
@@ -219,6 +220,12 @@ class SettingsSaveRequest extends FormRequest
                     ]));
                 }
             };
+        }
+
+        // Members > Blocked addresses, "Blocked ranges" (1.2.3): only addresses and ranges (anything else blocks nobody),
+        // and never the address of the administrator who saves it.
+        if ($group === 'security' && $key === 'global_ip_blacklist') {
+            $rules[] = new BlockedAddressList(AdminIpLock::clientIp($this));
         }
 
         return $rules;

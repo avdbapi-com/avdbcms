@@ -323,7 +323,7 @@ class I18nAdminCoverageTest extends TestCase
     public function test_technical_text_and_brands_survive_translation(): void
     {
         $protected = [
-            'Mailer is "log": the test email for :to was written to storage/logs/mail.log, not delivered. Configure SMTP in Settings → Email to send real mail.' => ['storage/logs/mail.log'],
+            'Mailer is "log": the test email for :to was written to the mail log (Tools > Logs, the file mail-....log in storage/logs), not delivered. Configure SMTP in Settings → Email to send real mail.' => ['mail-....log', 'storage/logs'],
             'e.g. vi, fr, ja' => ['vi, fr, ja'],
             '2–5 lowercase letters (ISO 639-1). Examples: en, vi, zh' => ['en', 'vi', 'zh'],
             'Country flag emoji. Examples: 🇻🇳 🇫🇷 🇨🇳 🇯🇵' => ['🇻🇳', '🇫🇷', '🇨🇳', '🇯🇵'],
@@ -529,9 +529,11 @@ class I18nAdminCoverageTest extends TestCase
         $this->assertStringContainsString('21', trans_choice('1 video|:count videos', 21));
         $this->assertStringContainsString('5', trans_choice('1 video|:count videos', 5));
         $this->app->setLocale('ar');
-        foreach ([0, 2, 3, 11, 100] as $n) {
+        foreach ([3, 11, 100] as $n) {
             $this->assertStringContainsString((string) $n, trans_choice('1 video|:count videos', $n), "ar {$n}");
         }
+        // Arabic's zero and dual forms each serve one number and say it in words (lane TL, TL-R2: "2 فيديوهات" was wrong)
+        $this->assertSame(['لا فيديوهات', 'فيديوان'], [trans_choice('1 video|:count videos', 0), trans_choice('1 video|:count videos', 2)]);
     }
 
     public function test_plural_check_finds_the_lines_laravel_prints_without_the_number(): void

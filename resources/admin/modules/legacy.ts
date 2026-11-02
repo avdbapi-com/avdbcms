@@ -85,7 +85,7 @@ if (document.getElementById('categories_list')) {
         Sortable.mount(new AutoScroll());
         Sortable.mount(...OnSpill);
         window.Sortable = Sortable;
-    });
+    }).catch(() => undefined);
 }
 
 // ---------------------------------------------------------------- .ajax-button

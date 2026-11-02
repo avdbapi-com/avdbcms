@@ -72,8 +72,9 @@ class UploadFileAdversarialTest extends TestCase
                 'deleted_at' => now(),
             ]);
 
+        // Another member's private video answers exactly like a file that does not exist (round 3 R2R-07, HiddenRouteModels).
         $this->get(route('video.file', $privateVideo->file))
-            ->assertStatus(Response::HTTP_FORBIDDEN);
+            ->assertNotFound();
 
         $this->get(route('video.file', $deletedVideo->file))
             ->assertNotFound();

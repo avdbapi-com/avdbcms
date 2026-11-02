@@ -175,34 +175,75 @@ const prefError = (response: Response): void => {
         });
 };
 
+// No answer at all (offline, a dropped connection): the generic line.
+const prefOffline = (): void => {
+    window.adminToast?.(t('prefError', 'Could not save this choice. Try again.'), {type: 'error'});
+};
+
 const initPreferences = (): void => {
     const menu = $('#ad-account-menu');
 
     if (!menu) return;
 
     const url = menu.dataset.prefsUrl ?? '';
+    const themes = $$<HTMLInputElement>('input[name="admin_theme"]', menu);
+    // What the server holds: a refused or failed save puts the control back to it (a view-only demo account is refused
+    // every choice; before 1.2.3 the switch stayed flipped until the page was reloaded).
+    let savedTheme = themes.find((input) => input.checked)?.value ?? 'system';
+    const applyTheme = (value: string): void => {
+        if (value === 'system') root.removeAttribute('data-theme');
+        else root.setAttribute('data-theme', value);
+        syncBootstrapTheme();
+    };
+    const restoreTheme = (): void => {
+        themes.forEach((input) => {
+            input.checked = input.value === savedTheme;
+        });
+        applyTheme(savedTheme);
+    };
 
     // Light / dark / system applies at once, then saves in the background.
-    $$<HTMLInputElement>('input[name="admin_theme"]', menu).forEach((input) => {
+    themes.forEach((input) => {
         input.addEventListener('change', () => {
             if (!input.checked) return;
-            if (input.value === 'system') root.removeAttribute('data-theme');
-            else root.setAttribute('data-theme', input.value);
-            syncBootstrapTheme();
-            void postJson(url, {key: 'admin_theme', value: input.value}).then((response) => {
-                if (!response.ok) prefError(response);
+            applyTheme(input.value);
+            postJson(url, {key: 'admin_theme', value: input.value}).then((response) => {
+                if (response.ok) {
+                    savedTheme = input.value;
+                } else {
+                    restoreTheme();
+                    prefError(response);
+                }
+            }).catch(() => {
+                restoreTheme();
+                prefOffline();
             });
         });
     });
 
     // Switches and the colour choice change the menu or the colours: save, then reload the page.
     $$<HTMLInputElement | HTMLSelectElement>('[data-ad-pref]', menu).forEach((input) => {
-        input.addEventListener('change', () => {
-            const value = input instanceof HTMLInputElement && input.type === 'checkbox' ? input.checked : input.value;
+        const checkbox = input instanceof HTMLInputElement && input.type === 'checkbox';
+        let saved: boolean | string = checkbox ? (input as HTMLInputElement).checked : input.value;
+        const restore = (): void => {
+            if (checkbox) (input as HTMLInputElement).checked = saved as boolean;
+            else input.value = saved as string;
+        };
 
-            void postJson(url, {key: input.dataset.adPref, value}).then((response) => {
-                if (response.ok) window.location.reload();
-                else prefError(response);
+        input.addEventListener('change', () => {
+            const value = checkbox ? (input as HTMLInputElement).checked : input.value;
+
+            postJson(url, {key: input.dataset.adPref, value}).then((response) => {
+                if (response.ok) {
+                    saved = value;
+                    window.location.reload();
+                } else {
+                    restore();
+                    prefError(response);
+                }
+            }).catch(() => {
+                restore();
+                prefOffline();
             });
         });
     });
@@ -254,17 +295,29 @@ const initSearch = (): void => {
 };
 
 // ---------------------------------------------------------------- deep links to a setting (#key)
+// A search result opens its page at the setting (#key) or its card (#card-id). A setting folded under "More options",
+// "Advanced" or a page's developer settings (shown while Developer mode is off) is unfolded first.
 const initTarget = (): void => {
     const id = decodeURIComponent(window.location.hash.slice(1));
 
     if (!id || !/^[\w.-]+$/.test(id)) return;
 
-    const field = document.getElementById(id)?.closest<HTMLElement>('.ad-field, .ad-toggle-row') ?? null;
+    const target = document.getElementById(id);
+    const field = target?.closest<HTMLElement>('.ad-field, .ad-toggle-row') ?? null;
+    const shown = field ?? target;
+
+    if (!shown) return;
+
+    for (let parent = shown.parentElement; parent; parent = parent.parentElement) {
+        if (parent instanceof HTMLDetailsElement && !parent.open) parent.open = true;
+    }
 
     if (field) {
         field.classList.add('is-target');
         field.scrollIntoView({block: 'center'});
         window.setTimeout(() => field.classList.remove('is-target'), 2400);
+    } else {
+        shown.scrollIntoView({block: 'start'});
     }
 };
 

@@ -14,8 +14,8 @@
     <div class="ad-metrics" role="list">
         <a role="listitem" href="{{ route('admin.transactions.index') }}">
             <small>{{ __('This month') }}</small>
-            <b>{{ number_format($stats['month'], 2) }} {{ $currency }}</b>
-            <span>{{ __(':count payments', ['count' => number_format($stats['month_count'])]) }}</span>
+            <b>{{ \App\Support\PremiumAvailability::money($stats['month'], 2) }}</b>
+            <span>{{ trans_choice('1 payment|:count payments', (int) $stats['month_count'], ['count' => number_format($stats['month_count'])]) }}</span>
         </a>
         <a role="listitem" href="{{ route('admin.subscriptions.index') }}">
             <small>{{ __('Active subscribers') }}</small>
@@ -27,7 +27,7 @@
         </a>
         <a role="listitem" href="{{ route('admin.transactions.index') }}">
             <small>{{ __('All time') }}</small>
-            <b>{{ number_format($stats['total'], 2) }} {{ $currency }}</b>
+            <b>{{ \App\Support\PremiumAvailability::money($stats['total'], 2) }}</b>
         </a>
     </div>
 
@@ -35,18 +35,24 @@
     <section class="ad-sec" aria-labelledby="money-steps-title">
         <div class="ad-sec-intro">
             <h2 id="money-steps-title">{{ $open === [] ? __('Everything is set up') : __('What needs setting up') }}</h2>
-            <p>{{ __('Members can buy premium once a plan exists and card or PayPal payments are connected.') }}</p>
+            {{-- What the Premium page does right now (App\Support\PremiumAvailability::canSell()). --}}
+            <p data-money-checkout="{{ $canSell ? 'open' : 'closed' }}">{{ $canSell ? __('Members can buy premium now.') : __('Members cannot buy premium yet: the Premium page says checkout is unavailable until the steps below are done.') }}</p>
         </div>
         <div class="ad-sec-body">
             <ol class="ad-steps">
                 @foreach ($steps as $step)
                     <li class="ad-sec-pad{{ $step['done'] ? ' is-done' : '' }}">
                         <span class="ad-badge{{ $step['done'] ? ' is-ok' : '' }}">{{ $step['done'] ? __('Done') : __('To do') }}</span>
-                        @if ($step['done'])
-                            <span>{{ $step['label'] }}</span>
-                        @else
-                            <a href="{{ $step['url'] }}">{{ $step['label'] }}</a>
-                        @endif
+                        <span class="ad-step-text">
+                            @if ($step['done'])
+                                <span>{{ $step['label'] }}</span>
+                            @else
+                                <a href="{{ $step['url'] }}">{{ $step['label'] }}</a>
+                            @endif
+                            @if (! empty($step['note']))
+                                <small class="ad-step-note" data-step-note>{{ $step['note'] }}</small>
+                            @endif
+                        </span>
                     </li>
                 @endforeach
             </ol>
@@ -74,5 +80,7 @@
         .ad-steps{list-style:none;margin:0;padding:0}
         .ad-steps li{display:flex;gap:12px;align-items:center;border-top:1px solid var(--border)}
         .ad-steps li:first-child{border-top:0}
+        .ad-step-text{display:flex;flex-direction:column;gap:2px;min-width:0}
+        .ad-step-note{color:var(--warn);font-size:var(--fs-sm)}
     </style>
 @endsection

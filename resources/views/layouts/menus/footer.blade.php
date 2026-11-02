@@ -32,9 +32,51 @@
     $footerSettingsEnabled = $footerBool('footer_settings_enabled')
         && (($allowLanguageSwitch && $footerBool('footer_language_switcher_enabled')) || $footerBool('footer_theme_switcher_enabled'));
     $renderFooterUrl = fn(string $url): string => (str_starts_with($url, 'http://') || str_starts_with($url, 'https://') || $url === '#' || str_starts_with($url, '#')) ? $url : (function_exists('locale_url') ? locale_url($url) : url($url));
+    // The studio and account pages (layouts/user: footer="slim") get the SLIM footer (member design 6.20, account-41,
+    // watch-39): the copyright line, the bottom links (Terms, Contact, Help...) and the language switcher when the
+    // admin shows them; no theme switch (it is in the account panel and Account settings), no ad, no animation. Its end
+    // keeps room for "Back to top" (the button sat on the Help link and the language
+    // switcher at the end of studio and account pages).
+    $footerSlim = ($footerVariant ?? 'full') === 'slim';
+    $footerCopyright = $footerText !== '' ? e(__($footerText)) : '&copy; ' . now()->format('Y') . ' ' . e(config('app.name')) . '. ' . e(__('All Rights Reserved'));
+    $footerLanguageSwitcher = $allowLanguageSwitch && $footerBool('footer_language_switcher_enabled');
+    // The floats over the page's end ("Back to top", the "Today's design" pill) get their room below the footer's last
+    // row (enhancements.scss .avd-footer--btt-room).
+    $footerKeepsBttRoom = (bool) ($backToTopEnabled ?? false) || (bool) ($showDailyPill ?? false);
 @endphp
 
-<footer class="avd-footer" id="site-footer">
+@if($footerSlim)
+{{-- footerFrame (components/layout.blade.php): the width of the page above (page, form or narrow), which the footer's
+     line keeps, so it starts and ends where the page does. --}}
+<footer @class(['avd-footer avd-footer--slim', 'avd-footer--frame-'.($footerFrame ?? 'page'), 'avd-footer--btt-room' => $footerKeepsBttRoom]) id="site-footer">
+    <div class="avd-footer-inner">
+        <div class="avd-footer-bottom">
+            <span>{!! $footerCopyright !!}</span>
+            @if(($footerBool('footer_bottom_links_enabled') && count($bottomLinks) > 0) || $footerLanguageSwitcher)
+                <nav class="avd-footer-bottom-links" aria-label="{{ __('Site links') }}">
+                    @if($footerBool('footer_bottom_links_enabled'))
+                        @foreach($bottomLinks as $link)
+                            <a href="{{ $renderFooterUrl($link['url']) }}" @if($link['external']) target="_blank" rel="noopener" @endif>{{ __($link['label']) }}</a>
+                        @endforeach
+                    @endif
+                    @if($footerLanguageSwitcher)
+                        {{-- data-avd-apply: the language changes on an explicit choice only (components/layout.blade.php). Each
+                             name in its own language (lang), as in the account panel. --}}
+                        <select class="avd-footer-select avd-footer-select--slim" aria-label="{{ __('Language') }}" data-native-select data-avd-apply>
+                            @foreach(config('languages') as $lang => $info)
+                                <option @selected(App::currentLocale() === $lang) value="{{ locale_switch_url($lang) }}" lang="{{ $lang }}">
+                                    {{ $info['label'] }}
+                                </option>
+                            @endforeach
+                        </select>
+                    @endif
+                </nav>
+            @endif
+        </div>
+    </div>
+</footer>
+@else
+<footer @class(['avd-footer', 'avd-footer--btt-room' => $footerKeepsBttRoom]) id="site-footer">
     <div class="avd-footer-accent"></div>
     <div class="avd-footer-inner">
         @if($footerBrandEnabled || $hasSocial)
@@ -106,17 +148,29 @@
                 <div class="avd-footer-col">
                     <h6>{{ __($footerTextSetting('footer_settings_title') ?: 'Settings') }}</h6>
                     @if($allowLanguageSwitch && $footerBool('footer_language_switcher_enabled'))
-                    <select onchange="if (this.value) window.location.href = this.value" class="avd-footer-select" aria-label="{{ __('Language') }}">
-                        @foreach(config('languages') as $lang => $info)
-                            <option @selected(App::currentLocale() === $lang) value="{{ locale_switch_url($lang) }}">
-                                {{ $info['emoji'] }} {{ $info['label'] }}
-                            </option>
-                        @endforeach
-                    </select>
+                    {{-- The browser's own select, like the slim footer's (data-native-select): no control is built for it while
+                         the page scrolls (R1-073); enhancements.scss draws it in the look's colours. data-avd-apply: the
+                         language changes on an explicit choice only, never on the first arrow key (R2A-003; the
+                         listeners are in components/layout.blade.php). The name comes first and the owner's flag after
+                         it: a letter key finds a language by the first letter of its option (with the flag first, "d"
+                         never reached "Deutsch"); each name in its own language (lang), as in the account panel.
+                         R3-084: the list shows the names only (as the account panel's and the slim footer's): the browser
+                         drew the 17 colour flags each time it opened it (90-130 ms more at CPU x4 than the site's other
+                         selects). The owner's flag of the page's language stays in the box, before its name (enhancements.scss). --}}
+                    @php($footerFlag = (string) (config('languages.'.App::currentLocale().'.emoji') ?? ''))
+                    <div class="avd-footer-lang">
+                        @if($footerFlag !== '')<span class="avd-footer-lang__flag" aria-hidden="true">{{ $footerFlag }}</span>@endif
+                        <select class="avd-footer-select" aria-label="{{ __('Language') }}" data-native-select data-avd-apply>
+                            @foreach(config('languages') as $lang => $info)
+                                <option @selected(App::currentLocale() === $lang) value="{{ locale_switch_url($lang) }}" lang="{{ $lang }}">{{ $info['label'] }}</option>
+                            @endforeach
+                        </select>
+                    </div>
                     @endif
                     @if($footerBool('footer_theme_switcher_enabled'))
+                        {{-- The switch carries its own visible label (watch-39, Switchs/ThemeSwitcher.tsx). --}}
                         <div class="mt-2">
-                            <theme-switch id="theme-switcher-footer"/>
+                            <theme-switch id="theme-switcher-footer" labelled></theme-switch>
                         </div>
                     @endif
                 </div>
@@ -124,7 +178,7 @@
         </div>
 
         <div class="avd-footer-bottom">
-            <span>{!! $footerText !== '' ? e(__($footerText)) : '&copy; ' . now()->format('Y') . ' ' . e(config('app.name')) . '. ' . e(__('All Rights Reserved')) !!}</span>
+            <span>{!! $footerCopyright !!}</span>
             @if($footerBool('footer_bottom_links_enabled') && count($bottomLinks) > 0)
                 <div class="avd-footer-bottom-links">
                     @foreach($bottomLinks as $link)
@@ -135,3 +189,4 @@
         </div>
     </div>
 </footer>
+@endif

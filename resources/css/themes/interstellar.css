@@ -48,12 +48,12 @@ html[data-bs-theme="dark"] {
   --avd-info-fill: #38bdf8;
   --avd-on-info: #05060f;
   --avd-border-input: #595f7d;
-  --avd-font-display: 'Orbitron', system-ui, 'Segoe UI', Roboto, sans-serif;
-  --avd-font-body: 'Manrope', system-ui, 'Segoe UI', Roboto, sans-serif;
-  --avd-font-label: 'Manrope', system-ui, 'Segoe UI', Roboto, sans-serif;
-  --avd-font-title: 'Manrope', system-ui, 'Segoe UI', Roboto, sans-serif;
-  --avd-font-kicker: 'Manrope', system-ui, 'Segoe UI', Roboto, sans-serif;
-  --avd-font-meta: 'Manrope', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --avd-font-display: 'Orbitron', 'Orbitron Fallback', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --avd-font-body: 'Manrope', 'Manrope Fallback', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --avd-font-label: 'Manrope', 'Manrope Fallback', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --avd-font-title: 'Manrope', 'Manrope Fallback', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --avd-font-kicker: 'Manrope', 'Manrope Fallback', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --avd-font-meta: 'Manrope', 'Manrope Fallback', system-ui, 'Segoe UI', Roboto, sans-serif;
   --avd-display-weight: 700;
   --avd-display-case: uppercase;
   --avd-display-tracking: .12em;
@@ -253,12 +253,12 @@ html[data-bs-theme="light"] {
   --avd-info-fill: #0369a1;
   --avd-on-info: #ffffff;
   --avd-border-input: #8b8c96;
-  --avd-font-display: 'Orbitron', system-ui, 'Segoe UI', Roboto, sans-serif;
-  --avd-font-body: 'Manrope', system-ui, 'Segoe UI', Roboto, sans-serif;
-  --avd-font-label: 'Manrope', system-ui, 'Segoe UI', Roboto, sans-serif;
-  --avd-font-title: 'Manrope', system-ui, 'Segoe UI', Roboto, sans-serif;
-  --avd-font-kicker: 'Manrope', system-ui, 'Segoe UI', Roboto, sans-serif;
-  --avd-font-meta: 'Manrope', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --avd-font-display: 'Orbitron', 'Orbitron Fallback', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --avd-font-body: 'Manrope', 'Manrope Fallback', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --avd-font-label: 'Manrope', 'Manrope Fallback', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --avd-font-title: 'Manrope', 'Manrope Fallback', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --avd-font-kicker: 'Manrope', 'Manrope Fallback', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --avd-font-meta: 'Manrope', 'Manrope Fallback', system-ui, 'Segoe UI', Roboto, sans-serif;
   --avd-display-weight: 700;
   --avd-display-case: uppercase;
   --avd-display-tracking: .12em;
@@ -464,8 +464,9 @@ html[data-avd-hero-deco="split_orbit"][data-avd-theme] .avd-bb .avd-htitle {
     }
 }
 @media (max-width: 767.98px) {
+    /* R1-151: the track bleeds exactly the container's side padding (1rem from 576px, none below: see the last block) */
     html[data-avd-hero-deco="split_orbit"][data-avd-theme] .avd-bb-track {
-        margin: -12px -12px 0;
+        margin: -12px -1rem 0;
     }
     html[data-avd-hero-deco="split_orbit"][data-avd-theme] .avd-bb {
         height: 330px;
@@ -478,5 +479,14 @@ html[data-avd-hero-deco="split_orbit"][data-avd-theme] .avd-bb .avd-htitle {
     html[data-avd-hero-deco="split_orbit"][data-avd-theme] .avd-bb .avd-scrim {
         -webkit-mask-image: linear-gradient(180deg, #000 55%, transparent 100%);
         mask-image: linear-gradient(180deg, #000 55%, transparent 100%);
+    }
+}
+/* R1-151: below 576px the container has no side padding: the cinema-rows billboard runs edge to edge without bleeding
+   (it ran 12px past both screen edges, its text 4px from the edge), and it skips the phone gutter the rounded
+   billboards take. (The split spotlight's panel takes that gutter: layout-theme-b.) */
+@media (max-width: 575.98px) {
+    html[data-avd-hero-deco="split_orbit"][data-avd-theme] .avd-hero--billboard,
+    html[data-avd-hero-deco="split_orbit"][data-avd-theme] .avd-bb-track {
+        margin-inline: 0;
     }
 }

@@ -50,6 +50,9 @@ return [
     |
     */
 
+    // Log files carry reset links (mail), SQL bindings and mail account names (errors): their names end in a part
+    // derived from APP_KEY, so nobody can guess them if a server ever serves storage/ (security plan S03). Tools > Logs
+    // lists them as usual.
     'channels' => [
         'stack' => [
             'driver' => 'stack',
@@ -59,23 +62,23 @@ return [
 
         'single' => [
             'driver' => 'single',
-            'path' => storage_path('logs/laravel.log'),
+            'path' => storage_path('logs/laravel-'.substr(hash('sha256', 'laravel-log|'.env('APP_KEY', '')), 0, 16).'.log'),
             'level' => env('LOG_LEVEL', 'debug'),
         ],
 
         'daily' => [
             'driver' => 'daily',
-            'path' => storage_path('logs/laravel.log'),
+            'path' => storage_path('logs/laravel-'.substr(hash('sha256', 'laravel-log|'.env('APP_KEY', '')), 0, 16).'.log'),
             'level' => env('LOG_LEVEL', 'debug'),
             'days' => 14,
         ],
 
         // Emails sent through the "log" mailer land here, independent of LOG_LEVEL,
-        // so a fresh install (no SMTP yet) can still see password resets / test mails.
-        // "single" keeps the exact file name the admin UI points to (storage/logs/mail.log).
+        // so a fresh install (no SMTP yet) can still see password resets / test mails
+        // (Tools > Logs: the file mail-....log in storage/logs).
         'mail' => [
             'driver' => 'single',
-            'path' => storage_path('logs/mail.log'),
+            'path' => storage_path('logs/mail-'.substr(hash('sha256', 'mail-log|'.env('APP_KEY', '')), 0, 16).'.log'),
             'level' => 'debug',
             'replace_placeholders' => true,
         ],
@@ -125,17 +128,17 @@ return [
         ],
 
         'emergency' => [
-            'path' => storage_path('logs/laravel.log'),
+            'path' => storage_path('logs/laravel-'.substr(hash('sha256', 'laravel-log|'.env('APP_KEY', '')), 0, 16).'.log'),
         ],
 
         'stripe' => [
             'driver' => 'single',
-            'path' => storage_path('logs/stripe.log'),
+            'path' => storage_path('logs/stripe-'.substr(hash('sha256', 'stripe-log|'.env('APP_KEY', '')), 0, 16).'.log'),
         ],
 
         'paypal' => [
             'driver' => 'single',
-            'path' => storage_path('logs/paypal.log'),
+            'path' => storage_path('logs/paypal-'.substr(hash('sha256', 'paypal-log|'.env('APP_KEY', '')), 0, 16).'.log'),
         ],
     ],
 

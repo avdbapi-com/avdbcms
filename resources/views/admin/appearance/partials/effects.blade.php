@@ -26,7 +26,7 @@
 @endforeach
 @if ($levelCard['more'] !== [])
 <details class="ad-more" data-remember="{{ $pageId }}.level">
-<summary class="ad-disclose">{{ __('More options (:count)', ['count' => count($levelCard['more'])]) }}: {{ implode(', ', array_map(fn (array $f): string => __($f['label']), array_slice($levelCard['more'], 0, 3))) }}</summary>
+<summary class="ad-disclose">{{ \App\Support\AdminText::labelled(__('More options (:count)', ['count' => count($levelCard['more'])]), \App\Support\AdminText::list(array_map(fn (array $f): string => __($f['label']), array_slice($levelCard['more'], 0, 3)))) }}</summary>
 @foreach ($levelCard['more'] as $f)
 @include('admin.appearance.partials.field', ['f' => $f])
 @endforeach

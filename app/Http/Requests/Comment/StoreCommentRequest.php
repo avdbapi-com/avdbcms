@@ -2,12 +2,16 @@
 
 namespace App\Http\Requests\Comment;
 
+use App\Http\Requests\Concerns\RefusesBlockedAuthors;
 use App\Models\Video;
+use App\Rules\SpamWords;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 class StoreCommentRequest extends FormRequest
 {
+    use RefusesBlockedAuthors;
+
     /**
      * Determine if the user is authorized to make this request.
      *
@@ -42,10 +46,12 @@ class StoreCommentRequest extends FormRequest
                     return $query->whereRaw('1 = 0');
                 }),
             ],
+            // Settings > Spam: the blocked words (and, in after(), the blocked e-mail addresses) apply to comments.
             'content' => [
                 'required',
                 'string',
-                'max:'.config('validation.comment.content.max')
+                'max:'.config('validation.comment.content.max'),
+                new SpamWords,
             ]
         ];
     }

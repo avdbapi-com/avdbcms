@@ -1,13 +1,2 @@
-@component('mail::message')
-
-# Dear {{$notifiable->username}} !
-
-Please see attached invoice for your Premium subscription on {{config('app.name')}} for **{{$transaction->date->translatedFormat('d F Y')}} to {{$transaction->subscription->next_payment->translatedFormat('d F Y')}}**
-
-@component('mail::panel')
-    Your next debit will be on {{$transaction->subscription->next_payment->translatedFormat('d F Y')}}
-@endcomponent
-
-Regards, {{ config('app.name') }}
-
-@endcomponent
+{{-- The Premium receipt, the PDF attached (App\Notifications\Premium\Invoice). The HTML part (member design 6.21); the plain-text part: mails.text.premium.invoice. The words: App\Notifications\Support\MemberMail. --}}
+@include('mails.layouts.html', ['mail' => \App\Notifications\Support\MemberMail::invoice($notifiable, $transaction ?? null)])

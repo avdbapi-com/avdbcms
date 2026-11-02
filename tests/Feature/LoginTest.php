@@ -63,7 +63,9 @@ class LoginTest extends TestCase
         ]);
 
         $response->assertRedirect(route('login'));
-        $response->assertSessionHas('error', __('auth.failed'));
+        // one neutral sentence for a wrong name and a wrong password (the sign-in card adds "Reset your password")
+        $response->assertSessionHas('error', __('The username or password is wrong.'));
+        $response->assertSessionHas('auth_failed', true);
 
         $this->assertTrue(session()->hasOldInput('username'));
         $this->assertGuest();
@@ -77,19 +79,32 @@ class LoginTest extends TestCase
             'banned_at' => now()
         ]);
 
+        $lastLogin = $user->fresh()->last_login_at;
+
         $response = $this->from(route('login'))->post(route('login.perform'), [
             'username' => $user->email,
             'password' => 'password'
         ]);
 
-        $response->assertRedirect(route('user.index'));
-
-        $response = $this->get(route('user.index'));
-
+        // auth-33: a suspended account is never signed in, not even for one request, and its "last sign-in" is not
+        // written; the sign-in page says so in the visitor's language with a contact link, the typed name kept
         $response->assertRedirect(route('login'));
+        $response->assertSessionHas('error', __('This account is suspended.'));
+        $response->assertSessionHas('auth_banned', true);
+        $this->assertTrue(session()->hasOldInput('username'));
+        $this->assertGuest();
+        $this->assertEquals($lastLogin, $user->fresh()->last_login_at);
 
-        $response->assertSessionHas('error', 'Your account has been suspended for violating our <a target="_blank" class="text-danger fw-bold" href="/terms">Terms of Service</a>');
+        $this->get(route('login'))
+            ->assertOk()
+            ->assertSeeText('This account is suspended. If you think this is a mistake, contact us.')
+            ->assertSee('href="'.e(locale_url(route('contact.show'))).'"', false);
 
+        // a member suspended while signed in is signed out at the next page, with the same message
+        $member = User::factory()->create();
+        $this->actingAs($member);
+        $member->forceFill(['banned_at' => now()])->save();
+        $this->get(route('user.index'))->assertRedirect(route('login'))->assertSessionHas('auth_banned', true);
         $this->assertGuest();
     }
 }

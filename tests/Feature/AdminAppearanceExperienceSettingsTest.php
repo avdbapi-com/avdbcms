@@ -608,7 +608,7 @@ class AdminAppearanceExperienceSettingsTest extends TestCase
             ->assertOk()
             ->assertJsonPath('ok', true);
 
-        // The factory look is YouTube Spotlight Pro on Midnight Spotlight (demo1); logo and custom code stay.
+        // The factory look is YouTube Spotlight Pro on Midnight Spotlight (the demo site); logo and custom code stay.
         $appearance = Setting::getGroup('appearance');
         $this->assertSame('youtube_spotlight_pro', $appearance['active_master_experience']);
         $this->assertSame(['tokyo_neon', 'signature'], [$appearance['theme_preset'], $appearance['theme_flavor']]);
@@ -780,7 +780,7 @@ class AdminAppearanceExperienceSettingsTest extends TestCase
         Setting::set('footer_text', 'Footer', 'appearance');
         Setting::set('meta_title_template', '{title}', 'seo');
 
-        // A settings save (the I7 shape): only the keys it wrote, nested by group; null = the key was not stored.
+        // A settings save: only the keys it wrote, nested by group; null = the key was not stored.
         Setting::set('home_layout_mode', 'netflix_rows', 'appearance');
         Setting::set('sidebar_style', 'rail', 'appearance');
         $save = SettingsRevision::record(

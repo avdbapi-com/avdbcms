@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Admin;
 use App\Models\Category;
 use App\Support\AdminPreferences;
+use App\Support\AuditDetails;
+use App\Support\ContentSafety;
 use App\Support\FontAwesomeIconRegistry;
 use Illuminate\Http\Request;
 use Illuminate\Contracts\View\View;
@@ -22,10 +24,11 @@ class CategoryController
                 ->orderBy('position', 'asc')
                 ->withCount('videos')
                 ->paginate(\App\Support\AdminPagination::perPage(null, 25)),
-            'active_categories' => Category::query()
+            // the sort window: the menu's categories visitors see (1.2.3 round 3, R3-072)
+            'active_categories' => ContentSafety::visibleCategories(Category::query()
                 ->where('in_menu', true)
                 ->ordered()
-                ->get()
+                ->get())
         ]);
     }
 
@@ -45,7 +48,8 @@ class CategoryController
                 ->withCount('videos')
                 ->paginate(\App\Support\AdminPagination::perPage($request, 25))
                 ->withQueryString(),
-            'menu' => Category::query()->where('in_menu', true)->ordered()->get(['id', 'title', 'icon', 'position']),
+            // the menu visitors see: a category named with a word that is always blocked has no place in it (round 3, R3-072)
+            'menu' => ContentSafety::visibleCategories(Category::query()->where('in_menu', true)->ordered()->get(['id', 'title', 'icon', 'position'])),
         ];
     }
 
@@ -66,22 +70,26 @@ class CategoryController
             'in_menu' => ['nullable', 'boolean'],
         ]);
 
-        Category::create([
+        $category = Category::create([
             'title' => $validated['title'],
             'slug' => ($validated['slug'] ?? '') ?: Str::slug($validated['title']),
             'icon' => FontAwesomeIconRegistry::normalize($validated['icon'] ?? null),
             'in_menu' => $request->has('in_menu'),
         ]);
 
+        // Tools > Logs > Admin actions (R3-019): the category by its name and number.
+        AuditLogController::log('category.created', AuditDetails::titled($category));
+
         return redirect()
             ->route('admin.categories.index')
-            ->withSuccess('Category created successfully.');
+            ->withSuccess(__('Category created'));
     }
 
     public function edit (Category $category) : View {
         if (AdminPreferences::usesNewAdmin()) {
-            // Its place in the menu, counted in the menu's order.
-            $place = Category::query()->where('in_menu', true)->ordered()->pluck('id')->search($category->id);
+            // Its place in the menu, counted in the menu's order, among the categories visitors see (round 3, R3-072).
+            $place = ContentSafety::visibleCategories(Category::query()->where('in_menu', true)->ordered()->get(['id', 'title']))
+                ->pluck('id')->search($category->id);
 
             return view('admin.categories.record', ['category' => $category->loadCount('videos'), 'place' => $place === false ? null : $place + 1]);
         }
@@ -90,6 +98,9 @@ class CategoryController
     }
 
     public function update (Category $category, Request $request) : RedirectResponse {
+
+        // what it was, to name the fields a save changes (in_menu compared as on/off: the column keeps 1, the form true)
+        $before = ['title' => (string) $category->title, 'slug' => (string) $category->slug, 'icon' => (string) $category->icon, 'in_menu' => (bool) $category->in_menu];
 
         $validated = $request->validate([
             'title' => ['required', 'string', 'max:100'],
@@ -105,9 +116,17 @@ class CategoryController
             'in_menu' => $request->has('in_menu'),
         ]);
 
+        // Which fields changed (never their values); a save that changed nothing writes nothing (R3-019).
+        $after = ['title' => (string) $category->title, 'slug' => (string) $category->slug, 'icon' => (string) $category->icon, 'in_menu' => (bool) $category->in_menu];
+        $changed = array_values(array_intersect_key(['title' => 'name', 'slug' => 'address', 'icon' => 'icon', 'in_menu' => 'menu'], array_diff_assoc(array_map('json_encode', $after), array_map('json_encode', $before))));
+
+        if ($changed !== []) {
+            AuditLogController::log('category.updated', AuditDetails::titled($category).': '.implode(', ', $changed));
+        }
+
         return redirect()
             ->route('admin.categories.index')
-            ->withSuccess('Category updated successfully.');
+            ->withSuccess(__('Changes saved.'));
     }
 
     public function destroy (Category $category) : RedirectResponse {
@@ -118,22 +137,45 @@ class CategoryController
                 ->withErrors(__('Cannot delete category with existing videos. Reassign videos first.'));
         }
 
+        $name = AuditDetails::titled($category);
         $category->delete();
+        AuditLogController::log('category.deleted', $name);
 
         return redirect()
             ->route('admin.categories.index')
-            ->withSuccess('Category deleted successfully.');
+            ->withSuccess(__('Category deleted'));
     }
 
     public function organize (Request $request) : RedirectResponse {
 
-        $categories = $request->get('categories');
+        $categories = (array) $request->get('categories', []);
+        $moved = false;
 
         foreach ($categories as $index => $id) {
-            Category::find($id)->update([
-                'position' => $index
-            ]);
+            $category = Category::find($id);
+
+            if ($category !== null) {
+                $category->update([
+                    'position' => $index
+                ]);
+                $moved = $moved || $category->wasChanged('position');
+            }
         }
+
+        // The menu in its new order (R3-019), only when a place changed.
+        if ($moved) {
+            AuditLogController::log('categories.reordered', AuditDetails::names(
+                Category::query()->where('in_menu', true)->ordered()->get(['id', 'title'])->map(fn (Category $category): string => AuditDetails::titled($category))
+            ));
+        }
+
+        // The order panels list the categories visitors see; the menu's others (named with a word that is always
+        // blocked) go after them, in their order, so no two share a place (1.2.3 round 3, R3-072).
+        $place = count((array) $categories);
+        Category::query()->where('in_menu', true)->whereNotIn('id', array_map('intval', (array) $categories))->ordered()->get()
+            ->each(function (Category $category) use (&$place): void {
+                $category->update(['position' => $place++]);
+            });
 
         return redirect()->route('admin.categories.index');
     }

@@ -16,7 +16,7 @@ use Tests\Feature\Updater\Support\UpdaterScenario;
 use Tests\TestCase;
 
 /**
- * Is a newer AVDBCMS out? (F8 4, 18 "Check" and "Fallback"): one GET of the GitHub API's latest release, without a
+ * Is a newer AVDBCMS out? One GET of the GitHub API's latest release, without a
  * token and with nothing about the site, TLS always checked; the answer kept 12 hours, a failure 1 hour, the last good
  * release kept through a failure; "Check now" asks past the kept answer, at most once a minute; a rate-limited API
  * falls back to the tag github.com/<repo>/releases/latest redirects to, and only to a plain tag of this repository.

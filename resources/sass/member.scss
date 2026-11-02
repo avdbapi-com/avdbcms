@@ -1,0 +1,19 @@
+// The member CSS entry (member design 5.13, 9.1 step 1): its own Vite input (vite.config.ts), printed by
+// components/layout.blade.php for a signed-in visitor on every page and for guests on the member routes of
+// config/member_pages.php, never on the admin's pages. The kit's shared part (member/_shared: what a guest meets on a
+// public page) is in the main CSS (app.scss), not here. Every selector of these partials starts with :root or html
+// (the specificity floor, 5.13).
+//
+// 1.2.3 round 1 (R1-070: the entry was 138 KB / 23 KB gz, over its 130 / 22 KB budget, render-blocking on every page of
+// a signed-in visitor): two parts a page rarely needs are not in it any more.
+// - The member danger tokens per look (scripts/member/danger_tokens.py, formerly member/_danger.scss, 11.6 KB): the
+//   layout prints the page's own look's rules beside this entry (App\Support\Member\DangerMap, a few hundred bytes).
+// - The sign-in pages' rules (member/auth: sign in, sign up, password, e-mail verification, sign out, the contact form,
+//   the error and status pages): their own entry, resources/sass/auth-pages.scss, printed after this one on those
+//   pages only (components/layout.blade.php, $memberAuthCss).
+@import "member/kit";
+@import "member/studio";
+@import "member/account";
+@import "member/channel";
+@import "member/notify";
+@import "member/chrome";

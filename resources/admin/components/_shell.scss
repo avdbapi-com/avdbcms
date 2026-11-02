@@ -1,5 +1,5 @@
 // The admin shell: sidebar (desktop 248px, tablet 64px rail with flyouts, phone drawer), top bar, page header.
-// Reference: spec/admin/mockups/src/admin.css. No blur, glow, shimmer or infinite animation.
+// Reference: the admin mockups. No blur, glow, shimmer or infinite animation.
 
 .ad-i {
     width: 18px;
@@ -590,7 +590,11 @@
     color: var(--text-3);
     margin-bottom: 6px;
 
+    // at least 24 px tall: a target of its own next to the header's search button (WCAG 2.5.8, R2A-058)
     a {
+        display: inline-flex;
+        align-items: center;
+        min-block-size: 24px;
         color: var(--text-2);
     }
 

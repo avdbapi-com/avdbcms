@@ -136,7 +136,7 @@
                 </td>
                 <td class="is-num">{{ number_format((int) $comment->replies_count) }}</td>
                 <td class="is-num hide-tab">{{ number_format((int) $comment->likes_count) }}</td>
-                <td class="ad-muted is-date"><time datetime="{{ $comment->created_at?->toIso8601String() }}" title="{{ $comment->created_at?->translatedFormat('j M Y, H:i') }}">{{ $comment->created_at?->diffForHumans(short: true) }}</time></td>
+                <td class="ad-muted is-date"><time datetime="{{ $comment->created_at?->toIso8601String() }}" title="{{ $comment->created_at?->translatedFormat('j M Y, H:i') }}">{{ $comment->created_at?->diffForHumans(short: \App\Support\AdminText::shortTimes()) }}</time></td>
                 <td class="is-actions"><button type="button" class="ad-iconbtn is-more" data-ad-row-menu="ad-comment-menu" aria-haspopup="true" aria-labelledby="ad-l-actions ad-c-{{ $comment->id }}" data-id="{{ $comment->id }}" data-state="{{ $hidden ? 'hidden' : 'visible' }}" data-video="{{ $comment->video_id }}"@if ($comment->user_id) data-user="{{ $comment->user_id }}"@endif @if ($open) data-url="{{ $comment->video->route }}"@endif></button></td>
             </tr>
         @endforeach

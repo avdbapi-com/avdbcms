@@ -46,8 +46,7 @@
         <button type="submit" class="ad-btn is-primary" data-save>{{ __('Save changes') }}</button>
     </div>
 </form>
-@if ($hiddenExpert > 0)
-    <p class="ad-small ad-faint" style="margin-top:16px">{{ __('Settings for developers on this page: :count. They appear in Developer mode (account menu).', ['count' => $hiddenExpert]) }}</p>
-@endif
+{{-- The developer settings of this page while Developer mode is off: named, with the switch (never a value). --}}
+@include('admin.settings.partials.developer-only', ['developerOnly' => $developerOnly ?? [], 'pageId' => $pageId])
 
 @include('admin.settings.partials.script')

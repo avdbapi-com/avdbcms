@@ -2,16 +2,19 @@ import {useState} from 'preact/hooks';
 import { memo } from 'preact/compat';
 import {useTranslation} from "react-i18next";
 import {Interaction} from "../Interactions";
+import {countedName} from "../Interactions/Interaction";
 import {CommentType} from "@/types";
 import {Popover, Tooltip, OverlayTrigger} from 'react-bootstrap';
 import {UpdateComment, DeleteComment, PinComment, ReportComment} from "@/components/Comments/Actions";
 import {ReplyForm} from "@/components/Comments/ReplyForm";
 import {Replies} from "@/components/Comments/Replies";
-import {formatRelativeTime} from "@/utils/format";
+import {formatCompactNumber, formatRelativeTime} from "@/utils/format";
+import {signInUrl} from "@/components/Comments/signInUrl";
 
 type Props = {
     comment: CommentType,
 }
+
 
 const Comment = memo(({comment} : Props) => {
 
@@ -54,10 +57,12 @@ const Comment = memo(({comment} : Props) => {
                         </div>
                         {
                             <div className={'dropdown'}>
-                                <button className={'bg-transparent btn-sm dropdown-toggle without-caret rounded-circle dot d-flex align-items-center justify-content-center dropdown-button'} type="button" data-bs-toggle="dropdown" aria-expanded="false" data-bs-auto-close="true">
-                                    <i className="fa-solid fa-ellipsis-vertical"></i>
+                                {/* The menu opens toward the comment's start edge, inside the comments column (watch-3: it ran
+                                    past the column's end and the column's paint containment cut it). */}
+                                <button className={'bg-transparent btn-sm dropdown-toggle without-caret rounded-circle dot d-flex align-items-center justify-content-center dropdown-button'} type="button" data-bs-toggle="dropdown" aria-expanded="false" data-bs-auto-close="true" aria-label={t('More actions')}>
+                                    <i className="fa-solid fa-ellipsis-vertical" aria-hidden="true"></i>
                                 </button>
-                                <ul className="dropdown-menu">
+                                <ul className="dropdown-menu dropdown-menu-end">
                                     {comment?.can_pin && <PinComment comment={comment}/>}
                                     {
                                         comment?.can_update &&
@@ -97,19 +102,19 @@ const Comment = memo(({comment} : Props) => {
                                             rootClose={true}
                                             overlay={
                                                 <Popover style={{position: 'fixed'}}>
-                                                    <Popover.Header as="h3">{t('Like this comment ?')}</Popover.Header>
+                                                    <Popover.Header as="h3">{t('Like this comment?')}</Popover.Header>
                                                     <Popover.Body>
                                                         {t('Sign in to make your opinion count.')}
                                                         <hr/>
-                                                        <a href='/login' className='btn btn-primary btn-sm'>{t('Sign in')}</a>
+                                                        <a href={signInUrl()} className='btn btn-primary btn-sm'>{t('Sign in')}</a>
                                                     </Popover.Body>
                                                 </Popover>
                                             }
                                         >
-                                            <button className="hover-grey btn btn-sm border border-0 text-black px-3 rounded-5 rounded-end d-fl">
+                                            <button type="button" className="hover-grey btn btn-sm border border-0 text-black px-3 rounded-5 rounded-end d-fl" aria-label={countedName(t('I like this'), comment.likes_count)}>
                                                 <div className={'d-flex gap-2 align-items-center'}>
-                                                    <i className="fa-regular fa-thumbs-up"></i>
-                                                    {comment.likes_count > 0 && <span>{comment.likes_count}</span>}
+                                                    <i className="fa-regular fa-thumbs-up" aria-hidden="true"></i>
+                                                    {comment.likes_count > 0 && <span>{formatCompactNumber(comment.likes_count)}</span>}
                                                 </div>
                                             </button>
                                         </OverlayTrigger>
@@ -120,19 +125,19 @@ const Comment = memo(({comment} : Props) => {
                                             rootClose={true}
                                             overlay={
                                                 <Popover style={{position: 'fixed'}}>
-                                                    <Popover.Header as="h3">{t("Don't like this comment ?")}</Popover.Header>
+                                                    <Popover.Header as="h3">{t("Don't like this comment?")}</Popover.Header>
                                                     <Popover.Body>
                                                         {t('Sign in to make your opinion count.')}
                                                         <hr/>
-                                                        <a href='/login' className='btn btn-primary btn-sm'>{t('Sign in')}</a>
+                                                        <a href={signInUrl()} className='btn btn-primary btn-sm'>{t('Sign in')}</a>
                                                     </Popover.Body>
                                                 </Popover>
                                             }
                                         >
-                                            <button className="hover-grey btn btn-sm border border-0 text-black px-3 rounded-5 rounded-start">
+                                            <button type="button" className="hover-grey btn btn-sm border border-0 text-black px-3 rounded-5 rounded-start" aria-label={countedName(t('I dislike this'), comment.dislikes_count)}>
                                                 <div className={'d-flex gap-2 align-items-center'}>
-                                                    <i className="fa-regular fa-thumbs-down"></i>
-                                                    {comment.dislikes_count > 0 && <span>{comment.dislikes_count}</span>}
+                                                    <i className="fa-regular fa-thumbs-down" aria-hidden="true"></i>
+                                                    {comment.dislikes_count > 0 && <span>{formatCompactNumber(comment.dislikes_count)}</span>}
                                                 </div>
                                             </button>
                                         </OverlayTrigger>
@@ -143,7 +148,9 @@ const Comment = memo(({comment} : Props) => {
                             !comment.is_reply && allowReplies && (
                                 window.USER ?
                                     <button
-                                        className="btn btn-sm text-info"
+                                        type="button"
+                                        className="btn btn-sm avd-comment-reply"
+                                        aria-expanded={showReplyForm}
                                         onClick={() => setShowReplyForm(v => !v)}
                                     >
                                         {t('Reply')}
@@ -154,16 +161,16 @@ const Comment = memo(({comment} : Props) => {
                                         rootClose={true}
                                         overlay={
                                             <Popover style={{position: 'fixed'}}>
-                                                <Popover.Header as="h3">{t('Want to reply to this comment ?')}</Popover.Header>
+                                                <Popover.Header as="h3">{t('Want to reply to this comment?')}</Popover.Header>
                                                 <Popover.Body>
-                                                    {t('Sign in for reply.')}
+                                                    {t('Sign in to reply.')}
                                                     <hr/>
-                                                    <a href='/login' className='btn btn-primary btn-sm'>{t('Sign in')}</a>
+                                                    <a href={signInUrl()} className='btn btn-primary btn-sm'>{t('Sign in')}</a>
                                                 </Popover.Body>
                                             </Popover>
                                         }
                                     >
-                                        <button className="btn btn-sm text-info">{t('Reply')}</button>
+                                        <button type="button" className="btn btn-sm avd-comment-reply">{t('Reply')}</button>
                                     </OverlayTrigger>
                             )
                         }

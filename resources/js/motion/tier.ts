@@ -12,7 +12,6 @@
 export type Tier = 'lite' | 'balanced' | 'rich';
 
 export type TierFx =
-    | 'pageIntro'
     | 'revealMotion'
     | 'widgetCascade'
     | 'autoRail'
@@ -22,7 +21,6 @@ export type TierFx =
     | 'clickBurst'
     | 'cursorHalo'
     | 'particles'
-    | 'modalFx'
     | 'reveal'
     | 'imageReveal'
     | 'ripple'
@@ -45,10 +43,10 @@ declare global {
 
 const ORDER: readonly Tier[] = ['lite', 'balanced', 'rich'];
 
-// The lowest tier each effect runs on (the plan's effect matrix). The modal entrance is WAAPI on
-// rich only; balanced keeps Bootstrap's own CSS transition, so its JS stays within short fades.
+// The lowest tier each effect runs on (the plan's effect matrix). There is no page intro and no scripted
+// dialog entrance any more (auth-5): both started after the content was painted and blinked it; dialogs keep
+// their CSS entrance on every tier.
 const MIN: Record<TierFx, Tier> = {
-    pageIntro: 'rich',
     revealMotion: 'rich',
     widgetCascade: 'rich',
     autoRail: 'rich',
@@ -58,7 +56,6 @@ const MIN: Record<TierFx, Tier> = {
     clickBurst: 'rich',
     cursorHalo: 'rich',
     particles: 'rich',
-    modalFx: 'rich',
     reveal: 'balanced',
     imageReveal: 'balanced',
     ripple: 'balanced',

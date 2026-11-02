@@ -80,7 +80,8 @@
 
 .avd-category-hero {
     position: relative;
-    min-height: clamp(240px, 31vw, 390px);
+    // watch-34: a lower head (it was up to 390px and pushed the first videos to y=560 on 1080p).
+    min-height: clamp(180px, 20vw, 260px);
     overflow: hidden;
     border-radius: 0 0 28px 28px;
     background: var(--avd-photo-bg, #111827);
@@ -121,6 +122,41 @@
     font-size: clamp(2rem, 4vw, 4rem);
     font-weight: 950;
     line-height: 0.98;
+}
+
+// watch-34: no picture of its own: a compact band in the look's colours (the default doodle was the same for every
+// category).
+:root .avd-category-hero--plain {
+    min-height: 0;
+    background:
+        linear-gradient(120deg, rgba(var(--avd-primary-rgb, 255, 61, 97), 0.2), rgba(var(--avd-accent-rgb, 24, 200, 216), 0.1)),
+        var(--avd-surface, var(--bs-body-bg));
+    border: 1px solid var(--avd-border, transparent);
+    border-top: 0;
+}
+
+:root .avd-category-hero--plain .avd-category-hero-content {
+    padding-block: clamp(1.25rem, 3vw, 2rem);
+    color: var(--avd-text, var(--bs-body-color));
+}
+
+:root .avd-category-hero--plain h1 {
+    color: var(--avd-text, var(--bs-body-color));
+    font-size: clamp(1.75rem, 3vw, 2.75rem);
+}
+
+// watch-9: the video count chip reads on the photo (white on a dark glass) and on the band (the look's text on its
+// surface) in light and dark looks.
+:root .avd-category-hero .avd-category-count {
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    background: rgba(7, 10, 16, 0.62);
+    color: var(--avd-hero-title, #fff);
+}
+
+:root .avd-category-hero--plain .avd-category-count {
+    border-color: var(--avd-border, rgba(127, 127, 127, 0.3));
+    background: var(--avd-surface-2, var(--bs-tertiary-bg));
+    color: var(--avd-text, var(--bs-body-color));
 }
 
 .avd-section-card {
@@ -166,7 +202,9 @@
 
 .avd-search-result-media {
     flex: 0 0 clamp(220px, 34%, 360px);
-    border-radius: 20px 0 0 20px;
+    border-radius: 0;
+    border-start-start-radius: 20px;
+    border-end-start-radius: 20px;
     box-shadow: none;
 }
 
@@ -175,8 +213,12 @@
 }
 
 @media (max-width: 575.98px) {
+    // The column is a flex item of .avd-shell: with width:auto it took its content's width, which the compact rows made
+    // narrower than the screen (an empty band of 70-155px beside cut titles). It fills the row instead.
     #main-container.avd-search-page {
         box-sizing: border-box;
+        flex: 1 1 0%;
+        min-inline-size: 0;
         width: auto !important;
         max-width: none;
         margin-inline: 1.1rem !important;
@@ -204,37 +246,79 @@
         margin-inline-end: 0;
     }
 
+    // watch-41: a result is a compact row on phones (the card filled a whole screen): the picture beside the title,
+    // meta and channel; the description waits for wider screens.
     .avd-search-result-card {
-        flex-direction: column;
+        flex-direction: row;
+        align-items: stretch;
     }
 
     .avd-search-result-media {
-        width: 100%;
-        flex-basis: auto;
-        border-radius: 18px 18px 0 0;
+        flex: 0 0 42%;
+        width: auto;
+        align-self: flex-start;
+        aspect-ratio: 16 / 9;
+        border-radius: 0;
+        border-start-start-radius: 14px;
+        border-end-start-radius: 14px;
     }
 
+    :root .avd-search-result-body {
+        padding: 0.55rem 0.7rem !important;
+    }
+
+    .avd-search-result-body .avd-video-title {
+        display: -webkit-box;
+        margin-bottom: 0.25rem !important;
+        overflow: hidden;
+        font-size: 0.92rem;
+        line-height: 1.3;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+    }
+
+    .avd-search-result-body .avd-video-meta {
+        font-size: 0.75rem;
+    }
+
+    :root .avd-search-result-channel {
+        min-block-size: 24px;
+        margin-block: 0.25rem 0 !important;
+        font-size: 0.75rem;
+    }
+
+    .avd-search-result-channel img,
+    .avd-search-result-channel .rounded-circle {
+        inline-size: 20px !important;
+        block-size: 20px !important;
+    }
+
+    .avd-search-result-desc {
+        display: none;
+    }
+
+    // watch-41: the results count and the Filters button share one row (each took the full width).
     .avd-search-panel-header {
         align-items: stretch;
         flex-direction: column;
-        gap: 0.85rem;
+        gap: 0.65rem;
     }
 
     .avd-search-panel-actions {
         width: 100%;
-        display: grid;
-        grid-template-columns: 1fr;
-        justify-content: stretch;
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        gap: 0.5rem;
     }
 
     .avd-search-panel-actions .avd-meta-chip {
         min-width: 0;
-        justify-content: center;
     }
 
     .avd-search-filter-toggle {
-        width: 100%;
-        height: 38px;
+        min-height: 38px;
+        margin-inline-start: auto;
         justify-content: center;
     }
 }
@@ -364,7 +448,13 @@
     inset-inline-start: 0;
     width: 220%;
     background: linear-gradient(90deg, var(--avd-brand), var(--avd-brand-2), var(--avd-cyan), var(--avd-brand));
-    animation: avd-accent-shift-x 8s ease infinite;
+    animation: none;
+}
+
+/* account-41: the accent line shifts once when the footer is first drawn on the rich tier, then rests on its first
+   frame (it looped every 8 s forever, with the footer scan 13-17 repaints a second at rest). */
+html[data-avd-tier="rich"] .avd-footer-accent::before {
+    animation: avd-accent-shift-x 8s ease 1 both;
 }
 
 html[data-avd-perf="lite"] .avd-footer-accent::before {
@@ -434,14 +524,13 @@ html[data-avd-perf="lite"] .avd-footer-accent::before {
     color: var(--avd-footer-link);
     text-decoration: none;
     box-shadow: 0 8px 22px rgba(16, 24, 40, 0.06);
-    transition: transform 180ms ease, color 180ms ease, background-color 180ms ease, border-color 180ms ease;
+    transition: color 120ms ease, background-color 120ms ease, border-color 120ms ease;
 }
 
 .avd-social-btn:hover {
     border-color: transparent;
     background: var(--avd-btn-bg, linear-gradient(135deg, var(--avd-brand), var(--avd-brand-2)));
     color: var(--avd-btn-text, #fff);
-    transform: translateY(-2px);
 }
 
 .avd-footer-links-grid {
@@ -467,12 +556,64 @@ html[data-avd-perf="lite"] .avd-footer-accent::before {
 }
 
 .avd-footer-col li {
-    margin-bottom: 0.45rem;
+    margin-bottom: 0.3rem;
 }
 
 .avd-footer-col a {
     color: var(--avd-footer-link);
     text-decoration: none;
+}
+
+// Every link of the footer is a 24px target with a mouse and a 44px one on touch screens (member design 4.3, WCAG 2.5.8):
+// the column and bottom links were 19-22px tall, the social buttons 40px. The lists keep their rhythm with a mouse
+// (24px + 0.3rem, was 22px + 0.45rem); on touch screens each link is a full 44px row.
+.avd-footer-col a,
+.avd-footer-bottom-links a {
+    display: inline-flex;
+    align-items: center;
+    min-block-size: 24px;
+}
+
+@media (pointer: coarse) {
+    .avd-footer-col li {
+        margin-bottom: 0;
+    }
+
+    .avd-footer-col a,
+    .avd-footer-bottom-links a,
+    .avd-footer-logo {
+        min-block-size: 44px;
+    }
+
+    // A short word ("Terms", "Home": 35-43px) takes taps from 44px across, without moving its text.
+    .avd-footer-col a,
+    .avd-footer-bottom-links a {
+        position: relative;
+    }
+
+    .avd-footer-col a::after,
+    .avd-footer-bottom-links a::after {
+        content: "";
+        position: absolute;
+        inset-block: 0;
+        inset-inline: min(0px, calc((100% - 44px) / 2));
+    }
+
+    .avd-footer-logo {
+        display: inline-flex;
+        align-items: center;
+    }
+
+    .avd-social-btn {
+        width: 44px;
+        height: 44px;
+    }
+
+    // (html: the base rules of both selects come later in this file)
+    html .avd-footer-select,
+    html .avd-footer--slim .avd-footer-select--slim {
+        min-block-size: 44px;
+    }
 }
 
 .avd-footer-col a:hover {
@@ -494,14 +635,78 @@ html[data-avd-perf="lite"] .avd-footer-accent::before {
     color: var(--avd-text);
 }
 
-/* The language menu names each language after its flag emoji: the system UI font shows it, so a theme font never
-   downloads its symbols subset for the flags (Swiss Grid's Roboto: +20 KB on every page). Keyed on html[data-bs-theme]
-   so it out-ranks layout-theme-a's html[data-avd-typography="on"] select (the theme's body font). */
+// Both footers' language selects are the browser's own select (data-native-select): the full footer's no longer becomes
+// a script-built control when the page scrolls near it, which was the long frame of a scroll gesture on a weak laptop
+// (R1-073: 150-390 ms at CPU x4, watch and channel pages). Drawn in the look's colours: the look's corner roundness
+// (motion.scss), a chevron in the text colour at the end (no grey system button in Safari; mirrored in Arabic), bold
+// like the control it replaces, a 44px target (responsive.scss). Keyed on select: never the wrapper <div> of a page
+// still built the old way.
+select.avd-footer-select {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    padding-inline-end: 2.25rem;
+    background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%);
+    background-position: right 1.15rem center, right 0.8rem center;
+    background-size: 0.35rem 0.35rem;
+    background-repeat: no-repeat;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+html[dir="rtl"] select.avd-footer-select {
+    background-position: left 0.8rem center, left 1.15rem center;
+}
+
+// R3-084: the owner's flag of the page's language, in the box before its name (the list itself shows the names only:
+// drawing 17 colour flags made the full footer's list open 90-130 ms later than the site's other selects at CPU x4).
+// A decoration (aria-hidden, no pointer events): the select keeps its whole box as its target; mirrored in Arabic.
+// In the system UI font, as the flags were in the list: a look's own font would download its symbols subset for the
+// two regional-indicator letters on every page with this footer (Swiss Bento's Roboto +20 KB, Glass Lounge's Onest
+// +18 KB). !important: layout-theme-a's html[data-avd-typography="on"] span:not(.fa):not(...) gives every span the
+// look's font with a selector this rule cannot otherwise outrank.
+.avd-footer-lang {
+    position: relative;
+}
+
+.avd-footer-lang__flag {
+    position: absolute;
+    inset-inline-start: 0.7rem;
+    top: 50%;
+    transform: translateY(-50%);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif !important;
+    line-height: 1;
+    pointer-events: none;
+}
+
+// While the arrow keys show the other languages one by one in the closed select (R2A-003: a language applies on an
+// explicit choice only), the box names another language than the page's: no flag then ("🇬🇧 Français" said two things).
+// The page's own choice back (Escape, leaving the select) brings it back. Browsers without :has() keep the flag.
+.avd-footer-lang:has(> select option:checked:not([selected])) > .avd-footer-lang__flag {
+    visibility: hidden;
+}
+
+.avd-footer-lang__flag + select.avd-footer-select {
+    padding-inline-start: 2.15rem;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    select.avd-footer-select:hover {
+        border-color: var(--avd-border-strong, var(--avd-footer-border));
+    }
+}
+
+select.avd-footer-select:focus-visible {
+    outline: 2px solid var(--avd-focus, var(--avd-brand));
+    outline-offset: 2px;
+}
+
+/* The language menu names each language in its own script (العربية, ไทย, 日本語 ...): the system UI font shows them, so a
+   theme font never downloads its other subsets for them (the flags that the options carried until R3-084 are in the
+   box now, also in the system UI font: .avd-footer-lang__flag above). Keyed on html[data-bs-theme] so it out-ranks
+   layout-theme-a's html[data-avd-typography="on"] select (the theme's body font). */
 html[data-bs-theme] .avd-footer-select,
-html[data-bs-theme] .avd-footer-select option,
-html[data-bs-theme] .ts-wrapper.avd-footer-select .ts-control,
-html[data-bs-theme] .ts-wrapper.avd-footer-select .ts-control > *,
-html[data-bs-theme] .ts-wrapper.avd-footer-select .ts-dropdown {
+html[data-bs-theme] .avd-footer-select option {
     font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
@@ -630,11 +835,13 @@ body.has-sidebar .avd-footer {
     pointer-events: auto !important;
 }
 
+// Logical only (no physical left/right): "Back to top" sits at the bottom-END corner, the bottom-left one in Arabic
+// (a "left: auto !important" here cancelled the inset in right-to-left pages, and the button fell to the right edge,
+// under the daily pill).
 .back-to-top {
     position: fixed;
     inset-inline-end: 1.25rem;
     inset-inline-end: calc(1rem + env(safe-area-inset-right, 0px));
-    left: auto !important;
     bottom: 1.25rem;
     bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
     z-index: 1030;
@@ -820,5 +1027,444 @@ body.theater-mode .avd-description-panel {
     .avd-category-card {
         transform: none !important;
         will-change: auto !important;
+    }
+}
+
+// =====================================================================================================================
+// Layout chrome of every page (member design 4.2, 4.4, 6.20): the slim footer, the "Today's design" pill,
+// the Spotlight search and the toast motion. Colours come from the look's tokens in both modes; logical properties, so
+// Arabic mirrors.
+// =====================================================================================================================
+
+// The slim footer of the studio and account pages (layouts/menus/footer.blade.php, footer="slim"): one quiet line,
+// no background art, no animation.
+.avd-footer--slim {
+    margin-top: 2rem;
+    background: transparent;
+    border-top: 1px solid var(--avd-border);
+    box-shadow: none;
+    font-size: 0.8125rem;
+}
+
+.avd-footer--slim .avd-footer-inner {
+    max-inline-size: calc(var(--avd-footer-frame, 1280px) + 2 * clamp(0.75rem, 1.75vw, 3rem));
+    margin-inline: auto;
+    padding: 0.85rem clamp(0.75rem, 1.75vw, 3rem);
+}
+
+// The line keeps the frame of the page above it (centred in the main column like .mk-page, member/_kit.scss): at 1920px
+// it spanned the whole column, 151px before the page and its language select past the page's end.
+// components/layout.blade.php names the page's frame (avd-footer--frame-page | form | narrow).
+.avd-footer--slim.avd-footer--frame-form {
+    --avd-footer-frame: 1180px;
+}
+
+.avd-footer--slim.avd-footer--frame-narrow {
+    --avd-footer-frame: 880px;
+}
+
+.avd-footer--slim .avd-footer-bottom {
+    padding: 0;
+    border-top: 0;
+    gap: 0.5rem 1.25rem;
+}
+
+.avd-footer--slim .avd-footer-bottom-links {
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem 1rem;
+}
+
+.avd-footer--slim .avd-footer-select--slim {
+    inline-size: auto;
+    min-block-size: 32px;
+    padding-block: 0.15rem;
+    padding-inline: 0.5rem 1.75rem;
+    font-size: 0.8125rem;
+}
+
+// Room at the end of the footer for "Back to top": the floating button never covers the last link or the
+// language switcher when the page is scrolled to its end. Round 44px, corner 36px, + its inset; the floating pill ("Back
+// to top" and its icon, wider in some languages) is kept clear by the room below the last row (next rule).
+.avd-footer--btt-room .avd-footer-bottom {
+    padding-inline-end: 6.75rem;
+}
+
+// Below the footer's last row too: scrolled to the end, the floats above the bottom bars ("Back to top": 44px, 12px up;
+// the daily pill: 38px, 24px up) cover empty room, never the footer ad or a footer link (member design 4.4).
+// While toasts show, the room is their stack's height (--mk-toast-room, js/layout/toasts.ts).
+:root .avd-footer--btt-room {
+    padding-block-end: 4.5rem;
+}
+
+html[data-mk-toast] .avd-footer {
+    padding-block-end: max(4.5rem, var(--mk-toast-room, 6rem));
+}
+
+// The footer ad (#ad-slot-footer) comes after the footer: then the room is below the ad, the page's last box (it was the
+// banner the floats covered at the end of History and channel pages).
+:root .avd-footer--btt-room ~ #ad-slot-footer {
+    margin-block-end: 4.5rem;
+}
+
+html[data-mk-toast] .avd-footer ~ #ad-slot-footer {
+    margin-block-end: max(4.5rem, var(--mk-toast-room, 6rem));
+}
+
+// Touch screens: the daily pill's 44px buttons (below) make it 52px tall, 24px up, so the room is 5.5rem there.
+@media (pointer: coarse) {
+    :root .avd-footer--btt-room {
+        padding-block-end: 5.5rem;
+    }
+
+    html[data-mk-toast] .avd-footer {
+        padding-block-end: max(5.5rem, var(--mk-toast-room, 6rem));
+    }
+
+    :root .avd-footer--btt-room ~ #ad-slot-footer {
+        margin-block-end: 5.5rem;
+    }
+
+    html[data-mk-toast] .avd-footer ~ #ad-slot-footer {
+        margin-block-end: max(5.5rem, var(--mk-toast-room, 6rem));
+    }
+}
+
+:root .avd-footer:has(~ #ad-slot-footer) {
+    padding-block-end: 0;
+}
+
+html[data-avd-back-to-top-style="round_icon"] .avd-footer--btt-room .avd-footer-bottom,
+html[data-avd-back-to-top-style="minimal_corner"] .avd-footer--btt-room .avd-footer-bottom {
+    padding-inline-end: 4.5rem;
+}
+
+@media (max-width: 767.98px) {
+    // Phones: the button is icon-only (40px, responsive.scss).
+    .avd-footer--btt-room .avd-footer-bottom,
+    html[data-avd-back-to-top-style] .avd-footer--btt-room .avd-footer-bottom {
+        padding-inline-end: 4.25rem;
+    }
+}
+
+// "Today's design" (components/layout.blade.php, .avd-daily-pill): one pill at the bottom-START corner, above every
+// bottom layer, z 1040 (4.4). The toasts and "Back to top" use the bottom-end corner; while a toast shows the pill
+// steps aside (opacity only), so a toast never lands on it, in Arabic either. Calm: hover and focus
+// change its shadow and border only.
+.avd-daily-pill {
+    position: fixed;
+    inset-inline-start: 24px;
+    bottom: calc(var(--avd-bottom-chrome, 0px) + var(--mk-bars-h, 0px) + 24px);
+    z-index: 1040;
+    align-items: center;
+    gap: 2px;
+    max-inline-size: min(26rem, calc(100vw - 48px));
+    padding: 3px;
+    border: 1px solid var(--avd-border);
+    border-radius: 999px;
+    background: var(--avd-surface-solid, var(--avd-surface));
+    color: var(--avd-text);
+    box-shadow: 0 10px 25px -5px rgba(var(--avd-shade-rgb, 0, 0, 0), 0.35);
+    font-size: 0.78rem;
+    transition: opacity 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
+}
+
+html[data-mk-toast] .avd-daily-pill {
+    opacity: 0;
+    pointer-events: none;
+}
+
+// Next to a pinned front menu (from 992px: full 232px, rail 76px, floating with its 14px margin) the pill starts in the
+// content column: at the start corner it covered the menu's own bottom controls (the Dark mode switch, the language
+// select). Arabic mirrors (logical inset).
+@media (min-width: 992px) {
+    body.has-sidebar .avd-daily-pill {
+        inset-inline-start: calc(var(--avd-sidebar-w, 232px) + 24px);
+    }
+
+    html[data-avd-sidebar-style="floating"] body.has-sidebar .avd-daily-pill {
+        inset-inline-start: calc(var(--avd-sidebar-w, 232px) + 14px + 24px);
+    }
+}
+
+.avd-daily-pill__open {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-inline-size: 0;
+    min-block-size: 32px;
+    padding: 0.25rem 0.5rem 0.25rem 0.35rem;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+}
+
+.avd-daily-pill__mark {
+    flex: none;
+    display: inline-grid;
+    place-items: center;
+    inline-size: 22px;
+    block-size: 22px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--avd-daily-primary, var(--avd-brand)), var(--avd-daily-accent, var(--avd-cyan)));
+    color: var(--avd-on-brand, #fff);
+    font-size: 0.7rem;
+}
+
+.avd-daily-pill__label {
+    color: var(--avd-muted);
+}
+
+.avd-daily-pill__name {
+    min-inline-size: 0;
+    max-inline-size: 140px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.avd-daily-pill__day,
+.avd-daily-pill__holiday {
+    flex: none;
+    padding: 0.1rem 0.45rem;
+    border: 1px solid var(--avd-border);
+    border-radius: 999px;
+    background: var(--avd-surface-2, var(--avd-surface));
+    color: var(--avd-muted);
+    font-size: 0.64rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.avd-daily-pill__holiday {
+    border-color: transparent;
+    background: var(--avd-warning-fill, #ffc107);
+    color: var(--avd-on-warning, #000);
+}
+
+.avd-daily-pill__close {
+    flex: none;
+    display: inline-grid;
+    place-items: center;
+    inline-size: 28px;
+    block-size: 28px;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--avd-muted);
+    font-size: 0.75rem;
+    cursor: pointer;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .avd-daily-pill:hover {
+        border-color: var(--avd-border-strong, var(--avd-border));
+        box-shadow: 0 10px 25px -5px rgba(var(--avd-shade-rgb, 0, 0, 0), 0.35), 0 0 0 2px var(--avd-brand-soft, transparent);
+    }
+
+    .avd-daily-pill__close:hover {
+        background: var(--avd-surface-2, var(--avd-surface));
+        color: var(--avd-text);
+    }
+}
+
+.avd-daily-pill__open:focus-visible,
+.avd-daily-pill__close:focus-visible {
+    outline: 2px solid var(--avd-focus, var(--avd-brand));
+    outline-offset: 1px;
+}
+
+// Touch screens (a tablet from 768px shows the pill): both buttons are 44px targets (member design 4.3).
+@media (pointer: coarse) {
+    .avd-daily-pill__open {
+        min-block-size: 44px;
+    }
+
+    .avd-daily-pill__close {
+        inline-size: 44px;
+        block-size: 44px;
+    }
+}
+
+// The "Today's design" sheet's rules (#dailyAestheticModal) are their own entry: resources/sass/daily-sheet.scss.
+
+// The Spotlight search (Ctrl+K or /, watch-36): the look's surfaces and inks in both modes (it was a fixed dark panel
+// with Bootstrap info/success/warning icons), no backdrop blur.
+.avd-spotlight .avd-spotlight__dialog {
+    max-inline-size: min(620px, calc(100vw - 1.5rem));
+}
+
+.avd-spotlight .avd-spotlight__content {
+    overflow: hidden;
+    border: 1px solid var(--avd-border-strong, var(--avd-border));
+    background: var(--avd-surface-solid);
+    color: var(--avd-text);
+    box-shadow: 0 25px 50px rgba(var(--avd-shade-rgb, 0, 0, 0), 0.55);
+}
+
+.avd-spotlight__head {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--avd-border);
+}
+
+.avd-spotlight__icon {
+    color: var(--avd-brand-ink);
+    font-size: 1.1rem;
+}
+
+.avd-spotlight__input {
+    inline-size: 100%;
+    min-block-size: 44px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--avd-text);
+    font-size: 1.05rem;
+    outline: none;
+}
+
+.avd-spotlight__input::placeholder {
+    color: var(--avd-muted);
+}
+
+.avd-spotlight__input:focus-visible {
+    outline: none;
+}
+
+.avd-spotlight__head:focus-within {
+    box-shadow: inset 0 -2px 0 var(--avd-focus);
+}
+
+.avd-spotlight__kbd {
+    flex: none;
+    padding: 0.15rem 0.45rem;
+    border: 1px solid var(--avd-border);
+    border-radius: 6px;
+    background: var(--avd-surface-2);
+    color: var(--avd-muted);
+    font-size: 0.72rem;
+}
+
+.avd-spotlight__body {
+    max-block-size: min(420px, 60vh);
+    overflow-y: auto;
+    padding: 0.85rem 1rem;
+}
+
+.avd-spotlight__group {
+    margin: 0 0 0.5rem;
+    color: var(--avd-muted);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.avd-spotlight__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.avd-spotlight__chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-block-size: 32px;
+    padding: 0.2rem 0.75rem;
+    border: 1px solid var(--avd-border);
+    border-radius: 999px;
+    background: var(--avd-surface-2);
+    color: var(--avd-text);
+    font-size: 0.8rem;
+    text-decoration: none;
+    transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+.avd-spotlight__chip i {
+    color: var(--avd-muted);
+}
+
+.avd-spotlight__links {
+    display: grid;
+    gap: 0.25rem;
+}
+
+.avd-spotlight__link {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    inline-size: 100%;
+    min-block-size: 44px;
+    padding: 0.5rem 0.75rem;
+    border: 0;
+    border-radius: var(--avd-radius-control, 12px);
+    background: transparent;
+    color: var(--avd-text);
+    font: inherit;
+    text-align: start;
+    text-decoration: none;
+    transition: background-color 120ms ease;
+}
+
+.avd-spotlight__link > span {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.65rem;
+}
+
+.avd-spotlight__link i {
+    inline-size: 1.1rem;
+    color: var(--avd-muted);
+    text-align: center;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .avd-spotlight__chip:hover {
+        border-color: var(--avd-border-strong, var(--avd-border));
+        background: var(--avd-surface-3, var(--avd-surface-2));
+    }
+
+    .avd-spotlight__link:hover {
+        background: var(--avd-surface-2);
+    }
+}
+
+.avd-spotlight__foot {
+    padding: 0.6rem 1rem;
+    border-top: 1px solid var(--avd-border);
+    color: var(--avd-muted);
+    font-size: 0.75rem;
+}
+
+// Toasts (resources/js/layout/toasts.ts): a short fade in and out, opacity only, as transitions (no new keyframes:
+// ThemeCssContractTest); a browser without @starting-style shows the toast at once. None with reduced motion.
+:root .mk-toast {
+    transition: opacity 160ms ease-out;
+}
+
+@starting-style {
+    :root .mk-toast {
+        opacity: 0;
+    }
+}
+
+:root .mk-toast.is-leaving {
+    opacity: 0;
+    transition: opacity 120ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    :root .mk-toast,
+    :root .mk-toast.is-leaving {
+        transition: none;
     }
 }

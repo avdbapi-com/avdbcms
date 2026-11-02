@@ -23,7 +23,8 @@ export function useCursorQuery<TData = unknown> (options : Options<TData>, {root
     const query = useInfiniteQuery({
         ...options,
         initialPageParam: null,
-        getNextPageParam: (lastPage) => lastPage.meta.next_cursor ?? undefined,
+        // An answer without its meta (an error page, an empty body) ends the list instead of throwing a TypeError.
+        getNextPageParam: (lastPage) => lastPage?.meta?.next_cursor ?? undefined,
     });
 
     useEffect(() => {

@@ -20,14 +20,38 @@ final class AdminCache
         Cache::forever(self::VERSION_KEY, (string) now()->getTimestamp());
     }
 
+    /**
+     * The admin's cached lists show e-mail addresses and the like to administrators, but no cache file holds them: the
+     * cache keeps a copy whose users rows have only their public columns (App\Support\CachedUsers::forAdminCache()), and
+     * a list read from the cache gets the rest of each row back from the database in one query (restoreAdminRows()).
+     * The request that computes a list prints its own, whole value.
+     */
     public static function remember(string $key, DateTimeInterface|int $ttl, Closure $callback): mixed
     {
-        return SafeCache::remember(self::buildKey($key), $ttl, $callback);
+        $computed = false;
+        $value = null;
+        $cached = SafeCache::remember(self::buildKey($key), $ttl, static function () use ($callback, &$computed, &$value): mixed {
+            $computed = true;
+            $value = $callback();
+
+            return CachedUsers::forAdminCache($value);
+        });
+
+        return $computed ? $value : CachedUsers::restoreAdminRows($cached);
     }
 
     public static function rememberForever(string $key, Closure $callback): mixed
     {
-        return SafeCache::rememberForever(self::buildKey($key), $callback);
+        $computed = false;
+        $value = null;
+        $cached = SafeCache::rememberForever(self::buildKey($key), static function () use ($callback, &$computed, &$value): mixed {
+            $computed = true;
+            $value = $callback();
+
+            return CachedUsers::forAdminCache($value);
+        });
+
+        return $computed ? $value : CachedUsers::restoreAdminRows($cached);
     }
 
     public static function forget(string $key): void

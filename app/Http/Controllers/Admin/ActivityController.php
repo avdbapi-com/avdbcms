@@ -63,13 +63,20 @@ class ActivityController
 
     public function destroy(int $id): RedirectResponse
     {
-        DB::table('activities')->where('id', $id)->delete();
-        return redirect()->route('admin.activities.index')->withSuccess('Activity deleted.');
+        if (DB::table('activities')->where('id', $id)->delete() > 0) {
+            AuditLogController::log('activity.deleted', \App\Support\AuditDetails::ids([$id]));
+        }
+
+        return redirect()->route('admin.activities.index')->withSuccess(__('Removed from the log'));
     }
 
     public function clear(): RedirectResponse
     {
-        DB::table('activities')->delete();
-        return redirect()->route('admin.activities.index')->withSuccess('All activities cleared.');
+        // an empty log stays as it is: nothing written in Admin actions (judge R2CD-RV-03)
+        if (DB::table('activities')->delete() > 0) {
+            AuditLogController::log('activities.cleared');
+        }
+
+        return redirect()->route('admin.activities.index')->withSuccess(__('The activity log is empty now.'));
     }
 }

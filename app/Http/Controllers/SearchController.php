@@ -7,6 +7,7 @@ use App\Http\Requests\SearchRequest;
 use App\Models\Search;
 use App\Models\Video;
 use App\Services\VideoDatabaseSearchService;
+use App\Support\CachedUsers;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Cache;
@@ -57,13 +58,14 @@ class SearchController extends Controller
             // Cached paginators also retain the request's link parameters.
             json_encode($request->query()),
         ]));
+        // The cached page of results keeps only the public columns of each video's channel (App\Support\CachedUsers).
         $videos = Cache::remember($cacheKey, 60, function () use ($q, $filters) {
             $databaseSearch = app(VideoDatabaseSearchService::class);
             $tagMatched = $databaseSearch->hasTagMatch($q);
 
-            return $this->shouldUseMeilisearch() && ! $tagMatched
+            return CachedUsers::publicOnly($this->shouldUseMeilisearch() && ! $tagMatched
                 ? $this->searchWithMeilisearch($q, $filters)
-                : $this->searchWithDatabase($q, $filters, $databaseSearch, $tagMatched);
+                : $this->searchWithDatabase($q, $filters, $databaseSearch, $tagMatched));
         });
 
         try {

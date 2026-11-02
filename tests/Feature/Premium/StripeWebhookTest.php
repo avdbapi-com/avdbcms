@@ -11,7 +11,7 @@ use App\Services\StripeService;
 use Tests\Fixtures\StripeApiFixtures;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Notification;
-use Laravel\Cashier\Http\Middleware\VerifyWebhookSignature;
+use App\Http\Middleware\VerifyStripeWebhookSignature;
 use Stripe\Subscription as StripeSubscription;
 use App\Models\Subscription;
 use Mockery\MockInterface;
@@ -56,7 +56,7 @@ class StripeWebhookTest extends TestCase
     {
         $now = now();
 
-        $this->withoutMiddleware(VerifyWebhookSignature::class)
+        $this->withoutMiddleware(VerifyStripeWebhookSignature::class)
             ->postJson('stripe-webhook', StripeApiFixtures::customerSubscriptionCreated($this->subscriptionStripeId, $this->user, $this->plan, $now))
             ->assertNoContent();
 
@@ -86,7 +86,7 @@ class StripeWebhookTest extends TestCase
 
         $nextPayment = $subscription->next_payment->addMonth();
 
-        $this->withoutMiddleware(VerifyWebhookSignature::class)
+        $this->withoutMiddleware(VerifyStripeWebhookSignature::class)
             ->postJson('stripe-webhook', StripeApiFixtures::customerSubscriptionUpdated($subscription, $nextPayment, false))
             ->assertNoContent();
 
@@ -106,7 +106,7 @@ class StripeWebhookTest extends TestCase
 
         $cancelDate = now();
 
-        $this->withoutMiddleware(VerifyWebhookSignature::class)
+        $this->withoutMiddleware(VerifyStripeWebhookSignature::class)
             ->postJson('stripe-webhook', StripeApiFixtures::customerSubscriptionUpdated($subscription, $cancelDate))
             ->assertNoContent();
 
@@ -126,7 +126,7 @@ class StripeWebhookTest extends TestCase
 
         $cancelDate = now();
 
-        $this->withoutMiddleware(VerifyWebhookSignature::class)
+        $this->withoutMiddleware(VerifyStripeWebhookSignature::class)
             ->postJson('stripe-webhook', StripeApiFixtures::customerSubscriptionUpdated($subscription, $cancelDate))
             ->assertNoContent();
 
@@ -142,7 +142,7 @@ class StripeWebhookTest extends TestCase
             ->for($this->plan)
             ->create();
 
-        $this->withoutMiddleware(VerifyWebhookSignature::class)
+        $this->withoutMiddleware(VerifyStripeWebhookSignature::class)
             ->postJson('stripe-webhook', StripeApiFixtures::invoicePaymentSucceeded($subscription))
             ->assertNoContent();
 

@@ -1,0 +1,503 @@
+/* resources/sass/member/_notify.scss. First copied from the design kit's pages; this file is the production source
+   now (member design 9.2). */
+/* ---------------------------------------------------------------------------------------------------------------------
+   Notifications panel (side sheet on desktop, full screen on phones) and page
+   ------------------------------------------------------------------------------------------------------------------ */
+
+:root .mk-notify {
+    --bs-offcanvas-width: var(--mk-panel-w, min(420px, 100vw));
+}
+
+/* Header: the title truncates, the count pill and the actions never shrink. "Mark all as read" is an icon button in the
+   sheet at every width (.mk-icon-btn, like ... and Close; its name stays in aria-label + title): below 576px so "3"
+   never runs into it at 375-390px, also in the uppercase looks, and in the 420px
+   panel from 576px too, where the labelled button, the count, the ... menu and Close left the title "Notificatio..."
+   in English, "B..." in German and nothing at all in Russian. The sheet is never wider than 575px (full screen below
+   576px, 420px from there). The notifications page keeps the labelled button in its head. */
+
+:root .mk-notify__head {
+    /* revision 3: .5rem, so at the admin's largest Text size (the title truncated) the count keeps 10px to the next
+       control (it kept 5px with .25rem) */
+    gap: .5rem;
+}
+
+:root .mk-notify__head .mk-sheet__title {
+    flex: 1 1 auto;
+    min-inline-size: 0;
+}
+
+:root .mk-notify__title-text {
+    min-inline-size: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+:root .mk-notify__head .mk-count,
+:root .mk-notify__head .mk-btn,
+:root .mk-notify__head .mk-icon-btn {
+    flex: none;
+}
+
+:root .mk-count--brand {
+    background: var(--avd-brand-fill);
+    color: var(--avd-on-brand);
+}
+
+/* Phones: a full-screen sheet (a list that can be long is a destination, not a bottom sheet); the full-screen rule is
+   shared with the account panel (_chrome.scss section 4). */
+
+@media (max-width: 575.98px) {
+    :root .mk-notify .mk-sheet__grip {
+        display: none;
+    }
+
+    :root .mk-notify__head .mk-sheet__title {
+        font-size: 1.05rem;
+    }
+}
+
+:root .mk-notify__group {
+    position: sticky;
+    inset-block-start: 0;
+    z-index: 1;
+    padding: .55rem 1.25rem .4rem;
+    background: var(--avd-surface-solid);
+    color: var(--avd-muted);
+    font-size: .75rem;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+}
+
+/* R2R-02 (WCAG 2.2 Focus Not Obscured): a row the keyboard reaches is never left under the day heading stuck at the top
+   of the bell's list (Shift+Tab up the list): the list's own focus scroll stops a heading's height (.95rem of padding
+   + its 1.125rem line) and .5rem of room below its top. The ring is drawn inside the row (as the menu items' and
+   "Newer notifications"), so the heading right above a day's first row cannot cover it and the list's edges do not
+   cut it. Nothing changes for a mouse or a finger: no script scrolls this list to an element. */
+:root .avd-bell-scroll {
+    scroll-padding-block-start: calc(2.075rem + .5rem);
+}
+
+:root .avd-bell-scroll .mk-notif__link:focus-visible {
+    outline: 2px solid var(--avd-focus);
+    outline-offset: -2px;
+}
+
+/* A row = the link (avatar, sentence, thumb) + an optional ⋯ menu as a sibling (never a button inside a link). */
+
+:root .mk-notif {
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+}
+
+:root .mk-notif__link {
+    flex: 1 1 auto;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: .75rem;
+    align-items: start;
+    min-inline-size: 0;
+    padding: .75rem 1rem .75rem 1.25rem;
+    color: var(--avd-text);
+    text-decoration: none;
+}
+
+/* The page's "..." button (a sibling of the link, never inside it). It holds no icon element: the glyph is drawn here
+   (one element per row less; the page-content budget). */
+:root .mk-notif__more {
+    flex: none;
+    margin-block-start: .55rem;
+    margin-inline-end: .5rem;
+}
+
+:root .mk-notif__more:empty::before {
+    content: "\f142";
+    font: var(--fa-font-solid, normal 900 1em/1 "Font Awesome 6 Free");
+}
+
+:root .mk-notif__icon {
+    position: relative;
+    flex: none;
+}
+
+:root .mk-notif__type {
+    position: absolute;
+    inset-block-end: -3px;
+    inset-inline-end: -5px;
+    display: grid;
+    place-items: center;
+    inline-size: 1.25rem;
+    block-size: 1.25rem;
+    border: 2px solid var(--avd-surface-solid);
+    border-radius: 50%;
+    background: var(--avd-brand-fill);
+    color: var(--avd-on-brand);
+    font-size: .55rem;
+}
+
+/* The page's row (users/notifications/row.blade.php) has no icon wrapper: the avatar and its type badge share the first
+   grid cell, the badge at the avatar's bottom end, where the sheet's wrapper puts it (one element per row less). */
+:root .mk-notif__link > .mk-avatar,
+:root .mk-notif__link > .mk-notif__type {
+    grid-area: 1 / 1;
+}
+
+:root .mk-notif__link > .mk-notif__type {
+    position: static;
+    align-self: start;
+    justify-self: end;
+    margin-block-start: calc(40px - 1.25rem + 3px);
+    margin-inline-end: -5px;
+}
+
+:root .mk-notif__type--comment { background: var(--avd-info-fill); color: var(--avd-on-info); }
+
+:root .mk-notif__type--video { background: var(--avd-warning-fill); color: var(--avd-on-warning); }
+
+:root .mk-notif__text {
+    display: grid;
+    gap: .15rem;
+    min-inline-size: 0;
+    font-size: .875rem;
+    line-height: 1.4;
+}
+
+/* the sheet's .mk-notif__time; the page's row prints the bare <time> */
+:root .mk-notif__time,
+:root .mk-notif__text > time {
+    color: var(--avd-muted);
+    font-size: .75rem;
+}
+
+/* Read rows step back to the muted colour; names and titles stay in the text colour; unread rows keep full contrast
+   and get the dot (no weight change, so marking read never re-wraps a row). */
+
+:root .mk-notif .mk-notif__text strong {
+    color: var(--avd-text);
+    font-weight: 650;
+}
+
+:root .mk-notif:not(.is-unread) .mk-notif__text > :first-child {
+    color: var(--avd-muted);
+}
+
+:root .mk-notif.is-unread::before {
+    content: "";
+    position: absolute;
+    inset-block-start: 1.3rem;
+    inset-inline-start: .45rem;
+    inline-size: .5rem;
+    block-size: .5rem;
+    border-radius: 50%;
+    background: var(--avd-brand-ink);
+}
+
+:root .mk-notif__thumb {
+    inline-size: 64px;
+}
+
+/* The page's row picture: the image is its own 16:9 box (the sheet wraps it in the kit's .mk-thumb). */
+:root img.mk-notif__thumb {
+    display: block;
+    block-size: auto;
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
+    border-radius: var(--mk-r-thumb);
+    background: var(--avd-surface-3);
+}
+
+@media (hover: hover) and (pointer: fine) {
+    :root .mk-notif:hover { background: var(--mk-hover); }
+}
+
+:root .mk-endline {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: .5rem;
+    padding: 1.25rem;
+    color: var(--avd-muted);
+    font-size: .8125rem;
+}
+
+/* ---------------------------------------------------------------------------------------------------------------------
+   The parts the real sheet (resources/js/components/Notifications/*) and the notifications page
+   (users/notifications/index.blade.php) add to the kit's rows.
+   ------------------------------------------------------------------------------------------------------------------ */
+
+/* The sheet's list fills its body edge to edge (the mockups' inline padding:0; gap:0). */
+:root .mk-notify .mk-sheet__body {
+    display: block;
+    padding: 0;
+}
+
+:root .mk-notify__head .mk-sheet__title {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+}
+
+:root .mk-notify__options {
+    flex: none;
+}
+
+:root .mk-notify-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+/* A row without a member to show: its type icon in a round tile (rows of 1.2.2 and older, upload results, invoices). */
+:root .mk-notif__kind {
+    display: grid;
+    place-items: center;
+    inline-size: 40px;
+    block-size: 40px;
+    border-radius: 50%;
+    background: var(--avd-surface-2);
+    color: var(--avd-muted);
+    font-size: .95rem;
+}
+
+:root .mk-notif.is-unread .mk-notif__kind {
+    color: var(--avd-brand-ink);
+}
+
+/* A notification an administrator sent: the owner's title above the message. */
+:root .mk-notif__title {
+    color: var(--avd-text);
+    font-size: .875rem;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+}
+
+:root .mk-notif__text > span:first-of-type,
+:root .mk-notif__text > strong + span {
+    overflow-wrap: anywhere;
+}
+
+/* Select mode: a check box leads the row (a 44px target on touch screens), the row selects instead of opening, the
+   selected row gets a tint and an inline-start bar (no size change). */
+:root .mk-notif__check {
+    display: grid;
+    place-items: center;
+    flex: none;
+    inline-size: 2.5rem;
+    min-block-size: 2.75rem;
+    padding-block-start: .55rem;
+    padding-inline-start: .75rem;
+    align-self: stretch;
+    align-content: start;
+    cursor: pointer;
+}
+
+:root .mk-notif.is-selecting {
+    cursor: pointer;
+}
+
+:root .mk-notif.is-selecting .mk-notif__link {
+    padding-inline-start: .5rem;
+}
+
+:root .mk-notif.is-selecting.is-unread::before {
+    content: none;
+}
+
+:root .mk-notif.is-selected {
+    background: var(--mk-selected, rgba(var(--avd-brand-rgb), .1));
+    box-shadow: inset 3px 0 0 var(--avd-brand-ink);
+}
+
+:root[dir="rtl"] .mk-notif.is-selected {
+    box-shadow: inset -3px 0 0 var(--avd-brand-ink);
+}
+
+/* The select toolbar under the head. */
+:root .mk-notify__tools {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: .5rem;
+    padding: .5rem 1rem .5rem 1.25rem;
+    border-block-end: 1px solid var(--avd-divider, var(--avd-border));
+    background: var(--avd-surface-2);
+}
+
+:root .mk-notify__all {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    min-block-size: 2.75rem;
+    color: var(--avd-text);
+    font-size: .875rem;
+    font-weight: 650;
+    cursor: pointer;
+}
+
+:root .mk-notify__tools-actions {
+    display: flex;
+    gap: .35rem;
+}
+
+/* "Delete all" / "Delete the selected" asks once, inside the sheet (never the browser's confirm(): account-30). */
+:root .mk-notify__confirm {
+    display: grid;
+    gap: .6rem;
+    padding: .85rem 1rem .85rem 1.25rem;
+    border-block-end: 1px solid var(--avd-divider, var(--avd-border));
+    background: var(--avd-surface-2);
+}
+
+:root .mk-notify__confirm p {
+    margin: 0;
+    color: var(--avd-text);
+    font-size: .875rem;
+    font-weight: 600;
+}
+
+:root .mk-notify__confirm-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: .5rem;
+}
+
+/* A refusal (the view-only demo, a lost session), said inside the sheet under its head. */
+:root .mk-notify__alert {
+    margin: .75rem 1rem 0;
+}
+
+/* "Newer notifications" above the list after the newest pages were dropped while scrolling down. */
+:root .mk-notify__newer {
+    display: block;
+    inline-size: 100%;
+    padding: .85rem 1rem;
+    border: 0;
+    border-block-end: 1px solid var(--avd-divider, var(--avd-border));
+    background: none;
+    color: var(--avd-brand-ink);
+    font-size: .8125rem;
+    font-weight: 650;
+    text-align: center;
+    cursor: pointer;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    :root .mk-notify__newer:hover {
+        background: var(--mk-hover, rgba(var(--avd-glint-rgb, 255, 255, 255), .055));
+    }
+}
+
+:root .mk-notify__newer:focus-visible {
+    outline: 2px solid var(--avd-focus);
+    outline-offset: -2px;
+}
+
+:root .mk-notify__more {
+    display: flex;
+    justify-content: center;
+    padding: .85rem;
+}
+
+/* The loading rows: the size of a real row (no layout shift when the list arrives). */
+:root .mk-notif--skel {
+    gap: .75rem;
+    padding: .75rem 1rem .75rem 1.25rem;
+}
+
+:root .mk-notif__skel-icon {
+    flex: none;
+    inline-size: 40px;
+    block-size: 40px;
+    border-radius: 50%;
+}
+
+:root .mk-notif__skel-text {
+    display: grid;
+    flex: 1 1 auto;
+    gap: .45rem;
+    padding-block-start: .2rem;
+}
+
+:root .mk-notif__skel-text > :last-child {
+    inline-size: 40%;
+}
+
+/* The sheet's footer: from 576px Settings at the start and "See all" at the end, on one row (mockup notifications
+   laptop/desktop). Below 576px the kit's sheet-footer rules give the mockup's two full-width rows: Settings (the quiet
+   first button, with its hairline) above "See all" (_shared.scss, .mk-sheet__foot on phones). */
+:root .mk-notify__foot {
+    justify-content: space-between;
+}
+
+@media (min-width: 576px) {
+    :root .mk-notify__foot > .mk-btn {
+        flex: 0 1 auto;
+    }
+}
+
+/* The notifications page: tabs with the panel's padding; the "..." of each row sits at the row's end (mirrored in
+   Arabic, the logical margins above), and the page's one row menu opens next to it (index.blade.php). */
+:root .mk-notify-page__tabs {
+    padding-inline: var(--mk-pad, 1.25rem);
+}
+
+/* The row menu's items are Bootstrap .dropdown-item too (its arrow keys), and the kit's ".mk-menu .dropdown-item" text
+   and icon colours outrank ".mk-menu__item--danger": Delete keeps the danger colour (an icon and a word, 3.1a). */
+:root [data-avd-row-menu] .mk-menu__item--danger,
+:root [data-avd-row-menu] .mk-menu__item--danger i {
+    color: var(--mk-danger);
+}
+
+:root .mk-notify-page__pager {
+    padding: .75rem var(--mk-pad, 1.25rem) 0;
+}
+
+:root .mk-notify__block + .mk-notify__block .mk-notify__group {
+    border-block-start: 1px solid var(--avd-divider, var(--avd-border));
+}
+
+/* ---------------------------------------------------------------------------------------------------------------------
+   The bell menu of a followed channel (resources/js/components/Notifications/ChannelBell.tsx, rendered by the
+   Subscribe for a subscribed member; mockup public-watch-member): the "Subscribed" button opens "New videos from
+   <channel>" with All / Only highlights / None and Unsubscribe. The kit's .mk-menu, .mk-menu__note and .mk-menu__tick
+   draw the menu; only the wrapper and the toggle's chevron are new.
+   ------------------------------------------------------------------------------------------------------------------ */
+/* R1-125: the wrapper draws no box. Its menu is a portal placed against the toggle, so the toggle is laid out exactly
+   as the plain "Subscribe" button it replaces: a Discover card stretched that button to the card's width but centred the
+   wrapper (226px -> 140px), and the server's placeholder has no wrapper either. */
+:root .mk-bell-menu {
+    display: contents;
+}
+
+:root .mk-bell-menu__chevron {
+    font-size: .7em;
+    margin-inline-start: .15rem;
+}
+
+/* R1-003: the menu is drawn at the end of the page (ChannelBell.tsx, a portal) and placed by Popper against the window,
+   on the site's dropdown layer (app.scss .dropdown-menu). It is not a Bootstrap .dropdown-menu (Bootstrap's keyboard
+   handler would take its keys), so it shows and hides itself here; .mk-menu draws it. Until Popper has placed it (no
+   data-popper-placement yet) it waits invisibly in the window's corner: no flash in the corner, and the keyboard's
+   first-item focus never scrolls the page to the menu's place at the end of it. */
+:root .mk-bell-menu__menu {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 1120;
+    display: none;
+    margin: 0;
+    text-align: start;
+}
+
+:root .mk-bell-menu__menu.show {
+    display: block;
+}
+
+:root .mk-bell-menu__menu:not([data-popper-placement]) {
+    opacity: 0;
+    pointer-events: none;
+}

@@ -12,6 +12,9 @@
     @php
         $videos = (int) ($category->videos_count ?? 0);
         $title = $category->exists ? $category->title : __('New category');
+        // 1.2.3: named with a word that is always blocked (App\Support\ContentSafety): visitors never see it, it has no
+        // page and no place in the menu (round 3, R3-072)
+        $hiddenName = $category->exists && \App\Support\ContentSafety::hides($category->title);
     @endphp
 
     <x-admin.page-header page="content.categories" :title="$title"
@@ -20,7 +23,9 @@
         :tabs="[]">
         <x-slot:actions>
             @if ($category->exists)
-                <a class="ad-btn" href="{{ $category->route }}" target="_blank" rel="noopener">{{ AdminTheme::icon('external') }}{{ __('Open on site') }}</a>
+                @unless ($hiddenName)
+                    <a class="ad-btn" href="{{ $category->route }}" target="_blank" rel="noopener">{{ AdminTheme::icon('external') }}{{ __('Open on site') }}</a>
+                @endunless
                 <x-admin.menu id="ad-category-more" :label="__('More actions')">
                     <a href="{{ route('admin.videos.index', ['category' => $category->id]) }}">{{ AdminTheme::icon('film') }}{{ __('Its videos') }}</a>
                     @if ($videos === 0)
@@ -36,6 +41,9 @@
             @endif
             <button type="submit" class="ad-btn is-primary" form="ad-category-form">{{ $category->exists ? __('Save changes') : __('Create category') }}</button>
         </x-slot:actions>
+        @if ($hiddenName)
+            <p class="ad-small ad-note">{{ __('Hidden from visitors: its name uses a word that is always blocked.') }}</p>
+        @endif
     </x-admin.page-header>
 
     <div class="ad-record">
@@ -89,7 +97,7 @@
                 <section class="ad-panel">
                     <dl class="ad-facts">
                         <div><dt>{{ __('Videos') }}</dt><dd>{{ number_format($videos) }}</dd></div>
-                        <div><dt>{{ __('In the menu') }}</dt><dd>{{ $category->in_menu && $place !== null ? __('Place :place', ['place' => $place]) : __('No') }}</dd></div>
+                        <div><dt>{{ __('In the menu') }}</dt><dd>{{ $hiddenName ? __('Hidden from visitors') : ($category->in_menu && $place !== null ? __('Place :place', ['place' => $place]) : __('No')) }}</dd></div>
                         <div><dt>{{ __('Created') }}</dt><dd>{{ $category->created_at?->translatedFormat('j M Y') ?? '-' }}</dd></div>
                         <div><dt>ID</dt><dd>#{{ $category->id }}</dd></div>
                     </dl>

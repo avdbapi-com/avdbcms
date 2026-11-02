@@ -4,7 +4,7 @@
     $seoService = app(\App\Services\SeoService::class);
     $totalCategories = $categories->count();
     $totalVideos = $categories->sum('videos_count');
-    $pageTitle = __('All Categories') . ' - ' . config('app.name');
+    $pageTitle = __('All categories') . ' - ' . config('app.name');
     $pageDescription = __('Explore categories') . ' - ' . config('app.name');
 @endphp
 
@@ -20,16 +20,16 @@
                 <i class="fa-solid fa-layer-group" aria-hidden="true"></i>
                 <span>{{ __('Directory') }}</span>
             </div>
-            <h1 class="avd-home-title">{{ __('All Categories') }}</h1>
+            <h1 class="avd-home-title">{{ __('All categories') }}</h1>
             <p class="avd-home-subtitle">{{ __('Explore categories') }}</p>
             <div class="d-flex flex-wrap gap-2 mt-3">
                 <span class="avd-meta-chip">
                     <i class="fa-solid fa-folder-open" aria-hidden="true"></i>
-                    {{ $totalCategories }} {{ __('Categories') }}
+                    {{ trans_choice(':count category|:count categories', $totalCategories, ['count' => \App\Support\LocalNumber::format($totalCategories)]) }}
                 </span>
                 <span class="avd-meta-chip">
                     <i class="fa-solid fa-video" aria-hidden="true"></i>
-                    {{ number_format($totalVideos) }} {{ __('Total Videos') }}
+                    {{ trans_choice('videos', $totalVideos, ['count' => \App\Support\LocalNumber::format($totalVideos)]) }}
                 </span>
             </div>
         </div>
@@ -75,7 +75,7 @@
                                 </span>
                                 @if(config('site.category_video_count_pill_enabled', true))
                                     <span @class(['badge rounded-pill px-2 py-1', 'bg-black bg-opacity-75 text-white' => $categoryPhoto, 'border text-reset' => ! $categoryPhoto])>
-                                        {{ number_format($categoryVideoCount) }}
+                                        {{ \App\Support\LocalNumber::format($categoryVideoCount) }}
                                     </span>
                                 @endif
                             </div>
@@ -86,7 +86,7 @@
                                 </h3>
                                 @if(config('site.category_video_count_pill_enabled', true))
                                     <small class="d-flex align-items-center gap-1">
-                                        <span>{{ trans_choice('videos', $categoryVideoCount, ['count' => number_format($categoryVideoCount)]) }}</span>
+                                        <span>{{ trans_choice('videos', $categoryVideoCount, ['count' => \App\Support\LocalNumber::format($categoryVideoCount)]) }}</span>
                                         <i class="fa-solid fa-chevron-right ms-auto small" aria-hidden="true"></i>
                                     </small>
                                 @endif

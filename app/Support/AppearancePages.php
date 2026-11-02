@@ -195,6 +195,12 @@ final class AppearancePages
                 ? ($appearance[$key] ?? null)
                 : ($grouped[$group][$key] ?? self::defaultOf($key));
 
+            // what channels use: the untouched installer "coral" of a site installed before 1.2.3 is the look's colour
+            // (only the stored value: a "coral" the owner picks in the draft stays a pick)
+            if ($key === 'channel_default_accent') {
+                $value = ChannelCustomizationSettings::adminAccentValue((string) $value);
+            }
+
             $values[$key] = self::normalize($key, $value);
         }
 
@@ -230,7 +236,7 @@ final class AppearancePages
     }
 
     /**
-     * Check one value with the rules the settings save uses (interface I7's schema). Null when it is fine, else the
+     * Check one value with the rules the settings save uses. Null when it is fine, else the
      * first error.
      */
     public static function invalid(string $key, string $value, ?array $schema = null): ?string
@@ -611,7 +617,7 @@ final class AppearancePages
 
     /**
      * A 160 x 100 wireframe of one choice, drawn with the admin's tokens (classes of components/_ui.scss: bg, blk,
-     * soft, acc, ln), ported from the admin mockups (spec/admin/mockups/src/mock_lib.py).
+     * soft, acc, ln), ported from the admin mockups.
      */
     public static function wireframe(string $key, string $value): string
     {

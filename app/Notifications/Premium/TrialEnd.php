@@ -2,6 +2,7 @@
 
 namespace App\Notifications\Premium;
 
+use App\Notifications\Support\MemberMail;
 use App\Models\User;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
@@ -40,8 +41,8 @@ class TrialEnd extends Notification
     protected function buildMailMessage(User $notifiable) : MailMessage
     {
         return (new MailMessage)
-            ->subject(Lang::get('Your ' .config('app.name'). ' Premium free trial ends soon.'))
-            ->markdown('mails.premium.trial_end', [
+            ->subject(MemberMail::trialEnd($notifiable)['subject'])
+            ->view(['mails.premium.trial_end', 'mails.text.premium.trial_end'], [
                 'notifiable' => $notifiable
             ]);
     }

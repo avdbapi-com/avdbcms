@@ -7,16 +7,18 @@
         <div>
             <h2 class="mb-0">{{ $language->emoji }} {{ __('Edit') }} — {{ $language->label }} <code class="fs-5">{{ $locale }}</code></h2>
             <small class="text-muted">
-                {{ __(':done/:total keys translated', ['done' => count(array_filter($rows, fn($r) => !$r['missing'])), 'total' => count($rows)]) }}
+                {{ __('Translated: :done of :total.', ['done' => number_format(count(array_filter($rows, fn($r) => !$r['missing']))), 'total' => number_format(count($rows))]) }}
                 &nbsp;·&nbsp;
-                <span class="text-danger">{{ __(':count missing', ['count' => count(array_filter($rows, fn($r) => $r['missing']))]) }}</span>
+                <span class="text-danger">{{ trans_choice('1 missing|:count missing', count(array_filter($rows, fn($r) => $r['missing'])), ['count' => number_format(count(array_filter($rows, fn($r) => $r['missing'])))]) }}</span>
             </small>
         </div>
         <div class="d-flex gap-2">
             <a href="{{ route('admin.languages.edit-meta', $language) }}" class="btn btn-outline-secondary btn-sm">
                 <i class="fa-solid fa-gear me-1"></i>{{__('Language Settings')}}</a>
+            @unless(\App\Http\Middleware\ViewOnlyDemo::hides('admin.languages.export'))
             <a href="{{ route('admin.languages.export', $locale) }}" class="btn btn-outline-secondary btn-sm">
                 <i class="fa-solid fa-download me-1"></i>{{__('Export JSON')}}</a>
+            @endunless
             <a href="{{ route('admin.languages.index') }}" class="btn btn-outline-secondary btn-sm">
                 <i class="fa-solid fa-arrow-left me-1"></i>{{ __('Back') }}
             </a>

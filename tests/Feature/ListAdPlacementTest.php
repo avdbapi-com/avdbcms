@@ -159,10 +159,11 @@ class ListAdPlacementTest extends TestCase
         $grid = substr($html, $start, strpos($html, '</section>', $start) - $start);
         $adAt = strpos($grid, self::AD_MARK);
 
+        // 1.2.3: the channel page's cards are the member kit's (resources/views/library/card.blade.php)
         return [
-            substr_count($grid, '<article class="col avd-card-col"'),
+            substr_count($grid, '<a class="mk-card"'),
             substr_count($grid, self::AD_MARK),
-            $adAt === false ? null : substr_count(substr($grid, 0, $adAt), '<article class="col avd-card-col"'),
+            $adAt === false ? null : substr_count(substr($grid, 0, $adAt), '<a class="mk-card"'),
         ];
     }
 

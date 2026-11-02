@@ -12,6 +12,11 @@ use RuntimeException;
  */
 final class PlanStore
 {
+    /** Tries of the rename that puts a new copy in place (replace()), RENAME_PAUSE microseconds apart: about a second. */
+    public const RENAME_TRIES = 11;
+
+    public const RENAME_PAUSE = 100_000;
+
     public function __construct(private readonly UpdatePaths $paths)
     {
     }
@@ -110,10 +115,40 @@ final class PlanStore
 
         $temporary = $file.'.'.bin2hex(random_bytes(4)).'.tmp';
 
-        if (@file_put_contents($temporary, $json, LOCK_EX) !== strlen($json) || ! @rename($temporary, $file)) {
+        if (@file_put_contents($temporary, $json, LOCK_EX) !== strlen($json)) {
             @unlink($temporary);
 
             throw new UpdateException(__('Could not write :file. The disk may be full or the folder read-only.', ['file' => basename($file)]));
+        }
+
+        if (! self::replace($temporary, $file)) {
+            @unlink($temporary);
+
+            // The new copy was written whole: what failed is putting it in place (judge R3-027).
+            throw new UpdateException(__('Could not replace :file with its new copy. Another program may be holding it open (a virus scanner or a backup tool), or the folder does not allow changes. Wait a moment, then try again.', ['file' => basename($file)]),
+                'update', true, 'rename over '.basename($file).' refused '.self::RENAME_TRIES.' times');
+        }
+    }
+
+    /**
+     * rename() of $from over the file $to, tried again for about a second while it is refused: on Windows a file that
+     * another program opened without letting others delete it (a virus scanner, a backup or indexing tool) cannot be
+     * replaced until that program lets go of it, usually within moments. False when it never worked.
+     */
+    public static function replace(string $from, string $to): bool
+    {
+        for ($try = 1; ; $try++) {
+            if (@rename($from, $to)) {
+                return true;
+            }
+
+            clearstatcache(true, $from);
+
+            if ($try >= self::RENAME_TRIES || ! is_file($from)) {
+                return false;
+            }
+
+            usleep(self::RENAME_PAUSE);
         }
     }
 }

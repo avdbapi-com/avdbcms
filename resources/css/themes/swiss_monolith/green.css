@@ -51,8 +51,8 @@ html[data-bs-theme="light"][data-avd-flavor="green"] {
   --avd-accent-fill: #1a8842;
   --avd-brand-gradient: linear-gradient(135deg, #1a8842 0%, #0a0a0a 100%);
   --avd-focus: #157a3a;
-  --avd-btn-bg: #1a8842;
-  --avd-play-bg: #1a8842;
+  --avd-btn-bg: #178640;
+  --avd-play-bg: #178640;
   --avd-badge-bg: #1a8842;
   --avd-new-bg: #1a8842;
   --avd-kicker-color: #157a3a;

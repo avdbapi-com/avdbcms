@@ -11,8 +11,11 @@ use App\Support\AdminCache;
 use App\Support\AppVersion;
 use App\Support\DatabaseBackup;
 use App\Support\PendingMigrations;
+use App\Support\StorageHider;
+use App\Support\TimeBudget;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Route;
@@ -33,7 +36,8 @@ use Throwable;
  *              the new built assets moved in, then the maintenance hook (HookWriter) and the swap token
  *   swapping   answered by the hook, without Laravel (MaintenanceHook + SwapEngine)
  *   swapped -> migrating -> done: the next request runs on the new code: PendingMigrations::run() (Finish update),
- *              state.json, the work folder moved to the trash in one rename, the two newest file backups kept
+ *              the texts the release corrected in language files the owner edited (ShippedTexts), state.json, the
+ *              work folder moved to the trash in one rename, the two newest file backups kept
  *
  * Anything that fails before the swap leaves the site as it was; a failed swap puts every file back on its own.
  * Undo (files only, never the database) runs the same swap the other way, from the newest file backup.
@@ -84,6 +88,35 @@ final class Updater
     /** The time limit of Finish: the database step and the clean-up after it, whatever the host's default is. */
     public const FINISH_SECONDS = 300;
 
+    /** A request of Finish stops its work this many seconds before PHP's own time limit would end it (TimeBudget). */
+    public const FINISH_RESERVE = 5.0;
+
+    /** Finish starts the clean-up after the database step (complete()) only with this many seconds left; else the next request does. */
+    public const COMPLETE_SECONDS = 8.0;
+
+    /** Seconds the page waits before it asks again while another request is finishing the update (PendingMigrations' lock). */
+    public const BUSY_RETRY_SECONDS = 10;
+
+    /** The first release whose updater empties its trash itself (Trash, tidy()): an undo back to an older one empties it first. */
+    public const FIRST_RELEASE_WITH_TRASH = '1.2.1';
+
+    /**
+     * Days the built assets of the version before stay in public/build after an update, for pages still cached in
+     * browsers (state.json kept_assets). Then tidy() moves them into the update's file backup (Undo still brings them
+     * back); up to 1.2.3 only the next update deleted them, and 1.2.3 is the last one (judge R3-033).
+     */
+    public const KEPT_ASSETS_DAYS = 14;
+
+    /** The migrations that remove what older releases shipped outside the code folders (removeLeftovers()). */
+    private const LEFTOVER_MIGRATIONS = [
+        '2026_10_27_100000_remove_shipped_schema_dump',
+        '2026_10_27_140000_remove_shipped_docker_files',
+        '2026_10_29_100000_remove_unused_sign_in_and_error_pictures',
+    ];
+
+    /** Tests: the seconds of work of one request of Finish (null: BUDGET). */
+    public static ?float $finishSeconds = null;
+
     /** Step logs of finished updates and undos kept in storage/app/updates/logs. */
     private const KEEP_LOGS = 10;
 
@@ -91,6 +124,9 @@ final class Updater
 
     /** Answers in a row that hand out the update cookie to a browser that never sends it back; then the update goes on. */
     private const COOKIE_TRIES = 3;
+
+    /** One cache entry (a fixed name) holds pendingTexts() with the state of the files it was found for. */
+    private const PENDING_TEXTS_KEY = 'avdbcms.updates.pending-texts';
 
     private readonly UpdatePaths $paths;
 
@@ -244,9 +280,7 @@ final class Updater
                     return $this->answer($plan);
                 }
 
-                return $this->refuse(self::stalled($plan)
-                    ? __('An update to :version stopped :time. Continue it or cancel it first.', ['version' => $plan['version'], 'time' => self::ago((int) $plan['step_at'])])
-                    : self::busyMessage($plan));
+                return $this->refuse(self::stalled($plan) ? self::stalledMessage($plan) : self::busyMessage($plan));
             }
 
             if (($why = $this->blockers()) !== []) {
@@ -306,7 +340,7 @@ final class Updater
             ];
 
             // The cookie of the maintenance page comes now, long before anything can take the site down: if the answer
-            // that does take it down is lost, the administrator still gets the Finish / Undo page (F8 11).
+            // that does take it down is lost, the administrator still gets the Finish / Undo page.
             $this->secrets = ['cookie' => $this->issueCookie($plan)];
             $this->store->put($plan);
             $this->log($plan, 'start', 'AVDBCMS '.$plan['from'].' -> '.$plan['version'].' started by '.$plan['admin_name']
@@ -389,8 +423,14 @@ final class Updater
     /**
      * After the swap (already the new code): the database step, state.json, clean-up. The plan, the work folder and
      * state.json may come from the version before (its steps ran up to the swap): nothing here needs a key that an
-     * older version does not write. A Finish whose request the host killed is simply clicked again: what the first
-     * one did is not done twice (see complete()).
+     * older version does not write.
+     *
+     * One request works at most BUDGET seconds and stops in time before PHP's own limit (TimeBudget: a host may forbid
+     * set_time_limit(), and a web server or proxy may end a request PHP cannot see); what is left (migrations, the
+     * clean-up after them) waits for the next request, which the page sends at once (next: finish). A Finish whose
+     * request the host killed anyway is simply sent again: what the first one did is not done twice (see complete()),
+     * and the lock of the database step does not hold it up (App\Support\FinishLock: the operating system and the
+     * database release it with the ended request, no PHP needs to run for that).
      */
     public function finish(User $admin): array
     {
@@ -416,54 +456,113 @@ final class Updater
                 return $this->answer($plan, ['next' => 'finish', 'retry_after' => $ready - time(), 'label' => __('Waiting for PHP to load the new files...')]);
             }
 
-            // The database step and the clean-up get their time whatever the host's default is (PendingMigrations
-            // raises it only when a migration is pending: a patch release without one kept the default).
+            // The database step and the clean-up get their time whatever the host's default is, where the host lets PHP
+            // raise it; this request's work ends in time either way (the next request goes on).
             self::raiseTimeLimit();
+            TimeBudget::start(self::$finishSeconds ?? self::BUDGET, self::FINISH_RESERVE);
 
-            if (($plan['kind'] ?? 'update') === 'undo') {
-                return $this->staleOpcache($plan, false) ?? $this->finishUndo($plan, $admin);
-            }
+            try {
+                if (($plan['kind'] ?? 'update') === 'undo') {
+                    return $this->staleOpcache($plan, false) ?? $this->finishUndo($plan, $admin);
+                }
 
-            // This request should already run the new version; an old OPcache entry may need a few seconds more.
-            if ($this->version !== $plan['version'] && (int) ($plan['finish_tries'] ?? 0) < 5) {
-                $plan['finish_tries'] = (int) ($plan['finish_tries'] ?? 0) + 1;
+                // This request should already run the new version; an old OPcache entry may need a few seconds more.
+                if ($this->version !== $plan['version'] && (int) ($plan['finish_tries'] ?? 0) < 5) {
+                    $plan['finish_tries'] = (int) ($plan['finish_tries'] ?? 0) + 1;
+                    $this->store->put($plan);
+
+                    return $this->answer($plan, ['next' => 'finish', 'retry_after' => 3, 'label' => __('Waiting for PHP to load the new files...')]);
+                }
+
+                if (($wait = $this->staleOpcache($plan, $this->version !== $plan['version'])) !== null) {
+                    return $wait;
+                }
+
+                $plan['status'] = 'migrating';
+                $plan['step_at'] = time();
+
+                // The database changes of this update, named before the first one runs: however many requests Finish
+                // takes, and also when the host cuts one off, the result counts them all (migrationsRun()).
+                if (! is_array($plan['migrations_before'] ?? null) && ($pending = PendingMigrations::pendingNow()) !== null) {
+                    $plan['migrations_before'] = $pending;
+                    // Counted by an earlier request that kept no such list (a Finish an older version began): they stay.
+                    $plan['migrations_base'] = (int) ($plan['migrations'] ?? 0);
+                }
+
+                $this->store->put($plan);
+                $result = PendingMigrations::run();
+
+                if ($result['busy']) {
+                    // Another request holds the database step: Home's Finish update, or a request the host ended while
+                    // the database still works on its statement (App\Support\FinishLock). Its end frees it. The progress
+                    // counts what the database has recorded: a request that was ended never stored its own count.
+                    $plan['migrations'] = $this->migrationsRun($plan, $result);
+                    $this->store->put($plan);
+
+                    return $this->answer($plan, ['ok' => false, 'next' => 'finish', 'retry_after' => self::BUSY_RETRY_SECONDS, 'message' => $result['message']]);
+                }
+
+                if ($result['took_over'] ?? false) {
+                    $this->log($plan, 'finish', 'the database step goes on where a request the host ended stopped');
+                }
+
+                $plan['migrations'] = $this->migrationsRun($plan, $result);
+
+                if (! $result['ok']) {
+                    $plan['status'] = 'swapped';
+                    $plan['last_error'] = $result['message'];
+                    $this->store->put($plan);
+                    $this->log($plan, 'finish', 'the database step failed: '.$result['message']);
+                    AuditLogController::log('update.failed', 'finish: '.Str::limit($result['message'], 200), (int) $admin->getKey());
+
+                    return $this->answer($plan, ['ok' => false, 'next' => null, 'message' => $result['message']]);
+                }
+
+                unset($plan['last_error']);
+                $plan['step_at'] = time();
                 $this->store->put($plan);
 
-                return $this->answer($plan, ['next' => 'finish', 'retry_after' => 3, 'label' => __('Waiting for PHP to load the new files...')]);
+                // (A request that ran no migration goes on to the clean-up whatever is left: it stops in time by itself.)
+                if ($result['more'] || ($result['ran'] !== [] && TimeBudget::left() < self::COMPLETE_SECONDS)) {
+                    // The other database changes, or the clean-up after them, in the next request (the page asks at once).
+                    $this->log($plan, 'finish', $result['more']
+                        ? self::amount((int) $plan['migrations'], 'database change', 'database changes').' done so far; the next request goes on'
+                        : 'database step done; the clean-up goes on in the next request');
+
+                    return $this->answer($plan, ['next' => 'finish']);
+                }
+
+                $plan = $this->complete($plan, $admin);
+
+                if ($plan['status'] !== 'done') {
+                    // complete() ran out of time: what it did is marked in the plan, the next request does the rest.
+                    return $this->answer($plan, ['next' => 'finish']);
+                }
+
+                return $this->answer($plan, ['next' => 'reload', 'message' => self::label($plan)]);
+            } finally {
+                TimeBudget::clear();
             }
-
-            if (($wait = $this->staleOpcache($plan, $this->version !== $plan['version'])) !== null) {
-                return $wait;
-            }
-
-            $plan['status'] = 'migrating';
-            $plan['step_at'] = time();
-            $this->store->put($plan);
-            $result = PendingMigrations::run();
-
-            if ($result['busy']) {
-                return $this->answer($plan, ['ok' => false, 'next' => 'finish', 'retry_after' => 60, 'message' => $result['message']]);
-            }
-
-            // Counted at once: a Finish clicked again (the first one cut off) finds them run already and adds none.
-            $plan['migrations'] = (int) ($plan['migrations'] ?? 0) + count($result['ran']);
-
-            if (! $result['ok']) {
-                $plan['status'] = 'swapped';
-                $plan['last_error'] = $result['message'];
-                $this->store->put($plan);
-                $this->log($plan, 'finish', 'the database step failed: '.$result['message']);
-                AuditLogController::log('update.failed', 'finish: '.Str::limit($result['message'], 200), (int) $admin->getKey());
-
-                return $this->answer($plan, ['ok' => false, 'next' => null, 'message' => $result['message']]);
-            }
-
-            unset($plan['last_error']);
-            $this->store->put($plan);
-            $plan = $this->complete($plan, $admin);
-
-            return $this->answer($plan, ['next' => 'reload', 'message' => self::label($plan)]);
         });
+    }
+
+    /**
+     * How many database changes this update made: of the migrations pending when its Finish began (migrations_before,
+     * kept in the plan before the first one ran), those that are not pending any more. A request the host cut off loses
+     * nothing: the next one finds its migrations run. A plan without that list (the database could not tell) adds up
+     * what each request ran.
+     *
+     * @param  array{ran: array<int, string>, left: array<int, string>}  $result  PendingMigrations::run()
+     */
+    private function migrationsRun(array $plan, array $result): int
+    {
+        if (! is_array($plan['migrations_before'] ?? null)) {
+            return (int) ($plan['migrations'] ?? 0) + count($result['ran']);
+        }
+
+        $before = array_values(array_filter($plan['migrations_before'], 'is_string'));
+
+        return (int) ($plan['migrations_base'] ?? 0) + count(array_diff($before, $result['left']));
     }
 
     /**
@@ -704,20 +803,20 @@ final class Updater
 
         $all = preg_split('/\R/', trim((string) file_get_contents($file))) ?: [];
 
-        return array_slice($all, -$lines);
+        return array_slice($this->hookLinesInSiteZone($plan, $all), -$lines);
     }
 
     /** What the plan is doing now, in the administrator's words. */
     public static function label(array $plan): string
     {
-        $mb = fn (?int $bytes): string => number_format(($bytes ?? 0) / 1048576, 1);
         $version = (string) ($plan['version'] ?? '');
         $undo = ($plan['kind'] ?? 'update') === 'undo';
 
         return match ($plan['status'] ?? '') {
+            // Sizes as Tools > Backups writes them ("512 KB", "35.3 MB"): never "0.0 MB" for the first slices.
             'checking', 'downloading' => ! empty($plan['download']['total'])
-                ? __('Downloading: :done of :total MB', ['done' => $mb($plan['download']['done'] ?? 0), 'total' => $mb($plan['download']['total'])])
-                : __('Downloading: :done MB', ['done' => $mb($plan['download']['done'] ?? 0)]),
+                ? __('Downloading: :done of :total', ['done' => self::size($plan['download']['done'] ?? 0), 'total' => self::size($plan['download']['total'])])
+                : __('Downloading: :done', ['done' => self::size($plan['download']['done'] ?? 0)]),
             'verifying' => __('Checking the download...'),
             'unpacking' => __('Unpacking: :done of :total files', ['done' => number_format((int) ($plan['unpack']['next'] ?? 0)), 'total' => number_format((int) ($plan['unpack']['total'] ?? 0))]),
             // The answer of the last unpack step says backing-up before the backup has listed its tables.
@@ -802,6 +901,19 @@ final class Updater
         return AppVersion::updateAsset($version);
     }
 
+    /**
+     * "An update to X.Y.Z stopped 40 minutes ago. Continue it or cancel it first." (Tools > Updates, Home, a refused
+     * start): "or cancel it" only while it can still be cancelled, before its files are replaced (judge R3-032).
+     */
+    public static function stalledMessage(array $plan): string
+    {
+        $replace = ['version' => (string) ($plan['version'] ?? ''), 'time' => self::ago((int) ($plan['step_at'] ?? time()))];
+
+        return in_array($plan['status'] ?? null, self::BEFORE_SWAP, true)
+            ? __('An update to :version stopped :time. Continue it or cancel it first.', $replace)
+            : __('An update to :version stopped :time. Continue it first.', $replace);
+    }
+
     /** "An update to X.Y.Z is being installed by :name since :time." */
     public static function busyMessage(array $plan): string
     {
@@ -821,6 +933,11 @@ final class Updater
             'backing-up' => count((array) ($plan['db']['tables'] ?? [])) > 0 ? ['done' => (int) ($plan['db']['table'] ?? 0), 'total' => count((array) $plan['db']['tables'])] : null,
             'preparing' => isset($plan['prepare']['total']) ? ['done' => (int) $plan['prepare']['done'], 'total' => (int) $plan['prepare']['total']] : null,
             'swapping', 'rolling-back' => ['done' => (int) ($plan['swap']['done'] ?? 0), 'total' => (int) ($plan['swap']['total'] ?? 0)],
+            // The database changes of a Finish that takes more than one request (see finish()).
+            'migrating' => is_array($plan['migrations_before'] ?? null) && count($plan['migrations_before']) > 0
+                ? ['done' => min((int) ($plan['migrations'] ?? 0), count($plan['migrations_before']) + (int) ($plan['migrations_base'] ?? 0)),
+                    'total' => count($plan['migrations_before']) + (int) ($plan['migrations_base'] ?? 0)]
+                : null,
             default => null,
         };
     }
@@ -870,7 +987,7 @@ final class Updater
             }
 
             $plan['status'] = 'verifying';
-            $this->log($plan, 'download', 'downloaded '.number_format($slice['total'] / 1048576, 1).' MB');
+            $this->log($plan, 'download', 'downloaded '.self::size($slice['total']));
         }
 
         return $plan;
@@ -938,7 +1055,7 @@ final class Updater
 
         $plan['unpack'] = ['next' => 0, 'total' => count($guard['files']), 'size' => $guard['size']];
         $plan['status'] = 'unpacking';
-        $this->log($plan, 'verify', 'zip checked: '.count($guard['files']).' files ('.number_format($guard['size'] / 1048576, 1).' MB unpacked), '
+        $this->log($plan, 'verify', 'zip checked: '.count($guard['files']).' files ('.self::size($guard['size']).' unpacked), '
             .count($guard['skipped']).' placeholders skipped; requires PHP '.$manifest->requiresPhp.', installs over '.$manifest->minFrom.' or newer');
 
         return $plan;
@@ -984,7 +1101,7 @@ final class Updater
         try {
             if (empty($plan['db'])) {
                 $plan['db'] = $this->database->begin('backup_before_update_'.$plan['version'].'_');
-                $this->log($plan, 'database', 'database backup started: '.$plan['db']['name']);
+                $this->log($plan, 'database', 'database backup started: '.DatabaseBackup::shownName((string) $plan['db']['name']));
                 $this->store->put($plan);
             }
 
@@ -1006,11 +1123,13 @@ final class Updater
         if (! empty($plan['db']['done'])) {
             $file = (string) $plan['db']['file'];
             $size = is_file($file) ? (int) filesize($file) : 0;
-            $plan['database_backup'] = ['name' => $plan['db']['name'], 'size' => $size, 'method' => $plan['db']['method'] ?? 'Pure-PHP'];
-            $plan['db'] = ['done' => true, 'name' => $plan['db']['name'], 'file' => $file];
+            // From here on the update's files (plan.json, backup.json, its log, the audit line) name the backup without
+            // its random part: they outlive the update, and the file's full name must not be readable from them.
+            $plan['database_backup'] = ['name' => DatabaseBackup::shownName((string) $plan['db']['name']), 'size' => $size, 'method' => $plan['db']['method'] ?? 'Pure-PHP'];
+            $plan['db'] = ['done' => true];
             $plan['status'] = 'preparing';
-            $this->log($plan, 'database', 'database backup done: '.$plan['database_backup']['name'].' ('.number_format($size / 1048576, 2).' MB)');
-            AuditLogController::log('update.database_backup', $plan['database_backup']['name'].' ('.number_format($size / 1048576, 2).' MB, '.$plan['database_backup']['method'].')', (int) $admin->getKey());
+            $this->log($plan, 'database', 'database backup done: '.$plan['database_backup']['name'].' ('.self::size($size).')');
+            AuditLogController::log('update.database_backup', $plan['database_backup']['name'].' ('.self::size($size).', '.$plan['database_backup']['method'].')', (int) $admin->getKey());
         }
 
         return $plan;
@@ -1147,9 +1266,10 @@ final class Updater
         $plan['backup_id'] = $backupId;
         $plan['report'] = $result['report'];
         $jobFile = $this->writeJob($plan, $result['ops'], $job, $folder);
-        $this->log($plan, 'prepare', sprintf('%d files to replace, %d to add, %d to remove, %d unchanged; %d kept with a copy next to them, %d translations merged, %d changed files replaced',
+        $this->log($plan, 'prepare', sprintf('%d files to replace, %d to add, %d to remove, %d unchanged; %d kept with a copy next to them, %s, %s',
             $result['report']['replaced'], $result['report']['added'], $result['report']['removed'], $result['report']['unchanged'],
-            count($result['report']['kept']), count($result['report']['merged']), count($result['report']['overwritten'])));
+            count($result['report']['kept']), self::amount(count($result['report']['merged']), 'language file merged', 'language files merged'),
+            self::amount(count($result['report']['overwritten']), 'changed file replaced', 'changed files replaced')));
 
         // 4. Last checks before anything live changes (the folders the moves need are made here, see writeProblem()).
         if (($why = $this->preCheck()) !== null || ($why = $this->writeProblem($result['ops'], [$job, $folder], $folder)) !== null) {
@@ -1205,21 +1325,37 @@ final class Updater
             throw new UpdateException(__('There is no update to undo: its backup is gone or a newer version is installed.'), 'prepare', false);
         }
 
-        // The update's work files still in the trash go first, a slice per step: after the swap the older version
-        // runs, and one before 1.2.1 knows nothing of the trash (it would stay on the disk). Another clean-up may hold
-        // the trash (the page's own slice still running when Undo was clicked, the scheduler's updates:tidy): it deletes
-        // the same files, so this step waits for it within its slice, and when it held the trash for the whole slice
-        // the page waits a moment too before it asks again (never steps back to back, each rewriting plan.json). A
-        // slice that could not delete anything (a file nobody may delete) does not hold the undo up.
-        if ($this->trash->pending()) {
+        // The old file cache the update to 1.2.3 renamed (storage/framework/cache/stale-<16 hex>, App\Support\StorageHider)
+        // goes into the trash first, one rename per folder: no release before 1.2.3 looks for it where it is now.
+        $this->sweepStaleCache(microtime(true));
+
+        // After the swap the older version runs. One before 1.2.1 knows nothing of the trash, so it is emptied first, a
+        // slice per step (it would stay on the disk); 1.2.1 and later empty it themselves (their Tools > Updates and the
+        // scheduler's updates:tidy delete whatever it holds), so the undo does not wait for it: right after an update it
+        // may hold the tens of thousands of expired entries of the old file cache, minutes of deleting on a slow disk.
+        // Another clean-up may hold the trash (the page's own slice still running when Undo was clicked, the scheduler's
+        // updates:tidy): it deletes the same files, so this step waits for it within its slice, and when it held the
+        // trash for the whole slice the page waits a moment too before it asks again (never steps back to back, each
+        // rewriting plan.json). A slice that could not delete anything (a file nobody may delete) does not hold the undo
+        // up. The bar shows how much is deleted, where the trash could be counted in a few seconds.
+        if (self::knowsNoTrash((string) ($backup['from'] ?? '')) && $this->trash->pending()) {
+            $plan['purge'] ??= ['done' => 0, 'total' => $this->trash->count(min(self::TIDY_SECONDS, max(0.5, $deadline - microtime(true))))];
             $purge = $this->purgeTrash(min(self::TIDY_SECONDS, max(0.5, $deadline - microtime(true))));
+            $plan['purge']['done'] = (int) ($plan['purge']['done'] ?? 0) + $purge['deleted'];
 
             if ($purge['pending'] && ($purge['deleted'] > 0 || $purge['busy'])) {
                 $this->retryAfter = $purge['busy'] ? self::TRASH_RETRY_SECONDS : 0;
+                $total = $plan['purge']['total'] ?? null;
+
+                if (is_int($total) && $total > 0) {
+                    $plan['prepare'] = ['done' => min((int) $plan['purge']['done'], $total), 'total' => $total];
+                }
 
                 return $plan;
             }
         }
+
+        unset($plan['purge']);
 
         // A plan made before (an earlier try, or a swap whose token ran out before it began): nothing of an undo moves
         // before the site goes down, but whatever a journal says moved goes back first.
@@ -1232,8 +1368,10 @@ final class Updater
         }
 
         $folder = $this->paths->backups($backup['id']);
+        // database/install/example.sql is a place updates never write, but Finish's install-data step replaced it (and
+        // kept the copy from before in this backup, FinishFiles): it goes back too.
         $entries = array_values(array_filter((array) ($backup['entries'] ?? []), fn (mixed $entry): bool => is_array($entry)
-            && is_string($entry['path'] ?? null) && (Manifest::safePath($entry['path']) || $entry['path'] === Manifest::FILE)));
+            && is_string($entry['path'] ?? null) && self::backedUpPath($entry['path'])));
         $live = (array) (PlanStore::read($job.'/live.json') ?? []);
         $hashed = 0;
 
@@ -1280,6 +1418,11 @@ final class Updater
             $new = $entry['new'] ?? null;
             $group = $path === Manifest::FILE ? 'last' : (in_array($path, SwapPlanner::ENTRY_POINTS, true) ? 'entry' : (str_starts_with($path, 'vendor/') ? 'vendor' : 'main'));
 
+            if ($new === null && $now !== null && $now === ($entry['was'] ?? null)) {
+                // Finish was to delete the swap's copy and that did not happen (FinishFiles): still the update's file.
+                $new = $now;
+            }
+
             if ($now === $old) {
                 // Back as it was already (an added file that is gone, a file that has its old content).
                 continue;
@@ -1311,7 +1454,6 @@ final class Updater
 
         $plan['report'] = ['restored' => $restored, 'removed' => $removed, 'kept' => $kept];
         $jobFile = $this->writeJob($plan, $ops, $folder, $job.'/displaced');
-        $this->log($plan, 'undo', $restored.' files back, '.$removed.' removed, '.count($kept).' left alone (changed after the update)');
 
         // 3. Last checks, then the hook. A failure here starts the comparison again at the next try.
         try {
@@ -1319,12 +1461,39 @@ final class Updater
                 throw new UpdateException($why, 'prepare', true);
             }
 
+            // The plan goes to the step log once the checks let it go ahead, and as a plan: nothing has moved yet (a
+            // refused undo put nothing back, and its next try plans again; R1B-019).
+            $this->log($plan, 'undo', self::amount($restored, 'file', 'files').' to put back, '.$removed.' to remove, '.count($kept).' left alone (changed after the update)');
+
+            // A release up to 1.2.2 reads invoice PDFs from invoices/<Y-m>/ and caches settings in the old folders:
+            // those are put right before its files come back (App\Support\StorageHider).
+            $this->prepareStorageForOlderRelease($plan, (string) $backup['from']);
+
             return $this->goDown($plan, count($ops), $jobFile);
         } catch (Throwable $e) {
             @unlink($job.'/live.json');
 
             throw $e instanceof UpdateException ? $e : new UpdateException(__('The update could not prepare its maintenance page. Nothing on your site was changed.'), 'prepare', true, $e->getMessage(), $e);
         }
+    }
+
+    /**
+     * A path a line of an update backup may name: one a manifest may name, the manifest itself, and the starter data of
+     * new installs (Finish replaces it outside the swap, FinishFiles keeps the copy from before).
+     */
+    private static function backedUpPath(string $path): bool
+    {
+        return Manifest::safePath($path) || $path === Manifest::FILE || $path === InstallData::PATH;
+    }
+
+    /**
+     * Does release $version know nothing of the trash (storage/app/updates/.trash, emptied by its Tools > Updates and the
+     * scheduler's updates:tidy)? 1.2.0 and older; a version that cannot be read counts as one of them (the trash is then
+     * emptied before an undo swaps the files back, as before 1.2.3).
+     */
+    private static function knowsNoTrash(string $version): bool
+    {
+        return ! AppVersion::isVersion($version) || version_compare($version, self::FIRST_RELEASE_WITH_TRASH, '<');
     }
 
     /**
@@ -1488,10 +1657,12 @@ final class Updater
     }
 
     /**
-     * The update is in: state.json, the backup marked complete with its journal and log, the admin-log rows, the work
-     * folder to the trash (one rename: its unpacked files and the zip are deleted later, in slices), the plan done.
-     * Nothing here takes long, and a Finish clicked again after the host cut this one off goes on where it stopped:
-     * each part is done once (finish_steps in the plan), the admin-log rows above all (auditOnce()).
+     * The update is in: the texts the release corrected in language files the owner edited, the starter data of new
+     * installs (refreshInstallData()), state.json, the backup marked complete with its journal and log, the admin-log
+     * rows, the work folder to the trash (one rename: its unpacked files and the zip are deleted later, in slices), the
+     * plan done. Nothing here takes long; the texts stop at the request's deadline (the plan stays "migrating" and the
+     * next request of Finish goes on with them), and a Finish clicked again after the host cut this one off goes on where
+     * it stopped: each part is done once (finish_steps in the plan), the admin-log rows above all (auditOnce()).
      */
     private function complete(array $plan, User $admin): array
     {
@@ -1501,6 +1672,56 @@ final class Updater
         $this->check->forget();
         StatusProbeController::forget('updates');
 
+        // A swap prepared by AVDBCMS 1.2.0: its maintenance hook wrote its lines of the step log in PHP's own time zone
+        // (it ran before Laravel; 1.2.1 and later hand it the site's zone). logLines() shows them in the site's zone.
+        if (! isset($plan['hook_zone']) && self::hookWithoutZone($plan)) {
+            $plan['hook_zone'] = self::phpZone();
+        }
+
+        // Before the backup is marked complete: Undo then puts the owner's language files back as they were before the
+        // update, and the backup's size counts the copies it keeps of them.
+        if (! in_array('texts', (array) ($plan['finish_steps'] ?? []), true)) {
+            $finished = true;
+
+            try {
+                $plan = $this->correctTexts($plan, ! empty($plan['backup_id']) ? $folder : null, $finished);
+            } catch (Throwable $e) {
+                // Never in the way of Finish: the update is in either way. What was done is in the stored plan.
+                self::reportSafely($e);
+                $plan = $this->store->get() ?? $plan;
+            }
+
+            if (! $finished) {
+                // The request's deadline came first: the other language files in the next request.
+                $this->store->put($plan);
+
+                return $plan;
+            }
+
+            $plan['finish_steps'] = [...(array) ($plan['finish_steps'] ?? []), 'texts'];
+            $this->store->put($plan);
+        }
+
+        // While the update's zip is still in the work folder (retireJob() below takes it away).
+        if (! in_array('install data', (array) ($plan['finish_steps'] ?? []), true)) {
+            try {
+                $plan = $this->refreshInstallData($plan);
+            } catch (Throwable $e) {
+                self::reportSafely($e);
+            }
+
+            $plan['finish_steps'] = [...(array) ($plan['finish_steps'] ?? []), 'install data'];
+            $this->store->put($plan);
+        }
+
+        // Before the backup is marked complete, like the texts: what older releases shipped outside the code folders and
+        // this one no longer has goes again (removeLeftovers()).
+        if (! in_array('leftovers', (array) ($plan['finish_steps'] ?? []), true)) {
+            $this->removeLeftovers($plan);
+            $plan['finish_steps'] = [...(array) ($plan['finish_steps'] ?? []), 'leftovers'];
+            $this->store->put($plan);
+        }
+
         if (! in_array('recorded', (array) ($plan['finish_steps'] ?? []), true)) {
             $this->store->putState([
                 'installed_version' => $plan['version'],
@@ -1508,13 +1729,14 @@ final class Updater
                 'updated_at' => time(),
                 'backup_id' => $plan['backup_id'],
                 'admin_id' => (int) $admin->getKey(),
-                // Built assets of the version before, left for pages still cached in browsers: the next update deletes them.
+                // Built assets of the version before, left for pages still cached in browsers: the next update deletes them,
+                // or the tidy-up KEPT_ASSETS_DAYS days after this one moves them into this update's file backup.
                 'kept_assets' => array_values((array) ($plan['kept_assets'] ?? [])),
                 'kind' => 'update',
             ]);
 
             $backup = (array) (PlanStore::read($folder.'/backup.json') ?? []);
-            $this->log($plan, 'finish', 'database step done ('.$migrations.' migrations); AVDBCMS '.$plan['version'].' is installed');
+            $this->log($plan, 'finish', 'database step done ('.self::amount($migrations, 'migration', 'migrations').'); AVDBCMS '.$plan['version'].' is installed');
 
             foreach (['journal.jsonl', 'update.log'] as $name) {
                 if (is_file($job.'/'.$name)) {
@@ -1535,16 +1757,34 @@ final class Updater
 
         $report = (array) ($plan['report'] ?? []);
         $settle = (array) ($plan['settle'] ?? []);
+        $merged = count((array) ($report['merged'] ?? []));
         $this->auditOnce($plan, $admin, [
-            'update.files' => sprintf('%d replaced, %d added, %d removed (zip engine %s, OPcache %s)',
-                (int) ($report['replaced'] ?? 0) + count((array) ($report['merged'] ?? [])), (int) ($report['added'] ?? 0), (int) ($report['removed'] ?? 0),
+            // The counts of the result on Tools > Updates ("Files replaced: ... Added: ... Removed: ..."), and the
+            // language files merged with the owner's texts on their own, as the result lists them.
+            'update.files' => sprintf('%d replaced, %d added, %d removed%s (zip engine %s, OPcache %s)',
+                (int) ($report['replaced'] ?? 0), (int) ($report['added'] ?? 0), (int) ($report['removed'] ?? 0),
+                $merged > 0 ? ', '.self::amount($merged, 'language file merged', 'language files merged') : '',
                 $plan['engine'] ?? '?', $settle['opcache'] ?? '?'),
-            'update.finished' => $plan['from'].' -> '.$plan['version'].' ('.$migrations.' database changes)',
+            // One row per language file with corrected or kept texts (Tools > Logs > Admin actions shows each in full).
+            ...self::textRows((array) ($plan['texts'] ?? [])),
+            'update.finished' => $plan['from'].' -> '.$plan['version'].' ('.self::amount($migrations, 'database change', 'database changes').')',
         ]);
 
         $this->retireJob($plan);
         $this->pruneBackups((string) $plan['backup_id']);
         self::refreshCaches();
+
+        // Files an older release wrote under storage/ (after an Undo, say) get names nobody can guess, as the migration
+        // did for the first update (App\Support\StorageHider: best effort, never in the way of Finish). Only for this
+        // site's own storage/ (the updater's tests run on a site folder of their own).
+        try {
+            if (realpath($this->paths->storage) !== false && realpath($this->paths->storage) === realpath(storage_path())) {
+                StorageHider::run();
+            }
+        } catch (Throwable $e) {
+            self::reportSafely($e);
+        }
+
         $plan['status'] = 'done';
         $plan['finished_at'] = time();
         unset($plan['swap']);
@@ -1606,9 +1846,10 @@ final class Updater
     /**
      * Admin-log rows of Finish, each written once per plan. Each is marked in the plan as soon as it is written; a
      * Finish clicked again after the host cut the first one off between a row and its mark (audit_begun is set, the
-     * mark is not) looks for the row in the admin log first.
+     * mark is not) looks for the row in the admin log first. A key "action#name" writes a row of that action (several
+     * rows of one action, e.g. update.texts#de and update.texts#fr, are marked one by one).
      *
-     * @param  array<string, string>  $rows  action => details
+     * @param  array<string, string>  $rows  action (or action#name) => details
      */
     private function auditOnce(array &$plan, User $admin, array $rows): void
     {
@@ -1622,19 +1863,544 @@ final class Updater
         $plan['audit_begun'] = true;
         $this->store->put($plan);
 
-        foreach ($rows as $action => $details) {
-            if (in_array($action, $written, true)) {
+        foreach ($rows as $key => $details) {
+            $key = (string) $key;
+
+            if (in_array($key, $written, true)) {
                 continue;
             }
+
+            $action = explode('#', $key, 2)[0];
 
             if (! $retry || ! self::audited($action, $details, (int) ($plan['started_at'] ?? 0))) {
                 AuditLogController::log($action, $details, (int) $admin->getKey());
             }
 
-            $written[] = $action;
+            $written[] = $key;
             $plan['audit_rows'] = $written;
             $this->store->put($plan);
         }
+    }
+
+    /**
+     * Finish of an update: the texts this release corrected (ShippedTexts) in every language file of the site. A file
+     * the owner edited kept all its texts through the update (the version before merged it: the owner's text wins), so
+     * a text that is still exactly as an older release shipped it gets this release's text now; the owner's own texts
+     * and keys stay. plan.texts says per language what was corrected and kept (the result and the admin log show it).
+     *
+     * Each file once, and Undo stays exact: before a file changes, the update backup holds the owner's copy from before
+     * the update (a file the swap merged is there already; one it left alone is copied in), and after it changed,
+     * backup.json says what it is now. A Finish the host cut off goes on where it stopped (a file it wrote is not
+     * counted twice). A file that cannot be read, kept in the backup or written stays exactly as it is.
+     *
+     * With the request's deadline near (TimeBudget), the files not looked at yet wait for the next request of Finish
+     * ($finished false): each one is about a megabyte to read, compare and write, eighteen of them on a slow disk.
+     *
+     * @param  ?string  $folder  the update's file backup (null: none)
+     */
+    private function correctTexts(array $plan, ?string $folder, bool &$finished = true): array
+    {
+        $finished = true;
+        [$texts, $shipped, $removed] = $this->shippedTexts();
+
+        if ($texts === [] && $removed === []) {
+            return $plan;
+        }
+
+        $looked = 0;
+
+        foreach (ShippedTexts::files($this->paths->root) as $locale => $file) {
+            $entry = $plan['texts'][$locale] ?? null;
+
+            // A file exactly as this version shipped it has every text right (unless a cut-off Finish wrote it). One the
+            // data file has no texts for may still have keys this version removed.
+            if ((! isset($texts[$locale]) && $removed === []) || (is_array($entry) && empty($entry['writing']))
+                || (! is_array($entry) && ! ShippedTexts::edited($this->paths->root, $locale, $shipped))) {
+                continue;
+            }
+
+            if ($looked++ > 0 && TimeBudget::left() < 2.0) {
+                $finished = false;
+
+                break;
+            }
+
+            $path = 'lang/'.$locale.'.json';
+            $result = ShippedTexts::correctFile($file, $texts[$locale] ?? [], $removed);
+
+            if ($result === null) {
+                continue;
+            }
+
+            $now = hash('sha256', $result['before']);
+
+            try {
+                // Written by a Finish the host cut off before the plan could say so: its counts, the backup told.
+                if (is_array($entry) && ($entry['to'] ?? null) === $now && is_string($entry['from'] ?? null)) {
+                    $this->recordText($folder, $path, $entry['from'], $now);
+                    $plan['texts'][$locale] = ['updated' => (int) ($entry['updated'] ?? 0), 'kept' => (int) ($entry['kept'] ?? 0), 'removed' => (int) ($entry['removed'] ?? 0)];
+                    $this->store->put($plan);
+
+                    continue;
+                }
+
+                if ($result['text'] === null) {
+                    // Nothing to correct: only the owner's own texts of texts this release changed, if any. (A file
+                    // with neither is marked done too, so a next request of Finish does not look at it again; the
+                    // marks with nothing to say go when every file is done.)
+                    $plan['texts'][$locale] = ['updated' => 0, 'kept' => $result['kept']];
+
+                    continue;
+                }
+
+                if (! $this->backUpText($folder, $path, $result['before'])) {
+                    $this->log($plan, 'finish', $path.': its texts were not corrected (the update backup could not keep a copy of it first)');
+                    $plan['texts'][$locale] = ['updated' => 0, 'kept' => $result['kept'], 'failed' => true];
+
+                    continue;
+                }
+
+                $to = hash('sha256', $result['text']);
+                $plan['texts'][$locale] = ['updated' => $result['updated'], 'kept' => $result['kept'], 'removed' => $result['removed'], 'writing' => true, 'from' => $now, 'to' => $to];
+                $this->store->put($plan);
+
+                if (! ShippedTexts::write($file, $result['text'])) {
+                    $this->log($plan, 'finish', $path.': its texts were not corrected (the file could not be written)');
+                    $plan['texts'][$locale] = ['updated' => 0, 'kept' => $result['kept'], 'failed' => true];
+                    $this->store->put($plan);
+
+                    continue;
+                }
+
+                $this->recordText($folder, $path, $now, $to);
+                $plan['texts'][$locale] = ['updated' => $result['updated'], 'kept' => $result['kept'], 'removed' => $result['removed']];
+                $this->store->put($plan);
+                // What the counts are (judge R3-028): kept = the owner's own wording of texts this version corrects.
+                $this->log($plan, 'finish', $path.': '.implode(', ', array_filter([
+                    self::amount($result['updated'], 'text', 'texts').' corrected to the wording of '.$plan['version'],
+                    $result['kept'] > 0 ? "the owner's own wording kept for ".self::amount($result['kept'], 'text', 'texts').' it corrects' : null,
+                    $result['removed'] > 0 ? self::amount($result['removed'], 'text', 'texts').' it no longer uses removed' : null,
+                ])));
+            } catch (Throwable $e) {
+                // The plan or the backup could not be written (a full disk): this file stays as it is; Finish goes on.
+                self::reportSafely($e);
+                $plan['texts'][$locale] = ['updated' => 0, 'kept' => $result['kept'], 'failed' => true];
+            }
+        }
+
+        if ($finished && isset($plan['texts']) && is_array($plan['texts'])) {
+            $plan['texts'] = array_filter($plan['texts'], fn (mixed $entry): bool => ! is_array($entry)
+                || ! empty($entry['writing']) || ! empty($entry['failed']) || (int) ($entry['updated'] ?? 0) > 0 || (int) ($entry['kept'] ?? 0) > 0
+                || (int) ($entry['removed'] ?? 0) > 0);
+        }
+
+        if (isset($plan['texts']) && $plan['texts'] === []) {
+            unset($plan['texts']);
+        }
+
+        return $plan;
+    }
+
+    /**
+     * The starter data of new installs (database/install/example.sql), which an update never moves: a site that still
+     * has exactly a copy an earlier release shipped gets this release's copy from the update's zip (InstallData). A new
+     * install made from this folder later then starts with this release's data (not, say, the Upload18 key of 1.2.0 to
+     * 1.2.2, which no longer works). A copy the owner changed stays. Once per update (finish_steps), best effort, in the
+     * site folder of this updater, and only while the plan's zip is in its work folder.
+     */
+    private function refreshInstallData(array $plan): array
+    {
+        if (($plan['kind'] ?? 'update') !== 'update' || ($plan['job'] ?? '') === '') {
+            return $plan;
+        }
+
+        try {
+            $zip = $this->paths->job((string) $plan['job']).'/'.self::zipName($plan);
+        } catch (UpdateException) {
+            return $plan;
+        }
+
+        // The copy it replaces goes into the update's file backup first: Undo brings it back (judge R3-029). Without the
+        // backup (deleted meanwhile) there is no Undo to keep exact; a backup.json that cannot be read now (another
+        // program holding it) leaves the file as it is.
+        $backup = ! empty($plan['backup_id']) ? FinishFiles::backupOrBusy($this->paths, (string) $plan['backup_id']) : null;
+        $outcome = $backup === false ? 'failed' : InstallData::refresh($this->paths->root, $zip, $backup);
+
+        if ($outcome === 'replaced') {
+            $this->log($plan, 'finish', InstallData::PATH.': the starter data of new installs is now the copy of '.$plan['version'].' (it was exactly the copy of an earlier release)');
+        } elseif ($outcome === 'failed') {
+            $this->log($plan, 'finish', InstallData::PATH.' could not be replaced with the copy of '.$plan['version'].'; it stays as it was');
+        }
+
+        $plan['install_data'] = $outcome;
+
+        return $plan;
+    }
+
+    /**
+     * What 1.2.0 to 1.2.2 shipped outside the code folders and this version no longer has (the old database dump, the
+     * development Docker files, the unused sign-in and error pictures) goes in every one-click Finish, each only while it
+     * is exactly as a release shipped it, into this update's file backup (FinishFiles: Undo brings it back). Their
+     * migrations remove them at the first update (and after an upload by hand), but "Undo this update" puts them back,
+     * and an update made again runs no migration twice: here they go again. A site that has none: nothing happens.
+     * Best effort, never in the way of Finish.
+     */
+    private function removeLeftovers(array $plan): void
+    {
+        foreach (self::LEFTOVER_MIGRATIONS as $name) {
+            $file = base_path('database/migrations/'.$name.'.php');
+
+            if (! is_file($file)) {
+                continue;
+            }
+
+            try {
+                $migration = require $file;
+
+                if (is_object($migration) && method_exists($migration, 'clean') && $migration->clean($this->paths->root)) {
+                    $this->log($plan, 'finish', $name.': removed again (an undo of an earlier update had put it back)');
+                }
+            } catch (Throwable $e) {
+                self::reportSafely($e);
+            }
+        }
+    }
+
+    /** Was the swap of this plan run by a maintenance hook of AVDBCMS 1.2.0, which knew no time zone of the site? */
+    private static function hookWithoutZone(array $plan): bool
+    {
+        return ($plan['kind'] ?? 'update') === 'update' && ($plan['from'] ?? null) === '1.2.0';
+    }
+
+    /** PHP's own time zone (php.ini's date.timezone; else UTC): the one a script without Laravel writes its times in. */
+    private static function phpZone(): string
+    {
+        $zone = trim((string) ini_get('date.timezone'));
+
+        try {
+            return $zone !== '' ? (new \DateTimeZone($zone))->getName() : 'UTC';
+        } catch (Throwable) {
+            return 'UTC';
+        }
+    }
+
+    /**
+     * The lines the maintenance hook of a swap prepared by AVDBCMS 1.2.0 wrote (step "swap": the hook's and the swap
+     * engine's own lines) carry the time of PHP's own zone, while every other line has the site's: shown in the site's
+     * zone too, so the log reads in order. Laravel's own "swap" lines (the site going down, a hook written again) stay.
+     *
+     * @param  list<string>  $lines
+     * @return list<string>
+     */
+    private function hookLinesInSiteZone(array $plan, array $lines): array
+    {
+        $from = is_string($plan['hook_zone'] ?? null) ? $plan['hook_zone'] : (self::hookWithoutZone($plan) ? self::phpZone() : null);
+        $to = self::timezone();
+
+        if ($from === null || $from === $to) {
+            return $lines;
+        }
+
+        try {
+            $fromZone = new \DateTimeZone($from);
+            $toZone = new \DateTimeZone($to);
+        } catch (Throwable) {
+            return $lines;
+        }
+
+        foreach ($lines as $i => $line) {
+            if (preg_match('/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\tswap\t(.*)\z/s', $line, $m) !== 1 || self::laravelSwapLine($m[2])) {
+                continue;
+            }
+
+            $time = \DateTimeImmutable::createFromFormat('!Y-m-d H:i:s', $m[1], $fromZone);
+
+            if ($time !== false) {
+                $lines[$i] = $time->setTimezone($toZone)->format('Y-m-d H:i:s')."\tswap\t".$m[2];
+            }
+        }
+
+        return $lines;
+    }
+
+    /** A "swap" line Laravel's side of the updater writes (in the site's zone), not the maintenance hook. */
+    private static function laravelSwapLine(string $message): bool
+    {
+        return str_starts_with($message, 'the site is in maintenance while ')
+            || str_starts_with($message, 'the maintenance hook was gone in the middle of the swap')
+            || preg_match('/^all \d+ moves had ended, but the maintenance hook could not save that/', $message) === 1;
+    }
+
+    /**
+     * The data file of this version (made for this version: see ShippedTexts::load()) and the SHA-256 of every file this
+     * version shipped (the installed avdbcms-manifest.json), and the keys older releases shipped that this version no
+     * longer has (ShippedTexts::loadRemoved()). Nothing to correct ([] texts, [] removed) when either is missing: a
+     * working copy has no installed manifest, so its own language files are never touched.
+     *
+     * @return array{0: array<string, array<string, array{new: string, old: list<string>}>>, 1: array<string, string>, 2: array<string, list<string>>}
+     */
+    private function shippedTexts(): array
+    {
+        $manifest = Manifest::installed($this->paths->manifest());
+        $texts = $manifest !== null && $manifest->version === $this->version
+            ? ShippedTexts::load($this->paths->root(ShippedTexts::PATH), $this->version)
+            : null;
+
+        if ($texts === null) {
+            return [[], [], []];
+        }
+
+        // The keys older releases shipped that this version no longer has (judge R3-026), from the same data file.
+        $removed = ShippedTexts::loadRemoved($this->paths->root(ShippedTexts::PATH), $this->version);
+
+        return $texts === [] && $removed === [] ? [[], [], []] : [$texts, $manifest->files, $removed];
+    }
+
+    /**
+     * The texts this version corrected, in every language file of the site the owner changed, after an upload by hand:
+     * Home's Finish update and "Correct the texts" on Tools > Updates (UpdateController::finish()), and
+     * `php artisan updates:texts` (no admin: $admin null). ShippedTexts::refresh(); no update backup (the owner's backup
+     * of the site is step 1 of the way by hand). Under the update lock: never while a one-click update or undo runs (its
+     * own Finish does this) or another correction is at it. One admin-log row per language with corrected texts.
+     *
+     * state: 'done' (files: the languages with something to say, empty when nothing needed a correction), 'none' (no
+     * data file of this version, or not an installed site: nothing is touched, not even the lock), 'busy' (the update
+     * lock is taken: nothing was read; try again in a minute) or 'running' (a one-click update or undo runs: its own
+     * Finish does the texts).
+     *
+     * @return array{state: 'done'|'none'|'busy'|'running', files: array<string, array{updated: int, kept: int, written: bool}>}
+     */
+    public function correctLanguageFiles(?User $admin = null): array
+    {
+        if ($this->shippedTexts() === [[], [], []]) {
+            return ['state' => 'none', 'files' => []];
+        }
+
+        // A one-click update or undo (whose step may hold the lock right now) is told apart from a lock that is taken.
+        if (self::active($this->store->get())) {
+            return ['state' => 'running', 'files' => []];
+        }
+
+        try {
+            $lock = $this->store->lock();
+        } catch (Throwable $e) {
+            // This server cannot lock the update folder (see PlanStore::lock()): never without the lock.
+            self::reportSafely($e);
+            $lock = null;
+        }
+
+        if ($lock === null) {
+            return ['state' => 'busy', 'files' => []];
+        }
+
+        try {
+            if (self::active($this->store->get())) {
+                return ['state' => 'running', 'files' => []];
+            }
+
+            // Read again under the lock: an update that finished meanwhile brought other files.
+            [$texts, $shipped, $removed] = $this->shippedTexts();
+
+            if ($texts === [] && $removed === []) {
+                return ['state' => 'none', 'files' => []];
+            }
+
+            $report = ShippedTexts::refresh($this->paths->root, $texts, $shipped, $removed);
+            $rows = self::textRows(array_map(fn (array $entry): array => [
+                'updated' => $entry['updated'],
+                'kept' => $entry['kept'],
+                'removed' => $entry['removed'] ?? 0,
+                'failed' => ! $entry['written'],
+            ], array_filter($report, fn (array $entry): bool => $entry['updated'] > 0 || ($entry['removed'] ?? 0) > 0 || ! $entry['written'])));
+
+            foreach ($rows as $key => $details) {
+                AuditLogController::log(explode('#', $key, 2)[0], $details, $admin !== null ? (int) $admin->getKey() : null);
+            }
+
+            return ['state' => 'done', 'files' => $report];
+        } catch (Throwable $e) {
+            self::reportSafely($e);
+
+            return ['state' => 'busy', 'files' => []];
+        } finally {
+            $this->store->unlock($lock);
+        }
+    }
+
+    /**
+     * Language files the owner changed that still have texts exactly as an older version shipped them, which this
+     * version corrected: locale => how many (Tools > Updates then offers "Correct the texts", the way Finish update does
+     * them after an upload by hand). Empty when nothing waits, when the data file is not this version's or this is not an
+     * installed site, and while a one-click update or undo runs (its own Finish corrects them).
+     *
+     * The answer is kept in one cache entry together with the size and time of every language file, the data file and
+     * the manifest: a page that asks again reads a few file times only, and any change of those files asks anew.
+     *
+     * @return array<string, int>
+     */
+    public function pendingTexts(): array
+    {
+        try {
+            if (self::active($this->store->get())) {
+                return [];
+            }
+
+            $files = ShippedTexts::files($this->paths->root);
+            $stamp = [$this->version];
+
+            clearstatcache();
+
+            foreach ([...array_values($files), $this->paths->root(ShippedTexts::PATH), $this->paths->manifest()] as $file) {
+                $stamp[] = $file.'|'.(int) @filesize($file).'|'.(int) @filemtime($file);
+            }
+
+            $stamp = hash('sha256', implode("\n", $stamp));
+
+            try {
+                $kept = Cache::get(self::PENDING_TEXTS_KEY);
+            } catch (Throwable) {
+                $kept = null;
+            }
+
+            if (is_array($kept) && ($kept['stamp'] ?? null) === $stamp && is_array($kept['texts'] ?? null)) {
+                return array_map('intval', $kept['texts']);
+            }
+
+            [$texts, $shipped, $removed] = $this->shippedTexts();
+            $pending = [];
+
+            foreach ($files as $locale => $file) {
+                // Also the keys this version no longer has, still with a text a release shipped (judge R3-026).
+                if ((isset($texts[$locale]) || $removed !== []) && ShippedTexts::edited($this->paths->root, $locale, $shipped)
+                    && ($count = ShippedTexts::pending($file, $texts[$locale] ?? [], $removed)) !== null && $count > 0) {
+                    $pending[$locale] = $count;
+                }
+            }
+
+            try {
+                Cache::put(self::PENDING_TEXTS_KEY, ['stamp' => $stamp, 'texts' => $pending], 86400);
+            } catch (Throwable) {
+                // No cache: the next page looks again.
+            }
+
+            return $pending;
+        } catch (Throwable $e) {
+            self::reportSafely($e);
+
+            return [];
+        }
+    }
+
+    /**
+     * The owner's language file in the update backup, before Finish corrects it: a file the swap merged is there
+     * already (its copy from before the update, with its backup.json entry); one the swap left alone is copied in now,
+     * with an entry that says it has not changed yet (Undo leaves such a file alone until recordText() says otherwise).
+     * True when the backup holds it (or the update has no backup); false when it cannot (the file is then not changed).
+     */
+    private function backUpText(?string $folder, string $path, string $before): bool
+    {
+        if ($folder === null || ! is_file($folder.'/backup.json')) {
+            // No file backup (it was deleted): there is no Undo to keep exact.
+            return true;
+        }
+
+        $backup = PlanStore::read($folder.'/backup.json');
+
+        if ($backup === null || ! is_array($backup['entries'] ?? null)) {
+            return false;
+        }
+
+        foreach ($backup['entries'] as $entry) {
+            if (is_array($entry) && ($entry['path'] ?? null) === $path) {
+                return true;
+            }
+        }
+
+        $copy = $folder.'/files/'.$path;
+        File::ensureDirectoryExists(dirname($copy), 0755);
+
+        if (@file_put_contents($copy, $before) !== strlen($before)) {
+            @unlink($copy);
+
+            return false;
+        }
+
+        $hash = hash('sha256', $before);
+        $backup['entries'][] = ['path' => $path, 'action' => 'merged', 'old' => $hash, 'new' => $hash];
+        PlanStore::write($folder.'/backup.json', $backup);
+
+        return true;
+    }
+
+    /**
+     * backup.json says what the language file is now ($to), so Undo puts the owner's copy back over exactly this. Only
+     * an entry that said what the file was right before the correction ($from) moves on: a file somebody changed between
+     * the swap and Finish stays "changed after the update" for Undo, which then leaves it alone.
+     */
+    private function recordText(?string $folder, string $path, string $from, string $to): void
+    {
+        if ($folder === null || ! is_file($folder.'/backup.json') || ($backup = PlanStore::read($folder.'/backup.json')) === null) {
+            return;
+        }
+
+        $changed = false;
+
+        foreach ((array) ($backup['entries'] ?? []) as $i => $entry) {
+            if (is_array($entry) && ($entry['path'] ?? null) === $path && ($entry['new'] ?? null) === $from && $from !== $to) {
+                $backup['entries'][$i]['new'] = $to;
+                $changed = true;
+            }
+        }
+
+        if ($changed) {
+            PlanStore::write($folder.'/backup.json', $backup);
+        }
+    }
+
+    /**
+     * The admin-log rows of the corrected language files: update.texts#<locale> => "lang/de.json (Deutsch): 324 texts
+     * corrected to the wording of this version, your own wording kept for 1 text this version corrects, 73 texts this
+     * version no longer uses removed" (the last two only when there are such texts: "kept" counts only the owner's own
+     * wordings of texts this version corrects, never all of the owner's texts, which all stay; judge R3-028).
+     * App\Support\AuditDetails shows the row in the admin's language.
+     *
+     * @param  array<string, mixed>  $texts  plan.texts
+     * @return array<string, string>
+     */
+    private static function textRows(array $texts): array
+    {
+        $rows = [];
+
+        foreach ($texts as $locale => $entry) {
+            if (! ShippedTexts::isLocale($locale) || ! is_array($entry) || ! empty($entry['writing'])) {
+                continue;
+            }
+
+            $updated = (int) ($entry['updated'] ?? 0);
+            $kept = (int) ($entry['kept'] ?? 0);
+            $removed = (int) ($entry['removed'] ?? 0);
+            $failed = ! empty($entry['failed']);
+
+            if ($updated === 0 && $kept === 0 && $removed === 0 && ! $failed) {
+                continue;
+            }
+
+            $name = config('languages.'.$locale.'.label');
+            $rows['update.texts#'.$locale] = 'lang/'.$locale.'.json'.(is_string($name) && $name !== '' ? ' ('.$name.')' : '').': '
+                .implode(', ', array_filter([
+                    $failed ? 'not corrected (it could not be saved)' : self::amount($updated, 'text', 'texts').' corrected to the wording of this version',
+                    $kept > 0 ? 'your own wording kept for '.self::amount($kept, 'text', 'texts').' this version corrects' : null,
+                    $removed > 0 && ! $failed ? self::amount($removed, 'text', 'texts').' this version no longer uses removed' : null,
+                ]));
+        }
+
+        return $rows;
+    }
+
+    /** "1 migration", "3 migrations": counts in the step log and the admin log (never "1 migrations"). */
+    private static function amount(int $number, string $one, string $many): string
+    {
+        return $number.' '.($number === 1 ? $one : $many);
     }
 
     /** Is this admin-log row there already (written since the plan started)? */
@@ -1710,7 +2476,7 @@ final class Updater
         foreach ((array) ($backup['entries'] ?? []) as $entry) {
             $path = (string) ($entry['path'] ?? '');
 
-            if ($path !== '' && ! isset($keep[$path]) && (Manifest::safePath($path) || $path === Manifest::FILE)) {
+            if ($path !== '' && ! isset($keep[$path]) && self::backedUpPath($path)) {
                 @unlink($folder.'/files/'.$path);
             }
         }
@@ -1727,6 +2493,33 @@ final class Updater
      * (Finish update clears them only when it ran a migration), then queue:restart, so long-running queue workers (a
      * supervisor's queue:work, Horizon's workers) load the new code. Each on its own: one that fails stops nothing.
      */
+    /**
+     * Before an undo to $version: when that release does not know the hidden storage names (security plan S03), the
+     * invoice PDFs go back where it reads them and the settings cached under the hidden cache name are forgotten
+     * (App\Support\StorageHider::prepareForOlderRelease()). Best effort, never in the way of the undo; only for this
+     * site's own storage/ (the updater's tests run on a site folder of their own).
+     */
+    private function prepareStorageForOlderRelease(array $plan, string $version): void
+    {
+        try {
+            if ($version === '' || version_compare($version, StorageHider::LAST_RELEASE_WITHOUT_HIDDEN_NAMES, '>')) {
+                return;
+            }
+
+            if (realpath($this->paths->storage) === false || realpath($this->paths->storage) !== realpath(storage_path())) {
+                return;
+            }
+
+            $moved = StorageHider::prepareForOlderRelease();
+
+            if ($moved > 0) {
+                $this->log($plan, 'undo', self::amount($moved, 'invoice', 'invoices').' back in storage/app/private/invoices for AVDBCMS '.$version);
+            }
+        } catch (Throwable $e) {
+            self::reportSafely($e);
+        }
+    }
+
     private static function refreshCaches(): void
     {
         $clears = [
@@ -2041,7 +2834,16 @@ final class Updater
             return null;
         }
 
-        return __('Not enough disk space: the update needs about :size free.', ['size' => number_format($need / 1048576).' MB']);
+        return __('Not enough disk space: the update needs about :size free.', ['size' => self::size($need)]);
+    }
+
+    /**
+     * A size as Tools > Backups writes it (DatabaseBackup::sizeText(): KB under 1 MB, then MB and GB, "35.3 KB",
+     * "1.5 GB"), wherever the updater shows one: its labels, the step log, the admin log, the Updates page.
+     */
+    public static function size(int|float|null $bytes): string
+    {
+        return DatabaseBackup::sizeText(max(0, (int) ($bytes ?? 0)));
     }
 
     /**
@@ -2221,9 +3023,13 @@ final class Updater
      * (status?tidy=1), the scheduler every five minutes (updates:tidy), both only while something waits.
      *
      * Only between updates: while an update or undo runs ('running'), nothing is deleted here. Its own steps empty the
-     * trash when they need to (a new update before it measures the free space, an undo before the site goes down), and
-     * a slice here would only hold the trash from them: they would wait for it (a second Tools > Updates tab kept
-     * asking for slices for minutes).
+     * trash when they need to (a new update before it measures the free space, an undo back to a release that knows no
+     * trash before the site goes down), and a slice here would only hold the trash from them: they would wait for it (a
+     * second Tools > Updates tab kept asking for slices for minutes).
+     *
+     * 'pending' says whether anything is left: in the trash, and also a leftover the sweep could not move (a rename
+     * refused, e.g. a file held open on Windows): the next slice tries it again, so the page and updates:tidy never say
+     * "nothing is left" while a folder waits. 'deleted' counts what this slice deleted, in the trash and in place.
      *
      * @return array{pending: bool, deleted: int, busy: bool, running: bool}
      */
@@ -2233,31 +3039,135 @@ final class Updater
             return ['pending' => $this->tidyPending(), 'deleted' => 0, 'busy' => false, 'running' => true];
         }
 
-        if ($this->sweepable() !== []) {
+        $until = microtime(true) + max(0.0, $seconds);
+        $deleted = 0;
+
+        if ($this->sweepable() !== [] || $this->expiredKeptAssets() !== []) {
             try {
                 $lock = $this->store->lock();
             } catch (Throwable) {
                 $lock = null;
             }
 
-            if ($lock !== null) {
-                try {
-                    $this->sweep();
-                } catch (Throwable $e) {
-                    self::reportSafely($e);
-                } finally {
+            try {
+                // Without the update lock (another request of the updater holds it, or this disk cannot lock files) the
+                // stale cache folders still go: no step of an update ever uses them. Work folders and the kept built
+                // assets wait for the lock.
+                $deleted += $lock !== null ? $this->sweep($until) + $this->retireKeptAssets() : $this->sweepStaleCache($until);
+            } catch (Throwable $e) {
+                self::reportSafely($e);
+            } finally {
+                if ($lock !== null) {
                     $this->store->unlock($lock);
                 }
             }
         }
 
-        return $this->trash->purge($seconds) + ['running' => false];
+        $purge = $this->trash->purge(max(0.0, $until - microtime(true)));
+
+        return [
+            'pending' => $purge['pending'] || $this->sweepable() !== [] || $this->expiredKeptAssets() !== [],
+            'deleted' => $purge['deleted'] + $deleted,
+            'busy' => $purge['busy'],
+            'running' => false,
+        ];
     }
 
     /** Is there anything for tidy() to delete (whether or not an update runs)? */
     public function tidyPending(): bool
     {
-        return $this->trash->pending() || $this->sweepable() !== [];
+        return $this->trash->pending() || $this->sweepable() !== [] || $this->expiredKeptAssets() !== [];
+    }
+
+    /**
+     * The built assets of the version before that the last update left for pages still cached in browsers (state.json
+     * kept_assets), once KEPT_ASSETS_DAYS have passed since it finished: the update that used to delete them does not
+     * come after 1.2.3 (judge R3-033). Only state.json of an update to the version this code is (an upload by hand
+     * since may have brought other files), and only paths under public/build/assets/.
+     *
+     * @return list<string>
+     */
+    private function expiredKeptAssets(): array
+    {
+        try {
+            $state = $this->store->state();
+        } catch (Throwable) {
+            return [];
+        }
+
+        if (! is_array($state) || ($state['installed_version'] ?? null) !== $this->version || ($state['kind'] ?? 'update') !== 'update'
+            || (int) ($state['updated_at'] ?? time()) > time() - self::KEPT_ASSETS_DAYS * 86400) {
+            return [];
+        }
+
+        return array_values(array_filter((array) ($state['kept_assets'] ?? []), fn (mixed $path): bool => is_string($path)
+            && str_starts_with($path, SwapPlanner::ASSETS) && Manifest::safePath($path)));
+    }
+
+    /**
+     * Under the update lock: the expired kept assets (expiredKeptAssets()) leave public/build. Into the file backup of
+     * the update that kept them while it is there (one rename each, a line in its backup.json: "Undo this update" then
+     * still brings back the version before with its CSS and JavaScript); without that backup (deleted, so no Undo) they
+     * are deleted. A file the installed version itself lists is never touched. state.json keeps the ones that could not
+     * leave yet (a file held open on Windows): the next slice tries them again. Returns how many left.
+     */
+    private function retireKeptAssets(): int
+    {
+        $expired = $this->expiredKeptAssets();
+
+        if ($expired === []) {
+            return 0;
+        }
+
+        $state = (array) $this->store->state();
+        $installed = Manifest::installed($this->paths->manifest());
+        $present = [];
+        $done = [];
+
+        foreach ($expired as $path) {
+            $file = $this->paths->root($path);
+
+            if (($installed !== null && $installed->hash($path) !== null) || is_link($file) || ! is_file($file)) {
+                // The installed version's own file, or gone already: nothing to do for it.
+                $done[] = $path;
+
+                continue;
+            }
+
+            $present[] = $path;
+        }
+
+        $backup = is_string($state['backup_id'] ?? null) ? FinishFiles::backupOrBusy($this->paths, $state['backup_id']) : null;
+        $gone = [];
+
+        if ($present !== [] && $backup === false) {
+            // Its backup.json cannot be read now (another program holding it): deleted now, they would be missing from
+            // Undo. The next slice tries again.
+            return 0;
+        }
+
+        if ($present !== [] && $backup !== null) {
+            $gone = $backup->takeOut($this->paths->root, $present);
+        } elseif ($present !== []) {
+            foreach ($present as $path) {
+                if (@unlink($this->paths->root($path)) || ! is_file($this->paths->root($path))) {
+                    $gone[] = $path;
+                }
+            }
+        }
+
+        $left = array_values(array_diff((array) ($state['kept_assets'] ?? []), $done, $gone));
+
+        if ($left === []) {
+            unset($state['kept_assets']);
+            $state['kept_assets_retired_at'] = time();
+        } else {
+            $state['kept_assets'] = $left;
+        }
+
+        $this->store->putState($state);
+
+        return count($gone);
     }
 
     /** Should tidy() run now: something waits and no update or undo runs (the scheduler's updates:tidy asks this). */
@@ -2266,34 +3176,58 @@ final class Updater
         return ! self::active($this->store->get()) && $this->tidyPending();
     }
 
-    /** Under the update lock: the leftovers sweepable() finds go to the trash (a finished plan's step log kept first). */
-    private function sweep(): void
+    /**
+     * Under the update lock: the leftovers sweepable() finds go to the trash (a finished plan's step log kept first).
+     * One that cannot be renamed is deleted where it is until $until (at most two seconds each). Returns how many files
+     * and folders were deleted in place.
+     */
+    private function sweep(float $until): int
     {
         $plan = $this->store->get();
+        $deleted = 0;
 
         foreach ($this->sweepable() as $folder) {
             if (is_array($plan) && basename($folder) === ($plan['job'] ?? null) && dirname($folder) === $this->paths->work()) {
                 $this->keepLog($plan);
             }
 
-            $this->trash->put($folder);
+            $this->trash->put($folder, max(0.0, min(2.0, $until - microtime(true))), $gone);
+            $deleted += (int) $gone;
         }
+
+        return $deleted;
+    }
+
+    /** The stale cache folders alone into the trash (see tidy()); how many files and folders were deleted in place. */
+    private function sweepStaleCache(float $until): int
+    {
+        $deleted = 0;
+
+        foreach (StorageHider::staleCacheFolders($this->paths->storage) as $folder) {
+            $this->trash->put($folder, max(0.0, min(2.0, $until - microtime(true))), $gone);
+            $deleted += (int) $gone;
+        }
+
+        return $deleted;
     }
 
     /**
      * Folders no plan needs any more: work folders (X.Y.Z, undo-X.Y.Z) other than the current plan's, and the current
      * plan's once it is done or undone (a rename that was refused, a Finish of 1.2.0 cut off while it deleted); file
-     * backups without their backup.json that are older than an hour (a delete that could not finish). A failed or
-     * cancelled plan keeps its folder: its step log and a zip a new try may use again.
+     * backups without their backup.json that are older than an hour (a delete that could not finish); the stale cache
+     * folders (storage/framework/cache/stale-<16 hex>) the expired entries of the old file cache moved into (Finish of
+     * the update to 1.2.3 renames them, App\Support\StorageHider: deleting them there ran over a strict host's time
+     * limit). A failed or cancelled plan keeps its folder: its step log and a zip a new try may use again.
      *
      * @return list<string>
      */
     private function sweepable(): array
     {
+        $stale = StorageHider::staleCacheFolders($this->paths->storage);
         $work = $this->paths->work();
 
         if (! is_dir($work)) {
-            return [];
+            return $stale;
         }
 
         $plan = $this->store->get();
@@ -2315,12 +3249,12 @@ final class Updater
             }
         }
 
-        return $folders;
+        return [...$folders, ...$stale];
     }
 
     /**
      * report() a copy without addresses and without the exception chain: an HTTP client error can quote the signed
-     * download address, and the site log must never hold it, nor a token (F8 16).
+     * download address, and the site log must never hold it, nor a token.
      */
     public static function reportSafely(Throwable $e): void
     {
@@ -2357,9 +3291,8 @@ final class Updater
      */
     private static function raiseTimeLimit(): void
     {
-        if (function_exists('set_time_limit')) {
-            @set_time_limit(self::FINISH_SECONDS);
-        }
+        // Where the host allows it; TimeBudget then knows when PHP's clock started anew.
+        TimeBudget::raise(self::FINISH_SECONDS);
 
         if (function_exists('ignore_user_abort')) {
             @ignore_user_abort(true);

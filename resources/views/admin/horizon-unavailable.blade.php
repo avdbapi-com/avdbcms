@@ -20,9 +20,9 @@
         <div class="alert alert-warning mb-4">
             <div class="fw-semibold">{{ __($message) }}</div>
             <div class="small mt-2">
-                {{ __('Queue driver') }}: <code>{{ $queueDriver }}</code>
+                {{ \App\Support\AdminText::labelled(__('Queue driver'), '') }}<code>{{ $queueDriver }}</code>
                 <span class="mx-2">|</span>
-                {{ __('Horizon Redis connection') }}: <code>{{ $connection }}</code>
+                {{ \App\Support\AdminText::labelled(__('Horizon Redis connection'), '') }}<code>{{ $connection }}</code>
             </div>
         </div>
 

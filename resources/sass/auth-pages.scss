@@ -1,0 +1,7 @@
+// The sign-in pages' part of the member kit (1.2.3 round 1, R1-070): member/_auth.scss (sign in, sign up, forgot and
+// reset password, e-mail verification, sign out, the contact form, the error and status pages, the account page's
+// "Always on" divider) as its own Vite input (vite.config.ts), out of the member CSS entry (resources/sass/member.scss)
+// that every page of a signed-in visitor loads: only these pages use these rules. components/layout.blade.php prints it
+// after the member entry on those pages ($memberAuthCss), so its rules still come after the kit's (no rule of the
+// entry's later parts, member/notify and member/chrome, styles the elements these rules style).
+@import "member/auth";

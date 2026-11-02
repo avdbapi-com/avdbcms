@@ -97,13 +97,27 @@
     display: grid;
     gap: 6px;
     width: 260px;
+    max-width: calc(100vw - 32px);
     padding: var(--s3);
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--r-md);
     box-shadow: var(--shadow-overlay);
 
-    .ad-input { width: 100%; }
+    .ad-input { width: 100%; min-width: 0; }
+}
+
+// Phones and small tablets: the popover opens under the whole filter row, as wide as the row, instead of hanging from
+// its button (Content > All videos > Published reached 95 px past a 390 px screen, and the page scrolled sideways).
+@media (max-width: 760px) {
+    .ad-filter { position: relative; }
+    .ad-filter-more { position: static; }
+
+    .ad-filter-pop {
+        inset-inline: 0;
+        width: auto;
+        max-width: none;
+    }
 }
 
 .ad-bulk {
@@ -307,6 +321,12 @@
     &.is-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .ad-field { padding: 0; border: 0; }
     .ad-textarea { min-height: 140px; }
+}
+
+// Community > Send a notification: "Member numbers" only while "Chosen members" is picked (a browser without :has()
+// shows it always, with its help line "Only for Chosen members").
+@supports selector(:has(*)) {
+    .ad-notify-form:not(:has(select[name="target"] option[value="specific"]:checked)) .ad-notify-chosen { display: none; }
 }
 
 // Switch rows straight in a panel (as in a settings section).

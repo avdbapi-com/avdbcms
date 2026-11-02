@@ -8,8 +8,6 @@ use Tests\TestCase;
 /**
  * AVDBCMS 1.2.1: the @size Blade directive (Premium page plan limits, member video sizes, admin Exports) prints whole
  * numbers with their zeros: the free plan's 500 MB max file size read "5 MB" before 1.2.1.
- *
- * Proposed for tests/Feature/ together with proposed/NumberFormat.patch (lane A does not own app/Support or tests/).
  */
 class SizeDirectiveTest extends TestCase
 {

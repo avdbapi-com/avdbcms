@@ -80,7 +80,7 @@
                 <td class="is-check"><input type="checkbox" name="ids[]" value="{{ $activity->id }}" form="ad-activities-bulk" aria-labelledby="ad-l-sel ad-a-{{ $activity->id }}"></td>
                 <td class="c-main"><p><b id="ad-a-{{ $activity->id }}">{{ $activity->username }}</b><small>{{ $activity->email }}</small></p></td>
                 <td class="c-meta">{{ $what(strtolower(class_basename((string) $activity->subject_type))) }}<small>#{{ $activity->subject_id }}</small></td>
-                <td class="is-date" title="{{ $when->translatedFormat('j M Y, H:i') }}">{{ $when->diffForHumans(short: true) }}</td>
+                <td class="is-date" title="{{ $when->translatedFormat('j M Y, H:i') }}">{{ $when->diffForHumans(short: \App\Support\AdminText::shortTimes()) }}</td>
                 <td class="is-actions"><button type="button" class="ad-iconbtn is-more" aria-haspopup="true" aria-labelledby="ad-l-act ad-a-{{ $activity->id }}" data-id="{{ $activity->id }}" data-user="{{ $activity->user_id }}"></button></td>
             </tr>
         @endforeach

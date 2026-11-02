@@ -142,11 +142,34 @@ class SeoService
             '{year}' => $date->format('Y'),
             '{month}' => $date->format('m'),
             '{day}' => $date->format('d'),
-            '{user}' => Str::slug($video->user?->username ?? '') ?: 'creator',
-            '{category}' => Str::slug($video->category?->title ?? '') ?: 'videos',
         ];
 
+        // Only a link format that prints them needs the creator and the category: reading them for every link loaded
+        // both relations once per listed video (two queries per row) for the default '{slug}-{uuid}'.
+        if (str_contains($pattern, '{user}')) {
+            $values['{user}'] = Str::slug($video->user?->username ?? '') ?: 'creator';
+        }
+        if (str_contains($pattern, '{category}')) {
+            // 1.2.3 round 3: never a category visitors never see (App\Support\ContentSafety): such a video's address is
+            // that of a video without a category
+            $title = (string) ($video->category?->title ?? '');
+            $values['{category}'] = Str::slug(\App\Support\ContentSafety::hides($title) ? '' : $title) ?: 'videos';
+        }
+
         return '/' . trim($prefix . '/' . strtr($pattern, $values), '/');
+    }
+
+    /**
+     * The Video relations the link format reads ('user', 'category'), for lists that eager-load them: none for the
+     * default '{slug}-{uuid}'.
+     *
+     * @return list<string>
+     */
+    public function videoPathRelations(): array
+    {
+        $pattern = (string) config('site.video_url_pattern', '{slug}-{uuid}');
+
+        return array_values(array_filter(['user', 'category'], fn (string $token): bool => str_contains($pattern, '{'.$token.'}')));
     }
 
     /**
@@ -204,9 +227,10 @@ class SeoService
 
     public function videoTemplateValues(Video $video, string $description = ''): array
     {
-        $tags = $video->relationLoaded('tags')
+        // 1.2.3: no tag named with a word that is always blocked (App\Support\ContentSafety)
+        $tags = \App\Support\ContentSafety::visibleTags($video->relationLoaded('tags')
             ? $video->tags
-            : $video->tags()->with('translations')->limit(20)->get();
+            : $video->tags()->with('translations')->limit(20)->get());
 
         $tagNames = $tags
             ->map(fn ($tag) => $tag->localized_name ?: $tag->name)
@@ -219,7 +243,8 @@ class SeoService
             'video_title' => $video->title,
             'title' => $video->title,
             'description' => $description,
-            'category' => $video->localized_type_name ?: ($video->category?->title ? decode_html_entities($video->category->title) : ''),
+            // 1.2.3: never the name of a category named with a word that is always blocked (App\Support\ContentSafety)
+            'category' => $video->localized_type_name ?: ($video->category?->title && ! \App\Support\ContentSafety::hides((string) $video->category->title) ? decode_html_entities($video->category->title) : ''),
             'tags' => $tagNames,
             'actor' => $video->avdb_actor,
             'director' => $video->avdb_director,
@@ -338,8 +363,13 @@ class SeoService
         ];
     }
 
-    public function videoSchema(Video $video): array
+    /**
+     * @param  string|null  $pageUrl  the watch page's canonical (round 4, R3M-01: an AVDBAPI import's translated page names
+     *                                itself, videos/show.blade.php); null: the default-language page
+     */
+    public function videoSchema(Video $video, ?string $pageUrl = null): array
     {
+        $pageUrl ??= $this->videoUrl($video);
         $description = trim(strip_tags((string) $video->description));
         $duration = (int) $video->getRawOriginal('duration');
         $schema = [
@@ -350,7 +380,7 @@ class SeoService
             'thumbnailUrl' => [site_asset_url($video->thumbnail_url)],
             'uploadDate' => optional($video->uploaded_at ?? $video->created_at)->toAtomString(),
             'datePublished' => optional($video->published_at ?? $video->created_at)->toAtomString(),
-            'url' => $this->videoUrl($video),
+            'url' => $pageUrl,
             'embedUrl' => $this->videoPlayerUrl($video),
             'inLanguage' => $video->language ?: app()->getLocale(),
             'interactionStatistic' => [
@@ -378,7 +408,7 @@ class SeoService
             $schema['contentUrl'] = $video->file_url;
         }
 
-        if ($video->category?->title) {
+        if ($video->category?->title && ! \App\Support\ContentSafety::hides((string) $video->category->title)) {
             $categoryTitle = decode_html_entities($video->category->title);
             $schema['genre'] = $video->localized_type_name ?: __($categoryTitle);
         }
@@ -405,7 +435,7 @@ class SeoService
         if (config('site.video_seek_action_enabled', false)) {
             $schema['potentialAction'] = [
                 '@type' => 'SeekToAction',
-                'target' => $this->videoUrl($video) . '?t={seek_to_second_number}',
+                'target' => $pageUrl . '?t={seek_to_second_number}',
                 'startOffset-input' => 'required name=seek_to_second_number',
             ];
         }
@@ -421,9 +451,10 @@ class SeoService
             $keywords[] = $video->avdb_code;
         }
 
-        $tags = $video->relationLoaded('tags')
+        // 1.2.3: no tag named with a word that is always blocked (App\Support\ContentSafety)
+        $tags = \App\Support\ContentSafety::visibleTags($video->relationLoaded('tags')
             ? $video->tags
-            : $video->tags()->with('translations')->limit(20)->get();
+            : $video->tags()->with('translations')->limit(20)->get());
 
         foreach ($tags as $tag) {
             $keywords[] = $tag->localized_name ?: $tag->name;
@@ -509,6 +540,12 @@ class SeoService
         try {
             $endpoint = rtrim((string) config('site.indexnow_endpoint', 'https://api.indexnow.org/indexnow'), '/');
             $url = $this->videoUrl($video);
+
+            // Announced in the last hour already (the details saved again): not again (R1B-026, App\Support\IndexNowMemory).
+            if (\App\Support\IndexNowMemory::fresh([$url]) === []) {
+                return;
+            }
+
             $host = parse_url($url, PHP_URL_HOST);
             $payload = [
                 'host' => $host,

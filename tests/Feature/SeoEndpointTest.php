@@ -116,7 +116,13 @@ class SeoEndpointTest extends TestCase
         $this->assertXml($response->getContent());
     }
 
-    public function test_video_sitemap_lists_avdb_videos_in_every_active_locale(): void
+    /**
+     * An AVDBAPI video is listed in the languages its watch page is indexable in (App\Support\VideoLanguages: English, the
+     * fallback language and the languages of its translations), with alternates to those pages only. Before 1.2.3 round 3
+     * (R3-017) this test expected it in every language, also where its page answered 404; since the decision of 29 Oct
+     * that page opens with "noindex", and the sitemaps still leave it out.
+     */
+    public function test_video_sitemap_lists_avdb_videos_in_the_languages_they_are_indexable_in(): void
     {
         $video = Video::factory()
             ->forUser()
@@ -138,31 +144,42 @@ class SeoEndpointTest extends TestCase
         $response = $this->get(route('seo.sitemap.videos.locale.page', ['locale' => 'vi', 'page' => 1]))
             ->assertOk()
             ->assertSee(url('/vi/video/localized-avdb-sitemap-video-' . $video->uuid), false)
+            ->assertSee('Vietnamese sitemap title', false)
             ->assertSee('hreflang="en"', false)
             ->assertSee('hreflang="vi"', false)
-            ->assertSee('hreflang="fr"', false);
+            ->assertDontSee('hreflang="fr"', false);
 
         $this->assertXml($response->getContent());
 
+        $this->get(route('seo.sitemap.videos.locale.page', ['locale' => 'en', 'page' => 1]))
+            ->assertOk()
+            ->assertSee(url('/video/localized-avdb-sitemap-video-' . $video->uuid), false);
+
         $this->get(route('seo.sitemap.videos.locale.page', ['locale' => 'fr', 'page' => 1]))
             ->assertOk()
-            ->assertSee(url('/fr/video/localized-avdb-sitemap-video-' . $video->uuid), false);
+            ->assertDontSee(url('/fr/video/localized-avdb-sitemap-video-' . $video->uuid), false);
     }
 
     public function test_locale_video_sitemap_paginates_after_locale_filtering(): void
     {
         config(['site.sitemap_video_limit' => 100]);
 
-        Video::factory()
+        // 1.2.3 round 3 (R3-017): an AVDBAPI video is in the Thai sitemap only with a Thai translation (its Thai page
+        // answers 404 otherwise), so the 100 videos of the first page have one
+        $first = Video::factory()
             ->count(100)
             ->forUser()
             ->withStatus(VideoStatus::PUBLIC)
             ->sequence(fn ($sequence) => [
                 'avdb_id' => 500000 + $sequence->index,
-                'title' => 'English only AVDB sitemap video ' . $sequence->index,
-                'slug' => 'english-only-avdb-sitemap-video-' . $sequence->index,
+                'title' => 'Thai page AVDB sitemap video ' . $sequence->index,
+                'slug' => 'thai-page-avdb-sitemap-video-' . $sequence->index,
             ])
             ->create();
+
+        foreach ($first as $index => $translated) {
+            $translated->translations()->create(['locale' => 'th', 'title' => 'Thai sitemap title ' . $index]);
+        }
 
         $video = Video::factory()
             ->forUser()
@@ -181,6 +198,16 @@ class SeoEndpointTest extends TestCase
             'description' => 'Thai sitemap description.',
         ]);
 
+        // the same page of ids, no Thai translation: not in the Thai sitemap
+        $englishOnly = Video::factory()
+            ->forUser()
+            ->withStatus(VideoStatus::PUBLIC)
+            ->create([
+                'title' => 'English only AVDB sitemap video',
+                'slug' => 'english-only-avdb-sitemap-video',
+                'avdb_id' => 600001,
+            ]);
+
         SeoSitemapCache::clear();
 
         $this->get(route('seo.sitemap'))
@@ -196,7 +223,8 @@ class SeoEndpointTest extends TestCase
 
         $response = $this->get(route('seo.sitemap.videos.locale.page', ['locale' => 'th', 'page' => 2]))
             ->assertOk()
-            ->assertSee(url('/th/video/thai-translated-avdb-sitemap-video-' . $video->uuid), false);
+            ->assertSee(url('/th/video/thai-translated-avdb-sitemap-video-' . $video->uuid), false)
+            ->assertDontSee('english-only-avdb-sitemap-video-' . $englishOnly->uuid, false);
 
         $this->assertSame(1, substr_count($response->getContent(), '<url>'));
         $this->assertXml($response->getContent());

@@ -51,47 +51,35 @@ return [
             ],
         ],
     ],
+    // The studio menu (member design 6.1): three static groups, then "Back to the site" and the account card
+    // (layouts/menus/sidebars/back.blade.php, the type=user branch). 'active' lists the route-name patterns that mark an
+    // item as the current page (its sub-pages too: Video details and Analytics are "Videos").
     'user' => [
         [
-            'title' => 'Dashboard',
-            'icon' => 'chart-line',
-            'route' => 'user.index',
+            'label' => 'Studio',
+            'items' => [
+                ['title' => 'Dashboard', 'icon' => 'chart-line', 'route' => 'user.index', 'active' => ['user.index']],
+                ['title' => 'Videos', 'icon' => 'clapperboard', 'route' => 'user.videos.index', 'active' => ['user.videos.*']],
+                ['title' => 'Playlists', 'icon' => 'rectangle-list', 'route' => 'user.playlists.index', 'active' => ['user.playlists.*']],
+                ['title' => 'Comments', 'icon' => 'comments', 'route' => 'user.comments.index', 'active' => ['user.comments.*']],
+                ['title' => 'Subscribers', 'icon' => 'users', 'route' => 'user.subscribers', 'active' => ['user.subscribers']],
+            ],
         ],
         [
-            'title' => 'Videos',
-            'icon' => 'video',
-            'route' => 'user.videos.index',
+            'label' => 'Activity',
+            'items' => [
+                ['title' => 'Notifications', 'icon' => 'bell', 'route' => 'user.notifications.index', 'active' => ['user.notifications.index']],
+                ['title' => 'Activity', 'icon' => 'clock-rotate-left', 'route' => 'user.activity.index', 'active' => ['user.activity.*']],
+                ['title' => 'Reports', 'icon' => 'flag', 'route' => 'user.reports.index', 'active' => ['user.reports.*']],
+            ],
         ],
         [
-            'title' => 'Playlists',
-            'icon' => 'rectangle-list',
-            'route' => 'user.playlists.index',
+            'label' => 'Account',
+            'items' => [
+                ['title' => 'Account settings', 'icon' => 'user-gear', 'route' => 'user.edit', 'active' => ['user.edit']],
+                ['title' => 'Invoices', 'icon' => 'file-invoice', 'route' => 'user.invoices.index', 'active' => ['user.invoices.*']],
+            ],
         ],
-        [
-            'title' => 'Subscribers',
-            'icon' => 'users',
-            'route' => 'user.subscribers',
-        ],
-        [
-            'title' => 'Comments',
-            'icon' => 'comments',
-            'route' => 'user.comments.index',
-        ],
-        [
-            'title' => 'Activity',
-            'icon' => 'bars-staggered',
-            'route' => 'user.activity.index',
-        ],
-        [
-            'title' => 'Reports',
-            'icon' => 'flag',
-            'route' => 'user.reports.index',
-        ],
-        [
-            'title' => 'Invoices',
-            'icon' => 'receipt',
-            'route' => 'user.invoices.index',
-        ]
     ],
     'admin' => [
         // ── Dashboard (standalone, always visible) ──────────────────────────

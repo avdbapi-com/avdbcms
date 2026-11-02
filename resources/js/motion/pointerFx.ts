@@ -36,22 +36,36 @@ export type PointerFxOptions = {
 const HANDS_OFF = 'video-player, video-upload, .avd-player-stage, .avd-preroll-ad, .avd-embed-shell';
 // The 3D tilt and its glare (the layout's former inline engines).
 const TILT_CARDS = '.avd-video-card, .avd-short-card';
-// The subtle tilt and the hover hotspot (the motion chunk's former anime.js card effect).
+// The subtle tilt and the hover hotspot (the motion chunk's former anime.js card effect). Cards only: the panels that
+// hold controls (the search panel's Filters, the channel panel's Subscribe, the comments' sort buttons) no longer tilt
+// and lift under the pointer, so those buttons never move (member design 4.2; a hover sweep measured 2 frames each).
+// The watch page's related list (.suggested_video.avd-related-card) is a list of rows, each with its Watch Later and
+// Share buttons on the picture: its rows stay still too (11-13 buttons used to move on every watch page).
 const SUBTLE_CARDS = [
     '.avd-video-card',
     '.video-card-modern',
-    '.suggested_video.avd-related-card',
     '.avd-channel-card',
-    '.avd-section-card',
-    '.avd-channel-panel',
-    '.avd-description-panel',
-    '.avd-watch-sidebar-panel',
 ].join(',');
+// A card that tilts holds still while the pointer is on one of its controls (its quick actions, its menu, the channel
+// link): the button stays where the pointer found it, and nothing under it repaints (member design 4.2: the hit box
+// never moves; 0 frames 150 ms after the pointer rests on a control). Off it, the card follows the pointer again.
+const CARD_CONTROLS = 'button, .btn, [role="button"], input, select, textarea, label, .dropdown-menu, a.avd-channel-name';
 const SPOT_CARDS = '.avd-video-card, .avd-bento-card, .studio-preview-card, .studio-card-preview';
-const MAGNET_TARGETS = '.btn:not(.btn-close), .avd-icon-button, .avd-sidebar-toggle, .avd-tag, .avd-social-btn, .avd-player-control, .avd-action-pill';
+// No .btn (member design 4.2, perf-1, watch-4): the magnet pulled every button toward the pointer by up to 4px and
+// scaled it 1.025, so a button at the edge of a scroll box overflowed it, toggled its scrollbar and slid out from under
+// the pointer and back (the owner's "+ Create Video" flash). The small round controls below keep a 2px pull.
+const MAGNET_TARGETS = '.avd-icon-button, .avd-sidebar-toggle, .avd-tag, .avd-social-btn, .avd-player-control, .avd-action-pill';
+// Where no pointer effect runs (4.1a, 4.2): member markup, forms and the back office. Scroll containers are found per
+// element (insideScroller below).
+const CALM_ZONES = '.avd-mk, form, [data-avd-back-office]';
+// The magnet's pull, at most this many pixels on each axis, toward the pointer.
+const MAGNET_PX = 2;
 
 // Half the .avd-cursor-halo box (layout.blade.php).
 const HALO_HALF = 200;
+// The halo's catch-up: 40% of the distance left after each 60 Hz frame (0.4^9: under 0.2px of a 760px move in 150 ms).
+const HALO_LEFT_PER_FRAME = 0.4;
+const HALO_FRAME_MS = 1000 / 60;
 // A cached box older than this is read again on the next pointer frame.
 const BOX_TTL_MS = 200;
 const EASE_OUT = 'cubic-bezier(.33,1,.68,1)'; // anime 'out(3)'
@@ -67,6 +81,20 @@ const pageMotionLoad = (): number => document.querySelectorAll(`${SUBTLE_CARDS},
 
 let started = false;
 
+// A scroll container between the element and the page (overflow auto, scroll or overlay on either axis, scrollable or
+// not): a transform there can overflow it and toggle its scrollbar (perf-1). The document's own scroller does not count.
+const insideScroller = (element: Element): boolean => {
+    for (let node = element.parentElement; node && node !== document.body && node !== document.documentElement; node = node.parentElement) {
+        const style = window.getComputedStyle(node);
+
+        if (/(auto|scroll|overlay)/.test(style.overflowX + ' ' + style.overflowY)) {
+            return true;
+        }
+    }
+
+    return false;
+};
+
 export const initPointerFx = (options: PointerFxOptions = {}): void => {
     if (started || !allows('pointerFx') || typeof requestAnimationFrame !== 'function') {
         return;
@@ -74,6 +102,11 @@ export const initPointerFx = (options: PointerFxOptions = {}): void => {
 
     const root = document.documentElement;
     const cards = options.haloOnly !== true;
+
+    // Member pages never run a pointer effect (4.1a: nothing on them follows the pointer); the admin keeps its halo.
+    if (cards && (root.hasAttribute('data-avd-member') || root.hasAttribute('data-avd-back-office'))) {
+        return;
+    }
     const animeEffects = cards && window.AVD_SETTINGS?.animeEffects !== false && (root.dataset.avdMotion ?? 'full') === 'full';
     const load = animeEffects ? pageMotionLoad() : Infinity;
     const fx = {
@@ -104,6 +137,20 @@ export const initPointerFx = (options: PointerFxOptions = {}): void => {
     const hosts = new WeakMap<HTMLElement, Hosts>();
     const placed = new WeakMap<HTMLElement, string>();
     const bursts = new WeakMap<HTMLElement, Burst>();
+    // Calm targets (a calm zone or a scroll container around them), decided once per element on its first hover.
+    const calm = new WeakMap<Element, boolean>();
+    const isCalm = (element: Element): boolean => {
+        let known = calm.get(element);
+
+        if (known === undefined) {
+            known = element.closest(CALM_ZONES) !== null || insideScroller(element);
+            calm.set(element, known);
+        }
+
+        return known;
+    };
+    // The magnet's last pull per element: a box read while the pull is applied is taken back to the element's place.
+    const pulled = new WeakMap<HTMLElement, {x: number; y: number}>();
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
     let tiltCard: HTMLElement | null = null;
     let subtleCard: HTMLElement | null = null;
@@ -117,6 +164,8 @@ export const initPointerFx = (options: PointerFxOptions = {}): void => {
     let haloShown = false;
     let haloX = -500;
     let haloY = -500;
+    // The time of the halo's last step (0: at rest), for the frame-rate independent easing below.
+    let haloAt = 0;
 
     if (fx.halo && document.body) {
         halo = document.querySelector<HTMLElement>('.avd-cursor-halo');
@@ -205,6 +254,30 @@ export const initPointerFx = (options: PointerFxOptions = {}): void => {
 
     const holdsTransform = (element: HTMLElement): boolean => element === tiltCard || element === subtleCard || element === magnetTarget;
 
+    // Cards held still (CARD_CONTROLS) at the transform they had when the pointer reached the control: its running
+    // transition is stopped there (the CSS transition of the card would otherwise carry it on for a quarter second).
+    const held = new Set<HTMLElement>();
+    let holding = false;
+
+    const hold = (card: HTMLElement | null): void => {
+        if (!card || held.has(card)) {
+            return;
+        }
+
+        const current = window.getComputedStyle(card).transform;
+        card.style.transition = 'none';
+        card.style.transform = current && current !== 'none' ? current : '';
+        // release() clears it when the pointer leaves the card (the card's own :hover state may be what was frozen).
+        written.add(card);
+        held.add(card);
+    };
+
+    const unhold = (card: HTMLElement): void => {
+        if (held.delete(card)) {
+            card.style.transition = '';
+        }
+    };
+
     // An element that no effect follows any more gets the inline transform written here cleared (the CSS
     // transition takes it back to its resting or :hover state) and its box forgotten.
     const release = (element: HTMLElement | null): void => {
@@ -212,8 +285,11 @@ export const initPointerFx = (options: PointerFxOptions = {}): void => {
             return;
         }
 
+        unhold(element);
+
         if (written.delete(element)) {
             element.style.transform = '';
+            pulled.delete(element);
         }
 
         if (element !== spotCard) {
@@ -221,17 +297,35 @@ export const initPointerFx = (options: PointerFxOptions = {}): void => {
         }
     };
 
+    // On a control inside the followed card: hold the card (and its glare, hotspot and spotlight) still; off it, let go.
+    const syncHold = (inside: Element | null): void => {
+        const control = inside ? inside.closest(CARD_CONTROLS) : null;
+        const cards = [tiltCard, subtleCard].filter((card): card is HTMLElement => card !== null && control !== null && card.contains(control));
+
+        holding = cards.length > 0;
+        // Let go of a card the pointer left for another card's control or for the card's own surface.
+        Array.from(held).forEach((card) => {
+            if (!cards.includes(card)) {
+                unhold(card);
+            }
+        });
+        cards.forEach(hold);
+    };
+
     const retarget = (target: Element | null): void => {
         const inside = target && !target.closest(HANDS_OFF) ? target : null;
         let nextTilt = fx.tilt && inside ? inside.closest<HTMLElement>(TILT_CARDS) : null;
         let nextSpot = fx.spot && inside ? inside.closest<HTMLElement>(SPOT_CARDS) : null;
-        const nextSubtle = fx.subtle && inside ? inside.closest<HTMLElement>(SUBTLE_CARDS) : null;
-        const nextMagnet = fx.magnet && inside ? inside.closest<HTMLElement>(MAGNET_TARGETS) : null;
+        let nextSubtle = fx.subtle && inside ? inside.closest<HTMLElement>(SUBTLE_CARDS) : null;
+        let nextMagnet = fx.magnet && inside ? inside.closest<HTMLElement>(MAGNET_TARGETS) : null;
 
-        if (nextTilt && isSkeleton(nextTilt)) nextTilt = null;
-        if (nextSpot && isSkeleton(nextSpot)) nextSpot = null;
+        if (nextTilt && (isSkeleton(nextTilt) || isCalm(nextTilt))) nextTilt = null;
+        if (nextSpot && (isSkeleton(nextSpot) || isCalm(nextSpot))) nextSpot = null;
+        if (nextSubtle && isCalm(nextSubtle)) nextSubtle = null;
+        if (nextMagnet && isCalm(nextMagnet)) nextMagnet = null;
 
         if (nextTilt === tiltCard && nextSpot === spotCard && nextSubtle === subtleCard && nextMagnet === magnetTarget) {
+            syncHold(inside);
             return;
         }
 
@@ -246,6 +340,7 @@ export const initPointerFx = (options: PointerFxOptions = {}): void => {
         subtleCard = nextSubtle;
         magnetTarget = nextMagnet;
         previous.forEach(release);
+        syncHold(inside);
 
         if (tiltCard && tiltCard.matches('.avd-video-card')) hostIn(tiltCard, 'glare', 'avd-card-glare');
         if (spotCard) hostIn(spotCard, 'spot', 'avd-card-spotlight');
@@ -261,7 +356,7 @@ export const initPointerFx = (options: PointerFxOptions = {}): void => {
         const x = pointerX;
         const y = pointerY;
 
-        if (moved) {
+        if (moved && !holding) {
             moved = false;
             // Reads first (cached boxes, see boxOf), then writes only.
             const tiltBox = tiltCard ? boxOf(tiltCard, now) : null;
@@ -315,21 +410,34 @@ export const initPointerFx = (options: PointerFxOptions = {}): void => {
             }
 
             if (magnetTarget && magnetBox) {
-                // The former anime.js magnet: up to 4px toward the pointer, scale 1.025.
-                const pullX = (clamp((x - magnetBox.left) / magnetBox.width, 0, 1) - 0.5) * 8;
-                const pullY = (clamp((y - magnetBox.top) / magnetBox.height, 0, 1) - 0.5) * 8;
-                setTransform(magnetTarget, `translateX(${pullX.toFixed(2)}px) translateY(${pullY.toFixed(2)}px) scale(1.025)`);
+                // At most MAGNET_PX toward the pointer, translate only (no scale), measured from the element's own place:
+                // the cached box may hold the last pull, which is taken back first, so the pull never feeds on itself.
+                const last = pulled.get(magnetTarget) ?? {x: 0, y: 0};
+                const left = magnetBox.left - last.x;
+                const top = magnetBox.top - last.y;
+                const pullX = (clamp((x - left) / magnetBox.width, 0, 1) - 0.5) * 2 * MAGNET_PX;
+                const pullY = (clamp((y - top) / magnetBox.height, 0, 1) - 0.5) * 2 * MAGNET_PX;
+                pulled.set(magnetTarget, {x: pullX, y: pullY});
+                setTransform(magnetTarget, `translate(${pullX.toFixed(2)}px, ${pullY.toFixed(2)}px)`);
             }
         }
 
         if (halo && haloShown) {
-            // Same 0.14 easing per frame as before, now as a compositor transform (no left/top layout).
-            haloX += (x - haloX) * 0.14;
-            haloY += (y - haloY) * 0.14;
+            // A compositor transform (no left/top layout) that settles within 150 ms at any frame rate (member design
+            // 4.2: nothing repaints 150 ms after the pointer rests on a control). The old 0.14-per-frame easing kept the
+            // halo moving under a just-hovered button for about a second (a hover sweep measured 2 distinct frames).
+            const now = performance.now();
+            const dt = haloAt ? Math.min(now - haloAt, 100) : HALO_FRAME_MS;
+            haloAt = now;
+            const k = 1 - Math.pow(HALO_LEFT_PER_FRAME, dt / HALO_FRAME_MS);
+            haloX += (x - haloX) * k;
+            haloY += (y - haloY) * k;
             halo.style.transform = `translate3d(${(haloX - HALO_HALF).toFixed(1)}px, ${(haloY - HALO_HALF).toFixed(1)}px, 0)`;
 
             if (Math.abs(x - haloX) > 0.2 || Math.abs(y - haloY) > 0.2) {
                 frame = window.requestAnimationFrame(flush);
+            } else {
+                haloAt = 0;
             }
         }
     };

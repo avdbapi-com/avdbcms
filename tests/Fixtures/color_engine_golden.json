@@ -1,5 +1,5 @@
 {
- "about": "Golden vectors for App\\Support\\Color\\Contrast (PHP). Reference implementation: spec/theme/scripts/contrast_engine.py + colorlib.py (+ build_spec.derive for the theme tokens). Tolerance: +-1 per sRGB channel; every WCAG target must still hold.",
+ "about": "Golden vectors for App\\Support\\Color\\Contrast (PHP), produced by the redesign's reference implementation of the colour engine (and of the theme token derivation). Tolerance: +-1 per sRGB channel; every WCAG target must still hold.",
  "budget_preferred_label_L": 0.1,
  "admin_budget_L": 0.16,
  "red_zone_oklch_hue": [

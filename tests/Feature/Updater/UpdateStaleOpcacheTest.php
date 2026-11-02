@@ -107,7 +107,11 @@ class UpdateStaleOpcacheTest extends TestCase
             echo json_encode(['opcache' => App\Support\Updater\SwapEngine::opcache(), 'answer' => $updater->finish($admin)], JSON_UNESCAPED_SLASHES);
             PHP);
 
-        $command = [PHP_BINARY, '-d', 'opcache.enable_cli=1', '-d', 'opcache.file_cache=', '-d', 'opcache.restrict_api='.$this->box->path('not-this-script')];
+        // opcache.cache_id (Windows): an OPcache of its own. With the same id it joins the shared memory of any other PHP of
+        // this build running on the machine (a test site's server), which another process mapped elsewhere ("Opcode
+        // handlers are unusable due to ASLR": the second PHP never starts). Elsewhere PHP ignores the setting.
+        $command = [PHP_BINARY, '-d', 'opcache.enable_cli=1', '-d', 'opcache.file_cache=', '-d', 'opcache.cache_id=avdbcms-test-'.getmypid().'-'.bin2hex(random_bytes(4)),
+            '-d', 'opcache.restrict_api='.$this->box->path('not-this-script')];
 
         foreach ($settings as $setting) {
             array_push($command, '-d', $setting);

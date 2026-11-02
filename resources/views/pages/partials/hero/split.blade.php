@@ -3,8 +3,17 @@
      starts at md; the CSS drops the channel, stats and text). --}}
 @php
     $splitVideo = $heroVideos->first();
-    $splitLikes = (int) ($splitVideo->likes_count ?? 0);
-    $splitVotes = $splitLikes + (int) ($splitVideo->dislikes_count ?? 0);
+    // "Liked" counts real votes, and only where the creator shows likes (the watch page and the API follow
+    // show_likes too). The stored likes_count / dislikes_count columns drift (Admin > Interactions deletes and
+    // account removal skip the VideoInteracted counter events), so this one video's votes are counted live: one
+    // query on the votes alone (likes and dislikes together), only when this hero shows the share. It never reads
+    // the video row again: the hero list is cached (PublicVideoFeedService::heroVideos), and a video deleted in
+    // the meantime simply has no votes left.
+    $splitVoteCounts = $splitVideo->show_likes
+        ? $splitVideo->interactions()->toBase()->selectRaw('status, COUNT(*) AS total')->groupBy('status')->pluck('total', 'status')
+        : collect();
+    $splitLikes = (int) ($splitVoteCounts[1] ?? 0);
+    $splitVotes = $splitLikes + (int) ($splitVoteCounts[0] ?? 0);
     $splitStats = array_filter([
         ['value' => \App\Helpers\Number::humanize((int) $splitVideo->views), 'label' => __('Views')],
         $splitVotes > 0 ? ['value' => round($splitLikes / $splitVotes * 100).'%', 'label' => __('Liked')] : null,

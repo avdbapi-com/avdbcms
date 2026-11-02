@@ -23,8 +23,11 @@
 
     @include('pages.partials.category-chips-scroller')
 
-    <x-videos-area
-        :url="route('videos.trend', ['locale' => app()->getLocale()])"
-        ad-context="trend_page"
-    />
+    {{-- R1-151: the page gutter of the phone mockups (16px, as the home feed; the cards touched the screen edges) --}}
+    <div class="px-3 px-sm-0">
+        <x-videos-area
+            :url="route('videos.trend', ['locale' => app()->getLocale()])"
+            ad-context="trend_page"
+        />
+    </div>
 @endsection

@@ -125,9 +125,11 @@ class MediaLibraryController
 
         if ($disk->exists($path)) {
             $disk->delete($path);
-            return redirect()->back()->withSuccess("File deleted: " . basename($path));
+            // Tools > Logs > Admin actions (R3-019): the file's place in the public storage.
+            AuditLogController::log('media.deleted', ltrim((string) $path, '/'));
+            return redirect()->back()->withSuccess(\App\Support\AdminText::labelled(__('File deleted'), basename($path)));
         }
 
-        return redirect()->back()->withErrors(['file' => 'File not found.']);
+        return redirect()->back()->withErrors(['file' => __('File not found.')]);
     }
 }

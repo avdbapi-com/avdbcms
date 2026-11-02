@@ -2,6 +2,7 @@
 
 namespace App\Notifications\Premium;
 
+use App\Notifications\Support\MemberMail;
 use App\Models\User;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
@@ -40,8 +41,8 @@ class Welcome extends Notification
     protected function buildMailMessage(User $notifiable) : MailMessage
     {
         return (new MailMessage)
-            ->subject(Lang::get('Welcome to ' .config('app.name'). ' Premium !'))
-            ->markdown('mails.premium.welcome', [
+            ->subject(MemberMail::welcome($notifiable)['subject'])
+            ->view(['mails.premium.welcome', 'mails.text.premium.welcome'], [
                 'notifiable' => $notifiable,
             ]);
     }

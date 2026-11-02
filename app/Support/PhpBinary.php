@@ -6,17 +6,208 @@ final class PhpBinary
 {
     private const MIN_VERSION_ID = 80300;
 
+    /** What the version probe prints before PHP_VERSION_ID (versionId()): only the number after it is read. */
+    private const VERSION_MARK = 'AVDB_PHP_VERSION_ID=';
+
     /**
-     * Resolve a PHP CLI binary for background Artisan commands.
+     * How long the answer of resolve() is kept (seconds). Working it out runs every candidate binary for its version and
+     * extensions: about 1.6 s on Windows, on every visit of Content > Import videos (R3-077, 3.5-4.2 s a page). A kept
+     * answer is used only while it is still the answer (stillTheAnswer()); Tools > Health check's Re-probe forgets it
+     * (forget()).
+     */
+    private const RESOLVE_SECONDS = 600;
+
+    /** How long a binary's version, extensions and memory limit are kept: until the file changes, at most a day. */
+    private const PROBE_SECONDS = 86400;
+
+    /**
+     * How long "no PHP binary was found" and a probe that could not run (exec failed: a process limit reached, PHP being
+     * updated by the panel) are kept: tried again soon, never a day.
+     */
+    private const NONE_SECONDS = 60;
+
+    /**
+     * How long this process uses an answer it read from the cache before reading the cache again (a queue worker runs
+     * for days: Re-probe and the cache's own times reach it within this time).
+     */
+    private const MEMO_SECONDS = 60;
+
+    /** @var array<string, array{0: mixed, 1: int}> what this process worked out or read from the cache (and until when), by cache key */
+    private static array $memo = [];
+
+    /**
+     * Resolve a PHP CLI binary for background Artisan commands. The answer is kept RESOLVE_SECONDS (the configured
+     * values of $envKeys and this PHP are part of its key, so a changed setting is looked at at once) and is used only
+     * while it is still the answer (stillTheAnswer(): the binary it names still works, and no configured binary before
+     * it works now); otherwise it is worked out again at once.
      *
      * @param  array<int, string>  $envKeys
      */
     public static function resolve(array $envKeys = []): ?string
     {
+        $configured = [];
+
         foreach ($envKeys as $envKey) {
-            $configured = trim((string) RuntimeEnv::get($envKey, ''));
-            if (self::usable($configured)) {
-                return $configured;
+            $configured[$envKey] = trim((string) RuntimeEnv::get($envKey, ''));
+        }
+
+        $parts = [$configured, (string) PHP_BINARY, PHP_VERSION_ID, PHP_OS_FAMILY];
+        $compute = static function () use ($configured): array {
+            $path = self::resolveNow($configured);
+
+            // "none found" is kept a short time only
+            return $path === null ? ['v' => null, 'ttl' => self::NONE_SECONDS] : ['v' => $path];
+        };
+        $path = self::remembered('resolve', $parts, self::RESOLVE_SECONDS, $compute);
+
+        if (! self::stillTheAnswer($path, $configured)) {
+            self::forgetOne('resolve', $parts);
+            $path = self::remembered('resolve', $parts, self::RESOLVE_SECONDS, $compute);
+        }
+
+        return is_string($path) && $path !== '' ? $path : null;
+    }
+
+    /**
+     * Is a kept answer of resolve() still the one resolveNow() gives, as far as that shows without probing every
+     * candidate again? resolveNow() takes the first configured binary that works, so a configured one before the kept
+     * answer that works now (the host fixed it or put it back) makes the answer old; and the binary the answer names
+     * must still work: the host may have removed it or changed the program behind the same path (an alternatives link,
+     * a panel switching its PHP version in place). A kept binary that does not work any more ran every import inside
+     * the admin's request for up to RESOLVE_SECONDS, in new processes too (review of R3-077, AD-R1).
+     *
+     * Nothing is probed while nothing changed: usable() keeps a binary's probes by its real path, size and time
+     * (signature()). PHP's own stat and realpath caches are emptied first, so a long-running process (a queue worker,
+     * PHP-FPM, php -S) sees a link that now points elsewhere at once. Whether another candidate became better is left to
+     * the answer's own time (RESOLVE_SECONDS) and to Tools > Health check > Re-probe.
+     *
+     * @param  array<string, string>  $configured  env key => its value, in resolveNow()'s order
+     */
+    private static function stillTheAnswer(mixed $path, array $configured): bool
+    {
+        if ($path !== null && (! is_string($path) || $path === '')) {
+            return false;
+        }
+
+        clearstatcache(true);
+
+        foreach ($configured as $value) {
+            if ($path !== null && $value === $path) {
+                break;
+            }
+
+            if (self::usable($value)) {
+                return false;
+            }
+        }
+
+        return $path === null || self::usable($path);
+    }
+
+    /**
+     * Forget every kept answer (resolve() and the binaries' versions, extensions and memory limits), e.g. after the host
+     * changed its PHP (Tools > Health check > Re-probe).
+     */
+    public static function forget(): void
+    {
+        self::$memo = [];
+        // a new generation: every key of this class changes (the old values expire by themselves)
+        SafeCache::put('php_binary.generation', (string) microtime(true), 31536000);
+    }
+
+    /**
+     * A value kept in the cache (SafeCache: a store that is down, or a console process in SafeCache::readOnly(), keeps
+     * nothing) and for this process. $compute answers ['v' => value] and may say a shorter time to keep it ('ttl').
+     *
+     * @param  array<int, mixed>  $parts  what the value depends on
+     * @param  \Closure(): array{v: mixed, ttl?: int}  $compute
+     */
+    private static function remembered(string $name, array $parts, int $seconds, \Closure $compute): mixed
+    {
+        $key = self::key($name, $parts);
+        $memo = self::memoKey($key);
+        $now = time();
+
+        if (isset(self::$memo[$memo]) && self::$memo[$memo][1] > $now) {
+            return self::$memo[$memo][0];
+        }
+
+        $cached = SafeCache::get($key);
+
+        if (is_array($cached) && array_key_exists('v', $cached)) {
+            self::$memo[$memo] = [$cached['v'], $now + self::MEMO_SECONDS];
+
+            return $cached['v'];
+        }
+
+        $computed = $compute();
+        $ttl = max(1, (int) ($computed['ttl'] ?? $seconds));
+        SafeCache::put($key, ['v' => $computed['v']], $ttl);
+        self::$memo[$memo] = [$computed['v'], $now + min($ttl, self::MEMO_SECONDS)];
+
+        return $computed['v'];
+    }
+
+    /**
+     * How long a binary's probes are kept: until the file changes (its size and time are part of the key), at most
+     * PROBE_SECONDS; where PHP may not look at the file (open_basedir) its changes cannot be seen, so only as long as
+     * resolve()'s own answer.
+     */
+    private static function probeSeconds(string $path): int
+    {
+        return self::looksLikeFilesystemPath($path) && self::canInspectPath($path) ? self::PROBE_SECONDS : self::RESOLVE_SECONDS;
+    }
+
+    /** @param  array<int, mixed>  $parts */
+    private static function forgetOne(string $name, array $parts): void
+    {
+        $key = self::key($name, $parts);
+        unset(self::$memo[self::memoKey($key)]);
+        SafeCache::forget($key);
+    }
+
+    /** @param  array<int, mixed>  $parts */
+    private static function key(string $name, array $parts): string
+    {
+        $generation = SafeCache::get('php_binary.generation');
+
+        return 'php_binary.'.$name.'.'.sha1((is_scalar($generation) ? (string) $generation : '0').'|'.json_encode($parts));
+    }
+
+    /** The process memo's key: per application (each test makes its own), per cache key. */
+    private static function memoKey(string $key): string
+    {
+        return (function_exists('app') ? spl_object_id(app()) : 0).'|'.$key;
+    }
+
+    /**
+     * What a binary's probes depend on: the file itself (where PHP may look at it: its real path, size and time), so a
+     * PHP the host replaced at the same path is probed again.
+     */
+    private static function signature(string $path): string
+    {
+        if (! self::looksLikeFilesystemPath($path) || ! self::canInspectPath($path)) {
+            return $path;
+        }
+
+        $real = @realpath($path);
+        $file = is_string($real) && $real !== '' ? $real : $path;
+        $stat = @stat($file);
+
+        return $file.'|'.(is_array($stat) ? $stat['size'].'|'.$stat['mtime'] : '-');
+    }
+
+    /**
+     * The binary as resolve() worked it out before 1.2.3 (R3-077 keeps its answer): a configured one, else the best of
+     * the candidates.
+     *
+     * @param  array<string, string>  $configured  env key => its value
+     */
+    private static function resolveNow(array $configured): ?string
+    {
+        foreach ($configured as $value) {
+            if (self::usable($value)) {
+                return $value;
             }
         }
 
@@ -144,21 +335,21 @@ final class PhpBinary
             return null;
         }
 
-        $command = Environment::isWindows() ? 'where' : 'command -v';
-        $stderr = Environment::isWindows() ? ' 2>NUL' : ' 2>/dev/null';
-        $output = [];
-        $status = 1;
+        // The paths the shell finds (kept RESOLVE_SECONDS, by name and PATH); usable() is asked each time.
+        $found = self::remembered('which', [$name, (string) getenv('PATH')], self::RESOLVE_SECONDS, static function () use ($name): array {
+            $command = Environment::isWindows() ? 'where' : 'command -v';
+            $stderr = Environment::isWindows() ? ' 2>NUL' : ' 2>/dev/null';
+            $output = [];
+            $status = 1;
 
-        @exec($command.' '.escapeshellarg($name).$stderr, $output, $status);
+            @exec($command.' '.escapeshellarg($name).$stderr, $output, $status);
 
-        if ($status !== 0 || $output === []) {
-            return null;
-        }
+            return ['v' => $status !== 0 ? [] : array_values(array_filter(array_map(static fn ($line): string => trim((string) $line), $output)))];
+        });
 
-        foreach ($output as $line) {
-            $path = trim((string) $line);
-            if (self::usable($path)) {
-                return $path;
+        foreach ((array) $found as $path) {
+            if (self::usable((string) $path)) {
+                return (string) $path;
             }
         }
 
@@ -271,29 +462,24 @@ final class PhpBinary
 
     private static function memoryLimitBytes(string $path): ?int
     {
-        static $limits = [];
-
-        if (array_key_exists($path, $limits)) {
-            return $limits[$path];
-        }
-
         if ($path === (string) PHP_BINARY) {
-            return $limits[$path] = self::parseMemoryLimit((string) ini_get('memory_limit'));
+            return self::parseMemoryLimit((string) ini_get('memory_limit'));
         }
 
         if (! Environment::functionAvailable('exec')) {
             return null;
         }
 
-        $output = [];
-        $status = 1;
-        @exec(escapeshellarg($path).' -r '.escapeshellarg('echo ini_get("memory_limit");').' 2>&1', $output, $status);
+        // kept until the binary changes, at most PROBE_SECONDS (R3-077); a probe that could not run only NONE_SECONDS
+        return self::remembered('memory', [self::signature($path)], self::probeSeconds($path), static function () use ($path): array {
+            $output = [];
+            $status = 1;
+            @exec(escapeshellarg($path).' -r '.escapeshellarg('echo ini_get("memory_limit");').' 2>&1', $output, $status);
 
-        if ($status !== 0 || $output === []) {
-            return $limits[$path] = null;
-        }
-
-        return $limits[$path] = self::parseMemoryLimit(trim((string) $output[0]));
+            return $status !== 0 || $output === []
+                ? ['v' => null, 'ttl' => self::NONE_SECONDS]
+                : ['v' => self::parseMemoryLimit(trim((string) $output[0]))];
+        });
     }
 
     private static function parseMemoryLimit(string $value): ?int
@@ -359,45 +545,46 @@ final class PhpBinary
 
     private static function hasRequiredExtensions(string $path): bool
     {
-        static $extensions = [];
-
-        if (array_key_exists($path, $extensions)) {
-            return $extensions[$path];
-        }
-
         if ($path === (string) PHP_BINARY) {
-            return $extensions[$path] = (
-                extension_loaded('mbstring')
+            return extension_loaded('mbstring')
                 && function_exists('mb_split')
                 && extension_loaded('pdo')
-                && extension_loaded('json')
-            );
+                && extension_loaded('json');
         }
 
-        $code = 'echo (extension_loaded("mbstring") && function_exists("mb_split") && extension_loaded("pdo") && extension_loaded("json")) ? "EXT_OK" : "EXT_FAIL";';
-        $output = self::runCliSnippet($path, $code);
+        // kept until the binary changes, at most PROBE_SECONDS (R3-077); a probe that could not run only NONE_SECONDS
+        return (bool) self::remembered('extensions', [self::signature($path)], self::probeSeconds($path), static function () use ($path): array {
+            $code = 'echo (extension_loaded("mbstring") && function_exists("mb_split") && extension_loaded("pdo") && extension_loaded("json")) ? "EXT_OK" : "EXT_FAIL";';
+            $output = self::runCliSnippet($path, $code);
 
-        return $extensions[$path] = ($output !== null && str_contains($output, 'EXT_OK'));
+            return $output === null || trim($output) === '' ? ['v' => false, 'ttl' => self::NONE_SECONDS] : ['v' => str_contains($output, 'EXT_OK')];
+        });
     }
 
     private static function versionId(string $path): ?int
     {
-        static $versions = [];
-
-        if (array_key_exists($path, $versions)) {
-            return $versions[$path];
-        }
-
         if ($path === (string) PHP_BINARY) {
-            return $versions[$path] = PHP_VERSION_ID;
+            return PHP_VERSION_ID;
         }
 
-        $output = self::runCliSnippet($path, 'echo PHP_VERSION_ID;');
-        if ($output === null || ! preg_match('/\b(\d{5,6})\b/', $output, $matches)) {
-            return $versions[$path] = null;
-        }
+        // kept until the binary changes, at most PROBE_SECONDS (R3-077); a probe that could not run only NONE_SECONDS,
+        // an answer that is no version (not a PHP binary) as long as resolve()'s own answer
+        return self::remembered('version', [self::signature($path)], self::probeSeconds($path), static function () use ($path): array {
+            // The version behind a marker of its own (single quotes: Windows' escapeshellarg() makes double quotes
+            // spaces): a PHP may print lines before it. On Windows with OPcache every PHP started from a web request
+            // printed "<date> (<pid>): Warning Opcode handlers are unusable due to ASLR ...", and the first 5-6 digit
+            // number of the output - the process id - was read as the version (25120: not usable; 81234: "8.1", usable
+            // whatever it was), then kept a day (lane AD, pass 2).
+            $output = self::runCliSnippet($path, "echo '".self::VERSION_MARK."', PHP_VERSION_ID;");
 
-        return $versions[$path] = (int) $matches[1];
+            if ($output === null || trim($output) === '') {
+                return ['v' => null, 'ttl' => self::NONE_SECONDS];
+            }
+
+            return preg_match('/'.preg_quote(self::VERSION_MARK, '/').'(\d{5,6})\b/', $output, $matches)
+                ? ['v' => (int) $matches[1]]
+                : ['v' => null, 'ttl' => self::RESOLVE_SECONDS];
+        });
     }
 
     private static function runCliSnippet(string $path, string $code): ?string

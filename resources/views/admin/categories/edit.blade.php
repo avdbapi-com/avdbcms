@@ -1,11 +1,11 @@
 @extends('layouts.admin')
 
-@section('title', __('Edit Category') . ': ' . $category->title)
+@section('title', \App\Support\AdminText::labelled(__('Edit Category'), (string) $category->title))
 
 @section('content')
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h3 class="mb-0"><i class="fa-solid fa-folder-open me-2"></i>{{__('Edit Category')}}: {{ $category->title }}</h3>
+        <h3 class="mb-0"><i class="fa-solid fa-folder-open me-2"></i>{{ \App\Support\AdminText::labelled(__('Edit Category'), (string) $category->title) }}</h3>
         <a href="{{ route('admin.categories.index') }}" class="btn btn-secondary btn-sm"><i class="fa-solid fa-arrow-left me-1"></i>{{__('Back')}}</a>
     </div>
 

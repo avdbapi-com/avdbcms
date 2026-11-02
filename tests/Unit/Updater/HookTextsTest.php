@@ -6,7 +6,7 @@ use App\Support\Updater\HookTexts;
 use Tests\TestCase;
 
 /**
- * The texts of the maintenance hook (F8 11, 13, 17): every key MaintenanceHook reads exists for an update and for an
+ * The texts of the maintenance hook: every key MaintenanceHook reads exists for an update and for an
  * undo, in the site's language (Laravel's translator, while it still runs), placeholders intact, right to left for
  * Arabic.
  */
@@ -34,7 +34,7 @@ class HookTextsTest extends TestCase
         $keys = array_values(array_unique($keys));
         sort($keys);
 
-        // The keys of the lane contract, plus the help link.
+        // The keys of the hook's text contract, plus the help link.
         $this->assertSame(['admin_back', 'admin_text', 'admin_title', 'busy', 'continue', 'failed', 'failed_title', 'finish', 'help', 'installing', 'open_admin',
             'putting_back', 'stuck', 'swapped', 'swapped_text', 'swapped_title', 'undo', 'undone', 'undone_title', 'visitor', 'working'], $keys);
 

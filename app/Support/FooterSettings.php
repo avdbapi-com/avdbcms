@@ -20,7 +20,9 @@ class FooterSettings
             'footer_categories_limit' => '6',
             'footer_support_enabled' => '1',
             'footer_support_title' => 'Support',
-            'footer_support_links' => "Contact|/contact\nTelegram Group|https://t.me/+jj6McO-iYfA0MTM1\nTelegram Support|https://t.me/avdbapi_support\nTerms of Service|/terms",
+            // 1.2.3: the AVDBAPI Telegram group and personal support (App\Support\TelegramLinks); 1.2.2 and earlier
+            // linked the retired public group (migration 2026_10_26_200000_new_telegram_links).
+            'footer_support_links' => "Contact|/contact\nTelegram group|".TelegramLinks::GROUP_URL."\nTelegram support|".TelegramLinks::SUPPORT_URL."\nTerms of Service|/terms",
             'footer_settings_enabled' => '1',
             'footer_settings_title' => 'Settings',
             'footer_language_switcher_enabled' => '1',
@@ -86,7 +88,9 @@ class FooterSettings
 
             [$label, $url] = array_pad(explode('|', $line, 2), 2, '#');
             $label = trim($label);
-            $url = trim($url);
+            // The retired public Telegram group of 1.2.2 and earlier links the new group (a restored revision or an
+            // old backup can still hold it); nothing is written.
+            $url = (string) TelegramLinks::current(trim($url));
 
             if ($label === '') {
                 continue;

@@ -5,11 +5,12 @@ namespace Tests\Unit\Updater;
 use App\Support\Updater\PlanStore;
 use App\Support\Updater\UpdateException;
 use App\Support\Updater\UpdatePaths;
+use Symfony\Component\Process\Process;
 use Tests\Feature\Updater\Support\UpdaterSandbox;
 use Tests\TestCase;
 
 /**
- * The updater's own files (F8 14): the update lock tells "another step holds it" (busy, the page waits and asks again)
+ * The updater's own files: the update lock tells "another step holds it" (busy, the page waits and asks again)
  * from "this disk cannot lock files at all" (some network file systems: refused with the reason, never "busy" for good),
  * and plan.json is never written empty.
  */
@@ -63,6 +64,63 @@ class PlanStoreTest extends TestCase
             $this->assertFalse($e->retry);
             $this->assertSame('flock not supported', $e->detail);
         }
+    }
+
+    /**
+     * Judge R3-027 (Windows): a program that holds plan.json open without letting others delete it (a virus scanner, a
+     * backup or indexing tool) makes the rename of the new copy fail for a moment. The rename is tried again for about a
+     * second; one refused for longer says what failed (never "the disk may be full"), and plan.json stays as it was.
+     */
+    public function test_a_rename_another_program_blocks_for_a_moment_is_tried_again_and_a_lasting_one_is_named(): void
+    {
+        if (PHP_OS_FAMILY !== 'Windows') {
+            $this->markTestSkipped('Only Windows refuses to rename a file over one another program holds open.');
+        }
+
+        $file = $this->box->path('plan.json');
+        PlanStore::write($file, ['status' => 'old']);
+
+        $holder = $this->holdOpen($file, 600);
+        $started = microtime(true);
+        PlanStore::write($file, ['status' => 'new']);
+        $this->assertSame('new', PlanStore::read($file)['status'], 'written once the other program let go');
+        $this->assertGreaterThan(0.1, microtime(true) - $started, 'it had to wait');
+        $holder->wait();
+
+        $holder = $this->holdOpen($file, 4000);
+
+        try {
+            PlanStore::write($file, ['status' => 'newer']);
+            $this->fail('A rename refused for seconds must stop the step with its reason.');
+        } catch (UpdateException $e) {
+            $this->assertSame('Could not replace plan.json with its new copy. Another program may be holding it open (a virus scanner or a backup tool), or the folder does not allow changes. Wait a moment, then try again.', $e->getMessage());
+            $this->assertTrue($e->retry, 'Continue can try again');
+            $this->assertStringContainsString('rename', (string) $e->detail);
+        } finally {
+            $holder->wait();
+        }
+
+        $this->assertSame('new', PlanStore::read($file)['status'], 'the plan as it was');
+        $this->assertSame([], glob($this->box->path('plan.json.*.tmp')) ?: [], 'no temporary file left behind');
+    }
+
+    /** A PowerShell that opens $file for reading, sharing only reading (no FILE_SHARE_DELETE), for $ms milliseconds. */
+    private function holdOpen(string $file, int $ms): Process
+    {
+        $ready = $file.'.held';
+        @unlink($ready);
+        $process = new Process(['powershell', '-NoProfile', '-NonInteractive', '-Command',
+            "\$f = [System.IO.File]::Open('{$file}', 'Open', 'Read', 'Read'); Set-Content -LiteralPath '{$ready}' -Value 'x'; Start-Sleep -Milliseconds {$ms}; \$f.Close()"]);
+        $process->start();
+
+        for ($i = 0; $i < 400 && ! is_file($ready) && $process->isRunning(); $i++) {
+            usleep(50_000);
+        }
+
+        $this->assertFileExists($ready, 'the other program holds plan.json: '.$process->getErrorOutput());
+        @unlink($ready);
+
+        return $process;
     }
 
     public function test_a_plan_is_never_written_empty(): void

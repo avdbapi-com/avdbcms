@@ -11,10 +11,11 @@ use Illuminate\Database\Query\Builder;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
-use Illuminate\Validation\Rules\Enum;
 
 class StoreVideoRequest extends FormRequest
 {
+    use CombinesScheduledFields;
+
     /**
      * Determine if the user is authorized to make this request.
      *
@@ -23,6 +24,21 @@ class StoreVideoRequest extends FormRequest
     public function authorize() : bool
     {
         return true;
+    }
+
+    /**
+     * The draft page sends the scheduled date and time as two native fields (member design 6.4, studio-8): they
+     * become scheduled_at, in the site's time zone, before the rules run.
+     */
+    protected function prepareForValidation(): void
+    {
+        $this->combineScheduledFields();
+
+        // A browser posts a textarea's line breaks as CRLF; the page, its counter and maxlength count one character:
+        // stored as one LF each (a no-op save no longer changes the text, the max length means what the counter says).
+        if (is_string($this->input('description'))) {
+            $this->merge(['description' => \App\Support\Studio\StudioFormat::lineBreaks($this->input('description'))]);
+        }
     }
 
     /**
@@ -102,9 +118,19 @@ class StoreVideoRequest extends FormRequest
      */
     public function messages(): array
     {
-        return [
-            'playlists.*.exists' => 'Playlist in position :position not exists on our records',
-            'playlists.*.numeric' => 'Playlist in position :position must be type numeric',
+        return $this->scheduledMessages() + [
+            'playlists.*.exists' => __('One of the chosen playlists is not one of yours any more. Pick your playlists again.'),
+            'playlists.*.numeric' => __('One of the chosen playlists is not one of yours any more. Pick your playlists again.'),
         ];
+    }
+
+    /**
+     * The fields' names in the messages.
+     *
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return $this->scheduledAttributes();
     }
 }

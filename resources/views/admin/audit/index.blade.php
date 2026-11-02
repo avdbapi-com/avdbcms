@@ -28,13 +28,13 @@
 
 <div class="table-responsive" tabindex="0">
     <table class="table table-bordered table-striped table-sm">
-        <thead><tr style="border-top:3px solid #6c757d"><th>{{__("Admin")}}</th><th>{{__('Action')}}</th><th style="min-width:200px">{{__('Details')}}</th><th>IP</th><th style="min-width:150px">{{__('Date')}}</th></tr></thead>
+        <thead><tr style="border-top:3px solid #6c757d"><th>{{__("Administrator")}}</th><th>{{__('Action')}}</th><th style="min-width:200px">{{__('Details')}}</th><th>IP</th><th style="min-width:150px">{{__('Date')}}</th></tr></thead>
         <tbody>
         @forelse($logs as $log)
         <tr>
-            <td class="align-middle"><span class="fw-bold">{{ $log->username ?? 'System' }}</span></td>
-            <td class="align-middle"><span class="badge bg-primary">{{ $log->action }}</span></td>
-            <td class="align-middle"><small>{{ Str::limit($log->details, 120) }}</small></td>
+            <td class="align-middle"><span class="fw-bold">{{ $log->username ?? __('System') }}</span></td>
+            <td class="align-middle"><span class="badge bg-primary" title="{{ $log->action }}">{{ \App\Support\AuditActions::label((string) $log->action) }}</span></td>
+            <td class="align-middle"><small style="white-space:normal;overflow-wrap:anywhere">{{ \App\Support\AuditDetails::html((string) $log->action, $log->details) }}</small></td>
             <td class="align-middle"><code class="small">{{ $log->ip_address ?? '—' }}</code></td>
             <td class="align-middle"><small>{{ \Carbon\Carbon::parse($log->created_at)->translatedFormat('M d, Y H:i:s') }}</small></td>
         </tr>

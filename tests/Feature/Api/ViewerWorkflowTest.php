@@ -106,9 +106,10 @@ class ViewerWorkflowTest extends TestCase
             'video_id' => $video->id,
         ]);
 
+        // Another member's playlist answers exactly like a playlist that does not exist (round 3 R3-081, HiddenRouteModels).
         $this->actingAs($attacker)
             ->deleteJson(route('playlists.delete', $playlist->uuid))
-            ->assertForbidden();
+            ->assertNotFound();
 
         $this->assertDatabaseHas('playlists', [
             'id' => $playlist->id,

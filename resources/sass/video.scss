@@ -102,6 +102,26 @@ html[data-avd-rail-scrollbars="hidden"] .avd-category-tabs::-webkit-scrollbar {
     color: var(--avd-section-prefix-color);
 }
 
+// R1-064: the rails' "View trending" / "Discover channels" links were 19-20px tall and their Previous / Next buttons
+// 22 x 26 browser buttons (grey box, black arrow in every look): targets of 32px in the look's colours. The hover state
+// stays layout-theme-a.css's.
+.avd-rail-nav-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    inline-size: 32px;
+    block-size: 32px;
+    padding: 0;
+    border: 1px solid var(--avd-border);
+    border-radius: 999px;
+    background: var(--avd-surface-2, transparent);
+    color: var(--avd-text);
+}
+
+.avd-discovery-link {
+    min-block-size: 32px;
+}
+
 .avd-discovery-link {
     display: inline-flex;
     align-items: center;
@@ -406,7 +426,6 @@ html[data-avd-density="relaxed"] .avd-video-grid {
 .avd-feed-control-btn:not(:disabled):hover {
     color: var(--avd-text);
     border-color: rgba(var(--avd-brand-rgb), 0.72);
-    transform: translateY(-1px);
 }
 
 .avd-feed-control-btn:disabled {
@@ -576,20 +595,27 @@ html[data-avd-density="relaxed"] .avd-video-grid {
     color: var(--avd-text);
 }
 
+/* The card's menu button floats over the top end corner of the thumbnail (channel-7: motion.scss pulled it into the
+   flow). It fades in with the card's hover or focus; it never slides, so it is not a moving target. Touch screens
+   (no hover) show it at once. */
 .avd-card-menu {
     position: absolute;
     top: 0.55rem;
     inset-inline-end: 0.55rem;
     z-index: 4;
     opacity: 0;
-    transform: translateY(-4px);
-    transition: opacity 180ms ease, transform 180ms ease;
+    transition: opacity 120ms ease;
 }
 
 .avd-video-card:hover .avd-card-menu,
 .avd-card-menu:focus-within {
     opacity: 1;
-    transform: translateY(0);
+}
+
+@media (hover: none), (pointer: coarse) {
+    .avd-card-menu {
+        opacity: 1;
+    }
 }
 
 .avd-card-menu .btn {
@@ -802,6 +828,67 @@ html[data-avd-perf="lite"] .avd-placeholder::after {
     background: #000;
 }
 
+// The sleep timer's message over the player (#avdSleepFinishedOverlay; 1.2.3 round 3, the same since 1.2.2): on
+// phones its moon, heading, sentence and Resume button were taller than the 16:9 player that clips it, so Resume,
+// the only way back, was cut off (0-39 of its 44 px showed at 320-390 px), and in the mini player (360 px wide on
+// any screen) too. Phones and the mini player leave the moon out and use less space; and wherever the message
+// still does not fit, it scrolls inside the player and starts at its top instead of being cut off (auto margins
+// centre it when it fits, so it looks as before wherever it fitted). The overlay's markup is unchanged.
+:root #avdSleepFinishedOverlay {
+    justify-content: flex-start !important;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+:root #avdSleepFinishedOverlay > :first-child {
+    margin-block-start: auto;
+}
+
+:root #avdSleepFinishedOverlay > :last-child {
+    flex-shrink: 0;
+    margin-block-end: auto;
+}
+
+@media (max-width: 575.98px) {
+    :root #avdSleepFinishedOverlay {
+        padding: 0.75rem !important;
+    }
+
+    :root #avdSleepFinishedOverlay > :first-child {
+        display: none;
+    }
+
+    :root #avdSleepFinishedOverlay > h3 {
+        margin-block-start: auto;
+        margin-bottom: 0.25rem !important;
+        font-size: 1.05rem;
+    }
+
+    :root #avdSleepFinishedOverlay > p {
+        margin-bottom: 0.75rem !important;
+        line-height: 1.4 !important;
+    }
+}
+
+:root .avd-pip-active #avdSleepFinishedOverlay {
+    padding: 0.75rem !important;
+}
+
+:root .avd-pip-active #avdSleepFinishedOverlay > :first-child {
+    display: none;
+}
+
+:root .avd-pip-active #avdSleepFinishedOverlay > h3 {
+    margin-block-start: auto;
+    margin-bottom: 0.25rem !important;
+    font-size: 1.05rem;
+}
+
+:root .avd-pip-active #avdSleepFinishedOverlay > p {
+    margin-bottom: 0.75rem !important;
+    line-height: 1.4 !important;
+}
+
 .avd-player-shell {
     position: relative;
     isolation: isolate;
@@ -980,6 +1067,31 @@ html[data-avd-perf="lite"] .avd-placeholder::after {
     cursor: pointer;
 }
 
+// R1-061: the description's own links look like links in every look (dark.scss gives every link the text colour and the
+// link parser prints them without an underline), a long word or address wraps inside the panel (it ran out at 390px),
+// and "Show more" / "Show less" is a button of 24px at least.
+:root .avd-description-panel:not(.avd-detail-panel) {
+    overflow-wrap: anywhere;
+}
+
+:root .avd-description-panel:not(.avd-detail-panel) a:not(.btn) {
+    color: var(--avd-brand-ink, var(--bs-link-color));
+    text-decoration: underline !important;
+    text-underline-offset: 0.18em;
+}
+
+:root .avd-description-toggle {
+    display: inline-flex;
+    align-items: center;
+    min-block-size: 24px;
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+}
+
 .avd-detail-panel {
     display: flex;
     flex-direction: column;
@@ -1068,6 +1180,18 @@ html[data-avd-perf="lite"] .avd-placeholder::after {
     text-transform: uppercase;
 }
 
+// R1-059: in the narrow side column (992-1099px, long words in other languages) "Autoplay next" ran past the card's
+// edge, which cut it ("AUTOPLA"): the row wraps, and the label goes under the badges in one piece.
+.avd-up-next-kicker {
+    flex-wrap: wrap;
+    row-gap: 0.35rem;
+    column-gap: 0.5rem;
+}
+
+.avd-up-next-badge-autoplay {
+    white-space: nowrap;
+}
+
 .avd-up-next-source {
     min-height: 24px;
     padding: 0.18rem 0.48rem;
@@ -1140,13 +1264,13 @@ html[data-avd-perf="lite"] .avd-placeholder::after {
     padding: 0.55rem !important;
     margin-bottom: 0 !important;
     height: 100% !important;
-    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease, border-color 0.25s ease !important;
+    transition: box-shadow 140ms ease, border-color 140ms ease, background-color 140ms ease !important;
 }
 
+// Wide watch layouts: the card glows on hover; it no longer lifts 4px (it moved its Watch Later and Share buttons).
 .avd-watch-sidebar-col.col-12 .suggested_video.avd-related-card:hover,
 .avd-watch-layout[data-avd-watch-layout="theater_cinema"] .suggested_video.avd-related-card:hover,
 .avd-watch-layout[data-avd-watch-layout="floating_focus"] .suggested_video.avd-related-card:hover {
-    transform: translateY(-4px) !important;
     background: var(--avd-surface-hover, rgba(255, 255, 255, 0.05)) !important;
     border-color: rgba(var(--avd-brand-rgb, 255, 61, 97), 0.45) !important;
     box-shadow: 0 14px 28px -6px rgba(0, 0, 0, 0.55), 0 0 18px -2px rgba(var(--avd-brand-rgb, 255, 61, 97), 0.25) !important;
@@ -1180,13 +1304,14 @@ html[data-avd-perf="lite"] .avd-placeholder::after {
     padding: 0.45rem 0.55rem;
     border-radius: 12px;
     border: 1px solid transparent;
-    transition: transform 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
+    transition: background-color 120ms ease, border-color 120ms ease;
 }
 
+// Hover is a colour change only (member design 4.2, OD-M16): the card used to slide 3px, and its Watch Later and
+// Share buttons slid with it, so the hit box moved under the pointer.
 .avd-watch-sidebar-col:not(.col-12) .suggested_video.avd-related-card:hover {
     background: var(--avd-surface-hover, rgba(255, 255, 255, 0.05));
     border-color: rgba(var(--avd-brand-rgb, 255, 61, 97), 0.28);
-    transform: translateX(3px);
 }
 
 .avd-watch-sidebar-col:not(.col-12) .suggested_video.avd-related-card .avd-thumb {
@@ -1356,6 +1481,32 @@ html[data-avd-perf="lite"] .avd-placeholder::after {
     }
 }
 
+// R1-152: from 768 to 991px the watch page is one column as on phones, but it kept the 1.25rem row gutter (the row's
+// -10px side margins with its max-width: 100% moved everything 10px to the left) and the frame's -0.75rem side margins
+// with its width: 100% (only the left one acted: 12px more to the left). The player sat 6px from the left edge and 26px
+// from the right. As on phones: no row gutter, no frame margins; everything is centred on the page's own margins. (The
+// cause is in these page rules, not in the player's own CSS.)
+@media (min-width: 768px) and (max-width: 991.98px) {
+    .avd-watch-layout {
+        --bs-gutter-x: 0;
+    }
+
+    .avd-player-frame {
+        margin-inline: 0;
+    }
+}
+
+// R3-067: from 992px the theater cinema layout (Cinema Night and the other theater looks) stacks its columns and centres
+// them (watch-page.css .avd-watch-contained), but its row kept the -10px side margins with max-width: 100% (the looks'
+// layout rule), which moved the player 10px to the left (188px on its left, 208px on its right at 1366). No row gutter,
+// as theater mode (body.theater-mode, enhancements.scss) and every layout under 992px (above) have; the columns keep
+// their own padding.
+@media (min-width: 992px) {
+    .avd-watch-layout[data-avd-watch-layout="theater_cinema"] {
+        --bs-gutter-x: 0;
+    }
+}
+
 @media (max-width: 767.98px) {
     .avd-watch-layout {
         --bs-gutter-x: 0;
@@ -1495,4 +1646,169 @@ html[data-avd-perf="lite"] .avd-placeholder::after {
     .avd-playlist-manager__scroll {
         max-height: min(52dvh, 460px);
     }
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// 1.2.3: comments, report and card targets.
+// ---------------------------------------------------------------------------------------------------------------------
+
+// watch-22: "Reply" and the time codes in the look's accent (Bootstrap's cyan text-info was in no look).
+:root .avd-comment-reply {
+    padding: 0.25rem 0.5rem;
+    border: 0;
+    background: transparent;
+    color: var(--avd-accent-ink, var(--bs-link-color));
+    font-weight: 600;
+}
+
+:root .avd-comment-reply:hover,
+:root .avd-comment-reply[aria-expanded="true"] {
+    background: rgba(var(--avd-accent-rgb, 24, 200, 216), 0.12);
+    color: var(--avd-accent-ink, var(--bs-link-color));
+}
+
+:root .avd-timecode {
+    color: var(--avd-accent-ink, var(--bs-link-color));
+    font-weight: 600;
+}
+
+// A code past the video's end, or under a player the page cannot seek: text, like the rest of the comment.
+:root .avd-timecode-text {
+    font-variant-numeric: tabular-nums;
+}
+
+// watch-14: while another order loads, the current list stays (dimmed) instead of collapsing to "Loading ...".
+:root .avd-comments-reordering {
+    opacity: 0.55;
+    transition: opacity 120ms ease;
+}
+
+// watch-16: the report's success state, an icon tile in the look's colours (no white stock picture).
+:root .avd-report-done {
+    padding-block: 0.5rem 0.25rem;
+}
+
+:root .avd-report-done__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    inline-size: 3.5rem;
+    block-size: 3.5rem;
+    border-radius: 50%;
+    // The success tone of the look, not its accent: a red accent (Daylight Creator, Swiss Bento) read as an error.
+    background: rgba(var(--avd-success-rgb, 25, 135, 84), 0.12);
+    color: var(--avd-success, #198754);
+    font-size: 1.5rem;
+}
+
+:root .avd-report-done__text {
+    color: var(--avd-muted, var(--bs-secondary-color));
+}
+
+// watch-46: the channel name under a card is a 24 px target at least (it was 15 px tall on phones); the extra height
+// is taken from the line around it, so the card does not grow.
+:root .avd-video-card a.avd-channel-name,
+:root .suggested_video a.avd-channel-name,
+:root .avd-related-card a.avd-channel-name {
+    min-block-size: 24px;
+    padding-block: 4px;
+    margin-block: -4px;
+}
+
+// watch-15: the Save dialog's list follows the dialog's height (a fixed 500px cap left the footer mid-screen in the
+// full-height sheet styles); the create form sits on the look's surface.
+:root .avd-save-playlists {
+    max-block-size: min(500px, 60vh);
+}
+
+// R1-058: the full-height pop-up styles are set on the page (html[data-avd-modal-style], layout-theme-a.css), not on
+// the dialog: the side sheet from 768px (the content is the window's height) and the cinema style (an 85vh card). The
+// list takes the room and scrolls, the footer ("Create new playlist") sits at the bottom. Phones keep the capped list
+// (the side sheet is a bottom sheet there).
+@media (min-width: 768px) {
+    html[data-avd-modal-style="modal_slide_sheet"] .modal-dialog:not(.modal-xl):not(.modal-fullscreen) .avd-save-playlists {
+        max-block-size: none;
+        min-block-size: 0;
+        flex: 1 1 auto;
+    }
+}
+
+html[data-avd-modal-style="modal_fullscreen_cinema"] .avd-save-playlists {
+    max-block-size: none;
+    flex: 1 1 auto;
+}
+
+// 1.2.3 round 1b (R1R-10): a playlist of the Save dialog is one row-wide label: its box, its name and its visibility
+// icon, in the page's reading order. A tap on the box, on the name or anywhere else on the row ticks the box once. In
+// Arabic Bootstrap's left-to-right check row (the box floated left into the row's left padding) put the box under the
+// icon of the name before it, so a tap on the box hit the icon and ticked nothing. Left to right it looks as before:
+// the box, 8 px, the name, 16 px, the icon; the box on the name's first line.
+:root .avd-save-playlist {
+    display: flex;
+    align-items: flex-start;
+    min-block-size: 1.5rem;
+    padding-inline: 0;
+    cursor: pointer;
+}
+
+:root .avd-save-playlist .form-check-input {
+    flex: none;
+    float: none;
+    margin-block: .25em 0;
+    margin-inline: 0 .5rem;
+}
+
+:root .avd-save-playlist .form-check-label {
+    min-inline-size: 0;
+    margin-inline-end: 1rem;
+}
+
+:root .avd-save-playlist > i {
+    flex: none;
+    align-self: center;
+}
+
+// R3-066: a box that waits while the list is read again stays focusable (aria-disabled, Save.tsx) and looks as Bootstrap
+// draws a disabled box and its name.
+:root .avd-save-playlist .form-check-input[aria-disabled="true"] {
+    pointer-events: none;
+    filter: none;
+    opacity: .5;
+}
+
+:root .avd-save-playlist .form-check-input[aria-disabled="true"] ~ .form-check-label {
+    cursor: default;
+    opacity: .5;
+}
+
+// The other check rows of the site's dialogs (Report's reasons): in Arabic the radio goes to the start of its row, next
+// to its label, instead of the far left of the dialog.
+:root[dir="rtl"] .modal .form-check:not(.form-check-reverse):not(.form-switch):not(.avd-save-playlist) {
+    padding-inline: 1.5em 0;
+}
+
+:root[dir="rtl"] .modal .form-check:not(.form-check-reverse):not(.form-switch):not(.avd-save-playlist) .form-check-input {
+    float: inline-start;
+    margin-inline: -1.5em 0;
+}
+
+:root .avd-create-playlist {
+    border-color: var(--avd-border, var(--bs-border-color));
+    background: var(--avd-surface-2, var(--bs-tertiary-bg));
+    color: var(--avd-text, var(--bs-body-color));
+}
+
+// watch-20: the watch page's sticky "Back to Video" bar (z-index 1045 in its markup) sat above the comments sheet's
+// backdrop (1040). It stays above the header and under every backdrop (member design 4.4).
+:root #avdStickyWatchBar {
+    z-index: 1039 !important;
+}
+
+// The same bar and the site header (1.2.3 round 3; the same since 1.2.2): the bar is position: fixed inside the
+// player's shell, and the shell (isolation) and the player's wrapper (z-index 1) make one stacking layer under the
+// header, so no z-index of its own lifts it above a sticky header: at the top of the window it was drawn under the
+// header, out of sight and out of reach (only the keyboard got to it). It now starts at the header's bottom edge,
+// --sidebar-top (core.ts keeps it on the bar as on the sidebars; 0 once a header that scrolls away has gone).
+:root #avdStickyWatchBar {
+    top: var(--sidebar-top, 0px) !important;
 }

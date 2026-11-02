@@ -3,6 +3,7 @@
 namespace App\Charts;
 
 use App\Models\Transaction;
+use App\Support\PremiumAvailability;
 use App\Support\SafeCache;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
@@ -38,7 +39,8 @@ class PremiumEarningsChart
             return [];
         }
 
-        $cacheKey = 'admin.chart.premium_earnings.data.' . $this->firstTransactionDate->format('Y-m');
+        // Amounts in the units of the site's currency (1.2.3: a currency without cents, JPY, is no longer divided by 100).
+        $cacheKey = 'admin.chart.premium_earnings.data.' . PremiumAvailability::currency() . '.' . $this->firstTransactionDate->format('Y-m');
         $dataset = SafeCache::remember(
             $cacheKey,
             now()->addSeconds(self::CACHE_TTL_SECONDS),
@@ -99,7 +101,7 @@ class PremiumEarningsChart
     {
         return DB::query()
             ->selectRaw("DATE_FORMAT(m.month_start, '%Y-%m') AS month")
-            ->selectRaw('COALESCE(SUM(t.amount), 0) / 100 AS total_amount')
+            ->selectRaw('COALESCE(SUM(t.amount), 0) AS total_cents')
             ->from('months', 'm')
             ->leftJoin('transactions as t', DB::raw("DATE_FORMAT(t.date, '%Y-%m')"), '=', DB::raw("DATE_FORMAT(m.month_start, '%Y-%m')"))
             ->groupBy('m.month_start')
@@ -116,8 +118,8 @@ class PremiumEarningsChart
                     ),
             )
             ->get()
-            ->pluck('total_amount')
-            ->toArray();
+            ->map(fn ($row): float => PremiumAvailability::units((float) $row->total_cents))
+            ->all();
     }
 
     private function loadFirstTransactionDate(): ?Carbon

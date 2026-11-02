@@ -10,7 +10,7 @@ use Tests\Feature\Updater\Support\ZipBuilder;
 use Tests\TestCase;
 
 /**
- * The zip entry guard (F8 8, 18): one unsafe entry refuses the whole zip before anything is unpacked; the storage
+ * The zip entry guard: one unsafe entry refuses the whole zip before anything is unpacked; the storage
  * placeholders and database/install/ are skipped, not refused.
  */
 class ZipEntriesTest extends TestCase

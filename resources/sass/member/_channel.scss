@@ -1,0 +1,610 @@
+/* Member channel and library pages (member design 6.10, 6.11, 6.19): the channel page and its header band, Library, History,
+   playlist pages, Watch later and Liked videos, Saved playlists, the subscriptions feed, Manage subscriptions and
+   Discover. Started from the design kit's channel partial, then built on for 1.2.3:
+   its own rules are in the "Channel and library pages" section at the end. Every selector starts with :root or html (5.13). */
+:root .mk-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
+    gap: 1.25rem var(--mk-gap);
+}
+
+/* a card keeps its picture, title and line on top when its row is taller than it (a neighbour's line wraps): the
+   titles of a row stay on one line (R1-129: the extra height went between the picture and the title) */
+:root .mk-card {
+    display: grid;
+    align-content: start;
+    gap: .55rem;
+    min-inline-size: 0;
+    color: var(--avd-text);
+    text-decoration: none;
+}
+
+:root .mk-card__title {
+    color: var(--avd-text);
+    font-family: var(--avd-font-title, var(--avd-font-body));
+    font-size: var(--avd-title-size, .9375rem);
+    font-weight: var(--avd-title-weight, 650);
+    line-height: 1.35;
+}
+
+:root .mk-card__meta {
+    color: var(--avd-muted);
+    font-size: .8125rem;
+}
+
+@media (max-width: 575.98px) {
+    :root .mk-cards { grid-template-columns: minmax(0, 1fr); }
+
+    /* The admin's "Videos per row on phones" (mobile_video_columns, default 2; printed by the layout as
+       html[data-avd-mobile-video-columns]) is honoured by every member card grid. */
+
+    html[data-avd-mobile-video-columns="2"] .mk-cards:not(.mk-cards--shelf) {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 1rem .75rem;
+    }
+
+    html[data-avd-mobile-video-columns="2"] .mk-cards .mk-card__title { font-size: .875rem; }
+}
+
+:root .mk-feature__title {
+    color: var(--avd-text);
+    font-family: var(--avd-font-display);
+    font-size: clamp(1.15rem, 1rem + .6vw, 1.5rem);
+    font-weight: var(--avd-display-weight, 700);
+    line-height: 1.2;
+}
+
+/* ---------------------------------------------------------------------------------------------------------------------
+   Library (_channel.scss): cards, shelves, list rows that never sit in an inner scroll box (channel-6)
+   ------------------------------------------------------------------------------------------------------------------ */
+
+:root .mk-card__channel { color: var(--avd-muted); font-size: .8125rem; font-weight: 600; }
+
+/* A shelf is exactly ONE full row. The shelf is a container; its column count
+   follows its own width (2 / 3 / 4 / 5 / 6 from 0 / 480 / 720 / 960 / 1200px) and the cards past the last column are
+   not rendered (display: none: not focusable, not read). The server sends 6 items per shelf (the most a 1280px page
+   shows), so a member with enough history never sees an empty trailing column (4 cards in a 5-6 column track before);
+   a member who has fewer items than columns simply has a shorter row. Phones keep the swipe row with all 6. */
+:root .mk-shelf {
+    container-type: inline-size;
+    container-name: mkshelf;
+}
+
+:root .mk-cards--shelf {
+    --mk-shelf-cols: 2;
+    grid-template-columns: repeat(var(--mk-shelf-cols), minmax(0, 1fr));
+}
+
+:root .mk-cards--shelf > :nth-child(n+3) { display: none; }
+
+@container mkshelf (min-width: 480px) {
+    :root .mk-cards--shelf { --mk-shelf-cols: 3; }
+
+    :root .mk-cards--shelf > :nth-child(3) { display: grid; }
+}
+
+@container mkshelf (min-width: 720px) {
+    :root .mk-cards--shelf { --mk-shelf-cols: 4; }
+
+    :root .mk-cards--shelf > :nth-child(4) { display: grid; }
+}
+
+@container mkshelf (min-width: 960px) {
+    :root .mk-cards--shelf { --mk-shelf-cols: 5; }
+
+    :root .mk-cards--shelf > :nth-child(5) { display: grid; }
+}
+
+@container mkshelf (min-width: 1200px) {
+    :root .mk-cards--shelf { --mk-shelf-cols: 6; }
+
+    :root .mk-cards--shelf > :nth-child(6) { display: grid; }
+}
+
+@media (max-width: 575.98px) {
+    /* Phones: shelves are one swipe row (4 cards), lists stay vertical. */
+
+    :root .mk-cards--shelf {
+        display: grid;
+        grid-auto-flow: column;
+        grid-auto-columns: 72%;
+        grid-template-columns: none;
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        scroll-snap-type: x mandatory;
+        padding-block-end: .25rem;
+    }
+
+    :root .mk-cards--shelf > * { scroll-snap-align: start; }
+
+    /* the swipe row shows all six cards */
+    :root .mk-cards--shelf > :nth-child(n) { display: grid; }
+}
+
+:root .mk-shelf { display: grid; gap: .75rem; }
+
+:root .mk-chips-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+}
+
+:root .mk-chan-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: .5rem;
+    min-block-size: 44px;
+    padding: .25rem .85rem .25rem .3rem;
+    border: 1px solid var(--avd-border);
+    border-radius: 999px;
+    background: var(--avd-surface-1);
+    color: var(--avd-text);
+    font-size: .875rem;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+:root .mk-lrows { display: grid; gap: .25rem; margin: 0; padding: 0; list-style: none; }
+
+:root .mk-lrow {
+    position: relative;
+    display: grid;
+    grid-template-columns: 168px minmax(0, 1fr) auto;
+    gap: .85rem;
+    align-items: start;
+    padding: .5rem;
+    border-radius: var(--mk-r-inner);
+}
+
+@media (max-width: 575.98px) {
+    :root .mk-lrow { grid-template-columns: 136px minmax(0, 1fr) auto; gap: .65rem; padding-inline: 0; }
+}
+
+@media (hover: hover) and (pointer: fine) {
+    :root .mk-lrow:hover { background: var(--mk-hover); }
+}
+
+:root .mk-lrow__body { display: grid; gap: .2rem; min-inline-size: 0; }
+
+:root .mk-lrow__title {
+    color: var(--avd-text);
+    font-family: var(--avd-font-title, var(--avd-font-body));
+    font-weight: var(--avd-title-weight, 650);
+    line-height: 1.35;
+    text-decoration: none;
+}
+
+/* The card menu sits in the row's own column: it never floats out of the card (channel-7). */
+
+:root .mk-lrow__menu { align-self: start; }
+
+:root .mk-lrows--numbered { counter-reset: mklrow; }
+
+:root .mk-lrows--numbered > .mk-lrow { counter-increment: mklrow; grid-template-columns: 1.5rem 168px minmax(0, 1fr) auto; }
+
+:root .mk-lrows--numbered > .mk-lrow::before { content: counter(mklrow); align-self: center; color: var(--avd-muted); font-size: .8125rem; text-align: end; }
+
+@media (max-width: 575.98px) {
+    :root .mk-lrows--numbered > .mk-lrow { grid-template-columns: 136px minmax(0, 1fr) auto; }
+
+    :root .mk-lrows--numbered > .mk-lrow::before { content: none; }
+}
+
+:root .mk-head--playlist { grid-template-columns: minmax(0, 1fr); }
+
+:root .mk-head__cover { display: block; inline-size: min(100%, 320px); }
+
+@media (min-width: 768px) {
+    :root .mk-head--playlist { grid-template-columns: 240px minmax(0, 1fr); align-items: start; }
+
+    :root .mk-head--playlist .mk-head__actions { grid-column: 2; }
+}
+
+:root .mk-chan-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 210px), 1fr));
+    gap: var(--mk-gap);
+}
+
+@media (max-width: 575.98px) {
+    :root .mk-chan-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* a column whose Subscribe sits at its foot (below), so the buttons of a row line up, with a description or without
+   (R1-128) */
+:root .mk-chan-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .35rem;
+    padding: 1.1rem .9rem;
+    border: var(--mk-panel-border);
+    border-radius: var(--mk-r-panel);
+    background: var(--avd-surface-1);
+    text-align: center;
+}
+
+/* Subscribe never wraps its icon above the label (channel-33): the button shrinks its padding, not its line.
+   "SUBSCRIBED" with its tick ran 128px of content in a 121px button in Imperial Salon at
+   360, so in a card narrower than 180px the button drops its icon (the word carries the state) and its label can still
+   end in an ellipsis rather than leave the button. */
+
+:root .mk-chan-card { container-type: inline-size; container-name: mkchan; }
+
+/* a card is a layer of its own (its container query): while its Subscribed bell menu is open (focus inside), the card
+   rises over the cards after it, so the menu is never painted under them */
+:root .mk-chan-card:focus-within { z-index: 2; }
+
+:root .mk-chan-card .mk-btn { inline-size: 100%; min-inline-size: 0; padding-inline: .5rem; }
+
+:root .mk-chan-card .mk-btn > span { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; }
+
+@container mkchan (max-width: 179.98px) {
+    :root .mk-chan-card .mk-btn > i { display: none; }
+}
+
+/* the card's own padding narrows on a 2-column phone grid, so the label keeps its full word */
+@media (max-width: 575.98px) {
+    :root .mk-chan-card { padding-inline: .55rem; }
+
+    :root .mk-chan-card .mk-btn { padding-inline: .35rem; }
+}
+
+:root .mk-share-row { display: flex; flex-wrap: wrap; gap: .5rem; }
+
+:root .mk-share {
+    display: grid;
+    justify-items: center;
+    gap: .25rem;
+    inline-size: 4.5rem;
+    color: var(--avd-text);
+    font-size: .75rem;
+    text-decoration: none;
+}
+
+:root .mk-share i {
+    display: grid;
+    place-items: center;
+    inline-size: 2.75rem;
+    block-size: 2.75rem;
+    border-radius: 50%;
+    background: var(--avd-surface-2);
+    font-size: 1.1rem;
+}
+
+:root .mk-status-page__title { font-family: var(--avd-font-display); font-size: clamp(1.35rem, 1.1rem + 1vw, 1.75rem); }
+
+:root .mk-notify-page .mk-notif { border-block-start: 1px solid var(--avd-divider, var(--avd-border)); }
+
+:root .mk-notify-page .mk-notify__group { position: static; background: transparent; }
+
+/* =====================================================================================================================
+   Channel and library pages (1.2.3): the rules the built pages need beyond the kit's channel partial above.
+   ===================================================================================================================== */
+
+/* ---------------------------------------------------------------------------------------------------------------------
+   Page frames. The channel page clips sideways (never overflow: hidden, which made it its own scroll box and stopped
+   the sticky tabs on phones: QA channel-5). Section lists that sit in a wrapper keep the page's own gap.
+   ------------------------------------------------------------------------------------------------------------------ */
+
+:root .mk-channel__pane,
+:root .mk-channel__section,
+:root .mk-history__list {
+    display: grid;
+    gap: var(--mk-gap);
+    min-inline-size: 0;
+}
+
+:root .mk-channel__section { gap: .75rem; }
+
+:root .mk-history__list:empty { display: none; }
+
+/* R1-068: from 11rem (was 14rem) the field still fills the row, and "Pause history" stays beside it from 360px: with
+   14rem the button fitted at 390px by 1px in the look's web font, not in the fallback font, so the list jumped 52px when
+   the web font arrived (CLS 0.165). */
+:root .mk-history__search { display: flex; flex: 1 1 11rem; min-inline-size: 0; }
+
+/* R2A-025: on phones the search takes its own line and "Pause history" goes under it: beside the button its placeholder
+   was cut in ten languages up to 520px ("Search your histor" in English at 360). The line breaks by the window's width,
+   not by the text's, so the look's web font arriving moves nothing (R1-068). */
+@media (max-width: 575.98px) {
+    :root .mk-history__search { flex-basis: 100%; }
+}
+
+:root .mk-day { min-inline-size: 0; }
+
+/* History's day heads (the title and its Remove on one line). Scoped to History: the studio's Activity timeline prints
+   the same .mk-day markup with its titles indented like its rows (R1-018: this rule left them on the panel's edge) */
+:root .mk-history .mk-day .mk-day__head { padding-inline-end: 0; }
+
+:root .mk-history .mk-day .mk-day__title { padding-inline-start: 0; }
+
+/* R2A-064 / R3-015, R3-060: a creator's own words keep their own direction on a page of the other direction: a Latin
+   tagline on an Arabic page ends with its period, a video title with its question mark, and a clamped or cut one keeps
+   its start and ends with its "…". The element that holds the text carries its direction where it differs from the
+   page's (dir=ltr / dir=rtl, App\Support\TextDirection: the one dir="auto" would give); only the element's own direction
+   puts the "…" of a clamp at the text's end in Chromium, WebKit and Firefox alike (unicode-bidi: plaintext did not). Its
+   box is as wide as its text, at most its column, so it sits on the page's own side; its lines follow its direction (the
+   rows' list items: _kit.scss). The @handle is isolated in the markup (<bdi dir="ltr">); the Discover cards' texts stay
+   centred. */
+:root :is(.mk-channel__name, .mk-channel__tagline, .mk-prose, .mk-playlist__desc, .mk-head__title, .mk-item__title, .mk-lrow__title, .mk-card__title, .mk-subs-manage__desc, .mk-feature__title, .mk-feature__desc)[dir] {
+    inline-size: fit-content;
+}
+
+/* (the tagline and the two descriptions keep their own measure, min(100%, 62ch / 70ch)) */
+:root :is(.mk-channel__name, .mk-head__title, .mk-item__title, .mk-lrow__title, .mk-card__title, .mk-subs-manage__desc, .mk-feature__title, .mk-feature__desc)[dir] { max-inline-size: 100%; }
+
+:root .mk-lrows > .mk-lrows__ad { display: grid; place-items: center; min-block-size: 6rem; padding: .5rem; list-style: none; }
+
+/* Playlist cards: the count sits on the picture; a playlist without a picture shows its icon */
+:root .mk-card--playlist .mk-thumb--icon { font-size: 1.5rem; }
+
+:root .mk-thumb__count > i { margin-inline-end: .3rem; }
+
+/* R1-069 (4.3: page content of the Library and channel pages with their six-card shelves): a playlist card's list icon
+   and a video card's duration are drawn here, not by an element each: the same icon and badge (.mk-thumb__count > i,
+   _kit's .mk-thumb__dur), 30 elements fewer on a full Library. A drawn icon is no text for screen readers (its
+   alternative text is empty; a browser without that syntax keeps the first declaration). */
+:root .mk-card--playlist .mk-thumb__count::before {
+    content: "\f03a";
+    content: "\f03a" / "";
+    display: inline-block;
+    margin-inline-end: .3rem;
+    font: var(--fa-font-solid);
+    -webkit-font-smoothing: antialiased;
+}
+
+/* ... the title's two lines (_kit's .mk-clamp-2, which the cards no longer carry) and the picture's size (the
+   thumbnail's 16:9 box; width/height also for audit tools that read no logical sizes) */
+/* (_kit's .mk-clamp-* rule, two lines) */
+:root .mk-card > .mk-card__title { -webkit-line-clamp: 2; }
+
+:root .mk-card > .mk-thumb > img { width: 100%; height: 100%; }
+
+/* ... and the Library's shelf icons (the Font Awesome glyph each shelf head showed with an <i>, as the kit lays it out:
+   a flex item before the title, the head's gap after it) */
+:root .mk-library .mk-section-head > .mk-panel__title::before {
+    display: inline-block;
+    font: var(--fa-font-solid);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: auto;
+}
+
+:root #mkShelfHistory::before { content: "\f1da"; content: "\f1da" / ""; }
+
+:root #mkShelfLater::before { content: "\f017"; content: "\f017" / ""; }
+
+:root #mkShelfLiked::before { content: "\f164"; content: "\f164" / ""; }
+
+:root #mkShelfPlaylists::before { content: "\f022"; content: "\f022" / ""; }
+
+:root #mkShelfSaved::before { content: "\f02e"; content: "\f02e" / ""; }
+
+:root #mkShelfSubs::before { content: "\f4fc"; content: "\f4fc" / ""; }
+
+/* ... the Library head's folder icon: the kit's kicker is a flex row of its section prefix (::before), the icon and the
+   word, so the drawn icon (::after) takes the icon's place in that order ... */
+:root .mk-library > .mk-head .mk-head__kicker::before { order: -2; }
+
+:root .mk-library > .mk-head .mk-head__kicker::after {
+    content: "\f07c";
+    content: "\f07c" / "";
+    order: -1;
+    display: inline-block;
+    font: var(--fa-font-solid);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: auto;
+}
+
+/* ... and the channel chips' avatars: _kit's .mk-avatar at 32px, which the Library's chips no longer carry (the
+   subscriptions feed's chips still do: the same values) */
+:root .mk-chan-chip > img {
+    flex: none;
+    inline-size: 32px;
+    block-size: 32px;
+    border-radius: var(--avd-r-avatar, 50%);
+    background: var(--avd-surface-3);
+    object-fit: cover;
+    clip-path: var(--avd-avatar-clip, none);
+}
+
+/* (the badge itself is _kit's .mk-thumb__dur) */
+:root .mk-thumb[data-dur]::after { content: attr(data-dur); }
+
+/* The calm card hover of the member card pages (OD-M18, member design 6.0): colour and a ring only, the hit box
+   never moves. It follows the admin's card settings like the site's own cards: "Cards react to the mouse"
+   (video_card_hover_enabled; html[data-avd-card-hover], also "off" when the admin turns hover effects off) gives the
+   title its brand colour, and "Glow around pointed cards" (video_card_hover_glow_enabled;
+   html[data-avd-card-hover-glow]) adds the ring. With the first off the card does not react at all; its focus ring
+   always shows. */
+:root .mk-card__title { transition: color var(--mk-dur, 140ms) ease; }
+
+@media (hover: hover) and (pointer: fine) {
+    html:not([data-avd-card-hover="off"]) .mk-card[href]:hover .mk-card__title { color: var(--avd-brand-ink); }
+
+    html:not([data-avd-card-hover="off"]):not([data-avd-card-hover-glow="off"]) .mk-card[href]:hover .mk-thumb { box-shadow: 0 0 0 2px rgba(var(--avd-brand-rgb), .5); }
+}
+
+:root .mk-card:focus-visible { outline: 2px solid var(--avd-focus); outline-offset: 3px; }
+
+/* The admin's "Title lines" (video_card_title_lines; the layout prints html[data-avd-title-lines] and sets
+   --avd-title-lines for 1, 3 and 4) on the video and playlist cards, as on the site's own cards: a title takes at most N
+   lines and keeps the room of N, so the meta lines of a row stay level. 2 (the default) is the mockups' card. */
+html[data-avd-title-lines] .mk-card > .mk-card__title {
+    -webkit-line-clamp: var(--avd-title-lines, 2);
+    min-block-size: calc(1.35em * var(--avd-title-lines, 2));
+}
+
+/* a card with a row to itself keeps no empty room under its title: the list layout, a phone column of one, and the
+   phone's lead card of a Home section (as the mockups draw it) */
+@media (max-width: 575.98px) {
+    html[data-avd-title-lines]:not([data-avd-mobile-video-columns="2"]) .mk-cards:not(.mk-cards--shelf):not(.mk-cards--rail) > .mk-card > .mk-card__title,
+    html[data-avd-title-lines][data-avd-mobile-video-columns="2"] .mk-channel__section .mk-cards--cols:not(.mk-cards--rail):not(.mk-cards--list) > .mk-card:first-child:nth-last-child(odd) > .mk-card__title {
+        min-block-size: 0;
+    }
+}
+
+/* The admin's "Card size on phones" (mobile_video_card_density; html[data-avd-mobile-video-card-density]): compact,
+   the default, is the mockups' phone card; comfortable gives the phone grids more room between the cards and, two to a
+   row, a larger title and meta line (on the site's cards compact is the denser one too). */
+@media (max-width: 575.98px) {
+    html[data-avd-mobile-video-card-density="comfortable"] .mk-cards:not(.mk-cards--shelf):not(.mk-cards--rail):not(.mk-cards--list) { gap: 1.5rem var(--mk-gap); }
+
+    html[data-avd-mobile-video-card-density="comfortable"][data-avd-mobile-video-columns="2"] .mk-cards:not(.mk-cards--shelf):not(.mk-cards--rail):not(.mk-cards--list) { gap: 1.25rem 1rem; }
+
+    html[data-avd-mobile-video-card-density="comfortable"][data-avd-mobile-video-columns="2"] .mk-cards .mk-card > .mk-card__title { font-size: .9375rem; }
+
+    html[data-avd-mobile-video-card-density="comfortable"][data-avd-mobile-video-columns="2"] .mk-cards .mk-card > .mk-card__meta { font-size: .875rem; }
+}
+
+/* The site's own video cards where a member page shows them (the subscriptions feed): the admin's glow and colour
+   change stay; the lift, the zoom, the tilt and the light sweep do not (OD-M18; public pages unchanged). */
+html[data-avd-member] .mk-page .avd-video-card,
+html[data-avd-member] .mk-page .avd-video-card:hover,
+html[data-avd-member] .mk-page .avd-video-card:hover .avd-thumb img,
+html[data-avd-member] .mk-page .avd-video-card:hover img,
+html[data-avd-member] .mk-page .avd-video-card:hover .avd-duration,
+html[data-avd-member] .mk-page .avd-video-card:hover .avd-channel-avatar {
+    transform: none !important;
+}
+
+html[data-avd-member] .mk-page .avd-video-card .avd-thumb::before { content: none; }
+
+html[data-avd-member] .mk-page .avd-video-card > .avd-card-glare,
+html[data-avd-member] .mk-page .avd-video-card > .avd-card-spotlight { display: none; }
+
+/* ---------------------------------------------------------------------------------------------------------------------
+   List rows (History, playlist pages, Watch later, Liked videos). The row menu opens over the rows below it: its
+   column does not make a layer of its own (the kit's touch rule gives it z-index 1, and the next row's menu button
+   then covered the open menu): the open menu stays in the page's own layer, above every row.
+   ------------------------------------------------------------------------------------------------------------------ */
+
+:root .mk-lrow > .mk-lrow__menu { position: relative; z-index: auto; }
+
+:root .mk-lrow__media { display: block; min-inline-size: 0; }
+
+:root .mk-lrow__body .mk-card__channel { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* the meta line wraps like the mockup's: a fact moves to the next line whole (its dot stays with the fact before) */
+:root .mk-lrow__body .mk-card__meta > span { display: inline-block; max-inline-size: 100%; }
+
+:root .mk-lrow__menu .dropdown-menu { min-inline-size: 13rem; }
+
+/* A video its channel made private: a quiet row through its muted title, its lock picture and no link. No opacity (R1-126:
+   .78 over the muted text gave 4.0-4.4:1 in the light looks) */
+:root .mk-lrow--gone .mk-thumb--icon { font-size: 1.25rem; }
+
+:root .mk-lrow--gone .mk-lrow__title { color: var(--avd-muted); }
+
+/* ---------------------------------------------------------------------------------------------------------------------
+   Playlist pages: the head's facts line uses the kit's hanging separators (a wrapped line never starts with a dot)
+   ------------------------------------------------------------------------------------------------------------------ */
+
+:root .mk-playlist__facts {
+    display: flex;
+    flex-wrap: wrap;
+    row-gap: .15rem;
+    margin-inline-start: -1.2em;
+    clip-path: inset(-.4em 0 -.4em 1.2em);
+}
+
+:root[dir="rtl"] .mk-playlist__facts { clip-path: inset(-.4em 1.2em -.4em 0); }
+
+:root .mk-playlist__facts > * { white-space: nowrap; }
+
+:root .mk-playlist__facts > *::before {
+    content: "\00B7";
+    display: inline-block;
+    inline-size: 1.2em;
+    color: var(--avd-faint);
+    text-align: center;
+}
+
+:root .mk-playlist__desc { margin: .25rem 0 0; color: var(--avd-muted); max-inline-size: min(100%, 70ch); white-space: pre-line; }
+
+:root .mk-head--playlist .mk-head__cover .mk-thumb { inline-size: 100%; }
+
+@media (min-width: 768px) {
+    :root .mk-head--playlist .mk-head__actions { align-self: end; }
+}
+
+/* ---------------------------------------------------------------------------------------------------------------------
+   Library shelves, Saved playlists, subscriptions, Discover
+   ------------------------------------------------------------------------------------------------------------------ */
+
+:root .mk-shelf__hint { margin: 0; color: var(--avd-muted); font-size: .875rem; }
+
+:root .mk-chips-row .mk-avatar { flex: none; }
+
+:root .mk-chan-chip:focus-visible { outline: 2px solid var(--avd-focus); outline-offset: 2px; }
+
+@media (hover: hover) and (pointer: fine) {
+    :root .mk-chan-chip:hover { border-color: var(--avd-border-strong, var(--avd-border)); background: var(--mk-hover); }
+}
+
+:root .mk-subs-feed__list { min-inline-size: 0; }
+
+:root .mk-subs-feed__discover { margin-block: -.25rem 1rem; text-align: center; }
+
+/* The page's one select next to its search takes the room its chosen label needs (R1-127: the kit's 11rem cap for the
+   studio's rows of filters cut "Recently subscribed" and both German labels; the toolbar wraps it under the search when
+   a phone has no room beside it) */
+:root .mk-subs-manage .mk-toolbar > select.mk-subs-manage__sort { inline-size: auto; max-inline-size: 100%; flex: none; }
+
+:root .mk-subs-manage__rows { margin: 0; padding: 0; list-style: none; }
+
+:root .mk-subs-manage__rows > .mk-item { align-items: center; }
+
+:root .mk-subs-manage__desc { font-size: .8125rem; }
+
+/* R2A-004: once subscribed, the button is the bell menu's toggle inside a wrapper that draws no box (R1-125: .mk-bell-menu
+   is display: contents, member/_notify.scss), so the margin goes to the toggle: it stays at the card's foot, in line */
+:root .mk-chan-card > .mk-subscribe,
+:root .mk-chan-card > subscribe-button > *,
+:root .mk-chan-card > subscribe-button > .mk-bell-menu > * { margin-block-start: auto; }
+
+:root .mk-chan-card__name { overflow-wrap: anywhere; text-align: center; }
+
+:root .mk-chan-card__subs,
+:root .mk-chan-card__desc { margin: 0; font-size: .8125rem; }
+
+:root .mk-chan-card > subscribe-button,
+:root .mk-chan-card > .mk-subscribe { inline-size: 100%; }
+
+:root subscribe-button { display: contents; }
+
+/* ---------------------------------------------------------------------------------------------------------------------
+   The share dialog and the copy line
+   ------------------------------------------------------------------------------------------------------------------ */
+
+:root .mk-share-dialog .mk-sheet__body { display: grid; gap: .85rem; }
+
+:root .mk-share:focus-visible { outline: 2px solid var(--avd-focus); outline-offset: 2px; border-radius: var(--mk-r-inner); }
+
+@media (hover: hover) and (pointer: fine) {
+    :root .mk-share:hover i { background: var(--avd-surface-3, var(--avd-surface-2)); }
+}
+
+:root .mk-copy__done { margin: 0; }
+
+/* the whole address, broken anywhere when it does not fit (R1-040: the studio's one-line copy value ended it in an
+   ellipsis at 1024 and 1920, which hid the handle; the kit's details list breaks long values anywhere, 6.10); the share
+   dialog of a channel or a playlist shows its address the same way */
+:root .mk-channel__details dd .mk-copy__value,
+:root .mk-share-dialog .mk-copy__value {
+    min-inline-size: 0;
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+/* The subscriptions feed is the site's own feed component inside the member page: its cards keep the site's colours
+   (the kit's generic link colour of .avd-mk would paint their titles and channel names in the brand ink). */
+:root .mk-subs-feed__list .avd-video-title { color: var(--avd-text); }
+
+:root .mk-subs-feed__list .avd-channel-name { color: var(--avd-muted); }
+
+@media (hover: hover) and (pointer: fine) {
+    :root .mk-subs-feed__list .avd-video-title:hover { color: var(--avd-brand-ink); }
+}

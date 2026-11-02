@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Updater;
 
+use App\Support\Updater\Trash;
 use App\Support\Updater\Updater;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -16,7 +17,7 @@ use Tests\Feature\Updater\Support\UpdaterScenario;
 use Tests\TestCase;
 
 /**
- * Finish and the clean-up after it (1.2.1, B1 of the 1.2.0 tests: Finish deleted the whole work folder, ~18,500
+ * Finish and the clean-up after it (1.2.1; in 1.2.0, Finish deleted the whole work folder, ~18,500
  * staged files and the 67 MB zip, inside its own request: 13-18 s, with the host's default time limit):
  *
  *  - Finish raises the time limit before the database step, also when no migration is pending;
@@ -28,7 +29,10 @@ use Tests\TestCase;
  *    runs updates:tidy only then;
  *  - all of that only between updates: while an update or undo runs, its own steps decide when the trash goes, and an
  *    undo's step that finds another clean-up holding the trash waits for it within its slice and tells the page to
- *    wait too (never steps back to back: hosts with request-rate limits would block the administrator).
+ *    wait too (never steps back to back: hosts with request-rate limits would block the administrator);
+ *  - an undo empties the trash before the swap only when the release that comes back knows nothing of it (1.2.0); one
+ *    back to 1.2.1 or later never waits for it (that release's own clean-up deletes it), also when it holds the tens of
+ *    thousands of old cache files the update to 1.2.3 renamed (FU-REV-01).
  */
 class UpdateFinishTest extends TestCase
 {
@@ -48,6 +52,7 @@ class UpdateFinishTest extends TestCase
 
     protected function tearDown(): void
     {
+        Trash::$slowDisk = null;
         $this->removeSite();
 
         parent::tearDown();
@@ -79,17 +84,44 @@ class UpdateFinishTest extends TestCase
         $this->assertSame($staged, $this->countFiles($trashed[0]));
         $this->assertTrue($this->updater($this->next)->tidyPending());
 
-        // tidy() empties it in slices of at most its seconds.
+        // tidy() empties it in slices of at most its seconds. First on a disk that takes 20 ms for every file and folder
+        // (Trash::$slowDisk), where the slices show on any disk: a tidy of 50 ms takes no file or folder after its
+        // time, so at most ceil(50 / 20) = 3 and the folder the last one emptied.
         $slices = [];
+        $times = [];
+        Trash::$slowDisk = 0.02;
 
+        try {
+            for ($i = 0; $i < 3; $i++) {
+                $tidy = $this->updater($this->next)->tidy(0.05);
+                $slices[] = $tidy['deleted'];
+                $this->assertTrue($tidy['pending'], 'slow slices: '.json_encode($slices));
+                $this->assertLessThanOrEqual(4, $tidy['deleted'], "no file or folder taken after the tidy's 50 ms: ".json_encode($slices));
+            }
+        } finally {
+            Trash::$slowDisk = null;
+        }
+
+        // Then on this disk, in slices of 20 ms. How many slices that takes is the disk's matter (ext4 deletes these
+        // ~1,500 files inside one 20 ms slice, NTFS needs several; R1B-020): every slice ends soon after its time, and
+        // together they delete everything; a clean-up that took longer than ten slices (NTFS) was cut into slices.
         do {
+            $started = microtime(true);
             $tidy = $this->updater($this->next)->tidy(0.02);
+            $times[] = microtime(true) - $started;
             $slices[] = $tidy['deleted'];
         } while ($tidy['pending'] && count($slices) < 2000);
 
         $this->assertFalse($tidy['pending']);
-        $this->assertGreaterThan(1, count($slices), 'more than one slice: '.json_encode($slices));
-        $this->assertGreaterThanOrEqual($staged, array_sum($slices));
+        $this->assertGreaterThanOrEqual($staged, array_sum($slices), 'slices: '.json_encode($slices));
+
+        foreach ($times as $seconds) {
+            $this->assertLessThan(1.0, $seconds, 'a slice ends soon after its 20 ms (with the file or folder it was deleting then): '.json_encode($slices));
+        }
+
+        if (array_sum($times) > 10 * 0.02) {
+            $this->assertGreaterThan(1, count($times), sprintf('%.2f s of deleting in slices of 20 ms: %s', array_sum($times), json_encode($slices)));
+        }
         $this->assertSame([], array_values(array_diff(scandir($this->box->paths()->trash()) ?: [], ['.', '..'])));
         $this->assertFalse($this->updater($this->next)->tidyPending());
     }
@@ -238,8 +270,9 @@ class UpdateFinishTest extends TestCase
             fn ($event): bool => str_contains((string) $event->command, 'updates:tidy')));
         $this->assertTrue($events[0]->filtersPass($this->app), 'the update\'s work files wait in the trash');
 
-        // An undo runs: its own steps empty the trash before the site goes down. Nothing else deletes it meanwhile (the
-        // slices a second Tools > Updates tab asks for, the scheduler, updates:tidy by hand), and all of them say why.
+        // An undo runs: its own steps decide whether the trash goes before the site goes down. Nothing else deletes it
+        // meanwhile (the slices a second Tools > Updates tab asks for, the scheduler, updates:tidy by hand), and all of
+        // them say why.
         $this->assertTrue($this->updater($this->next)->undo($this->admin)['ok']);
 
         $tidy = $this->actingAs($this->admin)->getJson(route('admin.updates.status', ['tidy' => 1]))->assertOk()->json('tidy');
@@ -260,7 +293,12 @@ class UpdateFinishTest extends TestCase
     public function test_an_undo_waits_for_another_clean_up_of_the_trash_instead_of_stepping_back_to_back(): void
     {
         $this->updateToNext();
+        // The update came from 1.2.0 (the sandbox calls every installed release CURRENT): after the undo, 1.2.0's code
+        // runs, which knows nothing of the trash, so the undo empties it before the site goes down.
+        $this->updateCameFrom('1.2.0');
         $this->assertTrue($this->updater($this->next)->tidyPending(), 'the update\'s work files wait in the trash');
+        $inTrash = $this->entriesIn($this->box->paths()->trash());
+        $this->assertGreaterThan(0, $inTrash);
         $this->assertTrue($this->updater($this->next)->undo($this->admin)['ok']);
 
         // Another clean-up holds the trash for the whole step (the scheduler's updates:tidy, or the page's own slice that
@@ -280,6 +318,8 @@ class UpdateFinishTest extends TestCase
 
         $this->assertSame(['ok' => true, 'status' => 'preparing', 'next' => 'step', 'retry_after' => 2],
             array_intersect_key($busy, array_flip(['ok', 'status', 'next', 'retry_after'])), (string) $busy['message']);
+        // The bar shows how much of the trash is deleted (nothing yet: the other clean-up held it).
+        $this->assertSame(['done' => 0, 'total' => $inTrash], $busy['progress']);
         // Its slice less the last half second or so (a last try keeps at least half a second to delete in).
         $this->assertGreaterThanOrEqual(Updater::TIDY_SECONDS - 1.0, $took, 'it waited for the other clean-up');
         $this->assertLessThan(Updater::TIDY_SECONDS + 2.0, $took, 'a few seconds at most');
@@ -308,7 +348,71 @@ class UpdateFinishTest extends TestCase
         $this->assertSame('swap', $ready['next'], (string) $ready['message']);
     }
 
+    /**
+     * FU-REV-01: Undo clicked right after the update, back to a release that empties its trash itself (1.2.1 and later),
+     * never waits for the trash, also when it holds the tens of thousands of old cache files the update to 1.2.3 renamed
+     * (on the review's Windows site: 227 s with the bar at 0, against 18-27 s with an empty trash). The renamed old cache
+     * still in storage/framework/cache joins the trash first (no release before 1.2.3 looks for it there), and the
+     * release that comes back deletes all of it with its own clean-up.
+     */
+    public function test_an_undo_back_to_a_release_that_empties_its_trash_itself_does_not_wait_for_it(): void
+    {
+        $this->updateToNext();
+        $this->updateCameFrom('1.2.2');
+        $storage = $this->box->paths()->storage;
+        // The old file cache of 1.2.2: one folder already in the trash (a clean-up slice moved it), one still where
+        // Finish renamed it.
+        $this->staleCacheFolder($this->box->paths()->trash('stale-00112233aabbccdd-20261027000000-abcdef'), 400);
+        $this->staleCacheFolder($storage.'/framework/cache/stale-ffeeddcc44332211', 400);
+        $before = $this->entriesIn($this->box->paths()->trash()) + 400 + 16 + 1;
+
+        $ready = $this->undoToSwap($this->updater($this->next));
+
+        $this->assertSame([], glob($storage.'/framework/cache/stale-*') ?: [], 'the renamed old cache waits in the trash now');
+        $this->assertCount(1, glob($this->box->paths()->trash('stale-ffeeddcc44332211-*'), GLOB_ONLYDIR) ?: []);
+        $this->assertSame($before, $this->entriesIn($this->box->paths()->trash()), 'nothing of the trash was deleted before the site went down');
+        $this->assertCount(400, File::allFiles($this->box->paths()->trash('stale-00112233aabbccdd-20261027000000-abcdef')));
+        $trash = new Trash($this->box->paths());
+        $this->assertSame($before, $trash->count(10.0), 'what the bar of an undo back to 1.2.0 would count');
+
+        // The files go back, and the release that comes back (here the same code: every release since 1.2.1 has it)
+        // finishes the undo and empties the trash with its own clean-up.
+        $this->assertSame('swapped', $this->swapThroughHook($ready['token'])['step']);
+        $this->assertSame('undone', $this->finishOn($this->updater())['status']);
+
+        for ($i = 0; $i < 50 && $this->updater()->tidyPending(); $i++) {
+            $this->updater()->tidy(1.0);
+        }
+
+        $this->assertFalse($this->updater()->tidyPending());
+        $this->assertSame(0, $this->entriesIn($this->box->paths()->trash()));
+    }
+
     /* ----------------------------------------------------------------- helpers */
+
+    /** Files and folders in $folder (not $folder itself), links not followed: what a purge deletes. */
+    private function entriesIn(string $folder): int
+    {
+        if (! is_dir($folder)) {
+            return 0;
+        }
+
+        return iterator_count(new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($folder, \FilesystemIterator::SKIP_DOTS), \RecursiveIteratorIterator::SELF_FIRST));
+    }
+
+    /** A folder of $files expired entries of the old file cache (in 16 sub-folders, as the file cache keeps them). */
+    private function staleCacheFolder(string $folder, int $files): void
+    {
+        for ($i = 0; $i < $files; $i++) {
+            $sub = $folder.'/'.sprintf('%02x', $i % 16);
+
+            if ($i < 16) {
+                File::ensureDirectoryExists($sub);
+            }
+
+            file_put_contents($sub.'/entry'.$i, 'expired');
+        }
+    }
 
     /**
      * Another PHP process that holds the trash lock for $seconds (a clean-up of the scheduler); returns once it holds it.

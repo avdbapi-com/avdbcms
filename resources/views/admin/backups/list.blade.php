@@ -14,13 +14,15 @@
         $latest = $backups->first();
         // "Your database is 3.38 MB. 1 backup takes 35.3 KB on the server.": sizes as people read them (KB under 1 MB,
         // like the Size column); a part the page cannot say is left out (no backups yet: the callout below says so).
+        // The sizes read "3.38 MB" on a right-to-left page too (set apart left to right).
+        $ltr = static fn (string $value): string => '<bdi dir="ltr" class="text-nowrap">'.e($value).'</bdi>';
         $summary = array_filter([
-            filled($dbSize ?? null) ? __('Your database is :size.', ['size' => $dbSize]) : null,
-            $backupCount > 0 ? trans_choice('1 backup takes :total on the server.|:count backups take :total on the server.', $backupCount, ['count' => number_format($backupCount), 'total' => $backupTotalText]) : null,
+            filled($dbSize ?? null) ? (string) \App\Support\AdminText::html(__('Your database is :size.'), [':size' => $ltr((string) $dbSize)]) : null,
+            $backupCount > 0 ? (string) \App\Support\AdminText::html(trans_choice('1 backup takes :total on the server.|:count backups take :total on the server.', $backupCount, ['count' => number_format($backupCount)]), [':total' => $ltr((string) $backupTotalText)]) : null,
         ]);
     @endphp
 
-    <x-admin.page-header page="tools.backups" :description="$summary === [] ? null : implode(' ', $summary)">
+    <x-admin.page-header page="tools.backups" :description="$summary === [] ? null : new \Illuminate\Support\HtmlString(implode(' ', $summary))">
         <x-slot:actions>
             <form method="POST" action="{{ route('admin.backups.create') }}" data-ad-busy="{{ __('Backing up...') }}">
                 @csrf
@@ -62,7 +64,7 @@
                  straight after the file name, where it ran into it ("....sql18 seconds ago"). --}}
             <tr>
                 <td class="c-main"><p><b id="ad-bk-{{ $loop->index }}"><code>{{ $backup['name'] }}</code></b></p></td>
-                <td class="c-meta is-num text-nowrap">{{ $backup['size_text'] }}<small class="ad-phone-only">{{ $made->diffForHumans() }}</small></td>
+                <td class="c-meta is-num text-nowrap"><span dir="ltr">{{ $backup['size_text'] }}</span><small class="ad-phone-only">{{ $made->diffForHumans() }}</small></td>
                 <td class="hide-tab is-date" title="{{ $made->translatedFormat('j M Y, H:i') }}">{{ $made->diffForHumans() }}</td>
                 <td class="is-actions"><button type="button" class="ad-iconbtn is-more" aria-haspopup="true" aria-labelledby="ad-l-act ad-bk-{{ $loop->index }}" data-id="{{ $backup['name'] }}" data-name="{{ rawurlencode($backup['name']) }}"></button></td>
             </tr>

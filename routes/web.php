@@ -19,7 +19,8 @@ use App\Http\Controllers\LangController;
 
 use App\Enums\CustomPlaylistType;
 
-use Laravel\Cashier\Http\Middleware\VerifyWebhookSignature;
+use App\Http\Middleware\VerifyStripeWebhookSignature;
+use App\Http\Middleware\ReadOnlySession;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -70,8 +71,9 @@ Route::middleware('auth')->name('custom-playlist.')->controller(CustomPlaylistCo
 });
 
 // PREMIUM
+// Signed by Stripe; refused while no signing secret is set (an empty key is a signature anybody can make).
 Route::post('stripe-webhook', [StripeWebhookController::class, 'index'])
-    ->middleware(VerifyWebhookSignature::class)
+    ->middleware(VerifyStripeWebhookSignature::class)
     ->name('stripe_webhook');
 
 Route::post('paypal-webhook', [PayPalWebhookController::class, 'index'])
@@ -94,7 +96,14 @@ Route::get('/paypal/subscription/return', [PremiumController::class, 'paypalRetu
 Route::match(['GET', 'POST'], 'update-locale', [LangController::class, 'update'])->name('lang.update');
 
 // SEO
-Route::controller(SeoController::class)->group(function () {
+// The crawler files (robots.txt, the sitemaps and their stylesheet, the IndexNow key) are the same for everybody and the
+// sitemaps are marked public for caches: like the site's pictures they read the visitor's session (an administrator
+// passes the maintenance page) but never start, write or send one (App\Http\Middleware\ReadOnlySession), so no answer
+// sets a session or XSRF cookie and a CDN may keep them (R1-087, R1B-014).
+Route::controller(SeoController::class)
+    ->withoutMiddleware(ReadOnlySession::REPLACES)
+    ->middleware(ReadOnlySession::class)
+    ->group(function () {
     Route::get('/robots.txt', 'robots')->name('seo.robots');
     Route::get('/sitemap.xml', 'sitemap')->name('seo.sitemap');
     Route::get('/sitemap.xsl', 'sitemapStylesheet')->name('seo.sitemap.stylesheet');
@@ -112,12 +121,20 @@ Route::controller(SeoController::class)->group(function () {
         ->whereNumber('page')
         ->name('seo.sitemap.videos.page');
     Route::get('/sitemap-videos.xml', 'videoSitemap')->name('seo.sitemap.videos');
-    Route::redirect('/video-sitemap.xml', '/sitemap-videos.xml', 301)->name('seo.sitemap.videos.legacy');
+    // Route::redirect() answers every method; GET and HEAD only here, the group has no CSRF check (a sitemap is read).
+    Route::get('/video-sitemap.xml', '\Illuminate\Routing\RedirectController')
+        ->defaults('destination', '/sitemap-videos.xml')
+        ->defaults('status', 301)
+        ->name('seo.sitemap.videos.legacy');
     Route::get('/{key}.txt', 'indexNowKey')->where('key', '[A-Za-z0-9_-]{8,128}')->name('seo.indexnow.key');
 });
 
 // VIDEOS
 Route::get('/random', [VideoController::class, 'random'])->name('random');
+
+// The site's pictures read the visitor's session but never write it and never send a session cookie
+// (App\Http\Middleware\ReadOnlySession; watch-26, watch-28): a page of 20 avatars no longer stores the session 20
+// times with a picture as "the page you came from", and the answers can be kept by the browser and a CDN.
 
 Route::controller(VideoController::class)->name('video.')->prefix('video')->group(function () {
     Route::get('random', 'random')->name('random');
@@ -127,17 +144,29 @@ Route::controller(VideoController::class)->name('video.')->prefix('video')->grou
         ->name('show')
         ->where('slug', '[a-z0-9A-Z\-]+')
         ->where('uuid', \App\Models\Video::UUID_PATTERN);
+    // The video's own file, as the page's <video> asks for it (a request at load and one per seek or buffer): it reads
+    // the session (a private video is its owner's) but never writes it, like the pictures. Its copy of the session,
+    // stored when it ended, replaced what the sign-in page had just stored meanwhile: the form's security question
+    // "expired" (round 3 review SB-X1); and the file became the session's previous page (back() without a Referer).
+    // It still keeps the session alive (KEEP_ALIVE: the stored session's time and the same cookie, nothing written), as
+    // each of its requests did before: during a long film it may be the page's only request (round 3 check SB-V1-01).
     Route::get('file/{video:file}', 'file')
         ->name('file')
+        ->withoutMiddleware(ReadOnlySession::REPLACES)
+        ->middleware(ReadOnlySession::class.':'.ReadOnlySession::KEEP_ALIVE)
         ->can('file', 'video')
         ->withTrashed();
     Route::get('{video:uuid}/thumbnail', 'thumbnail')
         ->name('thumbnail')
+        ->withoutMiddleware(ReadOnlySession::REPLACES)
+        ->middleware(ReadOnlySession::class)
         ->can('thumbnail', 'video')
         ->withTrashed();
     Route::get('{video:uuid}/thumbnails/{thumbnail}', 'thumbnails')
         ->scopeBindings()
         ->name('thumbnails')
+        ->withoutMiddleware(ReadOnlySession::REPLACES)
+        ->middleware(ReadOnlySession::class)
         ->can('thumbnails', 'video');
     Route::get('{video:uuid}/embed', 'embed')
         ->name('embed')
@@ -172,9 +201,13 @@ Route::controller(UserController::class)->name('user.')->group(function () {
     Route::prefix('users')->group(function () {
         Route::get('{user}/avatar', 'avatar')
             ->name('avatar')
+            ->withoutMiddleware(ReadOnlySession::REPLACES)
+            ->middleware(ReadOnlySession::class)
             ->can('avatar', 'user');
         Route::get('{user}/banner', 'banner')
             ->name('banner')
+            ->withoutMiddleware(ReadOnlySession::REPLACES)
+            ->middleware(ReadOnlySession::class)
             ->can('banner', 'user');
     });
 });
@@ -197,6 +230,11 @@ Route::controller(ContactController::class)->name('contact.')->group(function ()
     Route::post('/contact', 'contact')->name('contact')->middleware('throttle:contact');
 });
 
+// LIBRARY (member redesign, member design 6.11 and 9.1 step 4): the member's library page.
+Route::get('/library', [\App\Http\Controllers\LibraryController::class, 'index'])
+    ->middleware('auth')
+    ->name('pages.library');
+
 require __DIR__.'/auth.php';
 require __DIR__.'/user.php';
 require __DIR__.'/admin.php';
@@ -205,8 +243,12 @@ require __DIR__.'/admin.php';
 // public/storage symlink is missing (symlink() is disabled on many panels and
 // shared hosts). With the symlink present the web server serves these files
 // directly and this route is never reached. Must stay above the SEO catch-all.
+// Public files are the same for everybody: like the picture routes, it reads no session and sends no cookie, so its
+// "public, max-age=86400" answer never carries a visitor's session (R1-087) and stores no session per file.
 Route::get('/storage/{path}', [StorageFallbackController::class, 'show'])
     ->where('path', '.*')
+    ->withoutMiddleware(ReadOnlySession::REPLACES)
+    ->middleware(ReadOnlySession::class)
     ->name('storage.fallback');
 
 Route::get('/{seoVideoPath}', [VideoController::class, 'seoShow'])

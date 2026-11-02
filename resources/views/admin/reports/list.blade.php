@@ -110,7 +110,7 @@
                 </td>
                 <td class="hide-tab">{{ $report->reason?->name() }}@if ($report->comment)<span class="ad-vid-sub">{{ \Illuminate\Support\Str::limit((string) $report->comment, 80) }}</span>@endif</td>
                 <td class="hide-tab">{{ $report->user?->username ?? __('A visitor') }}</td>
-                <td class="ad-muted is-date"><time datetime="{{ $report->created_at?->toIso8601String() }}" title="{{ $report->created_at?->translatedFormat('j M Y, H:i') }}">{{ $report->created_at?->diffForHumans(short: true) }}</time></td>
+                <td class="ad-muted is-date"><time datetime="{{ $report->created_at?->toIso8601String() }}" title="{{ $report->created_at?->translatedFormat('j M Y, H:i') }}">{{ $report->created_at?->diffForHumans(short: \App\Support\AdminText::shortTimes()) }}</time></td>
                 <td class="is-actions">@if ($item !== null)<button type="button" class="ad-iconbtn is-more" data-ad-row-menu="ad-report-menu" aria-haspopup="true" aria-labelledby="ad-l-actions ad-r-{{ $report->id }}" data-id="{{ $report->id }}" data-state="{{ $state }}" data-type="{{ $type }}" data-reportable="{{ $report->reportable_id }}"@if ($type === 'comment') data-block="1"@endif @if ($url) data-url="{{ $url }}"@endif @if ($edit) data-edit="{{ $edit }}"@endif></button>@endif</td>
             </tr>
         @endforeach

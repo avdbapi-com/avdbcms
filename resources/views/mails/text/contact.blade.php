@@ -1,0 +1,2 @@
+{{-- The contact form, to the site's owner (App\Notifications\Contact; the visitor's text as text, S29). The plain-text part (member design 6.21); the HTML part: mails.contact. The words: App\Notifications\Support\MemberMail. --}}
+@include('mails.layouts.text', ['mail' => \App\Notifications\Support\MemberMail::contact((string) ($name ?? ''), (string) ($email ?? ''), (string) ($contactMessage ?? ''), isset($ip) ? (string) $ip : null)])

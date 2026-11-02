@@ -1,6 +1,13 @@
 @extends('layouts.admin')
 @section('title', __('System Information'))
 @section('content')
+@php
+    // Labels and word values in the admin's language; names of programs and PHP's own settings stay as they are.
+    $label = fn (string $key): string => in_array($key, \App\Http\Controllers\Admin\SystemController::LABELS, true) ? __($key) : $key;
+    // ("Not Found" is FFmpeg's answer here: the key "Not Found" is the 404 page's title in some languages.)
+    $words = ['On' => __('On'), 'Off' => __('Off'), 'Enabled' => __('Enabled'), 'Disabled' => __('Disabled'), 'None' => __('None'), 'N/A' => __('N/A'), 'Not Found' => __('Not found'), 'Not Available (proc_open disabled)' => __('Not available (proc_open is turned off)')];
+    $value = fn ($val): string => $words[(string) $val] ?? (string) $val;
+@endphp
 <div class="d-flex justify-content-between align-items-center my-3">
     <h2><i class="fa-solid fa-server me-2"></i>{{__('System Information')}}</h2>
     <div class="d-flex gap-2 flex-wrap">
@@ -21,7 +28,7 @@
             <div class="card-body p-0">
                 <table class="table table-sm table-striped mb-0">
                     @foreach($phpSettings as $key => $val)
-                    <tr><td class="fw-bold ps-3" style="width:40%">{{ $key }}</td><td><code>{{ Str::limit((string)$val, 80) }}</code></td></tr>
+                    <tr><td class="fw-bold ps-3" style="width:40%">{{ $label($key) }}</td><td><code @unless(isset($words[(string) $val])) dir="ltr" @endunless>{{ Str::limit($value($val), 80) }}</code></td></tr>
                     @endforeach
                 </table>
             </div>
@@ -36,16 +43,16 @@
                 <table class="table table-sm table-striped mb-0">
                     @foreach($laravelInfo as $key => $val)
                     <tr>
-                        <td class="fw-bold ps-3" style="width:40%">{{ $key }}</td>
+                        <td class="fw-bold ps-3" style="width:40%">{{ $label($key) }}</td>
                         <td>
                             @if($key === 'Debug Mode')
-                                <span class="badge bg-{{ $val === 'ON' ? 'danger' : 'success' }}">{{ $val }}</span>
+                                <span class="badge bg-{{ $val === 'ON' ? 'danger' : 'success' }}">{{ $val === 'ON' ? __('On') : __('Off') }}</span>
                             @elseif($key === 'Environment')
                                 <span class="badge bg-{{ $val === 'production' ? 'success' : 'warning' }}">{{ $val }}</span>
                             @elseif($key === 'AVDBCMS version')
                                 <code>{{ $val }}</code> <a href="{{ route('admin.updates.index') }}" class="ms-1">{{ __('Updates') }}</a>
                             @else
-                                <code>{{ $val }}</code>
+                                <code dir="ltr">{{ $val }}</code>
                             @endif
                         </td>
                     </tr>
@@ -62,7 +69,7 @@
             <div class="card-body p-0">
                 <table class="table table-sm table-striped mb-0">
                     @foreach($dbInfo as $key => $val)
-                    <tr><td class="fw-bold ps-3" style="width:40%">{{ $key }}</td><td><code>{{ $val }}</code></td></tr>
+                    <tr><td class="fw-bold ps-3" style="width:40%">{{ $label($key) }}</td><td><code @unless(isset($words[(string) $val])) dir="ltr" @endunless>{{ $value($val) }}</code></td></tr>
                     @endforeach
                 </table>
             </div>
@@ -76,7 +83,7 @@
             <div class="card-body p-0">
                 <table class="table table-sm table-striped mb-0">
                     @foreach($diskInfo as $key => $val)
-                    <tr><td class="fw-bold ps-3" style="width:40%">{{ $key }}</td><td><strong>{{ $val }}</strong></td></tr>
+                    <tr><td class="fw-bold ps-3" style="width:40%">{{ $label($key) }}</td><td><strong dir="ltr" class="text-nowrap">{{ $val }}</strong></td></tr>
                     @endforeach
                 </table>
                 @php $pct = floatval($diskInfo['Usage']); @endphp
@@ -96,7 +103,7 @@
             <div class="card-body p-0">
                 <table class="table table-sm table-striped mb-0">
                     @foreach($storageFolders as $dir => $size)
-                    <tr><td class="fw-bold ps-3"><code>storage/{{ $dir }}</code></td><td>{{ $size }}</td></tr>
+                    <tr><td class="fw-bold ps-3"><code>storage/{{ $dir }}</code></td><td><span dir="ltr" class="text-nowrap">{{ $size }}</span></td></tr>
                     @endforeach
                 </table>
             </div>
@@ -106,7 +113,7 @@
     {{-- PHP Extensions --}}
     <div class="col-md-6 mb-4">
         <div class="card shadow-sm">
-            <div class="card-header bg-secondary text-white"><h6 class="mb-0"><i class="fa-solid fa-puzzle-piece me-1"></i>PHP Extensions ({{ count($extensions) }})</h6></div>
+            <div class="card-header bg-secondary text-white"><h6 class="mb-0"><i class="fa-solid fa-puzzle-piece me-1"></i>{{ __('PHP extensions (:count)', ['count' => count($extensions)]) }}</h6></div>
             <div class="card-body">
                 <div class="d-flex flex-wrap gap-1">
                     @foreach($extensions as $ext)
@@ -128,7 +135,8 @@
     </div>
     <div class="collapse" id="phpinfoRaw">
         <div class="card-body" style="max-height:500px;overflow:auto">
-            <style>.phpinfo-raw table{width:100%;border-collapse:collapse;font-size:12px} .phpinfo-raw td,.phpinfo-raw th{border:1px solid #ddd;padding:4px 8px;text-align:left} .phpinfo-raw tr:nth-child(even){background:#f8f9fa} .phpinfo-raw .h,.phpinfo-raw h1,.phpinfo-raw h2{color:#0d6efd;font-size:14px}</style>
+            {{-- Bootstrap's colours of the mode (a light stripe under light text in dark mode: R3-020) --}}
+            <style>.phpinfo-raw table{width:100%;border-collapse:collapse;font-size:12px} .phpinfo-raw td,.phpinfo-raw th{border:1px solid var(--bs-border-color,#ddd);padding:4px 8px;text-align:left} .phpinfo-raw tr:nth-child(even){background:var(--bs-tertiary-bg,#f8f9fa)} .phpinfo-raw .h,.phpinfo-raw h1,.phpinfo-raw h2{color:var(--bs-link-color,#0d6efd);font-size:14px}</style>
             <div class="phpinfo-raw">{!! str_replace(['<h1', '</h1>'], ['<h2', '</h2>'], $phpinfoBody) !!}</div>
         </div>
     </div>

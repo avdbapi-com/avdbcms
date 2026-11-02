@@ -79,8 +79,8 @@ html[data-bs-theme="light"][data-avd-flavor="plasma"] {
   --avd-sidebar-active-bar: #c40d66;
   --avd-chip-border: rgba(76,201,240,0.35);
   --avd-chip-active-bg: #e02178;
-  --avd-btn-bg: #e02178;
-  --avd-play-bg: #e02178;
+  --avd-btn-bg: #de1e76;
+  --avd-play-bg: #de1e76;
   --avd-card-border: 1px solid rgba(76,201,240,0.22);
   --avd-card-hover-border: 1px solid rgba(76,201,240,0.7);
   --avd-card-hover-shadow: 0 0 0 1px rgba(76,201,240,0.35), 0 0 24px rgba(76,201,240,0.22);

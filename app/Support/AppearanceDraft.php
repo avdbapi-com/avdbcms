@@ -11,7 +11,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
 /**
- * Unpublished changes of the Appearance pages (interface I9). Every admin has one draft: the settings they changed,
+ * Unpublished changes of the Appearance pages. Every admin has one draft: the settings they changed,
  * kept in the cache for a day and never in the settings table. The admin sees it on the real site through a signed
  * link (?avd_draft=token) that only works for them, for 30 minutes, and only while the draft is the one it was made
  * for; everybody else with the same link gets the published design.

@@ -1,4 +1,4 @@
-// Layout core (perf plan step 25b): the page features of resources/views/components/layout.blade.php
+// Layout core: the page features of resources/views/components/layout.blade.php
 // that were ~85 KB of classic inline script at the end of the body, compiled during the parse of
 // every page without a code cache. As part of the module bundle they are cached and run once the
 // document has been parsed, before DOMContentLoaded, on every page of that layout (public and admin);
@@ -6,8 +6,8 @@
 //
 // What stays inline in the layout, for timing: the saved accent and personal glow restore (in the
 // <head> theme script, before the first paint), the theater-mode restore (at its old point in the
-// parse), the first watch-later badge pass (at the end of the parse), the click ripple engine, and the
-// queue stubs below.
+// parse), the first watch-later badge pass (at the end of the parse) and the queue stubs below. The
+// click ripple engine moved here in 1.2.3 (./ripple: 9 KB less inline script on every page).
 //
 // Every window.* name keeps working at the moment it is called. A small inline script in the <head>
 // defines queue stubs for the names that onclick attributes, show.blade.php and admin pages call
@@ -17,7 +17,13 @@
 import {Modal} from 'bootstrap';
 import {optionalLoad} from '../dom/navIntent';
 import {installAudio} from './audio';
-import {byId, escapeHtml, layoutConfig, safely, store, syncGlowGroup, type LayoutConfig, type LayoutUser} from './config';
+import {sitePath} from '../functions/sitePath';
+import {byId, layoutConfig, safely, store, syncGlowGroup, type LayoutConfig, type LayoutUser} from './config';
+import {initToastSystem, showToast, toastType} from './toasts';
+import {installRipple} from './ripple';
+import {installIconSafetyNet} from './icons';
+import {installCalmScrollLock} from './scrollLock';
+import {installFocusClear, SITE_BARS} from './focusClear';
 
 type Queued = [string, unknown[]];
 type AnyFunction = (...args: unknown[]) => unknown;
@@ -40,6 +46,10 @@ declare global {
         closeSpotlightSearch: () => void;
         AVD_USER: LayoutUser;
         __avdAddedRootsBus?: boolean;
+        // A dialog rendered the first time it is asked for (<template data-avd-lazy>, initLazyTemplates).
+        avdLazy?: (id: string) => HTMLElement | null;
+        // The watch page's own share (resources/js/layout/watchTools.ts): what avdQuickShare() does without a URL.
+        avdPageShare?: () => void;
     }
 }
 
@@ -86,7 +96,8 @@ const atDomContentLoaded = (callback: () => void): void => {
     window.addEventListener('load', run, {once: true});
 };
 
-// --sidebar-top follows the header's bottom edge. That edge only moves while the header itself
+// --sidebar-top follows the header's bottom edge (the sidebars and the watch page's sticky bar, which sits
+// right below the header: video.scss). That edge only moves while the header itself
 // travels: a sticky header until it docks at the top edge (ad slot, alert banner or header margin
 // above it), a static header until it has scrolled away. An IntersectionObserver on the header arms
 // the scroll listener for exactly that stretch, so a docked header costs no work per scroll frame.
@@ -104,7 +115,7 @@ const initSidebarTop = (): void => {
 
     const getSidebars = (): HTMLElement[] | null => {
         if (!sidebars && document.readyState !== 'loading') {
-            sidebars = Array.prototype.slice.call(document.querySelectorAll('#responsive-sidebar, .avd-watch-sidebar'));
+            sidebars = Array.prototype.slice.call(document.querySelectorAll('#responsive-sidebar, .avd-watch-sidebar, #avdStickyWatchBar'));
         }
 
         return sidebars;
@@ -227,6 +238,35 @@ const initEnhancedSelectFocus = (): void => {
     }, true);
 };
 
+// R3-050: "Skip to content" (the layout's first link, href="#main-container") moves the focus to the page's content, so
+// the next Tab is the content's first control (the header and the side or studio menu passed over), without adding
+// "#main-container" to the address. The content takes the focus for that moment only (tabindex -1, removed when it
+// loses it). Without this script the link still works as a plain in-page link.
+const initSkipLink = (): void => {
+    const link = document.querySelector<HTMLAnchorElement>('a.avd-skip-link');
+
+    if (!link) {
+        return;
+    }
+
+    link.addEventListener('click', (event) => {
+        const target = byId('main-container');
+
+        if (!target) {
+            return;
+        }
+
+        event.preventDefault();
+
+        if (!target.hasAttribute('tabindex')) {
+            target.setAttribute('tabindex', '-1');
+            target.addEventListener('blur', () => target.removeAttribute('tabindex'), {once: true});
+        }
+
+        target.focus();
+    });
+};
+
 // Back-to-top shows once the page has scrolled past 420px. A sentinel is watched by an
 // IntersectionObserver, so scrolling runs no script here; the class is only written on an actual
 // transition. It spans the top 420px of the document: in view at scrollY 0 on any viewport height, so
@@ -234,6 +274,8 @@ const initEnhancedSelectFocus = (): void => {
 // scrollY > 420 exactly (an edge-adjacent sentinel still counts as intersecting). overflow-anchor:none
 // keeps it from becoming the scroll anchor: it never moves with the content, so Chrome would stop
 // compensating for content that grows above the viewport.
+const BACK_TO_TOP_PAST = 420;
+
 const initBackToTop = (): void => {
     const btt = byId('back-to-top');
 
@@ -258,7 +300,7 @@ const initBackToTop = (): void => {
             sentinel = document.createElement('div');
             sentinel.id = 'avd-top-sentinel';
             sentinel.setAttribute('aria-hidden', 'true');
-            sentinel.style.cssText = 'position:absolute;top:0;left:0;width:1px;height:420px;pointer-events:none;overflow-anchor:none';
+            sentinel.style.cssText = `position:absolute;top:0;left:0;width:1px;height:${BACK_TO_TOP_PAST}px;pointer-events:none;overflow-anchor:none`;
             document.body.insertBefore(sentinel, document.body.firstChild);
         }
         new IntersectionObserver((entries) => {
@@ -272,7 +314,7 @@ const initBackToTop = (): void => {
             }
             frame = window.requestAnimationFrame(() => {
                 frame = 0;
-                setBackToTop(window.scrollY > 420);
+                setBackToTop(window.scrollY > BACK_TO_TOP_PAST);
             });
         }, {passive: true});
     }
@@ -280,7 +322,7 @@ const initBackToTop = (): void => {
 
 // Theater mode and lights out. The saved theater mode is restored by the layout's inline script at
 // its old point in the parse; the toggle below changes it. The horizontal scroll reset only follows
-// a real change of mode (perf plan step 25f): it used to force a layout during the parse of every
+// a real change of mode: it used to force a layout during the parse of every
 // watch page at init.
 const initTheaterAndLightsOut = (config: LayoutConfig, theaterButtons: NodeListOf<HTMLElement>): void => {
     const setTheaterMode = (enabled: boolean): void => {
@@ -331,9 +373,10 @@ const initTheaterAndLightsOut = (config: LayoutConfig, theaterButtons: NodeListO
 };
 
 // Global keyboard shortcuts. show.blade.php registers its own player shortcuts first; this listener
-// still runs after it, as before. That handler already runs T, L, P, A, Z, B, W, V and N on the watch
+// still runs after it, as before. That handler already runs T, L, P, A, Z, B, C, W, V and N on the watch
 // page, so they are not run a second time here: twice cancelled every toggle (T, L, P, A, Z, V and N did
-// nothing, L toasted 'Lights Restored') and moved B and W on by two steps. Other keys are unchanged.
+// nothing, L toasted that the lights were back on), moved B and W on by two steps, and C (the color filter
+// there) also saved a bookmark the visitor never asked for. Other keys are unchanged.
 const initShortcuts = (theaterButtons: NodeListOf<HTMLElement>): void => {
     const overlay = byId('shortcuts-overlay');
 
@@ -433,7 +476,7 @@ const initShortcuts = (theaterButtons: NodeListOf<HTMLElement>): void => {
                 break;
             case 'c':
             case 'C':
-                player('avdAddBookmark');
+                if (!watchHandled) player('avdAddBookmark');
                 break;
             case 'w':
             case 'W':
@@ -452,58 +495,222 @@ const initShortcuts = (theaterButtons: NodeListOf<HTMLElement>): void => {
     });
 };
 
+// The one toast system (./toasts, watch-47): window.avdToast, alertToast and showCopyToast all draw the kit toast.
 const initToasts = (config: LayoutConfig): void => {
+    initToastSystem(config.t.close);
+
+    // A short confirmation (lights out, theater, copied...): plain text. It follows the admin's "Copy toast" switch, as
+    // the old #copy-toast pill did.
     window.showCopyToast = (msg?: string) => {
         if (!config.copyToast) {
             return;
         }
 
-        const toast = byId('copy-toast');
+        showToast(msg || config.t.copied, {type: 'success'});
+    };
 
-        if (!toast) {
+    // msg is markup (page scripts pass HTML or entity-escaped text); this module's own callers pass their plain text
+    // through escapeHtml(). type: success | info | warning | danger (error). iconClass: Font Awesome classes, of which
+    // the glyph is kept (the toast's type colours it).
+    window.avdToast = (msg: string, type?: string, iconClass?: string) => {
+        showToast(String(msg ?? ''), {type: toastType(type), html: true, icon: iconClass});
+    };
+    window.alertToast = window.avdToast;
+};
+
+// The phone ad strip (ad_code_mobile, .ad-slot-mobile [data-avd-ad-strip]) sits 8px above the bottom bar; its height
+// is the owner's ad code (a 320x50 banner is 66px with the strip's padding, a 320x100 one more). A ResizeObserver
+// writes the real height into --avd-ad-strip-h on <body>, which --avd-bottom-chrome reads (resources/sass/member/
+// _shared.scss), so the page's bottom room, the toasts, "Back to top" and the daily pill clear any ad code
+// (member design 4.4). Hidden (from 768px) or closed, the strip has no box and the variable is dropped.
+//
+// Load cost on a phone (watch-7, measured at CPU 4x): a custom property on <body> is inherited by
+// the whole page, so writing it restyles every element. Nothing is written while the strip has the height the
+// stylesheets assume without the script (var(--avd-ad-strip-h, 66px): a 320x50 banner), and a written value is removed
+// when the strip goes back to it. The strip yield's first reads wait for this observer's first callback, which comes
+// right after the first layout with the strip in it (they forced that layout from a requestAnimationFrame before:
+// 200-350 ms in the watch page's first frame).
+const STRIP_DEFAULT_HEIGHT = '66px';
+
+const initAdStrip = (): void => {
+    const strip = document.querySelector<HTMLElement>('[data-avd-ad-strip]');
+
+    if (!strip || typeof ResizeObserver !== 'function') {
+        return;
+    }
+
+    let written = '';
+    const write = (height: number): void => {
+        const measured = height > 0 ? Math.ceil(height) + 'px' : '';
+        const value = measured === STRIP_DEFAULT_HEIGHT ? '' : measured;
+
+        if (value === written) {
             return;
         }
 
-        if (msg) {
-            const span = toast.querySelector('span');
-            if (span) span.textContent = msg;
-        }
+        written = value;
 
-        toast.classList.add('show');
-        setTimeout(() => {
-            toast.classList.remove('show');
-        }, 2000);
+        if (value) {
+            document.body.style.setProperty('--avd-ad-strip-h', value);
+        } else {
+            document.body.style.removeProperty('--avd-ad-strip-h');
+        }
     };
 
-    // msg is markup (page scripts pass HTML or entity-escaped text); this module's own callers pass their
-    // plain text through escapeHtml().
-    window.avdToast = (msg: string, type?: string, iconClass?: string) => {
-        type = type || 'success';
-        let container = byId('avd-toast-container');
-        if (!container) {
-            container = document.createElement('div');
-            container.id = 'avd-toast-container';
-            container.style.cssText = 'position: fixed; bottom: 24px; right: 24px; z-index: 999999; display: flex; flex-direction: column; gap: 8px; pointer-events: none;';
-            document.body.appendChild(container);
+    const startYield = initAdStripYield(strip);
+    let yieldStarted = false;
+
+    new ResizeObserver((entries) => {
+        const entry = entries[entries.length - 1];
+        const box = entry.borderBoxSize && entry.borderBoxSize[0];
+        const height = strip.isConnected ? (box ? box.blockSize : entry.target.getBoundingClientRect().height) : 0;
+
+        // The reads first (the layout is fresh here), then the write.
+        if (!yieldStarted && height > 0) {
+            yieldStarted = true;
+            startYield();
         }
-        const toast = document.createElement('div');
-        toast.style.cssText = 'pointer-events: auto; display: flex; align-items: center; gap: 10px; padding: 10px 18px; border-radius: 9999px; background: rgba(15, 20, 32, 0.95); border: 1px solid rgba(255,255,255,0.18); box-shadow: 0 10px 30px rgba(0,0,0,0.5), 0 0 20px rgba(var(--avd-primary-rgb, 255,61,97), 0.28); color: #fff; font-size: 0.85rem; font-weight: 600; opacity: 0; transform: translateY(12px) scale(0.95); transition: opacity 0.22s ease, transform 0.22s ease; font-family: var(--avd-font-body, system-ui);';
-        const icon = iconClass || (type === 'success' ? 'fa-solid fa-circle-check text-success' : (type === 'danger' ? 'fa-solid fa-circle-exclamation text-danger' : 'fa-solid fa-bell text-info'));
-        toast.innerHTML = '<i class="' + icon + '"></i><span>' + msg + '</span>';
-        container.appendChild(toast);
-        requestAnimationFrame(() => {
-            toast.style.opacity = '1';
-            toast.style.transform = 'translateY(0) scale(1)';
+
+        write(height);
+    }).observe(strip);
+};
+
+// The strip steps aside (watch-31; it fades out, nothing moves, the page keeps its bottom room):
+//  - while a row the page marks [data-avd-strip-yield] is under it: the watch page's action row and its channel row
+//    with Subscribe, which the strip covered on the first screen of a phone;
+//  - on a short phone (under 700px tall: the iPhone SE), until the visitor scrolls past half a screen: the header, the
+//    strip and the bottom bar took 201 of 667px there, a third of the first screen.
+// Phones only (the strip is not shown from 768px).
+const STRIP_SHORT_SCREEN = '(max-width: 767.98px) and (max-height: 699.98px)';
+
+// Returns its start: initAdStrip calls it from the strip's first ResizeObserver callback, after the first layout with
+// the strip and before its first paint, where the reads below cost no layout of their own.
+const initAdStripYield = (strip: HTMLElement): (() => void) => {
+    const phone = window.matchMedia('(max-width: 767.98px)');
+    const short = window.matchMedia(STRIP_SHORT_SCREEN);
+    const rows = Array.from(document.querySelectorAll<HTMLElement>('[data-avd-strip-yield]'));
+    const under = new Set<Element>();
+    let firstScreen = false;
+    let observer: IntersectionObserver | null = null;
+
+    const apply = (): void => {
+        const yieldNow = phone.matches && (under.size > 0 || firstScreen);
+
+        if (strip.classList.contains('is-yielding') !== yieldNow) {
+            strip.classList.toggle('is-yielding', yieldNow);
+        }
+    };
+
+    // The strip's band of the window: from its top edge to the bottom bar's (the rows are watched only there); null when
+    // there is nothing to watch.
+    const readBand = (): {top: number; bottom: number} | null => {
+        if (rows.length === 0 || typeof IntersectionObserver !== 'function' || !phone.matches) {
+            return null;
+        }
+
+        const rect = strip.getBoundingClientRect();
+        const height = window.innerHeight;
+        const top = Math.max(0, Math.round(rect.top));
+        const bottom = Math.max(0, Math.round(height - rect.bottom));
+
+        return rect.height <= 0 || top >= height ? null : {top, bottom};
+    };
+
+    const watchRows = (band: {top: number; bottom: number} | null): void => {
+        observer?.disconnect();
+        observer = null;
+        under.clear();
+
+        if (!band) {
+            return;
+        }
+
+        observer = new IntersectionObserver((entries) => {
+            entries.forEach((entry) => {
+                if (entry.isIntersecting) {
+                    under.add(entry.target);
+                } else {
+                    under.delete(entry.target);
+                }
+            });
+            apply();
+        }, {rootMargin: `-${band.top}px 0px -${band.bottom}px 0px`});
+        rows.forEach((row) => observer?.observe(row));
+    };
+
+    // Half a screen down, or the end of a page shorter than that (a page that does not scroll at all shows the strip at
+    // once: its content ends above the strip's room).
+    const onFirstScreen = (): boolean => {
+        if (!short.matches) {
+            return false;
+        }
+
+        const reach = Math.max(0, document.documentElement.scrollHeight - window.innerHeight - 1);
+
+        return window.scrollY < Math.min(window.innerHeight / 2, reach);
+    };
+
+    let ticking = false;
+    const onScroll = (): void => {
+        // Closed by the visitor (its close button removes it): nothing left to place.
+        if (!strip.isConnected) {
+            window.removeEventListener('scroll', onScroll);
+            observer?.disconnect();
+            return;
+        }
+
+        if (ticking) {
+            return;
+        }
+
+        ticking = true;
+        window.requestAnimationFrame(() => {
+            ticking = false;
+            const next = onFirstScreen();
+
+            if (next !== firstScreen) {
+                firstScreen = next;
+                apply();
+            }
         });
-        setTimeout(() => {
-            toast.style.opacity = '0';
-            toast.style.transform = 'translateY(-8px) scale(0.95)';
-            setTimeout(() => {
-                toast.remove();
-            }, 250);
-        }, 3000);
     };
-    window.alertToast = window.avdToast;
+
+    // Every read (the band, the first screen) before the writes (the scroll listener, the observer, the class).
+    const place = (): void => {
+        const band = readBand();
+        firstScreen = onFirstScreen();
+        window.removeEventListener('scroll', onScroll);
+
+        if (short.matches) {
+            window.addEventListener('scroll', onScroll, {passive: true});
+        }
+
+        watchRows(band);
+        apply();
+    };
+
+    let resizeTimer = 0;
+    const onResize = (): void => {
+        window.clearTimeout(resizeTimer);
+        resizeTimer = window.setTimeout(() => {
+            if (!strip.isConnected) {
+                return;
+            }
+            place();
+        }, 150);
+    };
+
+    let placing = false;
+
+    return (): void => {
+        if (placing) {
+            return;
+        }
+
+        placing = true;
+        place();
+        window.addEventListener('resize', onResize, {passive: true});
+    };
 };
 
 // Bootstrap modal of the layout, or the plain show/hide the inline script fell back to.
@@ -604,7 +811,9 @@ const initDaily = (config: LayoutConfig): void => {
         const picker = byId<HTMLInputElement>('avdCustomColorPicker');
         if (picker) picker.value = savedAccent;
         const nameEl = byId('avdCustomColorName');
-        if (nameEl) nameEl.textContent = 'Custom Tone: ' + savedAccent.toUpperCase();
+        // in the reader's language, as the HUD writes it (R1-150: it read "Custom Tone: #FF0066" in every language); the code
+        // keeps its left-to-right order inside an Arabic text (Unicode isolate)
+        if (nameEl) nameEl.textContent = (config.t.customColour || 'Your colour: :code').split(':code').join('\u2066' + savedAccent.toUpperCase() + '\u2069');
     }
 
     if (!daily) {
@@ -680,14 +889,45 @@ const setupChipsScroller = (wrapper: HTMLElement): void => {
 
     // A hidden arrow is also visibility:hidden, so it leaves the tab order (an invisible focus stop showed no ring);
     // if it had focus, the track (a focusable scroll region) takes it. Its opacity has no transition to cut short.
-    const setButtonState = (button: HTMLElement | null, opacity: string, pointerEvents: string): void => {
-        if (!button) return;
+    // R3-068: an arrow the KEYBOARD is on stays (shown, in the tab order) until the focus leaves it. A fast Tab from the
+    // last chip lands on "Scroll right" while the row still scrolls; hiding it then handed the focus to the track, before
+    // the chips, and the next Tab went round the row again. A mouse focus (no :focus-visible) still goes to the track.
+    const heldArrows = new Map<HTMLElement, [string, string]>();
+    const keyboardFocused = (button: HTMLElement): boolean => {
+        try {
+            return button.matches(':focus-visible');
+        } catch {
+            return false;
+        }
+    };
+    const writeButtonState = (button: HTMLElement, opacity: string, pointerEvents: string): void => {
         const visibility = opacity === '0' ? 'hidden' : '';
-        if (visibility && document.activeElement === button) track.focus({preventScroll: true});
         if (button.style.opacity !== opacity) button.style.opacity = opacity;
         if (button.style.pointerEvents !== pointerEvents) button.style.pointerEvents = pointerEvents;
         if (button.style.visibility !== visibility) button.style.visibility = visibility;
     };
+    const setButtonState = (button: HTMLElement | null, opacity: string, pointerEvents: string): void => {
+        if (!button) return;
+        if (opacity === '0' && document.activeElement === button) {
+            if (keyboardFocused(button)) {
+                heldArrows.set(button, [opacity, pointerEvents]);
+                return;
+            }
+            track.focus({preventScroll: true});
+        }
+        heldArrows.delete(button);
+        writeButtonState(button, opacity, pointerEvents);
+    };
+    for (const button of [prevBtn, nextBtn]) {
+        if (!button) continue;
+        button.addEventListener('focusout', () => {
+            const held = heldArrows.get(button);
+            if (held) {
+                heldArrows.delete(button);
+                writeButtonState(button, held[0], held[1]);
+            }
+        });
+    }
 
     const applyNav = (): void => {
         noScroll = atStart && atEnd;
@@ -989,25 +1229,30 @@ const initBorderBeamGlow = (): void => {
 // defines its own avdQuickShare() before this module runs, for its dock button, which calls it without
 // arguments: it copies the page's URL. That function stays in charge of calls without a URL, so the dock
 // shares the watch page (replacing it shared 'undefined'); calls with a URL share that URL, as before.
-const initShare = (): void => {
+const initShare = (config: LayoutConfig): void => {
+    const texts = config.t;
     const own = window.avdQuickShare as (((...args: unknown[]) => unknown) & {avdQueued?: boolean}) | undefined;
-    const pageShare = typeof own === 'function' && !own.avdQueued ? own : null;
+    // A page script that defined avdQuickShare() before this module ran; the watch page's tools, which load after it
+    // (watch-7), register theirs as window.avdPageShare instead, read at the call.
+    const earlyShare = typeof own === 'function' && !own.avdQueued ? own : null;
 
     const share = (url: string, title?: string): void => {
         if (navigator.share) {
             navigator.share({title, url} as ShareData).catch(() => undefined);
         } else if (navigator.clipboard) {
             navigator.clipboard.writeText(url).then(() => {
-                window.avdToast('Video link copied to clipboard!', 'success', 'fa-solid fa-link text-info');
+                showToast(texts.linkCopied || 'Link copied', {type: 'success', icon: 'fa-link'});
             }).catch(() => {
-                window.avdToast('Share URL: ' + escapeHtml(url), 'info', 'fa-solid fa-link text-info');
+                showToast((texts.shareUrl || 'Share this link:') + ' ' + url, {type: 'info', icon: 'fa-link'});
             });
         } else {
-            window.avdToast('Share URL: ' + escapeHtml(url), 'info', 'fa-solid fa-link text-info');
+            showToast((texts.shareUrl || 'Share this link:') + ' ' + url, {type: 'info', icon: 'fa-link'});
         }
     };
 
     window.avdQuickShare = (url?: string, title?: string) => {
+        const pageShare = typeof window.avdPageShare === 'function' ? window.avdPageShare : earlyShare;
+
         if (url) {
             share(url, title);
         } else if (pageShare) {
@@ -1016,6 +1261,170 @@ const initShare = (): void => {
             share(window.location.href, title || document.title);
         }
     };
+};
+
+// Dialogs rendered the first time they open (watch-7: the watch page drew every tool dialog up front). A page wraps a
+// dialog most visitors never open in <template data-avd-lazy="<the dialog's id>">: the template's content is inert (no
+// nodes in the document, no style or layout work) until something asks for the dialog. Then its content is rendered at
+// the end of the template's parent (the template stays, inert): on a click on a Bootstrap trigger of it
+// (data-bs-target="#id", or href="#id" with data-bs-toggle), caught in the capture phase on window, before Bootstrap's
+// own delegated handler (a capture listener on document, registered before this module ran) looks the dialog up; or on
+// window.avdLazy(id) (the watch page's tools). Alpine components inside start at once (Alpine.initTree marks them, so
+// Alpine's own observer skips them later), before the dialog's show events.
+const materializeLazy = (id: string): HTMLElement | null => {
+    const existing = id ? document.getElementById(id) : null;
+
+    if (existing || !id) {
+        return existing;
+    }
+
+    const template = Array.from(document.querySelectorAll<HTMLTemplateElement>('template[data-avd-lazy]'))
+        .find((candidate) => candidate.dataset.avdLazy === id);
+
+    if (!template || !template.parentNode) {
+        return null;
+    }
+
+    // Rendered at the END of the template's parent: the same ancestors (the same styles), and no sibling after it. The
+    // template stays where it is, inert, without its marker. An element inserted or removed there, among the page's
+    // other children, restyled the content around it: 35-80 ms on a slow phone even for an empty element, under 1 ms at
+    // the end.
+    const parent = template.parentNode;
+    const content = document.importNode(template.content, true);
+    const roots = Array.from(content.children);
+    template.removeAttribute('data-avd-lazy');
+    template.setAttribute('data-avd-lazy-rendered', id);
+    parent.appendChild(content);
+
+    const alpine = window.Alpine as unknown as {initTree?: (root: Element) => void} | undefined;
+
+    if (alpine && typeof alpine.initTree === 'function') {
+        roots.forEach((root) => safely(() => alpine.initTree?.(root)));
+    }
+
+    // Announced once it is in place and its components run: the watch page's tools bring a panel whose badges follow the
+    // player up to date (resources/js/layout/watchTools.ts).
+    safely(() => document.dispatchEvent(new CustomEvent('avd:lazy-rendered', {detail: {id}})));
+
+    return document.getElementById(id);
+};
+
+// The dialog a trigger opens, if it is still a template.
+const lazyTarget = (target: EventTarget | null): string | null => {
+    const trigger = target instanceof Element
+        ? target.closest<HTMLElement>('[data-bs-toggle][data-bs-target], a[data-bs-toggle][href^="#"]')
+        : null;
+    const reference = trigger ? (trigger.getAttribute('data-bs-target') || trigger.getAttribute('href') || '') : '';
+
+    return reference.length > 1 && reference.startsWith('#') && !document.getElementById(reference.slice(1)) ? reference.slice(1) : null;
+};
+
+const initLazyTemplates = (): void => {
+    window.avdLazy = materializeLazy;
+
+    if (!document.querySelector('template[data-avd-lazy]')) {
+        return;
+    }
+
+    // Rendered when the visitor heads for a trigger (the pointer over it, keyboard focus on it), so the click that opens
+    // the dialog does only Bootstrap's own work; the click itself is the fallback.
+    const early = (event: Event): void => {
+        const id = lazyTarget(event.target);
+
+        if (id) {
+            materializeLazy(id);
+        }
+    };
+    window.addEventListener('pointerover', early, {capture: true, passive: true});
+    window.addEventListener('focusin', early, true);
+    window.addEventListener('click', early, true);
+
+    // And once the page is idle after load, one dialog per idle slot (off the loading path, before most visitors reach a
+    // trigger on a phone, where a tap gives no warning). Each slot is short: a few milliseconds of script, and next to no
+    // style work at the end of the parent (the phone tool sheet, laid out while hidden, costs its own layout).
+    let queue: string[] = [];
+    const renderNext = (): void => {
+        const id = queue.shift();
+
+        if (id === undefined) {
+            return;
+        }
+
+        safely(() => materializeLazy(id));
+        idle(renderNext);
+    };
+    const idle = (task: () => void): void => {
+        if (typeof window.requestIdleCallback === 'function') {
+            window.requestIdleCallback(() => task(), {timeout: 4000});
+        } else {
+            window.setTimeout(task, 300);
+        }
+    };
+    const start = (): void => {
+        window.setTimeout(() => {
+            // data-avd-lazy-idle="off": first use only (a panel laid out while hidden, such as an offcanvas, costs its
+            // whole layout when rendered: the watch page's phone tool sheet).
+            queue = Array.from(document.querySelectorAll<HTMLTemplateElement>('template[data-avd-lazy]'))
+                .filter((template) => template.dataset.avdLazyIdle !== 'off')
+                .map((template) => template.dataset.avdLazy || '')
+                .filter((id) => id !== '');
+            idle(renderNext);
+        }, 1500);
+    };
+
+    if (document.readyState === 'complete') {
+        start();
+    } else {
+        window.addEventListener('load', start, {once: true});
+    }
+};
+
+// The watch page links its tools' module (data-avd-watch-tools) and its stylesheet (data-avd-watch-css) itself. A page
+// that has the tools' settings but could not link them (no build entry when it rendered) gets them from here; both
+// imports also put the two files in the build manifest that the page's links come from.
+const initWatchAssets = (): void => {
+    if (!document.getElementById('avd-watch-tools')) {
+        return;
+    }
+
+    if (!document.querySelector('script[data-avd-watch-tools]')) {
+        void optionalLoad(import('./watchTools')).catch(() => undefined);
+    }
+
+    if (!document.querySelector('link[data-avd-watch-css]')) {
+        void optionalLoad(import('../../css/watch-page.css')).catch(() => undefined);
+    }
+};
+
+// A channel's "N subscribers" follows its Subscribe button (watch-17: an unsubscribe left "2 subscribers" on screen).
+// The page prints the count for both states of the member's subscription (data-avd-count-on / data-avd-count-off) and
+// the button's aria-pressed (resources/js/components/Actions/Subscribe.tsx) picks one; written only when it differs.
+const initSubscriberCounts = (): void => {
+    document.querySelectorAll<HTMLElement>('[data-avd-subscriber-count]').forEach((label) => {
+        const user = label.dataset.avdSubscriberCount || '';
+        const host = /^\d+$/.test(user) ? document.querySelector<HTMLElement>(`subscribe-button[user="${user}"]`) : null;
+
+        if (!host) {
+            return;
+        }
+
+        const sync = (): void => {
+            const pressed = host.querySelector('[aria-pressed]')?.getAttribute('aria-pressed');
+
+            if (pressed !== 'true' && pressed !== 'false') {
+                return;
+            }
+
+            const text = pressed === 'true' ? label.dataset.avdCountOn : label.dataset.avdCountOff;
+
+            if (text && label.textContent !== text) {
+                label.textContent = text;
+            }
+        };
+
+        new MutationObserver(sync).observe(host, {subtree: true, childList: true, attributes: true, attributeFilter: ['aria-pressed']});
+        sync();
+    });
 };
 
 // Watch later: the auth prompt, the quick-save toggle and the saved-state badges.
@@ -1039,9 +1448,9 @@ const initWatchLater = (config: LayoutConfig): void => {
             if (iconEl) iconEl.className = icon + ' fs-5';
             Modal.getOrCreateInstance(modalEl).show();
         } else {
-            window.avdToast(escapeHtml(msg), 'info', 'fa-solid fa-lock text-warning');
+            showToast(msg, {type: 'info', icon: 'fa-lock'});
             setTimeout(() => {
-                window.location.href = window.AVD_USER?.loginUrl || '/login';
+                window.location.href = window.AVD_USER?.loginUrl || sitePath('/login');
             }, 1200);
         }
     };
@@ -1083,6 +1492,10 @@ const initWatchLater = (config: LayoutConfig): void => {
         if (btn.title !== title) {
             btn.title = title;
         }
+        // the name says what a press does (save / remove), as the title does (R1-147)
+        if (btn.getAttribute('aria-label') !== title) {
+            btn.setAttribute('aria-label', title);
+        }
         const icon = btn.querySelector('i');
         const iconClass = isSaved ? 'fa-solid fa-check text-success' : 'fa-regular fa-clock text-white';
         if (icon && icon.className !== iconClass) {
@@ -1123,7 +1536,7 @@ const initWatchLater = (config: LayoutConfig): void => {
         const numId = Number(videoId);
         const currentSaved = window.AVD_USER.watchLaterIds || [];
 
-        fetch('/user/playlists/watch-later/' + videoId, {
+        fetch(sitePath('/user/playlists/watch-later/' + videoId), {
             method: 'POST',
             headers: {
                 'X-CSRF-TOKEN': token,
@@ -1131,9 +1544,17 @@ const initWatchLater = (config: LayoutConfig): void => {
                 'Content-Type': 'application/json',
             },
         })
-            .then((res) => {
+            .then(async (res) => {
                 if (!res.ok) {
-                    throw new Error('Network error');
+                    // the server says why (a view-only demo account, a limit, a signed-out session: R1-147); the toast
+                    // shows its words, else the page's own sentence
+                    let reason = '';
+                    try {
+                        reason = String((await res.json())?.message || '');
+                    } catch {
+                        reason = '';
+                    }
+                    throw Object.assign(new Error(reason), {server: true, status: res.status});
                 }
                 return res.json();
             })
@@ -1145,7 +1566,7 @@ const initWatchLater = (config: LayoutConfig): void => {
                     window.AVD_USER.watchLaterIds = currentSaved;
                     window.updateWatchLaterCardBadges();
                     // The server's message is plain text too (a JSON __() value).
-                    window.avdToast(escapeHtml(data.message || t.wlSaved), 'success', 'fa-solid fa-bookmark text-success');
+                    showToast(String(data.message || t.wlSaved), {type: 'success', icon: 'fa-bookmark'});
                 } else {
                     const idx = currentSaved.indexOf(numId);
                     if (idx !== -1) {
@@ -1153,11 +1574,15 @@ const initWatchLater = (config: LayoutConfig): void => {
                     }
                     window.AVD_USER.watchLaterIds = currentSaved;
                     window.updateWatchLaterCardBadges();
-                    window.avdToast(escapeHtml(data.message || t.wlRemoved), 'info', 'fa-regular fa-bookmark text-secondary');
+                    showToast(String(data.message || t.wlRemoved), {type: 'info', icon: 'fa-bookmark'});
                 }
             })
-            .catch(() => {
-                window.avdToast(escapeHtml(t.wlFailed), 'danger', 'fa-solid fa-triangle-exclamation text-danger');
+            .catch((error: unknown) => {
+                const said = error instanceof Error && (error as Error & {server?: boolean}).server && error.message
+                    && !['Unauthenticated.', 'CSRF token mismatch.', 'Too Many Attempts.', 'Server Error'].includes(error.message)
+                    ? error.message
+                    : t.wlFailed;
+                showToast(said, {type: 'error'});
             });
     };
 
@@ -1257,6 +1682,70 @@ const drainQueue = (): void => {
     queued.forEach(forward);
 };
 
+// The icon rail's labels (html[data-avd-sidebar-style="rail"], the pinned menu from 992px; watch-19, channel-36 (6)):
+// two lines that break between words only, with a hyphen where the page's language allows one (layout-theme-a.css). A
+// single word wider than the rail ("Subscriptions", "Abonnements") shows as overflow: it gets a smaller size, half a
+// pixel at a time down to RAIL_MIN_FONT, and only a word that still does not fit then breaks where it must
+// (data-avd-rail-fit="break"). The line height is fixed, so nothing moves. Once the fonts are in, and again when the
+// window grows to the rail's width.
+const RAIL_MIN_FONT = 8.5;
+
+const fitRailLabels = (): void => {
+    document.querySelectorAll<HTMLElement>('#responsive-sidebar.show_sidebar .avd-sidebar-link .text-sm:not(.avd-sidebar-label-full)').forEach((label) => {
+        if (label.offsetParent === null) {
+            return;
+        }
+
+        label.style.removeProperty('font-size');
+        delete label.dataset.avdRailFit;
+        let size = parseFloat(window.getComputedStyle(label).fontSize) || 10.5;
+
+        while (label.scrollWidth > label.clientWidth + 0.5 && size > RAIL_MIN_FONT) {
+            size = Math.max(RAIL_MIN_FONT, size - 0.5);
+            label.style.fontSize = size + 'px';
+            label.dataset.avdRailFit = String(size);
+        }
+
+        if (label.scrollWidth > label.clientWidth + 0.5) {
+            label.dataset.avdRailFit = 'break';
+        }
+    });
+};
+
+const initRailLabels = (): void => {
+    if (document.documentElement.getAttribute('data-avd-sidebar-style') !== 'rail' || !document.querySelector('#responsive-sidebar.show_sidebar')) {
+        return;
+    }
+
+    const wide = window.matchMedia('(min-width: 992px)');
+    const run = (): void => {
+        if (wide.matches) {
+            window.requestAnimationFrame(() => safely(fitRailLabels));
+            return;
+        }
+
+        // Narrower than the rail: the same links are the drawer's full-size labels again.
+        document.querySelectorAll<HTMLElement>('#responsive-sidebar .avd-sidebar-link .text-sm[data-avd-rail-fit]').forEach((label) => {
+            label.style.removeProperty('font-size');
+            delete label.dataset.avdRailFit;
+        });
+    };
+    const fonts = (document as Document & {fonts?: {ready?: Promise<unknown>; addEventListener?: (type: string, listener: () => void) => void}}).fonts;
+
+    (fonts && fonts.ready ? fonts.ready : Promise.resolve()).then(run, run);
+
+    // The look's web fonts load without holding the page (their stylesheet comes in later), so fonts.ready can settle
+    // before they start: a label fitted with the fallback face then grew past the rail's edge when the look's wider
+    // face arrived ("Subscriptions" in Night City HUD). Every finished font load fits the labels again.
+    if (fonts && typeof fonts.addEventListener === 'function') {
+        fonts.addEventListener('loadingdone', run);
+    }
+
+    if (typeof wide.addEventListener === 'function') {
+        wide.addEventListener('change', run);
+    }
+};
+
 let started = false;
 
 export const startLayoutCore = (): void => {
@@ -1269,12 +1758,22 @@ export const startLayoutCore = (): void => {
     started = true;
     const theaterButtons = document.querySelectorAll<HTMLElement>('[data-theater-toggle]');
 
+    safely(installCalmScrollLock);
+    safely(installRipple);
+    safely(installIconSafetyNet);
+    safely(initLazyTemplates);
+    safely(initWatchAssets);
     safely(initSidebarTop);
     safely(initBackToTop);
     safely(initEnhancedSelectFocus);
+    // R2R-02: the keyboard focus is never left under a bar that stays on screen (keyboard only: ./focusClear); "Back to
+    // top" counts as soon as a keyboard move takes the page past the point where it shows.
+    safely(() => installFocusClear({bars: SITE_BARS, showsPast: [['#back-to-top', BACK_TO_TOP_PAST]]}));
+    safely(initSkipLink);
     safely(() => initTheaterAndLightsOut(config, theaterButtons));
     safely(() => initShortcuts(theaterButtons));
     safely(() => initToasts(config));
+    safely(initAdStrip);
     safely(installAudio);
     safely(initSpotlight);
     safely(() => initDaily(config));
@@ -1283,8 +1782,10 @@ export const startLayoutCore = (): void => {
         safely(() => document.querySelectorAll<HTMLElement>('[data-avd-carousel]').forEach(setupCarousel));
         safely(initOverlayHeader);
         safely(initBorderBeamGlow);
+        safely(initSubscriberCounts);
+        safely(initRailLabels);
     }));
-    safely(initShare);
+    safely(() => initShare(config));
     safely(() => initWatchLater(config));
     drainQueue();
 };

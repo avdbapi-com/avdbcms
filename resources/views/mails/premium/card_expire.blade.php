@@ -1,19 +1,2 @@
-@component('mail::message')
-
-# Dear {{$notifiable->username}} !
-
-This is a friendly reminder that your card ending in {{$notifiable->premium_subscription->card_last4}} expires in **{{$notifiable->premium_subscription->card_expired_at->diffInDays()}} days**.
-
-To keep your Premium access and not risk blocking your services, please enter the information on your new card by clicking on the button above.
-
-@component('mail::button', ['url' => $url])
-    Update now
-@endcomponent
-
-@component('mail::subcopy')
-    Need help ? Contact our <a href="{{route('contact.show')}}">support</a>. Please don't reply to this email.
-@endcomponent
-
-Regards, {{ config('app.name') }}
-
-@endcomponent
+{{-- The card expires soon (App\Notifications\Premium\CardExpired). The HTML part (member design 6.21); the plain-text part: mails.text.premium.card_expire. The words: App\Notifications\Support\MemberMail. --}}
+@include('mails.layouts.html', ['mail' => \App\Notifications\Support\MemberMail::cardExpire($notifiable, (string) ($url ?? ''))])

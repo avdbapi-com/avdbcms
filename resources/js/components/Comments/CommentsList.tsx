@@ -1,4 +1,4 @@
-import {QueryClient, QueryClientProvider, useInfiniteQuery} from "@tanstack/react-query";
+import {QueryClient, QueryClientProvider, keepPreviousData, useInfiniteQuery} from "@tanstack/react-query";
 import {useInView} from "react-intersection-observer";
 import {getComments} from "@/api/avdbclip";
 import {useEffect, useState} from "preact/hooks";
@@ -35,6 +35,7 @@ function Main ({video, defaultSort, count} : Props) {
         error,
         refetch,
         isFetching,
+        isPlaceholderData,
         fetchNextPage,
         hasNextPage,
     } = useInfiniteQuery({
@@ -42,6 +43,9 @@ function Main ({video, defaultSort, count} : Props) {
         queryFn: ({pageParam}) => getComments(video, pageParam, sort),
         initialPageParam: 1,
         gcTime: 0,
+        // A new order keeps the comments on screen until the reordered list arrives (watch-14: the list emptied to
+        // "Loading ...", collapsed, and the page jumped up by its height to the player).
+        placeholderData: keepPreviousData,
         getNextPageParam: (lastPage, allPages, lastPageParam) => {
             if (lastPage.meta.current_page * lastPage.meta.per_page  > lastPage.meta.to) {
                 return undefined
@@ -51,7 +55,7 @@ function Main ({video, defaultSort, count} : Props) {
     });
 
     useEffect( () => {
-        if (inView && !isFetching && !isError) {
+        if (inView && !isFetching && !isError && !isPlaceholderData) {
             fetchNextPage()
         }
     }, [inView]);
@@ -71,14 +75,14 @@ function Main ({video, defaultSort, count} : Props) {
                 {
                     isLoading ? <div>{t('Loading ...')}</div> : <div>{t('Comments', {count: comments && comments.pages[0].count})}</div>
                 }
-                <div className={'d-flex gap-2 align-items-center flex-wrap'}>
-                    <button onClick={() => setSort('top')} className={'btn btn-' + activeButton('top') + 'btn-sm'}>{t('Top Comments')}</button>
-                    <button onClick={() => setSort('newest')} className={'btn btn-' + activeButton('newest') + 'btn-sm'}>{t('Newest first')}</button>
+                <div className={'d-flex gap-2 align-items-center flex-wrap'} role="group" aria-label={t('Sort comments')}>
+                    <button type="button" onClick={() => setSort('top')} aria-pressed={sort === 'top'} className={'btn btn-' + activeButton('top') + 'btn-sm'}>{t('Top comments')}</button>
+                    <button type="button" onClick={() => setSort('newest')} aria-pressed={sort === 'newest'} className={'btn btn-' + activeButton('newest') + 'btn-sm'}>{t('Newest first')}</button>
                 </div>
             </div>
             <AddComment video_id={video}/>
             {isError && <ApiError refetch={refetch} error={error}/>}
-            <div>
+            <div aria-busy={isPlaceholderData} className={isPlaceholderData ? 'avd-comments-reordering' : undefined}>
                 {
                     comments &&
                     <>
@@ -90,7 +94,7 @@ function Main ({video, defaultSort, count} : Props) {
                     </>
                 }
                 {
-                    (isFetching || isLoading) &&
+                    (isFetching || isLoading) && !isPlaceholderData &&
                     [...Array(skeletonCount).keys()].map(i => <CommentSkeleton key={i}/>)
                 }
                 {hasNextPage && <span ref={ref}></span>}

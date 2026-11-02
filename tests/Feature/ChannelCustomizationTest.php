@@ -318,7 +318,8 @@ class ChannelCustomizationTest extends TestCase
             ->assertSee('Creator channel tagline from settings.')
             ->assertSee('Visit studio')
             ->assertSee('Popular customized channel video')
-            ->assertSee('Upload rhythm')
+            // 1.2.3 (QA channel-18): "Last upload" in the facts line ("Upload rhythm" read "upload a rhythm")
+            ->assertSee('Last upload')
             ->assertSee('data-channel-layout="poster"', false)
             ->assertSee('data-channel-theme="ocean"', false)
             ->assertSee('data-channel-accent="custom"', false)
@@ -329,11 +330,15 @@ class ChannelCustomizationTest extends TestCase
             ->assertSee('data-channel-latest-layout="showcase"', false)
             ->assertSee('data-channel-latest-columns="1"', false)
             ->assertSee('data-channel-playlists-layout="grid"', false)
-            ->assertSee('data-channel-playlist-video-columns="1"', false)
+            // 1.2.3 (R1-042): a playlist is one card on the channel page; nothing read this attribute
+            ->assertDontSee('data-channel-playlist-video-columns', false)
             ->assertSee('Customized playlist rail')
-            ->assertSee('Featured videos');
+            // one featured video (1 x 1): the lead card
+            ->assertSee('mkFeatTitle', false);
 
-        $this->assertStringContainsString('--channel-accent:#123abc;', $response->getContent());
+        // 1.2.3 (QA channel-11): an own accent is adjusted for each mode (App\Support\ChannelAccent)
+        $inks = \App\Support\ChannelAccent::inks('custom', '#123abc');
+        $this->assertStringContainsString('--mk-accent-dark:' . $inks['dark'] . ';--mk-accent-light:' . $inks['light'] . ';', $response->getContent());
         $featuredHtml = $this->extractFeaturedSection($response->getContent());
         $this->assertStringContainsString('Popular customized channel video', $featuredHtml);
         $this->assertStringNotContainsString('Newer customized channel video', $featuredHtml);

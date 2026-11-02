@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Support\AuditDetails;
 use App\Models\Video;
 use App\Services\ViewHistoryRetentionService;
 use App\Support\AdminCache;
@@ -108,13 +109,22 @@ class ViewAnalyticsController
 
     public function destroy(int $id): RedirectResponse
     {
-        DB::table('views')->where('id', $id)->delete();
-        return redirect()->route('admin.views.index')->withSuccess('View record deleted.');
+        // Tools > Logs > Admin actions (R3-019): the entry's number.
+        if (DB::table('views')->where('id', $id)->delete() > 0) {
+            AuditLogController::log('view.deleted', AuditDetails::ids([$id]));
+        }
+
+        return redirect()->route('admin.views.index')->withSuccess(__('Removed from the history'));
     }
 
     public function clear(): RedirectResponse
     {
-        DB::table('views')->delete();
-        return redirect()->route('admin.views.index')->withSuccess('All view records cleared.');
+        $count = DB::table('views')->delete();
+
+        if ($count > 0) {
+            AuditLogController::log('views.cleared', (string) $count);
+        }
+
+        return redirect()->route('admin.views.index')->withSuccess(__('All views deleted from the history'));
     }
 }

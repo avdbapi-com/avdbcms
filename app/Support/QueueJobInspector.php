@@ -9,6 +9,20 @@ use Throwable;
 final class QueueJobInspector
 {
     /**
+     * Every risk label in English (risk_key): a stored reason Tools > Logs > Admin actions shows in the reader's language
+     * (App\Support\AuditDetails, R3-070).
+     *
+     * @return list<string>
+     */
+    public static function riskKeys(): array
+    {
+        return array_values(array_unique(array_merge(
+            ['Protected', 'Old import stub', 'Realtime only', 'Unknown job'],
+            array_column(self::PROTECTED_JOBS, 0),
+        )));
+    }
+
+    /**
      * @var array<string, array{0:string,1:string}>
      */
     private const PROTECTED_JOBS = [
@@ -22,8 +36,11 @@ final class QueueJobInspector
     ];
 
     /**
+     * risk_label is in the admin's language (the page shows it); risk_key is the same label in English, for what is stored
+     * (Tools > Logs > Admin actions keeps its details in English and shows them in the reader's language: R3-070).
+     *
      * @param  array<string, mixed>|string|null  $payload
-     * @return array{risk_level:string,risk_label:string,risk_description:string,delete_protected:bool,cleanup_group:string}
+     * @return array{risk_level:string,risk_label:string,risk_key:string,risk_description:string,delete_protected:bool,cleanup_group:string}
      */
     public static function inspectPayload(array|string|null $payload): array
     {
@@ -37,6 +54,7 @@ final class QueueJobInspector
             return [
                 'risk_level' => $active ? 'protected' : 'low',
                 'risk_label' => $active ? __('Protected') : __('Old import stub'),
+                'risk_key' => $active ? 'Protected' : 'Old import stub',
                 'risk_description' => $active
                     ? __('This AVDB import job is still active and should be cancelled from AVDB Import before deleting.')
                     : __('This AVDB import queue row no longer controls an active import run.'),
@@ -50,6 +68,7 @@ final class QueueJobInspector
                 return [
                     'risk_level' => 'protected',
                     'risk_label' => __($label),
+                    'risk_key' => $label,
                     'risk_description' => __($description),
                     'delete_protected' => true,
                     'cleanup_group' => 'protected',
@@ -62,6 +81,7 @@ final class QueueJobInspector
             return [
                 'risk_level' => 'low',
                 'risk_label' => __('Realtime only'),
+                'risk_key' => 'Realtime only',
                 'risk_description' => __('Deleting skips a live browser broadcast/notification only; it does not remove videos or main records.'),
                 'delete_protected' => false,
                 'cleanup_group' => 'realtime',
@@ -71,6 +91,7 @@ final class QueueJobInspector
         return [
             'risk_level' => 'protected',
             'risk_label' => __('Unknown job'),
+            'risk_key' => 'Unknown job',
             'risk_description' => __('This job type is not recognized, so delete is blocked until it is reviewed.'),
             'delete_protected' => true,
             'cleanup_group' => 'protected',

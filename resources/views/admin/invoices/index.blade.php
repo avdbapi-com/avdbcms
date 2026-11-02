@@ -23,7 +23,7 @@
         <div class="card shadow-sm border-success">
             <div class="card-body text-center py-3">
                 <i class="fa-solid fa-dollar-sign fa-2x text-success mb-2"></i>
-                <h3>${{ number_format($stats->total_amount, 2) }}</h3>
+                <h3>{{ \App\Support\PremiumAvailability::money($stats->total_amount, 2) }}</h3>
                 <small class="text-muted">{{__('Total Revenue')}}</small>
             </div>
         </div>
@@ -32,7 +32,7 @@
         <div class="card shadow-sm border-warning">
             <div class="card-body text-center py-3">
                 <i class="fa-solid fa-percent fa-2x text-warning mb-2"></i>
-                <h3>${{ number_format($stats->total_tax, 2) }}</h3>
+                <h3>{{ \App\Support\PremiumAvailability::money($stats->total_tax, 2) }}</h3>
                 <small class="text-muted">{{__('Total Tax')}}</small>
             </div>
         </div>
@@ -41,7 +41,7 @@
         <div class="card shadow-sm border-danger">
             <div class="card-body text-center py-3">
                 <i class="fa-solid fa-hand-holding-dollar fa-2x text-danger mb-2"></i>
-                <h3>${{ number_format($stats->total_fee, 2) }}</h3>
+                <h3>{{ \App\Support\PremiumAvailability::money($stats->total_fee, 2) }}</h3>
                 <small class="text-muted">{{__('Total Fees')}}</small>
             </div>
         </div>
@@ -81,13 +81,13 @@
                     </small>
                 </td>
                 <td class="align-middle fw-bold text-success">
-                    {{ $invoice->amount }}
+                    {{ \App\Support\PremiumAvailability::money((int) $invoice->getRawOriginal('amount'), 2) }}
                 </td>
                 <td class="align-middle">
-                    {{ $invoice->tax }}
+                    {{ \App\Support\PremiumAvailability::money((int) $invoice->getRawOriginal('tax'), 2) }}
                 </td>
                 <td class="align-middle">
-                    {{ $invoice->fee }}
+                    {{ \App\Support\PremiumAvailability::money((int) $invoice->getRawOriginal('fee'), 2) }}
                 </td>
                 <td class="align-middle">
                     @if($invoice->user)
@@ -107,10 +107,13 @@
                 </td>
                 <td class="align-middle">
                     <div class="d-flex gap-1">
+                        {{-- A member's invoice PDF is a closed page for a view-only demo account: not offered. --}}
+                        @unless (\App\Http\Middleware\ViewOnlyDemo::hides('user.invoices.show'))
                         <a href="{{ $invoice->route }}" target="_blank" class="btn btn-primary btn-sm d-flex align-items-center gap-2" title="{{__('Download Invoice')}}">
                             <i class="fa-solid fa-download"></i>
                             <span>{{__('Download')}}</span>
                         </a>
+                        @endunless
                     </div>
                 </td>
             </tr>

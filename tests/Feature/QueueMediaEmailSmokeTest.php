@@ -60,6 +60,13 @@ class QueueMediaEmailSmokeTest extends TestCase
 
     public function test_direct_upload_completion_dispatches_video_uploaded_event_without_queueing_file_bytes(): void
     {
+        // The site's Upload18 key is a precondition of the direct flow: without one the status check answers
+        // "Upload18 API key not configured." before calling Upload18. Set a test key here, as the other Upload18
+        // tests do, instead of depending on the developer's .env.
+        config([
+            'services.upload18.api_key' => 'site-key-for-tests-0003',
+            'services.upload18.api_url' => 'https://upload18.test/api',
+        ]);
         Event::fake([VideoUploaded::class]);
         Queue::fake();
 
@@ -76,9 +83,12 @@ class QueueMediaEmailSmokeTest extends TestCase
             ]),
         ]);
 
+        // The upload panel sends the vid of Upload18's own upload answer with the check (R1B-027: a did nobody holds
+        // gives its vid only to a request that brings it, or to the member who announced it).
         $this->actingAs($user)
             ->getJson(route('videos.upload18.status', [
                 'did' => 'upload18-did-123',
+                'vid' => 'embed-code-123',
             ]))
             ->assertOk()
             ->assertJsonPath('ready', true);
@@ -101,6 +111,8 @@ class QueueMediaEmailSmokeTest extends TestCase
 
         Event::assertDispatched(VideoUploaded::class, fn (VideoUploaded $event) => $event->video->is($video));
         Queue::assertNotPushed(UploadToUpload18::class);
+        // the server's calls carry the key in the Authorization header, never in a URL
+        Http::assertNotSent(fn ($request): bool => str_contains($request->url(), 'site-key-for-tests-0003'));
     }
 
     public function test_generated_thumbnail_submission_writes_media_files_and_marks_first_active(): void
@@ -110,7 +122,11 @@ class QueueMediaEmailSmokeTest extends TestCase
         $owner = User::factory()->create();
         $video = $this->publicVideo($owner, 'Thumbnail Smoke Target');
 
-        $image = 'data:image/jpeg;base64,' . base64_encode("\xff\xd8\xff\xd9");
+        // A real JPEG picture (1.2.3, security plan S20: bytes that only start with the JPEG marker are refused).
+        $canvas = imagecreatetruecolor(32, 18);
+        ob_start();
+        imagejpeg($canvas, null, 85);
+        $image = 'data:image/jpeg;base64,' . base64_encode((string) ob_get_clean());
 
         $response = $this->actingAs($owner)
             ->postJson(route('videos.generate-thumbnails', $video->id), [
@@ -163,8 +179,10 @@ class QueueMediaEmailSmokeTest extends TestCase
             function (NewComment $notification) use ($owner, $comment): bool {
                 $payload = $notification->toArray($owner);
 
+                // the text is translated when shown; the stored English sentence (for older code) names who and where
                 return $payload['url'] === $comment->video->route
-                    && $payload['message'] === 'You have new comment on your video !';
+                    && $payload['text'] === 'new_comment'
+                    && $payload['message'] === $comment->user->username.' commented on your video: Comment Notification Target';
             }
         );
         Notification::assertNotSentTo($commenter, NewComment::class);

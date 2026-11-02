@@ -1,4 +1,6 @@
 <nav class="d-flex justify-items-center justify-content-between">
+    {{-- R1-149: the phone pager only when there is more than one page (two disabled buttons under one page of results) --}}
+    @if($paginator->hasPages())
     <div class="d-flex justify-content-between flex-fill d-sm-none">
         <ul class="pagination">
             {{-- Previous Page Link --}}
@@ -24,6 +26,7 @@
             @endif
         </ul>
     </div>
+    @endif
     <div class="d-none flex-sm-fill d-sm-flex align-items-sm-center justify-content-sm-between">
         <div>
             <p class="text-muted">

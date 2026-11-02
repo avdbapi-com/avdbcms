@@ -41,6 +41,17 @@ class PayPalService
             ->json();
     }
 
+    /**
+     * Cancel a PayPal subscription (PayPal stops billing it; answers 204). Throws a RequestException when PayPal refuses
+     * (422 when it is no longer active) and a RuntimeException without PayPal credentials.
+     */
+    public function cancelSubscription(string $subscriptionId, string $reason): void
+    {
+        $this->paypal()
+            ->post($this->baseUrl().'/v1/billing/subscriptions/'.rawurlencode($subscriptionId).'/cancel', ['reason' => $reason])
+            ->throw();
+    }
+
     public function verifyWebhookSignature(Request $request): bool
     {
         if (!$this->webhookIsConfigured()) {

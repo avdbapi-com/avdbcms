@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Support\AuditDetails;
 use App\Models\Video;
 use App\Support\AdminCache;
 use App\Support\AdminPagination;
@@ -64,8 +65,13 @@ class ThumbnailController
             DB::table('thumbnails')->where('video_id', $thumbnail->video_id)->update(['is_active' => 0]);
             // Activate this one
             DB::table('thumbnails')->where('id', $id)->update(['is_active' => 1]);
+
+            // Tools > Logs > Admin actions (R3-019): the video it belongs to; the picture it shows already: nothing.
+            if (! $thumbnail->is_active) {
+                AuditLogController::log('thumbnail.chosen', self::videoName((int) $thumbnail->video_id));
+            }
         }
-        return redirect()->route('admin.thumbnails.index')->withSuccess('Thumbnail set as active.');
+        return redirect()->route('admin.thumbnails.index')->withSuccess(__('The video now shows this picture'));
     }
 
     public function destroy(int $id): RedirectResponse
@@ -79,8 +85,15 @@ class ThumbnailController
             }
 
             DB::table('thumbnails')->where('id', $id)->delete();
+            AuditLogController::log('thumbnail.deleted', self::videoName((int) $thumbnail->video_id));
         }
 
-        return redirect()->route('admin.thumbnails.index')->withSuccess('Thumbnail deleted.');
+        return redirect()->route('admin.thumbnails.index')->withSuccess(__('Thumbnail deleted'));
+    }
+
+    /** "Sunset drive (#45)": the video a picture belongs to. */
+    private static function videoName(int $videoId): string
+    {
+        return AuditDetails::titled((object) ['id' => $videoId, 'title' => (string) DB::table('videos')->where('id', $videoId)->value('title')]);
     }
 }

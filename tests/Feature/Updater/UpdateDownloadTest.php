@@ -15,7 +15,7 @@ use Tests\Feature\Updater\Support\UpdaterScenario;
 use Tests\TestCase;
 
 /**
- * The download of the update zip and its checks (F8 6, 7, 18 "Download" and "Checksum"), against a GitHub that
+ * The download of the update zip and its checks, against a GitHub that
  * redirects every asset to a signed address on its asset store, like the real one:
  *
  *  - the zip comes in Range slices appended to one .part file, each slice starting from the github.com address again;

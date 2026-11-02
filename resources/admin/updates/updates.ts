@@ -11,7 +11,7 @@
 // admin.ts only on pages with [data-ad-updates]; listeners are delegated, so the section the page swaps in after its
 // first GitHub check (data-ad-defer) works the same.
 
-import {$, $$, csrfToken} from '../lib/dom';
+import {$, $$, backgroundGet, csrfToken} from '../lib/dom';
 import './updates.scss';
 
 type Next = 'step' | 'swap' | 'finish' | 'reload' | null;
@@ -201,7 +201,7 @@ if (root && bootEl) {
 
             if (log) url.searchParams.set('log', '1');
 
-            const response = await fetch(url.href, {credentials: 'same-origin', headers: {'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest'}});
+            const response = await backgroundGet(url.href, {'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest'});
 
             return response.ok ? ((await response.json()) as {plan: PlanView | null; log: string[] | null}) : null;
         } catch {
@@ -516,7 +516,7 @@ if (root && bootEl) {
             try {
                 const url = new URL(boot.urls.status, window.location.href);
                 url.searchParams.set('tidy', '1');
-                const response = await fetch(url.href, {credentials: 'same-origin', headers: {'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest'}});
+                const response = await backgroundGet(url.href, {'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest'});
 
                 answer = response.ok ? (((await response.json()) as {tidy?: Tidy}).tidy ?? null) : null;
             } catch {

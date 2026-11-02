@@ -10,8 +10,8 @@ use Tests\TestCase;
 /**
  * The admin on old devices and without JavaScript (1.2.2). An owner's old device showed a blank dark page: the admin
  * must stay readable when its stylesheet or its script does not run there. The browser checks (pages with JavaScript
- * off, the admin with its stylesheet blocked, the built script scanned for syntax newer than the target) are in the
- * 1.2.2 lane F notes; these tests keep the pieces in place.
+ * off, the admin with its stylesheet blocked, the built script scanned for syntax newer than the target) were run
+ * for 1.2.2; these tests keep the pieces in place.
  */
 class AdminOldBrowsersTest extends TestCase
 {

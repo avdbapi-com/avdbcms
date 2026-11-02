@@ -29,8 +29,9 @@ class RegisterController
         // API clients are stateless. The web registration path logs into the
         // session, which is unavailable for a mobile token request.
         $user = $userService->register($validated, false);
-        $expiration = config('sanctum.expiration');
-        $expiresAt = $expiration ? now()->addMinutes($expiration) : null;
+        // SANCTUM_TOKEN_EXPIRATION comes from .env as text ("43200"): a number of minutes, 0 or less for none.
+        $expiration = (int) config('sanctum.expiration');
+        $expiresAt = $expiration > 0 ? now()->addMinutes($expiration) : null;
         $deviceName = trim((string) $request->input('device_name', 'api-token')) ?: 'api-token';
         $token = $user->createToken($deviceName, ['api'], $expiresAt)->plainTextToken;
 

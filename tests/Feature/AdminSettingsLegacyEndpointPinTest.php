@@ -398,7 +398,8 @@ class AdminSettingsLegacyEndpointPinTest extends TestCase
             }
         }
 
-        if (in_array('integer', $rules, true)) {
+        // integer and numeric settings (numeric: the invoice tax rate, which may have decimals) take a whole number
+        if (in_array('integer', $rules, true) || in_array('numeric', $rules, true)) {
             $value = ($min ?? 0) + 1;
 
             return (string) ($max !== null ? min($value, $max) : $value);

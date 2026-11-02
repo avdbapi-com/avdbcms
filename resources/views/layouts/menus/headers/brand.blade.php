@@ -1,4 +1,5 @@
-{{-- Menu toggle + site brand. $withToggle = false leaves the toggle to the caller; $brandClass adds a deco variant,
+{{-- Menu toggle + site brand. Next to a pinned side menu the zone centres its brand over the menu column from 992px, where
+     that menu appears (from 768px it left an empty gap before the menu button on tablets: account-24, auth-26). $withToggle = false leaves the toggle to the caller; $brandClass adds a deco variant,
      $brandZoneClass places the zone (the crest and masthead centre it on wide screens). --}}
 @php
     $headerBrandText = trim((string) config('site.header_brand_text', '')) ?: config('app.name');
@@ -6,11 +7,11 @@
     $headerPremiumLabel = trim((string) config('site.header_premium_label', 'Premium')) ?: 'Premium';
     $brandLogo = $logoUrl ?? config('site.logo_url');
 @endphp
-<div @class(['avd-header-brand-zone d-flex align-items-center gap-2', $brandZoneClass ?? '', 'justify-content-md-center' => $sidebarPinned])>
+<div @class(['avd-header-brand-zone d-flex align-items-center gap-2', $brandZoneClass ?? '', 'justify-content-lg-center' => $sidebarPinned])>
     @if($withToggle ?? true)
         @include('layouts.menus.headers.toggle')
     @endif
-    <a @class(['navbar-brand avd-brand me-1 d-flex align-items-center gap-2', $brandClass ?? '', 'is-premium' => Auth::user()?->is_premium, 'show_sidebar' => $sidebarPinned]) href="{{locale_url(route('pages.home'))}}">
+    <a @class(['navbar-brand avd-brand me-1 d-flex align-items-center gap-2', $brandClass ?? '', 'is-premium' => Auth::user()?->is_premium, 'show_sidebar' => $sidebarPinned]) href="{{locale_url(route('pages.home'))}}" aria-label="{{ __($headerBrandText) }}">
         @if($brandLogo)
             <img class="avd-brand-logo" src="{{ site_asset_url($brandLogo) }}" alt="{{config('app.name')}}">
         @else

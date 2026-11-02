@@ -1,10 +1,10 @@
-// Data and small helpers for the layout modules (perf plan step 25): resources/js/layout/core.ts,
+// Data and small helpers for the layout modules: resources/js/layout/core.ts,
 // audio.ts, daily-hud.ts and decor.ts, which replace the static inline scripts at the end of
 // resources/views/components/layout.blade.php.
 //
 // The layout emits their translations and settings once, as
 // <script type="application/json" id="avd-i18n">, instead of Blade tokens inside the scripts. Every
-// string there is plain text (the __() value itself, perf plan 4c): it goes into textContent, title
+// string there is plain text (the __() value itself): it goes into textContent, title
 // attributes and canvas text as it is, and through escapeHtml() into any markup (avdToast). Pages of
 // other layouts (the Upload18 embed shell, the maintenance page) have no such element: layoutConfig()
 // is null there and the modules stay idle.
@@ -28,6 +28,21 @@ export type LayoutTexts = {
     wlSaved: string;
     wlRemoved: string;
     wlFailed: string;
+    // The toast system (./toasts) and app.ts' searchable lists. Optional: a cached page of an older layout lacks them.
+    close?: string;
+    error?: string;
+    linkCopied?: string;
+    shareUrl?: string;
+    noResults?: string;
+    removeItem?: string;
+    // "Today's design" (./daily-hud): the wallpaper's words and the sheet's messages. Optional: older layouts lack them.
+    dailyTitle?: string;
+    dayOf?: string;
+    colourPrimary?: string;
+    colourSecondary?: string;
+    colourAccent?: string;
+    customColour?: string;
+    loadingDay?: string;
 };
 
 export type LayoutUser = {
@@ -69,6 +84,7 @@ export type LayoutConfig = {
     copyToast: boolean;
     primaryColor: string;
     themePreset: string;
+    siteName?: string;
     user: LayoutUser;
     dailyCard: DailyCardConfig;
     daily: DailyConfig | null;
@@ -148,6 +164,7 @@ export const syncGlowGroup = (mode: string): void => {
     const level = mode === 'subtle' || mode === 'vivid' ? mode : 'balanced';
     document.querySelectorAll<HTMLElement>('.glow-btn[data-glow]').forEach((btn) => {
         btn.classList.toggle('active', btn.dataset.glow === level);
+        btn.setAttribute('aria-pressed', btn.dataset.glow === level ? 'true' : 'false');
     });
 
     const group = byId('avdGlowModeGroup');

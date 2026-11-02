@@ -6,10 +6,10 @@
 // menu is filled from <template id="template-id">: __ID__-style placeholders take the button's data-* values (data-id,
 // data-url ...), items with data-ad-when="public,private" stay only when the row's data-state is one of them (a leading
 // "!" negates), items with data-ad-if="comments" only when the button has that data value. One template per page
-// instead of a full menu per row keeps a 25-row list small. (WP6's shell.ts then opens it as any [data-ad-menu].)
+// instead of a full menu per row keeps a 25-row list small. (shell.ts then opens it as any [data-ad-menu].)
 //
 // Row actions: forms with data-ad-row-action, or a submit button inside a row that names such a form (form="...",
-// with its own formaction). WP6's confirm dialog asks first (data-ad-confirm on the form or the button); then:
+// with its own formaction). The shell's confirm dialog asks first (data-ad-confirm on the form or the button); then:
 //   data-ad-row-action="delete"  the row disappears and the toast offers Undo for 8 seconds; the request is sent when
 //                                that time is over or the page is left (nothing is sent after Undo).
 //   data-ad-row-action="change"  sent at once; the toast offers Undo when data-ad-undo-url says how to put it back
@@ -21,7 +21,7 @@
 // is still listed afterwards, its data-state must match data-ad-expect ("admin", "!admin", "public,unlisted"); an Undo
 // must bring the row's state back, and a deleted row must be gone.
 
-import {$$, csrfToken, escapeHtml, t} from '../lib/dom';
+import {$$, backgroundGet, csrfToken, escapeHtml, t} from '../lib/dom';
 
 const HOLD_MS = 8000;
 const held = new Map<HTMLElement, () => void>();
@@ -124,8 +124,8 @@ const markMenuButtons = (): void => {
 };
 
 /**
- * Swap in the page's lists (rows, counts, pager) from a fresh copy of this page - the one given, or fetched now -,
- * keeping the scroll position.
+ * Swap in the page's lists (rows, counts, pager) from a fresh copy of this page - the one given, or fetched now in the
+ * background (it leaves the session's one-time messages to the pages they belong to) -, keeping the scroll position.
  */
 export const refreshLists = async (fresh?: Document): Promise<void> => {
     const lists = $$<HTMLElement>('[data-ad-list]');
@@ -136,7 +136,7 @@ export const refreshLists = async (fresh?: Document): Promise<void> => {
 
     if (!page) {
         try {
-            const response = await fetch(window.location.href, {credentials: 'same-origin', headers: {Accept: 'text/html', 'X-Requested-With': 'XMLHttpRequest'}});
+            const response = await backgroundGet(window.location.href, {Accept: 'text/html', 'X-Requested-With': 'XMLHttpRequest'});
 
             if (!response.ok) return;
 
@@ -343,14 +343,14 @@ const fillMenu = (button: HTMLElement): void => {
 export const initRows = (): void => {
     markMenuButtons();
 
-    // Capture phase: the menu is filled before WP6's shell.ts opens it and moves the focus into it.
+    // Capture phase: the menu is filled before shell.ts opens it and moves the focus into it.
     document.addEventListener('click', (event) => {
         const button = (event.target as Element | null)?.closest<HTMLElement>(ROW_MENU_BUTTON);
 
         if (button) fillMenu(button);
     }, true);
 
-    // Bubble phase: WP6's confirm dialog (capture phase) has already stopped the submit when it still asks.
+    // Bubble phase: the shell's confirm dialog (capture phase) has already stopped the submit when it still asks.
     document.addEventListener('submit', (event) => {
         const form = event.target;
         const submitter = (event as SubmitEvent).submitter as HTMLButtonElement | HTMLInputElement | null;
@@ -386,7 +386,9 @@ export const initRows = (): void => {
         // A row menu sits outside its row's table cell: the row is the one of the menu's button.
         if (!action.row && key) action.row = rowButton(key)?.closest<HTMLElement>('tr, [data-ad-row]') ?? null;
 
-        if (form.dataset.adRowAction === 'delete') {
+        // A view-only demo account's changes are refused by the server (App\Support\ViewOnlyDemoWindow::PAGE_ATTRIBUTE):
+        // its delete goes at once, so its "This is a demo" window answers the click, not an Undo that ends in a refusal.
+        if (form.dataset.adRowAction === 'delete' && !document.documentElement.hasAttribute('data-view-only-demo')) {
             holdDelete(action);
         } else {
             void change(action);

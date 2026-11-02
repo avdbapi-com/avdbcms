@@ -1,0 +1,859 @@
+/* =====================================================================================================================
+   AVDBCMS member kit, SHARED part (member design 5.13). Reference for resources/sass/member/_shared.scss, imported
+   by resources/sass/app.scss (the main CSS, every page): the only member import of app.scss.
+
+   Why: a GUEST meets a few member parts on PUBLIC pages, where the member entry (member.scss) is not loaded:
+   the guest prompt (#avdAuthPromptModal, mostly from the watch page), the Subscribe button (Subscribe.tsx on the watch
+   page), and the kit toast (watch-47: one toast system). This file holds exactly what those need: the .avd-mk scope
+   root, buttons and icon buttons, the dialog and sheet parts, the compact empty state of the prompt, the toasts and the
+   spinner of a busy button, plus the default member danger tokens (the theme's own; the generated per-look map is
+   printed beside the member entry only, so a guest's public page keeps the look's own danger).
+   Signed-in visitors load the member entry on every page (the account panel and the notifications sheet are on every
+   page); it does not repeat these rules (the main CSS always comes first).
+
+   First split from the design kit: edit the rules here.
+   Specificity floor: every selector starts with :root or html.
+   ===================================================================================================================== */
+
+/* Member danger tokens: the theme's own danger by default (App\Support\Member\DangerMap overrides them per theme, mode
+   and colour style where the member entry is printed). Set on :root so overlays outside a page root (sheets, menus,
+   toasts) read the same values. */
+
+:root {
+    --mk-danger: var(--avd-danger);
+    --mk-danger-rgb: var(--avd-danger-rgb);
+    --mk-danger-fill: var(--avd-danger-fill);
+    --mk-on-danger: var(--avd-on-danger);
+}
+
+/* ---------------------------------------------------------------------------------------------------------------------
+   0. Scope root: page roots (.avd-mk) and member overlays (dialogs, drawers, panels rendered outside a page root).
+   ------------------------------------------------------------------------------------------------------------------ */
+
+:root .avd-mk {
+    --mk-gap: var(--avd-gap, 16px);
+    --mk-pad: clamp(14px, 2vw, var(--avd-content-pad, 24px));
+    --mk-r-panel: var(--avd-radius-card, var(--avd-r-card, 14px));
+    --mk-r-inner: max(0px, calc(var(--mk-r-panel) - 4px));
+    --mk-r-field: var(--avd-radius-field, 10px);
+    --mk-r-btn: var(--avd-radius-button, var(--avd-btn-r, 10px));
+    --mk-r-thumb: var(--avd-radius-media, var(--avd-r-thumb, 8px));
+    --mk-r-badge: var(--avd-r-badge, 6px);
+    --mk-ctl-h: max(40px, var(--avd-control-h, 40px));
+    --mk-panel-border: var(--avd-bw, 1px) solid var(--avd-border);
+    --mk-hover: rgba(var(--avd-glint-rgb, 255, 255, 255), .055);
+    --mk-selected: rgba(var(--avd-brand-rgb), .10);
+    --mk-overlay-shadow: 0 18px 44px -12px rgba(var(--avd-shade-rgb, 0, 0, 0), .45);
+    --mk-dur: 140ms;
+    /* ONE width for every side panel (offcanvas: the account panel, the
+       notifications sheet, Filters, Replies). Dialogs (.modal: every confirmation, the guest prompt, the welcome
+       sheet, Custom dates, the crop sheet) take the look's "Pop-up window style" instead (5.11). */
+    --mk-panel-w: min(420px, 100vw);
+    color: var(--avd-text);
+    font-family: var(--avd-font-body);
+    font-size: .9375rem;
+    line-height: 1.5;
+}
+
+/* 44px targets on touch screens. Every control height of the kit reads
+   --mk-ctl-h (buttons, icon buttons, inputs, selects, the toolbar, the save and bulk bars), so one value covers them. */
+@media (pointer: coarse) {
+    :root .avd-mk {
+        --mk-ctl-h: max(44px, var(--avd-control-h, 44px));
+    }
+}
+
+html[data-bs-theme="light"] .avd-mk {
+    --mk-hover: rgba(var(--avd-shade-rgb, 0, 0, 0), .045);
+    --mk-overlay-shadow: 0 18px 44px -14px rgba(var(--avd-shade-rgb, 0, 0, 0), .22);
+}
+
+:root .avd-mk *,
+:root .avd-mk *::before,
+:root .avd-mk *::after {
+    box-sizing: border-box;
+}
+
+:root .avd-mk :where(h1, h2, h3, h4, p, ul, ol, dl, figure) {
+    margin: 0;
+}
+
+/* Generic links. The site's dark.scss has [data-bs-theme="dark"] a { color: inherit }
+   (0,1,1), so this rule is (0,2,0): it beats that rule whatever the file order, and every component class
+   (.mk-tab, .mk-btn, .mk-row__title ..., also (0,2,0) under the :root floor, written later) still wins over it.
+   Plain links get the brand ink and no underline; links inside running text are underlined (dark looks used to
+   inherit the text colour: WCAG 1.4.1). */
+
+:root .avd-mk :where(a) {
+    color: var(--avd-brand-ink);
+    text-decoration: none;
+    text-underline-offset: .18em;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    :root .avd-mk a:where(:not([class])):hover {
+        text-decoration: underline;
+    }
+}
+
+:root .mk-sr {
+    position: absolute !important;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------------------------------------------------------------
+   3. Buttons (own classes: the theme's button tokens, none of the site-wide .btn effects)
+   ------------------------------------------------------------------------------------------------------------------ */
+
+:root .mk-btn {
+    position: relative;
+    isolation: isolate;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: .5rem;
+    min-block-size: var(--mk-ctl-h);
+    padding: 0 1.05rem;
+    border: 1px solid transparent;
+    border-radius: var(--mk-r-btn);
+    background: var(--avd-btn2-bg);
+    color: var(--avd-btn2-text);
+    font: inherit;
+    /* revision 3: the admin's "Menu and button text size" (ui_font_scale 90-115 %, --avd-font-scale-ui) scales the
+       kit's buttons, menus, tabs and segments like the site's own .btn; "Text size" (base_font_size 14-20px) scales
+       every rem of the kit */
+    font-size: calc(.9375rem * var(--avd-font-scale-ui, 1));
+    font-weight: 600;
+    line-height: 1.2;
+    text-align: center;
+    text-decoration: none;
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    transition: background-color var(--mk-dur) ease, border-color var(--mk-dur) ease, color var(--mk-dur) ease, box-shadow var(--mk-dur) ease;
+    /* a button never pushes its panel off a phone screen (below) */
+    max-inline-size: 100%;
+}
+
+/* The hover / press veil: the label colour at 10-18 %, painted between the fill and the label (z-index -1 inside the
+   button's own stacking context), so gradients, clipped corners and pills all get the same calm feedback. */
+
+:root .mk-btn::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    background: currentColor;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--mk-dur) ease;
+}
+
+:root .mk-btn > i,
+:root .mk-btn > svg {
+    flex: none;
+    font-size: 1em;
+}
+
+:root .mk-btn--primary {
+    border: var(--avd-btn-border, 1px solid transparent);
+    background: var(--avd-btn-bg);
+    color: var(--avd-btn-text);
+    box-shadow: var(--avd-btn-shadow, none);
+    clip-path: var(--avd-btn-clip, none);
+    font-weight: var(--avd-btn-weight, 700);
+    letter-spacing: var(--avd-btn-tracking, 0);
+    text-transform: var(--avd-btn-case, none);
+}
+
+:root .mk-btn--secondary {
+    border: var(--avd-btn2-border, 1px solid var(--avd-border-strong));
+    background: var(--avd-btn2-bg);
+    color: var(--avd-btn2-text);
+    letter-spacing: var(--avd-btn-tracking, 0);
+    text-transform: var(--avd-btn-case, none);
+}
+
+:root .mk-btn--quiet {
+    background: transparent;
+    color: var(--avd-text);
+}
+
+:root .mk-btn--danger {
+    background: var(--mk-danger-fill);
+    color: var(--mk-on-danger);
+    clip-path: var(--avd-btn-clip, none);
+    font-weight: var(--avd-btn-weight, 700);
+    letter-spacing: var(--avd-btn-tracking, 0);
+    text-transform: var(--avd-btn-case, none);
+}
+
+/* Danger outside a confirmation: outlined, danger ink, always with an icon (trash, xmark) and a word. The filled
+   .mk-btn--danger is only the final "Delete ..." inside a confirmation sheet. */
+
+:root .mk-btn--danger-quiet {
+    background: transparent;
+    color: var(--mk-danger);
+    box-shadow: inset 0 0 0 1px rgba(var(--mk-danger-rgb), .5);
+    /* revision 3: an outlined button follows the look's button case and tracking like the secondary one (it was
+       sentence case next to "VISIBILITY" in the uppercase looks) */
+    letter-spacing: var(--avd-btn-tracking, 0);
+    text-transform: var(--avd-btn-case, none);
+}
+
+:root .mk-btn--sm {
+    min-block-size: 34px;
+    padding: 0 .8rem;
+    font-size: calc(.875rem * var(--avd-font-scale-ui, 1));
+}
+
+:root .mk-btn--block {
+    inline-size: 100%;
+}
+
+:root .mk-btn:focus-visible {
+    outline: 2px solid var(--avd-focus);
+    outline-offset: 2px;
+    clip-path: none;
+}
+
+:root .mk-btn:disabled,
+:root .mk-btn[aria-disabled="true"] {
+    opacity: .55;
+    cursor: not-allowed;
+}
+
+:root .mk-btn[aria-busy="true"] {
+    cursor: progress;
+}
+
+/* Icon buttons: 40px (44px on touch screens), round in pill looks, square in square looks. */
+
+:root .mk-icon-btn {
+    position: relative;
+    isolation: isolate;
+    display: inline-grid;
+    place-items: center;
+    flex: none;
+    inline-size: var(--mk-ctl-h);
+    block-size: var(--mk-ctl-h);
+    padding: 0;
+    border: 0;
+    border-radius: var(--mk-r-field);
+    background: transparent;
+    color: var(--avd-text);
+    font-size: 1rem;
+    line-height: 1;
+    text-decoration: none;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: color var(--mk-dur) ease, box-shadow var(--mk-dur) ease;
+}
+
+:root .mk-icon-btn::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    background: currentColor;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--mk-dur) ease;
+}
+
+:root .mk-icon-btn--muted { color: var(--avd-muted); }
+
+:root .mk-icon-btn--danger { color: var(--mk-danger); }
+
+:root .mk-icon-btn--outlined { box-shadow: inset 0 0 0 1px var(--avd-border-input); }
+
+:root .mk-icon-btn--sm { inline-size: 34px; block-size: 34px; font-size: .9rem; }
+
+:root .mk-icon-btn:focus-visible {
+    outline: 2px solid var(--avd-focus);
+    outline-offset: 2px;
+}
+
+:root .mk-icon-btn:active::after { opacity: .16; }
+
+@media (hover: hover) and (pointer: fine) {
+    :root .mk-btn:hover::after { opacity: .1; }
+
+    :root .mk-icon-btn:hover::after { opacity: .09; }
+
+    :root .mk-icon-btn--muted:hover { color: var(--avd-text); }
+}
+
+/* the press veil, after the hover veil */
+:root .mk-btn:active::after { opacity: .18; }
+
+@media (pointer: coarse) {
+    :root .mk-btn,
+    :root .mk-btn--sm {
+        min-block-size: 44px;
+    }
+
+    :root .mk-icon-btn,
+    :root .mk-icon-btn--sm {
+        inline-size: 44px;
+        block-size: 44px;
+    }
+}
+
+/* Buttons whose label changes (Subscribe / Subscribed) keep one width: no reflow, no layout shift (studio-25). */
+
+:root .mk-btn--fixed { min-inline-size: 9.5rem; }
+
+/* 1.2.3 round 1b (R1R-12): above every dialog, sheet and backdrop. The site's dialogs are at 1090 (app.scss .modal) and a
+   dialog the page opens later in the document (Save to playlist, Report) was painted over a toast with the same
+   z-index: an error sent while it was open stayed under it (dimmed at 1366 px, hidden behind the full-screen sheet on
+   phones). The menus of the header and the dialogs (1120) stay above it. */
+:root .mk-toasts {
+    position: fixed;
+    /* above the bottom chrome and the member bars (the variables: below) */
+    inset-block-end: calc(var(--avd-bottom-chrome, 0px) + var(--mk-bars-h, 0px) + 16px);
+    inset-inline: 16px;
+    z-index: 1110;
+    display: grid;
+    justify-items: center;
+    gap: .5rem;
+    pointer-events: none;
+}
+
+@media (min-width: 768px) {
+    :root .mk-toasts {
+        inset-inline: auto 24px;
+        justify-items: end;
+    }
+}
+
+:root .mk-toast {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    max-inline-size: min(100%, 420px);
+    padding: .75rem .75rem .75rem 1rem;
+    border-radius: var(--mk-r-inner);
+    background: var(--avd-text);
+    color: var(--avd-text-inverse);
+    box-shadow: var(--mk-overlay-shadow);
+    font-weight: 600;
+    pointer-events: auto;
+}
+
+:root .mk-toast .mk-icon-btn { color: inherit; }
+
+:root .mk-empty {
+    display: grid;
+    justify-items: center;
+    gap: .55rem;
+    padding: 2.5rem 1.25rem;
+    text-align: center;
+}
+
+:root .mk-empty--compact { padding: 1.5rem 1rem; }
+
+:root .mk-empty__icon {
+    display: grid;
+    place-items: center;
+    inline-size: 3.5rem;
+    block-size: 3.5rem;
+    margin-block-end: .25rem;
+    border-radius: var(--avd-icon-r, 50%);
+    background: var(--avd-icon-bg, var(--avd-surface-2));
+    color: var(--avd-icon-color, var(--avd-brand-ink));
+    font-size: 1.35rem;
+    box-shadow: inset 0 0 0 1px var(--avd-border);
+}
+
+:root .mk-empty__title {
+    color: var(--avd-text);
+    font-family: var(--avd-font-title, var(--avd-font-body));
+    font-size: 1.0625rem;
+    font-weight: var(--avd-title-weight, 650);
+    letter-spacing: var(--avd-display-tracking, normal);
+}
+
+:root .mk-empty__text {
+    max-inline-size: 46ch;
+    color: var(--avd-muted);
+}
+
+:root .mk-empty__actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: .5rem;
+    margin-block-start: .5rem;
+}
+
+:root .mk-spinner {
+    display: inline-block;
+    inline-size: 1.1em;
+    block-size: 1.1em;
+    border: 2px solid currentColor;
+    border-inline-end-color: transparent;
+    border-radius: 50%;
+    animation: mk-spin .7s linear infinite;
+}
+
+@keyframes mk-spin {
+    to { rotate: 1turn; }
+}
+
+:root .mk-sheet__head {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    padding: 1rem 1rem .75rem 1.25rem;
+    border-block-end: 1px solid var(--avd-divider, var(--avd-border));
+}
+
+:root .mk-sheet__title {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    flex: 1 1 auto;
+    min-inline-size: 0;
+    color: var(--avd-text);
+    font-family: var(--avd-font-title, var(--avd-font-body));
+    font-size: 1.125rem;
+    font-weight: var(--avd-title-weight, 650);
+    letter-spacing: var(--avd-display-tracking, normal);
+}
+
+:root .mk-sheet__body {
+    flex: 1 1 auto;
+    display: grid;
+    align-content: start;
+    gap: 1rem;
+    padding: 1.1rem 1.25rem;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+:root .mk-sheet__foot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+    justify-content: flex-end;
+    padding: .85rem 1.25rem max(.85rem, env(safe-area-inset-bottom));
+    border-block-start: 1px solid var(--avd-divider, var(--avd-border));
+}
+
+/* A quiet alternative ("Make private instead") sits at the start of the footer, the decision buttons at the end. */
+
+:root .mk-sheet__foot > .mk-btn--quiet:first-child {
+    margin-inline-end: auto;
+    padding-inline: .5rem;
+}
+
+:root .mk-sheet__grip {
+    display: none;
+}
+
+@media (max-width: 575.98px) {
+    :root .mk-sheet__grip {
+        display: block;
+        inline-size: 2.5rem;
+        block-size: 4px;
+        margin: .5rem auto 0;
+        border-radius: 999px;
+        background: var(--avd-border-strong);
+    }
+
+    :root .mk-sheet__foot > .mk-btn { flex: 1 1 0; }
+
+    /* The gentler choice ("Make private instead", "Keep the report") stays on phones: a full-width quiet row above
+       the two decision buttons. */
+
+    :root .mk-sheet__foot > .mk-btn--quiet:first-child {
+        flex: 1 1 100%;
+        order: -1;
+        margin-inline-end: 0;
+        box-shadow: inset 0 0 0 1px var(--avd-border);
+    }
+}
+
+/* ---------------------------------------------------------------------------------------------------------------------
+   13. Reduced motion and forced colours
+   ------------------------------------------------------------------------------------------------------------------ */
+
+@media (prefers-reduced-motion: reduce) {
+    :root .avd-mk *,
+    :root .avd-mk *::before,
+    :root .avd-mk *::after {
+        transition-duration: 0ms !important;
+        animation: none !important;
+    }
+}
+
+/* Studio and account pages on phones (they carry the studio tab bar): sticky save bars sit above it. Revision 3: member
+   back-office pages only (html[data-avd-member][data-avd-back-office]); the admin's own back office (type=admin) prints
+   html[data-avd-back-office] too but has no tab bar. Keyed on body.has-studio-tabbar, the
+   class the layout prints exactly when it prints the studio tab bar (the admin's "Mobile Bottom Nav Bar",
+   mobile_bottom_nav_enabled): with the bar switched off the save bar sits on the bottom edge, no empty 62px band. */
+
+@media (max-width: 767.98px) {
+    html[data-avd-member][data-avd-back-office] body.has-studio-tabbar .avd-mk { --mk-savebar-offset: calc(62px + env(safe-area-inset-bottom)); }
+}
+
+:root .mk-prompt__grip { display: none; }
+
+@media (max-width: 575.98px) {
+    :root .mk-prompt .mk-sheet__foot > .mk-btn { flex: 1 1 0; }
+}
+
+/* Dialog (Bootstrap .modal) skin. */
+
+:root .mk-dialog .modal-content {
+    border: var(--mk-panel-border);
+    border-radius: var(--mk-r-panel);
+    background: var(--avd-surface-solid);
+    color: var(--avd-text);
+    box-shadow: var(--mk-overlay-shadow);
+}
+
+/* A dialog's actions sit right under its content in EVERY pop-up window style.
+   The sliding sheet makes every dialog full height (.modal-content { height: 100% !important }); with a stretching body
+   the guest prompt and the welcome sheet showed two lines at the top and their buttons ~800px lower. The body no
+   longer stretches: the footer follows the content, the rest of the sheet stays empty surface. A dialog taller than
+   the screen scrolls its body and keeps its footer on screen. */
+:root .mk-dialog .modal-content {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+}
+
+:root .mk-dialog .mk-sheet__body {
+    flex: 0 1 auto;
+    min-block-size: 0;
+}
+
+:root .mk-dialog .mk-sheet__head,
+:root .mk-dialog .mk-sheet__foot {
+    flex: none;
+}
+
+/* Pop-up window style (revision 2, found by the real-CSS check, member design 5.11). The admin's "Pop-up window
+   style" (modal_presentation_style; every look sets one; html[data-avd-modal-style]) restyles every .modal-dialog and
+   .modal-content of the site with !important rules (layout-theme-a.css 1650-1701), and "Corner roundness" gives every
+   .modal-content the card radius (motion.scss 97-101). A member dialog follows both, like every pop-up of the site:
+   - centred (glassmorphic_center) and sharp (brutalist_sharp): a centred dialog in the style's border and shadow;
+   - sliding sheet (slide_sheet): the look's side sheet from 768px (full height, 480px, square corners) and a bottom
+     sheet below 768px;
+   - full screen (fullscreen_cinema): the cinema skin, but a member dialog keeps its own size: a two-button question
+     never fills 95% of the screen (OD-M15).
+   Below 576px the guest prompt and the welcome sheet are bottom sheets in every style, and a bottom sheet keeps square
+   bottom corners. Markup: .modal > .modal-dialog.modal-dialog-centered.mk-dialog[.mk-prompt] > .modal-content. */
+:root .modal-dialog.mk-dialog {
+    --bs-modal-width: 460px;
+}
+
+:root .modal-dialog.mk-prompt {
+    --bs-modal-width: 420px;
+}
+
+html[data-avd-modal-style="modal_fullscreen_cinema"] .modal-dialog.mk-dialog {
+    max-width: var(--bs-modal-width) !important;
+}
+
+html[data-avd-modal-style="modal_fullscreen_cinema"] .mk-dialog .modal-content {
+    min-height: 0;
+}
+
+@media (min-width: 768px) {
+    html[data-avd-modal-style="modal_slide_sheet"] .mk-prompt .modal-content {
+        inline-size: 100%;
+    }
+}
+
+@media (max-width: 767.98px) {
+    /* a bottom sheet: Bootstrap's .modal-dialog-centered min-height would centre it in a nearly full-height box */
+    html[data-avd-modal-style="modal_slide_sheet"] .modal-dialog.mk-dialog {
+        min-height: 0;
+    }
+
+    html[data-avd-modal-style="modal_slide_sheet"] .mk-dialog .modal-content {
+        border-bottom-left-radius: 0 !important;
+        border-bottom-right-radius: 0 !important;
+    }
+}
+
+@media (max-width: 575.98px) {
+    /* revision 3: every member dialog (was: the prompt and the welcome sheet) is a bottom sheet on phones, in every
+       pop-up window style: a confirmation is answered with the thumb, its footer on the bottom edge */
+    :root .modal-dialog.mk-dialog {
+        position: fixed;
+        inset: auto 0 0 0;
+        max-width: none;
+        min-height: 0;
+        margin: 0;
+    }
+
+    html[data-avd-modal-style] .modal-dialog.mk-dialog {
+        max-width: none !important;
+        margin: 0 !important;
+    }
+
+    :root .mk-dialog .modal-content {
+        max-block-size: 88dvh;
+        border-bottom-left-radius: 0 !important;
+        border-bottom-right-radius: 0 !important;
+    }
+
+    html[data-avd-modal-style="modal_fullscreen_cinema"] .mk-dialog .modal-content {
+        min-height: 0;
+    }
+}
+
+/* ---------------------------------------------------------------------------------------------------------------------
+   Sign-in chrome: guest prompt (small dialog; bottom sheet on phones), notifications rows, status pages
+   ------------------------------------------------------------------------------------------------------------------ */
+
+:root .mk-prompt .modal-content {
+    inline-size: min(100%, 420px);
+    border: var(--mk-panel-border);
+    border-radius: var(--mk-r-panel);
+    background: var(--avd-surface-solid);
+    color: var(--avd-text);
+    box-shadow: var(--mk-overlay-shadow);
+}
+
+@media (max-width: 575.98px) {
+    :root .mk-prompt .modal-content { inline-size: 100%; border-radius: var(--mk-r-panel) var(--mk-r-panel) 0 0; }
+}
+
+/* ---------------------------------------------------------------------------------------------------------------------
+   Parts a guest meets on public pages
+   ------------------------------------------------------------------------------------------------------------------ */
+/* Subscribe (Subscribe.tsx on the watch page and the channel): one fixed width in both states, so "Subscribe" ->
+   "Subscribed" never moves the row (channel-17, watch-35). Guests and members who do not follow: the look's primary.
+   Followers: a secondary with the bell state and a chevron that opens the bell menu (All / Only highlights / None,
+   then Unsubscribe..., which asks once in a sheet). */
+:root .mk-subscribe {
+    min-inline-size: 9.5rem;
+    white-space: nowrap;
+}
+
+/* R1-125: the member's button (.mk-subscribe--faces) holds both faces ("Subscribe" and "Subscribed" with the bell
+   menu's chevron) invisibly in one grid cell, so it is as wide as the wider face in both states, in every language and
+   look; the face of its state is drawn over them (Subscribe.tsx, ChannelBell.tsx and the server placeholder
+   library/subscribe.blade.php print the same faces; the guest's link has one face and stays as it was).
+   R2A-027: the invisible faces are drawn in the look's local fallback face and the local fonts after it, never in the
+   web font (--mk-sizer, set in the page's head): the button keeps its width when the look's web font arrives.
+   Without it, the web font sizes them. */
+/* (the invisible faces share one cell; the shown one is laid over the whole button, below) */
+:root .mk-subscribe--faces {
+    display: inline-grid;
+}
+
+/* Each face is measured as it shows in its own state: "Subscribed" (and the bell menu's button) in the secondary's
+   weight, 600; "Subscribe" (--off) in the primary's, 700 in most looks. */
+:root .mk-subscribe__face {
+    grid-area: 1 / 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: .5rem;
+    min-inline-size: 0;
+    font-weight: 600;
+}
+
+:root .mk-subscribe__face--off {
+    font-weight: var(--avd-btn-weight, 700);
+}
+
+/* the face of the state, drawn over the invisible ones that give the button its width: placed against the whole button
+   (grid-area auto), its content centred in it */
+:root .mk-subscribe__face:not([aria-hidden]) {
+    position: absolute;
+    inset: 0;
+    grid-area: auto;
+}
+
+:root .mk-subscribe__face[aria-hidden] {
+    visibility: hidden;
+}
+
+/* the words of a face are in its span (its icons are fixed-width); !important: the look's typography rule sets the
+   body font on every span (layout-theme-a.css) */
+:root .mk-subscribe__face[aria-hidden] > span {
+    font-family: var(--mk-sizer) !important;
+}
+
+/* The state's border is drawn inside the box instead of around it: many looks give the secondary a 1-2px outline and
+   the primary none, which made "Subscribed" 2-4px wider. The height stays the kit's control height (min-block-size). */
+:root .mk-btn.mk-subscribe--faces {
+    border-width: 0;
+}
+
+:root .mk-subscribe--faces::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+}
+
+:root .mk-subscribe--faces.mk-btn--primary::before {
+    border: var(--avd-btn-border, 1px solid transparent);
+}
+
+:root .mk-subscribe--faces.mk-btn--secondary::before {
+    border: var(--avd-btn2-border, 1px solid var(--avd-border-strong));
+}
+
+/* the busy spinner takes exactly the place of the fixed-width icon (1.25em) */
+:root .mk-subscribe__face > .mk-spinner {
+    margin-inline: .075em;
+}
+
+/* the bell menu's chevron: one width before and after the icon font arrives */
+:root .mk-subscribe__face > .mk-bell-menu__chevron {
+    margin-inline-start: .15rem;
+    opacity: .8;
+    inline-size: 1em;
+}
+
+/* Toasts: one system on every page (watch-47). Inverse colours of the look; the tone shows in the icon only. */
+:root .mk-toast__text {
+    min-inline-size: 0;
+}
+
+:root .mk-toast > i:first-child {
+    flex: none;
+    font-size: 1.05rem;
+}
+
+:root .mk-toast--success > i:first-child { color: var(--avd-success-fill, currentColor); }
+:root .mk-toast--error > i:first-child { color: var(--mk-danger-fill, currentColor); }
+
+:root .mk-toast .mk-toast__close {
+    flex: none;
+    inline-size: 32px;
+    block-size: 32px;
+    margin-inline-start: -.25rem;
+}
+
+@media (pointer: coarse) {
+    /* revision 3: 44px on touch screens, like every icon button of the kit */
+    :root .mk-toast .mk-toast__close {
+        inline-size: 44px;
+        block-size: 44px;
+        margin-block: -.4rem;
+    }
+}
+
+:root .mk-sheet__lead {
+    color: var(--avd-text);
+    line-height: 1.55;
+}
+
+/* A button never pushes its panel off a phone screen (max-inline-size: 100%, above). A long label in a wide font
+   ("SAVE NOTIFICATION SETTINGS" in Imperial Salon's Cinzel uppercase was 344px at 375) wraps inside the button on
+   phones instead of staying on one line; on wider screens labels stay on one line. 1.2.3 round 3 (R3-054): it wraps
+   between its words, never inside one: a button is at least as wide as its longest word (break-word keeps the word in
+   the button's minimum width, where "anywhere" let the draft page's two halves split German "Publish" before its last
+   letter); only a word wider than the whole row still breaks, at the row's edge. (This file keeps to ASCII, comments
+   too: a letter outside it makes Sass print an @charset rule.) */
+@media (max-width: 575.98px) {
+    :root .mk-btn:not(.mk-btn--fixed):not(.mk-subscribe) {
+        white-space: normal;
+        overflow-wrap: break-word;
+    }
+}
+
+/* Bottom chrome height: one variable for toasts, the view-only banner, back-to-top and fixed member bars, on EVERY page
+   (revision 2: the kit toast is also the toast of public pages, watch-47). body.has-bottom-nav and has-mobile-ad are
+   printed by the layout; the studio tab bar replaces the bottom bar on member back-office pages. Since revision 3
+   only MEMBER back-office pages get the tab bar's 62px; the admin's back office (/admin, type=admin)
+   prints html[data-avd-back-office] too and has no tab bar. */
+:root body {
+    --avd-bottom-chrome: 0px;
+    --mk-bars-h: 0px;
+}
+
+@media (max-width: 767.98px) {
+    :root body.has-bottom-nav {
+        --avd-bottom-chrome: calc(68px + env(safe-area-inset-bottom));
+    }
+
+    /* the ad strip sits 8px above the 68px bar; its height is the owner's ad code (a 320x50 banner: 66px with the strip's
+       padding). The layout's ad-strip script writes the real height into --avd-ad-strip-h (a ResizeObserver on .ad-slot-mobile),
+       so a taller code (320x100) still keeps every layer above it; 142px without the script */
+    :root body.has-bottom-nav.has-mobile-ad {
+        --avd-bottom-chrome: calc(68px + 8px + var(--avd-ad-strip-h, 66px) + env(safe-area-inset-bottom));
+    }
+
+    /* Only while the layout prints the studio tab bar (body.has-studio-tabbar) */
+    html[data-avd-member][data-avd-back-office] body.has-studio-tabbar {
+        --avd-bottom-chrome: calc(62px + env(safe-area-inset-bottom));
+    }
+}
+
+/* The member bars (save bar, phone bulk bar) add --mk-bars-h while they show: member-kit.css (the member entry); the
+   toasts read it (.mk-toasts, above). */
+
+/* Revision 3: while a dialog or a side panel is open, toasts show at the TOP centre (over the dimmed page), never over a
+   sheet's footer or its close button. Bootstrap marks an open dialog with body.modal-open; for an open panel (offcanvas)
+   the toast system adds .mk-toasts--top. */
+:root body.modal-open .mk-toasts,
+:root .mk-toasts.mk-toasts--top {
+    inset-block: calc(var(--avd-header-h, 64px) + 12px) auto;
+    inset-inline: 16px;
+    justify-items: center;
+}
+
+/* 1.2.3 round 1b (R1R-12): the toasts are above the open dialog or panel, and the toast system keeps them clear of its
+   panel (js/layout/toasts.ts placeStack()): the top edge or the bottom edge of the screen when the place above lies on
+   the panel (a phone's Save to playlist dialog had its first playlists under it). Where every place lies on the panel's
+   controls (a full-screen panel on a phone), the toasts let taps through to them: only their own buttons and links
+   take taps. The toast system sets these classes only while a layer is open (they beat the two rules above by coming
+   after them). */
+:root body .mk-toasts.mk-toasts--edge-top {
+    inset-block: max(12px, env(safe-area-inset-top)) auto;
+}
+
+:root body .mk-toasts.mk-toasts--edge-bottom {
+    inset-block: auto max(12px, env(safe-area-inset-bottom));
+}
+
+:root .mk-toasts--through .mk-toast {
+    pointer-events: none;
+}
+
+:root .mk-toasts--through .mk-toast :is(a, button) {
+    pointer-events: auto;
+}
+
+/* Revision 3: a toast and "Back to top" share the bottom-end corner on desktop. The toast system sets html[data-mk-toast]
+   while a toast is on screen (the layout prints it too when a flash toast comes with the page); "Back to top" steps
+   aside for those few seconds (opacity only: nothing moves). Every page: the kit toast is the site's toast. */
+html[data-mk-toast] .back-to-top {
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+
+/* Revision 2: in a SIDE sheet (440px) the three footer buttons rarely fit one row (a wide-font look wrapped "Delete
+   video" alone onto a second row): the gentle choice takes its own row above the two decisions there too, start
+   aligned, as on phones. */
+/* only when the quiet choice is followed by (at least) two decision buttons: a two-button footer such as the
+   notifications sheet's Settings + See all keeps one row */
+:root .mk-drawer .mk-sheet__foot > .mk-btn--quiet:first-child:nth-last-child(n+3) {
+    flex: 1 1 100%;
+    justify-content: flex-start;
+    margin-inline-end: 0;
+}
+
+:root .mk-drawer .mk-sheet__foot > .mk-btn--quiet:first-child:nth-last-child(n+3) ~ .mk-btn:nth-child(2) {
+    margin-inline-start: auto;
+}

@@ -10,7 +10,7 @@ use Tests\Feature\Updater\Support\UpdaterScenario;
 use Tests\TestCase;
 
 /**
- * Disk space and failed writes (F8 6, 18 "Disk"): before the first byte is downloaded the update needs room for the
+ * Disk space and failed writes: before the first byte is downloaded the update needs room for the
  * zip, the unpacked files and the database dump (+ 20 %), and asks again once the zip says how big its files are;
  * every write is checked, so a full disk or a hidden account quota stops the update in the download or the unpack,
  * where nothing live has changed, and the next step goes on once there is room again.
@@ -23,7 +23,8 @@ class UpdateDiskTest extends TestCase
     /** A database whose dump no disk has room for (1 PB). */
     private const HUGE = 1_000_000_000_000_000;
 
-    private const NO_SPACE = '/^Not enough disk space: the update needs about [\d,]+ MB free\.$/';
+    /** The size as Tools > Backups writes it (DatabaseBackup::sizeText(): "382 TB", "1.5 GB", "512 KB"). */
+    private const NO_SPACE = '/^Not enough disk space: the update needs about ([\d.,]+) (B|KB|MB|GB|TB) free\.$/';
 
     protected function setUp(): void
     {
@@ -48,8 +49,8 @@ class UpdateDiskTest extends TestCase
 
         $this->assertFalse($answer['ok']);
         $this->assertMatchesRegularExpression(self::NO_SPACE, (string) $answer['message']);
-        preg_match('/about ([\d,]+) MB/', (string) $answer['message'], $needed);
-        $this->assertGreaterThan(self::HUGE * 0.35 / 1048576, (float) str_replace(',', '', $needed[1]), 'the dump is counted in');
+        preg_match(self::NO_SPACE, (string) $answer['message'], $needed);
+        $this->assertGreaterThan(self::HUGE * 0.35, self::bytes($needed[1], $needed[2]), 'the dump is counted in');
         $this->assertNull($this->storedPlan());
         $this->assertDirectoryDoesNotExist($this->jobFolder());
         $this->assertSame([], $this->github->requestsTo($this->github->assetUrl('')), 'no asset was asked for');
@@ -64,6 +65,12 @@ class UpdateDiskTest extends TestCase
             ->assertJson(['ok' => false, 'next' => null])
             ->assertJsonPath('message', $answer['message']);
         $this->assertNull($this->storedPlan());
+    }
+
+    /** "382" + "TB" -> bytes (1024-based, as DatabaseBackup::sizeText() writes them). */
+    private static function bytes(string $number, string $unit): float
+    {
+        return (float) str_replace(',', '', $number) * 1024 ** (int) array_search($unit, ['B', 'KB', 'MB', 'GB', 'TB'], true);
     }
 
     public function test_skipping_the_database_backup_leaves_the_dump_out_of_the_estimate(): void

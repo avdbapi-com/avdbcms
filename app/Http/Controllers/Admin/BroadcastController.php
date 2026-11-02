@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
-use App\Data\NotificationBroadcastSettings;
+use App\Notifications\Support\NotificationTasks;
 use App\Support\AdminCache;
 use App\Support\AdminPreferences;
 use Illuminate\Contracts\View\View;
@@ -10,98 +10,80 @@ use Illuminate\Database\Query\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 
 class BroadcastController
 {
-    public function index(Request $request): View
+    public function index(Request $request): View|RedirectResponse
     {
         if (AdminPreferences::usesNewAdmin($request->user())) {
-            // The new admin: the audience sizes (two queries) kept for a minute, the 10 latest notifications.
-            $audience = AdminCache::remember('broadcast.audience.v1', now()->addMinute(), function (): array {
-                $users = DB::table('users')->selectRaw('COUNT(*) as total, SUM(CASE WHEN email_verified_at IS NULL THEN 0 ELSE 1 END) as verified')->first();
-
-                return [
-                    'all' => (int) ($users->total ?? 0),
-                    'verified' => (int) ($users->verified ?? 0),
-                    'premium' => DB::query()->fromSub($this->activePremiumUsersQuery(), 'active_premium_users')->count(),
-                ];
-            });
-
-            return view('admin.broadcast.form', [
-                'audience' => $audience,
-                'recent' => DB::table('notifications')->select('id', 'data', 'type', 'created_at')->orderByDesc('created_at')->limit(10)->get(),
-            ]);
+            // The new admin has ONE "send a notification" form (judge R1-161): New notification on the Sent page, which
+            // sends in batches at any size (NotificationTasks). This address (the old To everyone tab, bookmarks, the
+            // old Settings link) opens that form.
+            return redirect()->to(route('admin.notifications.index', ['new' => 1]).'#new-notification');
         }
 
         $stats = [
             'total_users' => DB::table('users')->count(),
             'verified_users' => DB::table('users')->whereNotNull('email_verified_at')->count(),
-            'premium_users' => DB::query()->fromSub($this->activePremiumUsersQuery(), 'active_premium_users')->count(),
-            'recent_notifications' => DB::table('notifications')->orderByDesc('created_at')->limit(10)->get(),
+            'premium_users' => DB::query()->fromSub(self::activePremiumUsersQuery(), 'active_premium_users')->count(),
+            'recent_notifications' => $this->recent(),
         ];
 
         return view('admin.broadcast.index', compact('stats'));
     }
 
-    public function sendNotification(Request $request): RedirectResponse
+    /**
+     * The 10 latest notifications, the newest first (index notifications_created_id_idx); those of an admin's "Delete
+     * all" still being carried out are left out, as in the list. The views show their text in the admin's language.
+     *
+     * @return \Illuminate\Support\Collection<int, object>
+     */
+    private function recent(): \Illuminate\Support\Collection
     {
-        $request->validate([
-            'title' => 'required|string|max:200',
-            'message' => 'required|string|max:5000',
-            'target' => 'required|in:all,verified,premium,specific',
-            'user_ids' => 'nullable|string',
-        ]);
-
-        $query = DB::table('users');
-        switch ($request->target) {
-            case 'verified':
-                $query->whereNotNull('email_verified_at');
-                break;
-            case 'premium':
-                $query->whereIn('id', $this->activePremiumUsersQuery());
-                break;
-            case 'specific':
-                $ids = collect(explode(',', (string) $request->user_ids))
-                    ->map(fn (string $id) => trim($id))
-                    ->filter(fn (string $id) => ctype_digit($id))
-                    ->unique()
-                    ->values()
-                    ->all();
-
-                $ids === [] ? $query->whereRaw('1 = 0') : $query->whereIn('id', $ids);
-                break;
-        }
-
-        $now = now();
-        $count = 0;
-        $data = json_encode(['title' => $request->title, 'message' => $request->message]);
-        $chunkSize = NotificationBroadcastSettings::fromConfig()->chunkSize;
-
-        $query->select('id')
-            ->orderBy('id')
-            ->chunkById($chunkSize, function ($users) use (&$count, $data, $now): void {
-                $notifications = $users->map(fn ($user) => [
-                    'id' => Str::uuid()->toString(),
-                    'type' => 'App\\Notifications\\AdminBroadcast',
-                    'notifiable_type' => 'App\\Models\\User',
-                    'notifiable_id' => $user->id,
-                    'data' => $data,
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ])->all();
-
-                if ($notifications !== []) {
-                    DB::table('notifications')->insert($notifications);
-                    $count += count($notifications);
-                }
-            });
-
-        return redirect()->route('admin.broadcast.index')
-            ->withSuccess("Notification sent to {$count} users.");
+        return DB::table('notifications')
+            ->select('id', 'data', 'type', 'created_at')
+            ->when(NotificationTasks::clearedBefore(), fn ($query, $at) => $query->where('created_at', '>', $at))
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->limit(10)
+            ->get();
     }
 
-    private function activePremiumUsersQuery(): Builder
+    /**
+     * The old admin's Mass Broadcast form (and any page still open on the old To everyone tab): the same fields and
+     * the same sending as New notification (NotificationController::send(): in batches by key, the first ones now, the
+     * rest by the queue / the scheduler, so a site with many members never waits on one long page).
+     */
+    public function sendNotification(Request $request): RedirectResponse
+    {
+        $result = NotificationController::send($request);
+
+        return (AdminPreferences::usesNewAdmin($request->user()) ? redirect()->route('admin.notifications.index') : redirect()->route('admin.broadcast.index'))
+            ->withSuccess(NotificationController::sentMessage($result));
+    }
+
+    /**
+     * How many members each choice of the form reaches (two queries, kept a minute).
+     *
+     * @return array{all: int, verified: int, unverified: int, premium: int}
+     */
+    public static function audience(): array
+    {
+        return AdminCache::remember('broadcast.audience.v2', now()->addMinute(), function (): array {
+            $users = DB::table('users')->selectRaw('COUNT(*) as total, SUM(CASE WHEN email_verified_at IS NULL THEN 0 ELSE 1 END) as verified')->first();
+            $total = (int) ($users->total ?? 0);
+            $verified = (int) ($users->verified ?? 0);
+
+            return [
+                'all' => $total,
+                'verified' => $verified,
+                'unverified' => max(0, $total - $verified),
+                'premium' => DB::query()->fromSub(self::activePremiumUsersQuery(), 'active_premium_users')->count(),
+            ];
+        });
+    }
+
+    private static function activePremiumUsersQuery(): Builder
     {
         return DB::table('premiums')
             ->whereIn('stripe_status', ['active', 'trialing'])

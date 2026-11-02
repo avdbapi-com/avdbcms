@@ -8,7 +8,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 /**
- * Addresses in error texts (F8 16; 1.2.1, B7 of the 1.2.0 tests): a signed download address must never reach the step
+ * Addresses in error texts (1.2.1): a signed download address must never reach the step
  * log, the page or the site log, but the text around it stays readable. 1.2.0 masked "#https?://\S+#", which also ate
  * the ")" after an address: "(see <address> for <address>]". The mask now ends where the text goes on.
  */

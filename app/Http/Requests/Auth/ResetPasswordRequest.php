@@ -33,7 +33,20 @@ class ResetPasswordRequest extends FormRequest
         return [
             'token' => 'required',
             'email' => 'required|email',
-            'password' => ['required', 'confirmed', $password],
+            'password' => ['required', $password],
+            // The mismatch is the confirmation's error, so the form marks the field it is about (auth-24).
+            'password_confirmation' => ['required', 'same:password'],
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'password_confirmation.same' => __('The passwords are not the same.'),
+            'password_confirmation.required' => __('Type the password again.'),
         ];
     }
 }

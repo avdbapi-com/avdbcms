@@ -128,8 +128,9 @@ class FetchVideoTranslations extends Command
             }
 
             $this->line(sprintf(
-                'Processed %d video(s): created %d, updated %d, skipped %d, failed batches %d',
+                'Processed %d %s: created %d, updated %d, skipped %d, failed batches %d',
                 $this->processed,
+                \Illuminate\Support\Str::plural('video', $this->processed),
                 $this->created,
                 $this->updated,
                 $this->skipped,
@@ -144,12 +145,14 @@ class FetchVideoTranslations extends Command
         });
 
         $this->info(sprintf(
-            'Translation backfill completed: %d video(s), %d created, %d updated, %d skipped, %d failed batch(es).',
+            'Translation backfill completed: %d %s, %d created, %d updated, %d skipped, %d failed %s.',
             $this->processed,
+            \Illuminate\Support\Str::plural('video', $this->processed),
             $this->created,
             $this->updated,
             $this->skipped,
-            $this->failedBatches
+            $this->failedBatches,
+            \Illuminate\Support\Str::plural('batch', $this->failedBatches)
         ));
 
         return self::SUCCESS;
@@ -259,6 +262,14 @@ class FetchVideoTranslations extends Command
                         continue;
                     }
 
+                    // 1.2.3: a translation that uses a word that is always blocked (App\Support\ContentSafety: a child,
+                    // a school-age minor) is never stored; the video keeps its own title in that language.
+                    if (\App\Support\ContentSafety::hardMatch($translation['title']) !== null
+                        || \App\Support\ContentSafety::hardMatch((string) ($translation['type_name'] ?? '')) !== null) {
+                        $this->skipped++;
+                        continue;
+                    }
+
                     $key = (int) $video->id.'|'.$locale;
                     $existing = $existingRows->get($key);
                     if (! $this->shouldSave($existing, $video, $overwrite, $replacePlaceholders)) {
@@ -341,7 +352,6 @@ class FetchVideoTranslations extends Command
                     $pool->as($locale)
                         ->timeout($timeout)
                         ->retry(self::HTTP_RETRIES, 300, null, false)
-                        ->withOptions(['verify' => false])
                         ->get($this->apiBaseForLocale($locale), [
                             'ac' => 'detail',
                             'ids' => implode(',', $avdbIds),
@@ -408,7 +418,7 @@ class FetchVideoTranslations extends Command
     private function fetchLocaleItems(string $locale, array $avdbIds, int $timeout, bool $retry = true): ?array
     {
         try {
-            $request = Http::timeout($timeout)->withOptions(['verify' => false]);
+            $request = Http::timeout($timeout);
             if ($retry) {
                 $request = $request->retry(self::HTTP_RETRIES, 300, null, false);
             }

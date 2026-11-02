@@ -4,13 +4,40 @@ namespace App\Support;
 
 class PremiumPageSettings
 {
+    /**
+     * Texts that AVDBCMS shipped up to 1.2.2 (config/admin_settings.php, database/install/example.sql) and 1.2.3 words
+     * better (R1-114): the plan card read "Your billing starts on <date> for the month plan. Cancel anytime" (no full
+     * stop) and the page said "Save 2 months" twice (the yearly card's own badge says what the plan saves, from its real
+     * prices). A stored value that is EXACTLY the old text is the shipped default, never an owner's choice: migration
+     * 2026_10_27_130000_correct_premium_page_default_texts gives it the new default. Key => [old text, new default].
+     */
+    public const RETIRED_DEFAULTS = [
+        'premium_billing_trial_summary' => ['Your billing starts on :date for the :period plan.', 'Your billing starts on :date.'],
+        'premium_billing_without_trial_summary' => ['Your billing starts today for the :period plan.', 'Your billing starts today.'],
+        'premium_cancel_anytime_label' => ['Cancel anytime', 'Cancel anytime.'],
+        'premium_annual_savings_text' => ['Save 2 months with the annual subscription', ''],
+    ];
+
+    /**
+     * Default texts with a number of days that the Premium page says with the language's own forms of "day" while the
+     * owner keeps them (pages/premium.blade.php, trans_choice lines): ":days days trial" read "1 days trial", and Arabic
+     * has other forms for 1, 2 and 11 or more days. The admin shows their English default as before; an owner's own
+     * text is used as written. Not in translatableDefaults(): the page never translates these texts themselves.
+     */
+    public const COUNTED_DEFAULTS = [
+        'premium_trial_badge_template',
+        'premium_timeline_trial_title',
+        'premium_timeline_reminder_description',
+    ];
+
     public static function defaults(): array
     {
         return [
             'premium_plan_switcher_enabled' => '1',
             'premium_timeline_enabled' => '1',
             'premium_feature_uploads_enabled' => '1',
-            'premium_feature_downloads_enabled' => '1',
+            // Off for new sites (OD-M7, account-6): members have no download feature; a stored 'on' is kept.
+            'premium_feature_downloads_enabled' => '0',
             'premium_feature_ad_free_enabled' => '1',
             'premium_comparison_uploads_row_enabled' => '1',
             'premium_comparison_file_size_row_enabled' => '1',
@@ -29,11 +56,12 @@ class PremiumPageSettings
             'premium_empty_plans_message' => 'Premium plans are being prepared.',
             'premium_trial_badge_template' => ':days days trial',
             'premium_then_label' => 'Then',
-            'premium_cancel_anytime_label' => 'Cancel anytime',
+            'premium_cancel_anytime_label' => 'Cancel anytime.',
             'premium_card_or_paypal_label' => 'Card or PayPal',
             'premium_paypal_label' => 'PayPal',
             'premium_billing_heading' => 'Billing',
-            'premium_annual_savings_text' => 'Save 2 months with the annual subscription',
+            // empty: the yearly plan's card says what it saves (R1-114); an owner's own text is shown under the plans
+            'premium_annual_savings_text' => '',
             'premium_feature_uploads_title' => 'Uploads',
             'premium_feature_uploads_description' => 'Unlimited video uploads and storage space',
             'premium_feature_uploads_icon' => 'fa-upload',
@@ -49,8 +77,8 @@ class PremiumPageSettings
             'premium_pay_paypal_label' => 'Pay with PayPal',
             'premium_start_card_label' => 'Start with card',
             'premium_start_paypal_label' => 'Start with PayPal',
-            'premium_billing_trial_summary' => 'Your billing starts on :date for the :period plan.',
-            'premium_billing_without_trial_summary' => 'Your billing starts today for the :period plan.',
+            'premium_billing_trial_summary' => 'Your billing starts on :date.',
+            'premium_billing_without_trial_summary' => 'Your billing starts today.',
             'premium_billing_charge_note' => 'You will be charged automatically at the end of each period.',
             'premium_billing_refund_note' => "Payments won't be refunded for partial billing periods. Cancel anytime from your account.",
             'premium_timeline_trial_title' => ':days days trial',
@@ -94,6 +122,31 @@ class PremiumPageSettings
     public static function textKeys(): array
     {
         return array_values(array_diff(array_keys(self::defaults()), self::booleanKeys()));
+    }
+
+    /**
+     * The default texts the Premium page translates with __() when the owner kept them (key => English text): every
+     * text default that holds words (not the icons, not a bare ":date", not the COUNTED_DEFAULTS the page says with
+     * plural lines). scripts/i18n/sources.json lists this method, so the translation tools keep these texts in every
+     * language like the texts written in the views (R1-031, R1-114: they were missed in some languages because no view
+     * names them).
+     *
+     * @return array<string, string>
+     */
+    public static function translatableDefaults(): array
+    {
+        $defaults = self::defaults();
+        $texts = [];
+
+        foreach (array_diff(self::textKeys(), self::iconKeys(), self::COUNTED_DEFAULTS) as $key) {
+            $text = (string) ($defaults[$key] ?? '');
+
+            if (preg_match('/\pL/u', (string) preg_replace('/:[a-z_]+/', '', $text)) === 1) {
+                $texts[$key] = $text;
+            }
+        }
+
+        return $texts;
     }
 
     public static function iconKeys(): array
@@ -140,12 +193,23 @@ class PremiumPageSettings
         return (string) ($settings[$key] ?? $defaults[$key] ?? '');
     }
 
+    /**
+     * The owner's text with its words filled in (":date", ":days", ":site", ":period"). A value that ends with its own full
+     * stop (a written date: "26 нояб. 2026 г.") keeps only that one where the text puts its full stop right after it
+     * ("Your billing starts on :date."), never "г.." (R2A-038; the same rule as App\Support\BillingFormat::fill()).
+     */
     public static function format(string $value, array $replacements = []): string
     {
         $tokens = [];
 
         foreach ($replacements as $key => $replacement) {
-            $tokens[':' . $key] = (string) $replacement;
+            $replacement = (string) $replacement;
+            $tokens[':' . $key] = $replacement;
+
+            if (str_ends_with($replacement, '.')) {
+                // strtr() takes the longest match first: ":date." before ":date"
+                $tokens[':' . $key . '.'] = $replacement;
+            }
         }
 
         return strtr($value, $tokens);

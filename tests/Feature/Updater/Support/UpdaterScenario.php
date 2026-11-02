@@ -309,6 +309,19 @@ trait UpdaterScenario
         PlanStore::write($this->box->paths()->plan(), array_replace((array) $this->storedPlan(), $changes));
     }
 
+    /**
+     * The finished update was made from release $version: its backup says so (the sandbox calls every installed release
+     * CURRENT, whichever code plays it; an undo goes back to the release the backup names).
+     */
+    protected function updateCameFrom(string $version): void
+    {
+        $state = (array) PlanStore::read($this->box->paths()->state());
+        $file = $this->box->paths()->backups((string) ($state['backup_id'] ?? '')).'/backup.json';
+        $backup = PlanStore::read($file);
+        $this->assertIsArray($backup, 'the update kept its backup');
+        PlanStore::write($file, array_replace($backup, ['from' => $version]));
+    }
+
     /** The work folder of the update to the next version. */
     protected function jobFolder(): string
     {

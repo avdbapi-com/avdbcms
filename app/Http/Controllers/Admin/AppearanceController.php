@@ -75,6 +75,9 @@ class AppearanceController extends Controller
             'autofix' => $shown['brand_contrast_autofix'],
             'daily' => $this->pageFields($request, 'appearance.themes', ['daily'], $draft),
             'modeFields' => $this->pageFields($request, 'appearance.themes', ['mode'], $draft),
+            // "Let visitors try the looks" (a demo site's palette button, App\Support\VisitorChoices), under the looks.
+            'visitorFields' => $this->pageFields($request, 'appearance.themes', ['visitors'], $draft),
+            'visitorCard' => (array) (config('admin_settings.pages', [])['appearance.themes']['cards']['visitors'] ?? []),
             'autofixFields' => array_values(array_filter($this->pageFields($request, 'appearance.brand', ['colors'], $draft), fn (array $f): bool => $f['key'] === 'brand_contrast_autofix')),
             'published' => AppearancePages::published(array_merge($keys, ['daily_design_auto_enabled', 'daily_design_scope', 'daily_design_layouts_enabled', 'daily_design_show_badge', 'daily_design_atmosphere_particles', 'daily_design_override_day'])),
             'month' => (int) now()->month,
@@ -413,6 +416,11 @@ class AppearanceController extends Controller
 
         AppearanceDraft::forget($userId);
 
+        // Tools > Logs > Admin actions (R2A-020): which settings the publish changed.
+        if ($result['changed'] !== []) {
+            AuditLogController::log('appearance.published', \App\Support\AuditDetails::names($result['changed']));
+        }
+
         return $this->published($request, __('Published. Your visitors see the new design now.'), $result['revision'], $result['changed']);
     }
 
@@ -489,6 +497,10 @@ class AppearanceController extends Controller
         $this->flushCaches();
         $message = $changed === [] ? __('Nothing to undo: the settings are already like that.') : __('Undone. Your site shows the earlier design again.');
 
+        if ($changed !== []) {
+            AuditLogController::log('appearance.restored', \App\Support\AuditDetails::names(array_values(array_unique($changed))));
+        }
+
         if ($this->wantsJson($request)) {
             return response()->json(['ok' => true, 'message' => $message, 'changed' => array_values(array_unique($changed)), 'revision' => $restoredRevision]);
         }
@@ -533,6 +545,12 @@ class AppearanceController extends Controller
 
                     foreach ($rows as $key => $value) {
                         $before[$group][$key] = array_key_exists($key, $stored) ? $stored[$key] : null;
+
+                        // R1-039: Coral picked over the untouched installer "coral" (shown as the look's colour) is the
+                        // owner's choice: marked as one, and recorded as a change from the look's colour (Undo returns to it)
+                        if ($key === 'channel_default_accent' && \App\Support\ChannelCustomizationSettings::keepAccentPick($value)) {
+                            $before[$group][$key] = \App\Support\ChannelAccent::LOOK;
+                        }
 
                         if ($value === null) {
                             DB::table('settings')->where('group', $group)->where('key', $key)->delete();
@@ -812,7 +830,7 @@ class AppearanceController extends Controller
         // A publish without a look or theme names the pages it changed.
         if ($label === '' && is_array($row['meta']['pages'] ?? null)) {
             $pages = (array) config('admin_settings.pages', []);
-            $label = implode(', ', array_filter(array_map(fn ($page): string => isset($pages[$page]['label']) ? __((string) $pages[$page]['label']) : '', array_slice($row['meta']['pages'], 0, 3))));
+            $label = \App\Support\AdminText::list(array_filter(array_map(fn ($page): string => isset($pages[$page]['label']) ? __((string) $pages[$page]['label']) : '', array_slice($row['meta']['pages'], 0, 3))));
         }
 
         return match ($row['kind']) {
@@ -900,13 +918,13 @@ class AppearanceController extends Controller
     {
         $token = $draft['values'] === [] ? null : AppearanceDraft::sign((int) auth()->id(), $draft['values']);
         // A video, a category and a channel of this site to preview (kept for 10 minutes: three queries per page view).
-        [$video, $category, $channelPath] = AdminCache::remember('appearance.preview_paths', 600, function (): array {
+        [$video, $category, $channelPath] = AdminCache::remember('appearance.preview_paths.site', 600, function (): array {
             $channel = User::query()->whereHas('videos')->orderBy('id')->first();
 
             return [
                 $this->sampleVideoPath(),
                 Category::query()->orderBy('id')->value('slug'),
-                $channel !== null ? (string) parse_url(route('user.show', $channel), PHP_URL_PATH) : '/discover',
+                $channel !== null ? site_path((string) parse_url(route('user.show', $channel), PHP_URL_PATH)) : '/discover',
             ];
         });
 
@@ -923,7 +941,9 @@ class AppearanceController extends Controller
 
         foreach ($pages as $path => $label) {
             if ($path !== '') {
-                $signed[AppearanceDraft::previewUrl($path, $token)] = $label;
+                // as the browser addresses it: with the folder of a site installed in one and /index.php where the site's
+                // links carry it (R2R-05; a server without rewrite rules answered "/trend" with its 404 page)
+                $signed[AppearanceDraft::previewUrl(\App\Support\CleanUrls::requestForm(site_browser_path((string) $path)), $token)] = $label;
             }
         }
 
@@ -936,7 +956,7 @@ class AppearanceController extends Controller
             $video = Video::query()->active()->public()->latest('id')->first();
 
             if ($video !== null) {
-                return (string) parse_url(app(SeoService::class)->videoUrl($video), PHP_URL_PATH);
+                return site_path((string) parse_url(app(SeoService::class)->videoUrl($video), PHP_URL_PATH));
             }
         } catch (Throwable) {
         }
@@ -1108,7 +1128,7 @@ class AppearanceController extends Controller
                 'id' => (string) $flavorId,
                 'name' => __((string) $flavor['name']),
                 'colours' => array_values(array_slice((array) $flavor['seeds'], 0, 3)),
-                'formerly' => ($flavor['formerly'] ?? []) !== [] ? __('formerly :names', ['names' => implode(', ', $flavor['formerly'])]) : null,
+                'formerly' => ($flavor['formerly'] ?? []) !== [] ? __('formerly :names', ['names' => \App\Support\AdminText::list($flavor['formerly'])]) : null,
             ];
         }
 
@@ -1120,7 +1140,7 @@ class AppearanceController extends Controller
             'tagline' => __((string) ($theme['tagline'] ?? '')),
             'mode' => (string) $theme['default_mode'],
             'flavors' => $flavors,
-            'formerly' => $formerly !== [] ? __('formerly :names', ['names' => implode(', ', array_slice($formerly, 0, 3))]) : null,
+            'formerly' => $formerly !== [] ? __('formerly :names', ['names' => \App\Support\AdminText::list(array_slice($formerly, 0, 3))]) : null,
             'thumb' => $this->thumb('themes/'.$id.'-'.$theme['default_mode']),
             'thumb_other' => $this->thumb('themes/'.$id.'-'.($theme['default_mode'] === 'dark' ? 'light' : 'dark')),
             'thumb_phone' => $this->thumb('themes/'.$id.'-'.$theme['default_mode'].'-phone'),
@@ -1311,7 +1331,7 @@ class AppearanceController extends Controller
     }
 
     /**
-     * Errors keyed "group.key" like the settings save (I7); a look or theme that does not exist keeps its own key.
+     * Errors keyed "group.key" like the settings save; a look or theme that does not exist keeps its own key.
      *
      * @param  array<string, string>  $errors
      * @return array<string, list<string>>

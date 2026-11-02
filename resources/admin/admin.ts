@@ -6,8 +6,10 @@
 
 // First: the fallbacks for old browsers, before any other module runs (old-browsers.ts).
 import './old-browsers';
+import {plural} from './lib/plural';
 import {initConfirm} from './modules/confirm';
 import {initControls} from './modules/controls';
+import {initFocusClear} from './modules/focus';
 import {initMonitors} from './modules/monitor';
 import {initSavebar} from './modules/savebar';
 import {initShell} from './modules/shell';
@@ -15,9 +17,19 @@ import {initTables} from './modules/table';
 import {initToasts} from './modules/toast';
 import {initTooltips} from './modules/tooltip';
 
+// Counted texts for the page scripts that are not modules (resources/views/admin/settings/page.js): the same choice of
+// forms as the server's trans_choice() (lib/plural.ts).
+window.adminPlural = plural;
+
+declare global {
+    interface Window {
+        adminPlural: typeof plural;
+    }
+}
+
 // Each part starts on its own: a browser that lacks something one part needs keeps the others (the page itself is
 // complete without this script: every page is rendered by the server).
-for (const init of [initToasts, initConfirm, initShell, initSavebar, initTooltips, initControls, initTables, initMonitors]) {
+for (const init of [initToasts, initConfirm, initShell, initSavebar, initTooltips, initControls, initTables, initMonitors, initFocusClear]) {
     try {
         init();
     } catch (error) {
@@ -27,24 +39,26 @@ for (const init of [initToasts, initConfirm, initShell, initSavebar, initTooltip
 
 // The shell prints modules/legacy.ts as its own module script on pages that need it (it must run before
 // DOMContentLoaded). This import is the fallback for a page that asked for it without that tag.
+// A fallback import that cannot finish because the page is being left is dropped quietly (Safari reported each as an
+// unhandled rejection, R2A-057): the page's own script tag loads the module.
 if (document.body.dataset.adLegacy === 'on' && !window.bootstrap) {
-    void import('./modules/legacy');
+    void import('./modules/legacy').catch(() => undefined);
 }
 
 // The Appearance pages' module (draft, preview, publish, gallery, history): the page links it and its stylesheet
 // itself (resources/views/admin/appearance/*); this import is the fallback and puts it in the build manifest.
 if (document.querySelector('[data-ad-appearance]')) {
-    void import('./appearance/appearance');
+    void import('./appearance/appearance').catch(() => undefined);
 }
 
 // Tools > Updates (the one-click update's steps): linked by its page (resources/views/admin/updates/index.blade.php)
 // the same way; this import is the fallback and puts it in the build manifest.
 if (document.querySelector('[data-ad-updates]')) {
-    void import('./updates/updates');
+    void import('./updates/updates').catch(() => undefined);
 }
 
 // Category pages show icons the owner picked from all of Font Awesome; other pages use the small subset. The shell
 // links this stylesheet itself (so it is in the build manifest because of this import, which is then a no-op).
 if (document.body.dataset.adIcons === 'all') {
-    void import('./lib/fa-all.scss');
+    void import('./lib/fa-all.scss').catch(() => undefined);
 }

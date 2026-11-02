@@ -1,5 +1,5 @@
 /*
- * Theme CSS, part B (perf plan step 24; theme v2: token-driven, see layout-theme-a.css). It sits after
+ * Theme CSS, part B (theme v2: token-driven, see layout-theme-a.css). It sits after
  * the inline #avd-custom-css and before the inline #avd-theme-tail, so the admin switches, the tier
  * matrix, the hero designs, the phone rules, right-to-left and the reduced motion / transparency /
  * forced-colour rules below win over part A at equal specificity.
@@ -298,14 +298,13 @@ html[data-avd-rail-scrollbars="hidden"] .overflow-x-auto::-webkit-scrollbar {
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    transition: background 0.22s cubic-bezier(0.2, 0, 0, 1), border-color 0.22s cubic-bezier(0.2, 0, 0, 1), color 0.22s cubic-bezier(0.2, 0, 0, 1), transform 0.22s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.22s cubic-bezier(0.2, 0, 0, 1);
+    transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
     font-size: 0.85rem;
 }
 .avd-chips-nav:hover {
     background: var(--avd-brand-fill);
     border-color: var(--avd-brand-fill);
     color: var(--avd-on-brand);
-    transform: translateY(-50%) scale(1.12);
     box-shadow: 0 6px 22px var(--avd-glow);
 }
 .avd-chips-nav-left {
@@ -334,7 +333,7 @@ html[data-avd-rail-scrollbars="hidden"] .overflow-x-auto::-webkit-scrollbar {
     justify-content: center;
     cursor: pointer;
     opacity: 0;
-    transition: opacity 0.25s ease, background-color 0.2s ease, transform 0.2s ease;
+    transition: opacity 120ms ease, background-color 120ms ease, color 120ms ease;
 }
 .avd-shelf-track-container:hover .avd-shelf-paddle,
 .avd-shelf-row-wrapper:hover .avd-shelf-paddle {
@@ -344,7 +343,6 @@ html[data-avd-rail-scrollbars="hidden"] .overflow-x-auto::-webkit-scrollbar {
     opacity: 1 !important;
     background: var(--avd-brand-fill) !important;
     color: var(--avd-on-brand) !important;
-    transform: scale(1.04);
 }
 .avd-shelf-paddle-left {
     inset-inline-start: 0;
@@ -680,41 +678,43 @@ html[data-avd-atmosphere="solar_flare"] body.avd-app::before {
 }
 
 /* =========================================================
-   LIQUID GLOW BUTTON SHIMMER & TACTILE PRESS
+   LIQUID SHIMMER: A STATIC SHEEN (member design 4.2, OD-M16)
+   "Shine on main buttons" keeps a fixed highlight across the main buttons that fades in with
+   opacity while hovered. It used to sweep across the button every 1.25 s for as long as the
+   pointer rested on it (the owner's flash: 14-15 repainted frames a second), plus a press
+   scale. A highlight that does not move repaints once, when it fades in.
    ========================================================= */
-@keyframes avd-liquid-shimmer-sweep {
-    0% { transform: translateX(-150%) skewX(-25deg); }
-    100% { transform: translateX(260%) skewX(-25deg); }
-}
 [data-avd-liquid-shimmer="on"] .btn-primary,
 [data-avd-liquid-shimmer="on"] .btn-brand,
 [data-avd-liquid-shimmer="on"] .avd-btn-shimmer,
 [data-avd-liquid-shimmer="on"] .avd-watch-action-btn.active {
     position: relative;
     overflow: hidden;
-    transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease;
 }
 [data-avd-liquid-shimmer="on"] .btn-primary::before,
 [data-avd-liquid-shimmer="on"] .btn-brand::before,
 [data-avd-liquid-shimmer="on"] .avd-btn-shimmer::before {
     content: "";
     position: absolute;
-    top: 0;
-    inset-inline-start: 0;
-    width: 65%;
-    height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(var(--avd-glint-rgb), 0.34), transparent);
-    transform: translateX(-150%) skewX(-25deg);
+    inset: 0;
+    z-index: 0;
+    border-radius: inherit;
+    background: linear-gradient(105deg, transparent 18%, rgba(var(--avd-glint-rgb, 255, 255, 255), 0.30) 42%, rgba(var(--avd-glint-rgb, 255, 255, 255), 0.08) 58%, transparent 74%);
+    opacity: 0;
     pointer-events: none;
+    transition: opacity 120ms ease;
 }
-[data-avd-liquid-shimmer="on"] .btn-primary:hover::before,
-[data-avd-liquid-shimmer="on"] .btn-brand:hover::before,
-[data-avd-liquid-shimmer="on"] .avd-btn-shimmer:hover::before {
-    animation: avd-liquid-shimmer-sweep 1.25s infinite ease-in-out;
+[dir="rtl"][data-avd-liquid-shimmer="on"] .btn-primary::before,
+[dir="rtl"][data-avd-liquid-shimmer="on"] .btn-brand::before,
+[dir="rtl"][data-avd-liquid-shimmer="on"] .avd-btn-shimmer::before {
+    background: linear-gradient(-105deg, transparent 18%, rgba(var(--avd-glint-rgb, 255, 255, 255), 0.30) 42%, rgba(var(--avd-glint-rgb, 255, 255, 255), 0.08) 58%, transparent 74%);
 }
-[data-avd-liquid-shimmer="on"] .btn-primary:active,
-[data-avd-liquid-shimmer="on"] .btn-brand:active {
-    transform: translateY(1.5px) scale(0.985);
+@media (hover: hover) and (pointer: fine) {
+    [data-avd-liquid-shimmer="on"] .btn-primary:hover::before,
+    [data-avd-liquid-shimmer="on"] .btn-brand:hover::before,
+    [data-avd-liquid-shimmer="on"] .avd-btn-shimmer:hover::before {
+        opacity: 1;
+    }
 }
 
 /* =========================================================
@@ -987,8 +987,8 @@ html[data-avd-perf="lite"][data-bs-theme] .offcanvas {
     --bs-backdrop-opacity: .8;
 }
 /* ==========================================================================
-   HOME HERO DESIGNS (data-avd-hero-deco), ported from the theme mockups (spec/theme/mockups/assets/base.css).
-   Markup contract with WP5: every mockup class X is .avd-X here (modifiers such as .big, .r1, .tl stay
+   HOME HERO DESIGNS (data-avd-hero-deco), ported from the theme mockups.
+   Markup contract with the theme structure views: every mockup class X is .avd-X here (modifiers such as .big, .r1, .tl stay
    compound, .on is .active). Text over pictures uses the hero tokens (white on a scrim) in both modes.
    ========================================================================== */
 html[data-avd-theme] {
@@ -1075,13 +1075,13 @@ html[dir="rtl"] .avd-scrim {
     height: 100%;
     object-fit: cover;
 }
-/* Whole-row links (WP5 markup): they inherit the text colour, never underline. */
+/* Whole-row links (theme structure markup): they inherit the text colour, never underline. */
 .avd-tkr, .avd-mw, .avd-sh, .avd-bt, .avd-swi, .avd-row, .avd-mini, .avd-story, .avd-rk-it, .avd-chan, .avd-pad,
 .avd-print, .avd-swl, .avd-pv, .avd-feat, .avd-ph, .avd-arch, .avd-frame, .avd-htitle a {
     color: inherit;
     text-decoration: none;
 }
-/* billboard family: the slides sit in a scroll-snap track (WP5 carousel), which takes the full-bleed margins */
+/* billboard family: the slides sit in a scroll-snap track (the hero carousel), which takes the full-bleed margins */
 .avd-bb {
     height: 400px;
     border-radius: var(--avd-hero-r);
@@ -1109,6 +1109,15 @@ html[data-avd-hero-deco="billboard_full"] .avd-bb-track {
     padding: 6px 2px;
     border: 0;
     background: none;
+}
+/* R1-064: each slide button is a 24px target around its small dot (they were 11 x 19px). */
+.avd-dots .avd-dot-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-inline-size: 24px;
+    min-block-size: 24px;
+    padding: 0;
 }
 .avd-bb .avd-content {
     position: absolute;
@@ -1169,9 +1178,9 @@ html[data-avd-hero-deco="billboard_full"] .avd-bb-track {
     inset-inline-end: 26px;
     bottom: 22px;
     display: flex;
-    gap: 6px;
+    gap: 0;
     z-index: 2;
-    padding: 3px 8px;
+    padding: 1px 6px;
     border-radius: 99px;
     background: rgba(var(--avd-shade-rgb), .62);
 }
@@ -2028,8 +2037,11 @@ html[data-avd-theme] .avd-hero-zone :is(a.avd-bt, a.avd-feat, a.avd-pv, a.avd-sh
     html[data-avd-hero-deco="billboard_full"] .avd-bb {
         height: 380px;
     }
+    /* R1-151: the track bleeds exactly the container's side padding (px-sm-3 = 1rem from 576px; below 576px there is
+       none: see the phone block after this one). With -12px it left a 4px strip at both edges from 576px, and below
+       576px its slides ran 12px past both screen edges, their text 4px from the edge. */
     html[data-avd-hero-deco="billboard_full"] .avd-bb-track {
-        margin: -12px -12px 0;
+        margin: -12px -1rem 0;
     }
     html[data-avd-hero-deco="billboard_inset"] .avd-bb {
         height: 260px;
@@ -2062,7 +2074,12 @@ html[data-avd-theme] .avd-hero-zone :is(a.avd-bt, a.avd-feat, a.avd-pv, a.avd-sh
     .avd-split {
         grid-template-columns: 1fr;
         gap: 10px;
-        padding: 10px;
+        padding: 10px 16px;
+    }
+    /* R1-151: the HUD's feature tile takes its column's width (its 210px height and 16:8.6 ratio made it 391px wide) */
+    .avd-hud .avd-feat {
+        min-inline-size: 0;
+        inline-size: 100%;
     }
     .avd-split .avd-htitle {
         font-size: 20px;
@@ -2110,12 +2127,10 @@ html[data-avd-theme] .avd-hero-zone :is(a.avd-bt, a.avd-feat, a.avd-pv, a.avd-sh
     .avd-lead .avd-l .avd-htitle {
         font-size: 24px;
     }
-    /* The back-to-top button floats above the bottom bar and the ad strip (under them it could not show its focus). */
+    /* The back-to-top button floats above the bottom bar and the ad strip (under them it could not show its focus):
+       the measured bottom room (--avd-bottom-chrome) plus the member bars. */
     html[data-avd-theme] body.has-bottom-nav .back-to-top {
-        inset-block-end: calc(68px + env(safe-area-inset-bottom, 0px) + .75rem);
-    }
-    html[data-avd-theme] body.has-bottom-nav.has-mobile-ad .back-to-top {
-        inset-block-end: calc(142px + env(safe-area-inset-bottom, 0px) + .75rem);
+        inset-block-end: calc(var(--avd-bottom-chrome, calc(68px + env(safe-area-inset-bottom, 0px))) + var(--mk-bars-h, 0px) + 12px);
     }
     /* The lead photo runs edge to edge; its kicker and headline keep the page gutter, and the rule above the lead
        goes (under the one-row phone bar it drew an empty masthead band). */
@@ -2148,6 +2163,36 @@ html[data-avd-theme] .avd-hero-zone :is(a.avd-bt, a.avd-feat, a.avd-pv, a.avd-sh
     }
     html[data-avd-section-style="ornament"] .avd-sec-rule {
         max-width: 40px;
+    }
+}
+/* R1-151: below 576px the page container has no side padding (the home and trending pages' px-0; px-sm-3 from 576px),
+   so the hero keeps the page gutter of the phone mockups (1rem = the feed's px-3) itself: its tiles, panels and cards
+   stop 16px from both screen edges, as the container keeps them from 576px (the ticker's panel and badge, the split
+   panel, the gallery print, the arch, the rounded billboards and their dots, the bento tiles, the HUD, the shorts and
+   the lead photo sat at 0-4px). The full-bleed billboards (billboard_full here; billboard_fade and the cinema-rows
+   split_orbit in their decoration files) and the letterbox still run edge to edge, their text on the same 16px. */
+@media (max-width: 575.98px) {
+    .avd-hero--ticker,
+    .avd-hero--arch,
+    .avd-hero--billboard,
+    .avd-hero--bento .avd-bento,
+    .avd-hero--bento .avd-gallery,
+    .avd-hud,
+    .avd-shorts,
+    .avd-split,
+    .avd-lead .avd-l > .avd-ph {
+        margin-inline: 1rem;
+    }
+    html[data-avd-hero-deco="billboard_full"] .avd-hero--billboard,
+    html[data-avd-hero-deco="billboard_full"] .avd-bb-track {
+        margin-inline: 0;
+    }
+    /* The category chips start on the same gutter and still scroll edge to edge (their arrows are hidden on phones):
+       the row's 2-4px padding (!important, and px-1) put the first chip 4px from the edge, and focus scrolled a chip
+       44px clear of arrows that phones do not show. */
+    :root .avd-chips-scroller-wrapper .avd-category-tabs {
+        padding-inline: 1rem !important;
+        scroll-padding-inline: 1rem;
     }
 }
 
@@ -2304,5 +2349,71 @@ html[data-avd-theme] .back-to-top:focus-visible {
         color: HighlightText;
         clip-path: none;
     }
+}
+
+/* =========================================================
+   ONE HOVER RULE FOR EVERY BUTTON OF THE SITE (member design 4.2, owner decision OD-M16)
+   Hover, focus and press change colour, background, border colour, box-shadow or opacity only, in
+   150 ms or less; nothing moves, sweeps or loops (the owner's "+ Create Video" flash: perf-1,
+   account-3, auth-4, watch-4, studio-7). motion.scss and the rules above no longer move any button;
+   this last block holds the timing against the motion-engine presets of layout-theme-a.css (their
+   !important 0.18-0.38 s on .btn) and the looks: a 0.28 s colour or shadow transition still
+   repainted the button 130 ms after the 150 ms budget. Transform is not in the list, so no hover or
+   press can slide or scale a button even where an older rule still asks for it. The hands-off upload
+   panel (#video_create) keeps its own rules (OD-M13: its look changes only with the owner's approval).
+   ========================================================= */
+html[data-avd-motion-engine] :is(.btn, .btn-close, .avd-icon-button, .avd-sidebar-toggle, .avd-avatar-button, .avd-tag, .avd-social-btn, .avd-player-control, .avd-action-pill, .avd-chips-nav, .avd-shelf-paddle, .avd-rail-nav-btn, .avd-dock-btn, .avd-mob-nav-item, .avd-feed-control-btn, .avd-locale-toggle, .avd-upload-btn, .avd-auth-btn, .back-to-top, .avd-daily-pill__open, .avd-daily-pill__close):not(#video_create *) {
+    transition-property: color, background-color, border-color, box-shadow, opacity, outline-color !important;
+    transition-duration: 120ms !important;
+    transition-timing-function: ease !important;
+    transition-delay: 0s !important;
+}
+/* Icons take the button's colour as it changes: a colour transition of their own chained with the button's and ran to
+   240 ms. */
+html[data-avd-motion-engine] :is(.btn, .avd-icon-button, .avd-sidebar-toggle, .avd-tag, .avd-social-btn, .avd-player-control, .avd-action-pill, .back-to-top):not(#video_create *) i {
+    transition-property: opacity !important;
+    transition-duration: 120ms !important;
+}
+
+/* watch-44, auth-31: one focus ring, the look's own (2px --avd-focus outline, layout-theme-a.css): Bootstrap's blue
+   focus glow (rgba(13, 110, 253, .25) and the buttons' focus shadows) no longer sits next to it. */
+html[data-avd-theme] .btn:focus-visible,
+html[data-avd-theme] .btn-close:focus,
+html[data-avd-theme] .form-check-input:focus,
+html[data-avd-theme] .form-range:focus::-webkit-slider-thumb {
+    box-shadow: none;
+}
+/* watch-44 ("Tab through the side menu"): the menu links are Bootstrap .nav-link, whose focus ring is a
+   4px blue glow (.nav-link:focus-visible) next to the look's outline; so are the menu button, pagination and accordion
+   rings. One ring: the look's outline. */
+html[data-avd-theme] .nav-link:focus-visible,
+html[data-avd-theme] .navbar-toggler:focus,
+html[data-avd-theme] .page-link:focus,
+html[data-avd-theme] .accordion-button:focus {
+    box-shadow: none;
+}
+html[data-avd-theme] .form-control:focus,
+html[data-avd-theme] .form-select:focus {
+    box-shadow: none;
+}
+html[data-avd-theme] .btn-close:focus-visible {
+    outline: 2px solid var(--avd-focus);
+    outline-offset: 2px;
+    opacity: 1;
+}
+
+/* auth-11: an unchecked check box, radio or switch shows its boundary at the 3:1 field border of the look (it was
+   Bootstrap's faint default, 1.09-1.46:1 against the card). auth-31: inline errors take the look's danger ink, fitted
+   to 4.5:1 per theme (Bootstrap's #dc3545 measured 4.19-4.36:1 on light cards). */
+html[data-avd-theme] .form-check-input:not(:checked) {
+    border-color: var(--avd-border-input);
+}
+html[data-avd-theme] .invalid-feedback {
+    color: var(--avd-danger);
+}
+html[data-avd-theme] .form-control.is-invalid,
+html[data-avd-theme] .form-select.is-invalid,
+html[data-avd-theme] .form-check-input.is-invalid {
+    border-color: var(--avd-danger);
 }
 :root{--b:#742e6d}

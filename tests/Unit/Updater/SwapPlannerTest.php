@@ -7,10 +7,10 @@ use App\Support\Updater\SwapPlanner;
 use Tests\TestCase;
 
 /**
- * What an update does with each file (updater.md amendment 1, F8 8-11): the installed manifest tells shipped files from
+ * What an update does with each file: the installed manifest tells shipped files from
  * owner edits; unchanged files never move; hand-edited files are kept with the new copy next to them; owner-changed code
  * is replaced and listed; removals only in code folders and only of files the installed version shipped; old built
- * assets wait one more update; the moves come in the order of F8 11 with the manifest last.
+ * assets wait one more update; the moves come in the swap's order, with the manifest last.
  */
 class SwapPlannerTest extends TestCase
 {

@@ -27,15 +27,20 @@ namespace App\Support\Updater;
  */
 final class SwapPlanner
 {
-    /** Files hosts and panels often edit (F8 9): replaced only while they are as shipped. */
+    /** Files hosts and panels often edit: replaced only while they are as shipped. */
     public const HAND_EDITED = [
         '.htaccess', 'public/.htaccess', 'web.config', 'public/web.config', 'nginx.conf', 'nginx-aapanel-rewrite.conf',
         'php-cli.ini', 'public/robots.txt', 'favicon.ico', 'public/favicon.ico', 'manifest.json', 'public/manifest.json',
         '404.html', 'public/404.html',
     ];
 
-    /** Folders whose files a release may delete (its manifest lists them under "removed"). */
-    public const REMOVABLE = ['app/', 'config/', 'database/migrations/', 'resources/', 'routes/', 'vendor/', 'public/build/'];
+    /**
+     * Folders whose files a release may delete (its manifest lists them under "removed"). database/schema/ since 1.2.3:
+     * a database dump a release no longer ships must go, because Laravel loads it before the migrations of an empty
+     * database (the dump of 1.2.0 to 1.2.2 made them fail; the migration 2026_10_27_100000_remove_shipped_schema_dump
+     * removes that one from sites an older updater left it on).
+     */
+    public const REMOVABLE = ['app/', 'config/', 'database/migrations/', 'database/schema/', 'resources/', 'routes/', 'vendor/', 'public/build/'];
 
     public const ASSETS = 'public/build/assets/';
 

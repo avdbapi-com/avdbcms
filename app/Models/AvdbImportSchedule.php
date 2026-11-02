@@ -49,12 +49,13 @@ class AvdbImportSchedule extends Model
     {
         $time = substr((string) $this->run_time, 0, 5) ?: '02:00';
 
+        // In the admin's language (Content > Import videos lists the schedules with it).
         return match ($this->frequency) {
-            self::FREQUENCY_INTERVAL => 'Every ' . $this->boundedIntervalMinutes() . ' min',
-            self::FREQUENCY_HOURLY => 'Hourly at :' . str_pad((string) $this->timeParts()[1], 2, '0', STR_PAD_LEFT),
-            self::FREQUENCY_WEEKLY => 'Weekly ' . $this->weekdayName() . ' at ' . $time,
-            self::FREQUENCY_MONTHLY => 'Monthly day ' . $this->boundedMonthDay() . ' at ' . $time,
-            default => 'Daily at ' . $time,
+            self::FREQUENCY_INTERVAL => trans_choice('Every minute|Every :count minutes', $this->boundedIntervalMinutes(), ['count' => $this->boundedIntervalMinutes()]),
+            self::FREQUENCY_HOURLY => __('Every hour, at minute :minute', ['minute' => str_pad((string) $this->timeParts()[1], 2, '0', STR_PAD_LEFT)]),
+            self::FREQUENCY_WEEKLY => __('Every :day at :time', ['day' => __($this->weekdayName()), 'time' => $time]),
+            self::FREQUENCY_MONTHLY => __('Every month on day :day at :time', ['day' => $this->boundedMonthDay(), 'time' => $time]),
+            default => __('Every day at :time', ['time' => $time]),
         };
     }
 
@@ -76,15 +77,30 @@ class AvdbImportSchedule extends Model
             'year' => (string) ($settings['year'] ?? ''),
         ]);
 
+        // In the admin's language; the codes (categories, language, filter names) stay as the import uses them.
+        $starter = (string) ($settings['starter_views_mode'] ?? 'disabled');
+
         return array_values(array_filter([
-            'Cats: ' . ($categories === [] ? 'Direct IDs' : implode(',', $categories)) . ' | Pages: ' . (int) ($settings['start_page'] ?? 1) . '+' . (int) ($settings['pages'] ?? 1) . ' | Size: ' . (int) ($settings['pagesize'] ?? 100),
-            'Sort: ' . strtoupper((string) ($settings['sort_direction'] ?? 'desc')) . ' | Thumbnail: ' . (string) ($settings['thumbnail_mode'] ?? 'remote') . ' | Starter: ' . (string) ($settings['starter_views_mode'] ?? 'disabled'),
-            'Lang: ' . (string) ($settings['api_lang'] ?? 'en') . ' | Visibility: ' . (string) ($settings['language_mode'] ?? 'auto') . ' | Full-lang: ' . (! empty($settings['full_langs']) ? 'yes' : 'no'),
-            $filters === [] ? null : 'Filters: ' . implode(', ', array_map(
+            implode(' | ', [
+                __('Categories: :list', ['list' => $categories === [] ? __('Direct IDs') : implode(',', $categories)]),
+                __('Pages: :start+:count', ['start' => (int) ($settings['start_page'] ?? 1), 'count' => (int) ($settings['pages'] ?? 1)]),
+                __('Page size: :size', ['size' => (int) ($settings['pagesize'] ?? 100)]),
+            ]),
+            implode(' | ', [
+                __('Order: :order', ['order' => strtolower((string) ($settings['sort_direction'] ?? 'desc')) === 'asc' ? __('Oldest first') : __('Newest first')]),
+                __('Thumbnails: :mode', ['mode' => ($settings['thumbnail_mode'] ?? 'remote') === 'download' ? __('Download') : __('Remote')]),
+                __('Generate views: :mode', ['mode' => __(\App\Support\AvdbStarterViews::modes()[$starter] ?? $starter)]),
+            ]),
+            implode(' | ', [
+                __('Language: :code', ['code' => (string) ($settings['api_lang'] ?? 'en')]),
+                __('Visibility: :mode', ['mode' => (string) ($settings['language_mode'] ?? 'auto')]),
+                __('Full 16-Lang: :answer', ['answer' => ! empty($settings['full_langs']) ? __('Yes') : __('No')]),
+            ]),
+            $filters === [] ? null : __('Filters: :list', ['list' => implode(', ', array_map(
                 static fn (string $key, string $value): string => "{$key}={$value}",
                 array_keys($filters),
                 array_values($filters)
-            )),
+            ))]),
         ]));
     }
 

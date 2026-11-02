@@ -1,4 +1,4 @@
-// One shared added-nodes bus (perf plan step 23). It replaces the subtree MutationObservers that
+// One shared added-nodes bus. It replaces the subtree MutationObservers that
 // each re-scanned every DOM insertion on their own: the component registry (about 20
 // document-wide tag walks per mutation batch), the TomSelect select scan, the reveal, widget and
 // auto-run scanners of the motion chunk, and the layout's inline card pass (watch-later badges,

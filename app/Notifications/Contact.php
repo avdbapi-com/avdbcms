@@ -2,6 +2,7 @@
 
 namespace App\Notifications;
 
+use App\Notifications\Support\MemberMail;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 use Illuminate\Support\Facades\Config;
@@ -59,14 +60,18 @@ class Contact extends Notification
      */
     protected function buildMailMessage(AnonymousNotifiable $notifiable): MailMessage
     {
+        $ip = (string) request()->ip();
+
         return (new MailMessage)
-            ->subject('New message contact on ' .Config::get('app.name'). ' !')
-            ->from($this->email, $this->name)
+            ->subject(MemberMail::contact($this->name, $this->email, $this->message, $ip)['subject'])
+            // Sent from the site's own address (mail.from): a visitor's address as From fails SPF/DMARC, gets the mail
+            // refused, and lets anybody pose as a payment provider (security plan S29). Reply still reaches the visitor.
             ->replyTo($this->email, $this->name)
-            ->markdown('mails.contact', [
+            ->view(['mails.contact', 'mails.text.contact'], [
                 'name' => $this->name,
-                'message' => $this->message,
-                'ip' => request()->ip()
+                'email' => $this->email,
+                'contactMessage' => $this->message,
+                'ip' => $ip,
             ]);
     }
 }

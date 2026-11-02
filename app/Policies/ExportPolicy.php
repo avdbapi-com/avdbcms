@@ -22,6 +22,6 @@ class ExportPolicy
     {
         return $export->is_completed
             ? Response::allow()
-            : Response::denyWithStatus(404, 'Export is not ready');
+            : Response::denyWithStatus(404, __('Export is not ready'));
     }
 }

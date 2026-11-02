@@ -4,10 +4,14 @@ namespace App\Notifications\Export;
 
 use App\Models\Export;
 use App\Models\User;
+use App\Notifications\Support\BellNotification;
+use App\Notifications\Support\NotificationText;
 use Illuminate\Notifications\Notification;
 
 class ExportSuccess extends Notification
 {
+    use BellNotification;
+
     private Export $export;
 
     /**
@@ -20,31 +24,20 @@ class ExportSuccess extends Notification
         $this->export = $export;
     }
 
-
     /**
-     * Get the notification's delivery channels.
-     *
-     * @param User $notifiable
-     * @return array
-     */
-    public function via(User $notifiable) : array
-    {
-        return ['database', 'broadcast'];
-    }
-
-    /**
-     * Get the array representation of the notification.
+     * The bell's data: "Your export is ready: <file>" (translated when shown) and its download link.
      *
      * @param  User $notifiable
      * @return array
      */
     public function toArray(User $notifiable) : array
     {
-        return [
-            'message' => 'Your '. $this->export->file .' export is ready !',
+        return NotificationText::data('export_ready', [
+            'file' => $this->export->file,
+        ], [
             'url' => route('admin.exports.download', $this->export),
             'created_at' => now(),
-            'is_read' => false
-        ];
+            'is_read' => false,
+        ]);
     }
 }

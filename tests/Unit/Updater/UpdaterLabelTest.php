@@ -7,7 +7,7 @@ use App\Support\Updater\Updater;
 use Tests\TestCase;
 
 /**
- * What Tools > Updates says about a plan that ended without its result (F8 13): an undo that failed or was cancelled
+ * What Tools > Updates says about a plan that ended without its result: an undo that failed or was cancelled
  * leaves the new version (it must never read "The update could not be installed"), an update the administrator stopped
  * says so, and each has a title of its own.
  */
@@ -46,6 +46,21 @@ class UpdaterLabelTest extends TestCase
         $this->assertSame('The download is damaged.', Updater::label($early));
         $this->assertSame('The update stopped.', Updater::failureTitle($early));
         $this->assertSame('The update was cancelled. Nothing on your site was changed.', Updater::label(['status' => 'cancelled']));
+    }
+
+    public function test_sizes_read_as_tools_backups_writes_them(): void
+    {
+        // KB under 1 MB, never "0.0 MB" or "0.03 MB"; a value that rounds up to 1024 moves to the next unit.
+        $this->assertSame(['0 B', '308 B', '30 KB', '35.3 KB', '1 MB', '67.7 MB', '2.5 GB'], array_map(Updater::size(...), [0, 308, 30720, 36147, 1048570, 70990000, 2684354560]));
+        $this->assertSame('0 B', Updater::size(null));
+        $this->assertSame('0 B', Updater::size(-5));
+
+        $downloading = ['kind' => 'update', 'version' => '1.0.1', 'status' => 'downloading'];
+        $this->assertSame('Downloading: 0 B of 67.7 MB', Updater::label($downloading + ['download' => ['done' => 0, 'total' => 70990000]]));
+        $this->assertSame('Downloading: 512 KB of 67.7 MB', Updater::label($downloading + ['download' => ['done' => 524288, 'total' => 70990000]]));
+        $this->assertSame('Downloading: 52 MB of 67.7 MB', Updater::label($downloading + ['download' => ['done' => 54525952, 'total' => 70990000]]));
+        // GitHub did not say how big the zip is.
+        $this->assertSame('Downloading: 1.5 MB', Updater::label($downloading + ['download' => ['done' => 1572864, 'total' => null]]));
     }
 
     public function test_the_database_backup_counts_its_tables_only_once_it_has_listed_them(): void

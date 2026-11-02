@@ -2,7 +2,7 @@
 import '../sass/app.scss';
 import * as bootstrap from 'bootstrap'
 import Alpine from 'alpinejs'
-// The layout's page features (perf plan step 25), first: they used to be inline scripts that ran
+// The layout's page features, first: they used to be inline scripts that ran
 // before any module code. Only pages of resources/views/components/layout.blade.php (public and
 // admin) run them; the Upload18 embed shell and the maintenance page have no #avd-i18n.
 import './layout/core';
@@ -21,6 +21,15 @@ type TomRenderData = {
 };
 type TomSelectConstructor = typeof import('tom-select').default;
 
+declare global {
+    interface Window {
+        // The crop sheet (users/partials/crop.blade.php) waits for Cropper.js before it builds its crop box (account-10:
+        // a picture picked before the background import ended opened a broken dialog, "Cropper is not defined").
+        avdCropperReady?: Promise<unknown>;
+        avdLoadCropper?: () => Promise<unknown>;
+    }
+}
+
 window.bootstrap = bootstrap;
 window.Alpine = Alpine
 
@@ -30,13 +39,37 @@ const isAdminPage = () => document.body?.classList.contains('avd-admin') === tru
 // load this entry on body.avd-embed-shell. New initializers must stay out of them.
 const isEmbedPage = () => document.body?.classList.contains('avd-embed-shell') === true;
 
+// Cropper.js, once, as a promise the crop sheet awaits (window.avdCropperReady; member design 9.3): started at boot
+// on a page with the crop sheet (#crop), else on the first read of window.avdCropperReady or avdLoadCropper(). A failed
+// load is not kept: the next read tries again.
+let cropperLoad: Promise<unknown> | null = null;
+const loadCropper = (): Promise<unknown> => {
+    if (!cropperLoad) {
+        const load = Promise.all([
+            import('cropperjs'),
+            import('cropperjs/dist/cropper.min.css'),
+        ]).then(([module]) => {
+            window.Cropper = module.default;
+
+            return module.default;
+        });
+
+        cropperLoad = load;
+        load.catch(() => {
+            if (cropperLoad === load) cropperLoad = null;
+        });
+    }
+
+    return cropperLoad;
+};
+
+window.avdLoadCropper = loadCropper;
+
 if (document.getElementById('crop')) {
-    Promise.all([
-        import('cropperjs'),
-        import('cropperjs/dist/cropper.min.css'),
-    ]).then(([module]) => {
-        window.Cropper = module.default;
-    });
+    window.avdCropperReady = loadCropper();
+    window.avdCropperReady.catch(() => undefined);
+} else {
+    Object.defineProperty(window, 'avdCropperReady', {configurable: true, enumerable: true, get: loadCropper});
 }
 
 if (document.getElementById('categories_list')) {
@@ -107,11 +140,19 @@ if (pusherKey && pusherKey !== 'app-key' && pusherKey !== '') {
 // immediate reload replaced the navigation), and decides after a short re-check. Every page type.
 startNavIntent();
 window.addEventListener('vite:preloadError', (event) => {
-    requestAssetReload(
-        'avd_vite_preload_reload',
-        '[Vite] Preload error detected, reloading page for fresh assets...',
-        (event as Event & {payload?: unknown}).payload,
-    );
+    const payload = (event as Event & {payload?: unknown}).payload;
+    const message = payload instanceof Error ? payload.message : String(payload ?? '');
+
+    // watch-27: a stylesheet a chunk could not preload does not stop the chunk. Handled (preventDefault), Vite goes on
+    // importing the module instead of rethrowing an unhandled rejection, which WebKit logged on every page left while a
+    // chunk was loading ("Unable to preload CSS ..."). A module that failed to load keeps its rejection: handled, its
+    // import would resolve to undefined and break the importer's own error path (the components' registration, the
+    // motion chunk). The reload decision is ../dom/navIntent's (never while the visitor is leaving).
+    if (/^Unable to preload CSS/i.test(message)) {
+        event.preventDefault();
+    }
+
+    requestAssetReload('avd_vite_preload_reload', '[Vite] Preload error detected, reloading page for fresh assets...', payload);
 });
 
 const initResponsiveNavigationAccessibility = (): void => {
@@ -424,6 +465,15 @@ if (uploadModal) {
     });
 }
 
+// The searchable lists' own words, translated (studio-27): the layout's text block (#avd-i18n, components/layout.blade.php).
+const selectTexts = ((): {noResults?: string; removeItem?: string} => {
+    try {
+        return JSON.parse(document.getElementById('avd-i18n')?.textContent || '{}').t || {};
+    } catch {
+        return {};
+    }
+})();
+
 const tomSelectRender = {
     option: function(data: TomRenderData, escape: (value: string) => string) {
         return '<div class="avd-select-option-label">' + escape(data.text ?? '') + '</div>';
@@ -432,7 +482,173 @@ const tomSelectRender = {
         return '<div class="avd-select-item-label">' + escape(data.text ?? '') + '</div>';
     },
     no_results:function(data: TomRenderData,escape: (value: string) => string){
-        return '<div class="no-results">No results found for "'+escape(data.input ?? '')+'"</div>';
+        const text = selectTexts.noResults || 'No results for ":query"';
+
+        return '<div class="no-results">' + escape(text).split(':query').join(escape(data.input ?? '')) + '</div>';
+    },
+};
+
+// The search of the searchable lists (R1-065). TomSelect's own accent-insensitive search (diacritics: true) builds a
+// table of the variants of every character (65,536 of them) at the first search: one task of 0.3-1.8 s on a phone,
+// which the keys typed meanwhile wait for. Here each label is folded once (accents, case, wide and joined letters:
+// C-circumflex-ote -> "cote", A-ring-land -> "aland") and the typed words are folded the same way, so "etats" still
+// finds the French "Etats-Unis" written with an accent. The scoring is TomSelect's default one on the folded texts: every
+// word must be in the label, a label that starts with a word and a shorter label come first.
+const foldSearchText = (value: string): string => value
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\u00df/g, 'ss')
+    .replace(/\u00e6/g, 'ae')
+    .replace(/\u0153/g, 'oe')
+    .replace(/[\u00f8\u0111\u00f0\u0142\u0131]/g, (letter) => ({'\u00f8': 'o', '\u0111': 'd', '\u00f0': 'd', '\u0142': 'l', '\u0131': 'i'} as Record<string, string>)[letter] ?? letter);
+const foldedLabels = new Map<string, string>();
+const foldedLabel = (label: string): string => {
+    let folded = foldedLabels.get(label);
+
+    if (folded === undefined) {
+        folded = foldSearchText(label);
+        foldedLabels.set(label, folded);
+    }
+
+    return folded;
+};
+// TomSelect also marks the typed letters in each result (its "highlight"): with the character table, or without it only
+// where the label has the letters as typed ("etats" left the accented "Etats" plain). The marks are made here from the
+// folded texts instead, after every refresh of the list like TomSelect's own: the first place of each typed word in each
+// text of a result, a decomposed accent staying with its letter. Folded texts are kept with the place of every letter
+// (ASCII letters only lower-cased, the rest folded one character at a time), at most 2,000 of them.
+type FoldedText = { text: string; starts: number[]; ends: number[] };
+const foldedTexts = new Map<string, FoldedText>();
+const foldWithPlaces = (value: string): FoldedText => {
+    let folded = foldedTexts.get(value);
+
+    if (folded === undefined) {
+        folded = {text: '', starts: [], ends: []};
+        let at = 0;
+
+        for (const character of value) {
+            const part = character.charCodeAt(0) < 128 ? character.toLowerCase() : foldSearchText(character);
+
+            for (let i = 0; i < part.length; i++) {
+                folded.starts.push(at);
+                folded.ends.push(at + character.length);
+            }
+
+            folded.text += part;
+            at += character.length;
+        }
+
+        if (foldedTexts.size >= 2000) {
+            foldedTexts.clear();
+        }
+
+        foldedTexts.set(value, folded);
+    }
+
+    return folded;
+};
+const markFoldedWords = (content: HTMLElement, query: string): void => {
+    content.querySelectorAll('span.highlight').forEach((mark) => {
+        const parent = mark.parentNode;
+
+        if (parent) {
+            parent.replaceChild(document.createTextNode(mark.textContent ?? ''), mark);
+            parent.normalize();
+        }
+    });
+
+    const words = foldSearchText(query).split(/\s+/).filter((word) => word !== '');
+
+    if (words.length === 0) {
+        return;
+    }
+
+    content.querySelectorAll('.option').forEach((option) => {
+        const walker = document.createTreeWalker(option, NodeFilter.SHOW_TEXT);
+        const texts: Text[] = [];
+
+        for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
+            texts.push(node as Text);
+        }
+
+        for (const text of texts) {
+            const folded = foldWithPlaces(text.data);
+            const places: Array<[number, number]> = [];
+
+            for (const word of words) {
+                const at = folded.text.indexOf(word);
+
+                if (at === -1) {
+                    continue;
+                }
+
+                let end = folded.ends[at + word.length - 1];
+
+                while (end < text.data.length && /[\u0300-\u036f]/.test(text.data.charAt(end))) {
+                    end++;
+                }
+
+                places.push([folded.starts[at], end]);
+            }
+
+            places.sort((a, b) => a[0] - b[0]);
+
+            const merged: Array<[number, number]> = [];
+
+            for (const [start, end] of places) {
+                const last = merged[merged.length - 1];
+
+                if (last !== undefined && start <= last[1]) {
+                    last[1] = Math.max(last[1], end);
+                } else {
+                    merged.push([start, end]);
+                }
+            }
+
+            // from the last place back, so the places before it keep their offsets in the text node
+            for (let i = merged.length - 1; i >= 0; i--) {
+                const [start, end] = merged[i];
+                const middle = text.splitText(start);
+                const mark = document.createElement('span');
+
+                middle.splitText(end - start);
+                mark.className = 'highlight';
+                middle.parentNode?.replaceChild(mark, middle);
+                mark.appendChild(middle);
+            }
+        }
+    });
+};
+const tomSelectSearch = {
+    diacritics: false,
+    highlight: false,
+    onInitialize: function (this: InstanceType<TomSelectConstructor>) {
+        this.hook('after', 'refreshOptions', () => markFoldedWords(this.dropdown_content, this.inputValue()));
+    },
+    score: function (query: string) {
+        const words = foldSearchText(query).split(/\s+/).filter((word) => word !== '');
+
+        return (item?: TomRenderData): number => {
+            if (words.length === 0) {
+                return 1;
+            }
+
+            const label = foldedLabel(String(item?.text ?? ''));
+            let score = 0;
+
+            for (const word of words) {
+                const at = label.indexOf(word);
+
+                if (at === -1) {
+                    return 0;
+                }
+
+                score += word.length / label.length + (at === 0 ? 0.5 : 0);
+            }
+
+            return score / words.length;
+        };
     },
 };
 
@@ -457,13 +673,14 @@ const initMultipleSelect = async (element: Element) => {
     const TomSelect = await loadTomSelect();
 
     new TomSelect(element as TomInput, {
+        ...tomSelectSearch,
         dropdownParent: 'body',
         render: {
             ...tomSelectRender,
         },
         plugins: {
             remove_button:{
-                title:'Remove this item',
+                title: selectTexts.removeItem || 'Remove',
             }
         }
     });
@@ -477,11 +694,14 @@ const initSingleSelect = async (element: Element) => {
     const TomSelect = await loadTomSelect();
 
     new TomSelect(element as TomInput, {
+        ...tomSelectSearch,
         allowEmptyOption: true,
         closeAfterSelect: true,
         create: false,
         dropdownParent: 'body',
-        maxOptions: 500,
+        // perf-4, account-15: the list draws at most 50 options; typing finds the others (250 countries were drawn in
+        // a 930 ms task on a weak phone).
+        maxOptions: 50,
         render: {
             ...tomSelectRender,
             item: function(data: TomRenderData, escape: (value: string) => string ) {
@@ -491,23 +711,32 @@ const initSingleSelect = async (element: Element) => {
     });
 };
 
+// select.select-multiple, never the class alone (studio-17, perf-10): TomSelect copies the select's classes onto its
+// own wrapper <div>, and the added-nodes bus then ran new TomSelect(div), which threw "Cannot read properties of
+// undefined (reading 'trim')" on every Video details and draft page load.
+const MULTIPLE_SELECT = 'select.select-multiple';
+
 const initSelects = (root: ParentNode = document) => {
-    selectElements(root, '.select-multiple').forEach(initMultipleSelect);
+    selectElements(root, MULTIPLE_SELECT).forEach(initMultipleSelect);
     selectElements(root, singleSelectSelector).forEach(initSingleSelect);
 };
 
-// Perf plan step 22.5 (public pages): TomSelect, its chunk and the stylesheet it injects are built at
+// Public pages: TomSelect, its chunk and the stylesheet it injects are built at
 // boot only for the selects that are within 300 px of the viewport, or inside a hidden container (a
 // closed modal, an inactive tab: no box), which must be ready the moment it opens. The others, such as
 // the footer language select, are enhanced when they come within 300 px of the viewport, or on focus
 // (keyboard), whichever comes first; a focused select hands its focus to the new control. Selects
 // added later are enhanced at once, as before.
 const SELECT_WARM_MARGIN_PX = 1200;
+// A long list (the 250 countries) is enhanced only when the member reaches for it (focus, or a press that would open
+// the native list), never while the page scrolls past it (account-15: up to 18 TomSelects built during a scroll).
+const LAZY_SELECT_OPTIONS = 50;
+const isLongList = (element: Element): boolean => element instanceof HTMLSelectElement && !element.multiple && element.options.length > LAZY_SELECT_OPTIONS;
 
 const initSelectsOnApproach = (): void => {
     const candidates = new Map<Element, (element: Element) => Promise<void>>();
 
-    selectElements(document, '.select-multiple').forEach((element) => candidates.set(element, initMultipleSelect));
+    selectElements(document, MULTIPLE_SELECT).forEach((element) => candidates.set(element, initMultipleSelect));
     selectElements(document, singleSelectSelector).forEach((element) => candidates.set(element, initSingleSelect));
 
     if (candidates.size === 0) {
@@ -528,7 +757,17 @@ const initSelectsOnApproach = (): void => {
         }
     };
 
-    const enhance = (element: Element, focused: boolean): void => {
+    // A press on a long list that waits for its control: the control opens instead of the native list.
+    const onPointerDown = (event: PointerEvent): void => {
+        const target = event.target instanceof Element ? event.target.closest('select') : null;
+
+        if (target && candidates.has(target) && isLongList(target)) {
+            event.preventDefault();
+            enhance(target, true, true);
+        }
+    };
+
+    const enhance = (element: Element, focused: boolean, open = false): void => {
         const init = candidates.get(element);
 
         if (!init) {
@@ -542,13 +781,18 @@ const initSelectsOnApproach = (): void => {
             observer?.disconnect();
             warmObserver?.disconnect();
             document.removeEventListener('focusin', onFocusIn, true);
+            document.removeEventListener('pointerdown', onPointerDown, true);
         }
 
         init(element).then(() => {
-            const control = (element as TomInput & {tomselect?: {focus: () => void}}).tomselect;
+            const control = (element as TomInput & {tomselect?: {focus: () => void; open: () => void}}).tomselect;
 
-            if (focused && control && document.activeElement === element) {
+            if (control && (open || (focused && document.activeElement === element))) {
                 control.focus();
+
+                if (open) {
+                    control.open();
+                }
             }
         });
     };
@@ -564,7 +808,12 @@ const initSelectsOnApproach = (): void => {
     }, {rootMargin: '300px 0px'});
 
     document.addEventListener('focusin', onFocusIn, true);
-    candidates.forEach((_init, element) => observer?.observe(element));
+    document.addEventListener('pointerdown', onPointerDown, true);
+    candidates.forEach((_init, element) => {
+        if (!isLongList(element)) {
+            observer?.observe(element);
+        }
+    });
 
     // The chunk and its stylesheet are warmed after load while selects are still waiting, so the stylesheet's
     // document-wide restyle lands ahead of the scroll that brings the footer select near, not in it. Approach

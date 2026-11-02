@@ -10,8 +10,6 @@ use PHPUnit\Framework\TestCase;
  * AVDBCMS 1.2.1: NumberFormat::fileSize() keeps the zeros of a whole number. Before 1.2.1 formatDecimal() stripped
  * trailing zeros even without decimals, so 100 B read "1 B", 120 KB "12 KB", 500 MB "5 MB" (the free plan's max
  * file size on the Premium page and in the upload "file too large" message) and 1000 B "1, B".
- *
- * Proposed for tests/Unit/ together with proposed/NumberFormat.patch (lane A does not own app/Support or tests/).
  */
 class NumberFormatTest extends TestCase
 {

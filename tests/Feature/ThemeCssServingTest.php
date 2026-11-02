@@ -150,11 +150,33 @@ class ThemeCssServingTest extends TestCase
         $this->assertSame(1, preg_match('#<script type="application/json" id="avdFeedEarlyPage">(.*?)</script>#s', $html, $shipped));
         $this->assertSame(Cache::get($apiKey), json_decode($shipped[1], true));
 
-        // Signed-in members keep the early request (the API does not cache their pages).
-        $html = $this->actingAs(User::factory()->create())->get(route('pages.home'))->assertOk()->getContent();
+        // Signed-in members get the same first page with their page (round 1 R1-072: their home waited for main.js,
+        // the API and the pictures): the public list of the guest cache entry, read only, on a page nobody else gets.
+        $before = Cache::get($apiKey);
+        $response = $this->actingAs(User::factory()->create())->get(route('pages.home'))->assertOk();
+        $html = $response->getContent();
+        $this->assertSame(1, preg_match('#<script type="application/json" id="avdFeedEarlyPage">(.*?)</script>#s', $html, $shipped));
+        $this->assertSame($before, json_decode($shipped[1], true));
+        $this->assertStringContainsString('avd-has-photo', $html);
+        $this->assertSame($before, Cache::get($apiKey), 'the shared entry is not written for a member');
+        $this->assertStringContainsString('no-store', (string) $response->headers->get('Cache-Control'), 'the member\'s page stays private');
+        $this->assertStringContainsString('private', (string) $response->headers->get('Cache-Control'));
+    }
+
+    /** R1-072: on a cold API cache a member's home carries the first row's pictures, like a guest's, and writes nothing. */
+    public function test_a_members_home_carries_the_first_rows_pictures_on_a_cold_cache(): void
+    {
+        $member = User::factory()->create();
+        $video = Video::factory()->forUser()->create(['status' => VideoStatus::PUBLIC->value, 'published_at' => now()->subMinute()]);
+        Cache::flush();
+
+        $html = $this->actingAs($member)->get(route('pages.home'))->assertOk()->getContent();
+
         $this->assertStringNotContainsString('id="avdFeedEarlyPage"', $html);
-        $this->assertStringNotContainsString('avd-has-photo', $html);
-        $this->assertStringContainsString('var registry = w.__avdFeedEarly = w.__avdFeedEarly || {};', $html);
+        $this->assertStringContainsString('<div class="avd-placeholder avd-placeholder-thumb avd-has-photo"><img src="'.e($video->thumbnail_url).'"', $html);
+        $this->assertStringContainsString('<link rel="preload" as="image" href="'.e($video->thumbnail_url).'" fetchpriority="high">', $html);
+        $this->assertFalse(collect(array_keys((new \ReflectionProperty(\Illuminate\Cache\ArrayStore::class, 'storage'))->getValue(Cache::store()->getStore())))
+            ->contains(fn (string $key): bool => str_starts_with($key, 'feed:index:')), 'no feed entry is written by a member\'s page');
     }
 
     public function test_strip_card_feeds_reserve_a_phone_screen_of_skeleton_cards(): void
@@ -388,7 +410,7 @@ class ThemeCssServingTest extends TestCase
         $html = $this->get(route('pages.home'))->assertOk()->getContent();
 
         if (class_exists(\App\Support\ThemeStructure::class)) {
-            // WP5's resolver owns the structure and the menu markup: has-sidebar only for a pinned menu.
+            // ThemeStructure owns the structure and the menu markup: has-sidebar only for a pinned menu.
             $this->assertSame($this->sideMenuStyle($html) !== 'hidden', $this->hasPinnedMenu($html));
 
             return;
@@ -514,7 +536,9 @@ class ThemeCssServingTest extends TestCase
             ['https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&amp;family=Quicksand:wght@500;700&amp;display=swap'],
             $this->fontUrls($pop)
         );
-        $this->assertStringContainsString("html[data-bs-theme]{--avd-font-display:'Poppins', system-ui", $pop);
+        // R1-068: each family is followed by its metric-matched fallback face, which the page declares
+        $this->assertStringContainsString("html[data-bs-theme]{--avd-font-display:'Poppins', 'Poppins Fallback', system-ui", $pop);
+        $this->assertStringContainsString('@font-face{font-family:"Poppins Fallback";src:local("Arial")', $pop);
 
         // A theme preview uses that theme's own pairing and styles (italic Playfair only).
         $this->assertSame(

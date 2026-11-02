@@ -1,84 +1,96 @@
-@extends('layouts.default')
+@extends('auth.layout')
 
-@section('title', __('Register'))
+@section('title', __('Create an account'))
 
-@section('content')
-    <div class="avd-auth-page">
-        <div class="row mx-0">
-            <div class="avd-auth-panel border border-1 bg-light">
-                <div class="row">
-                    <div class="col-6 d-none d-xl-flex px-0 border-end border-gray-200 d-flex justify-content-center align-items-center bg-white">
-                        <img class="img-fluid" src="{{asset('images/pages/register.png')}}" alt="{{__('Register')}}" width="640" height="640" decoding="async">
-                    </div>
-                    <div class="col-12 col-xl-6 py-4 py-sm-5 px-3 px-sm-5">
-                        <h1 class="h3 mb-5 fw-normal text-center">{{__('Create your Account !')}}</h1>
-                        <form method="POST" action="{{ locale_url(route('registration.perform')) }}">
-                            @csrf
-                            <x-auth-errors />
-                            <div class="form-group form-floating mb-3">
-                                <input
-                                    type="text"
-                                    @class(['form-control', 'is-invalid' => $errors->has('username')])
-                                    name="username"
-                                    id="username"
-                                    autocomplete="username" inputmode="text" autocapitalize="none" autocorrect="off" spellcheck="false"
-                                    placeholder="{{__('Username')}}"
-                                    required
-                                    minlength="{{config('validation.user.username.min')}}"
-                                    maxlength="{{config('validation.user.username.max')}}"
-                                    value="{{ old('username') }}"
-                                >
-                                <label for="username">{{__('Username')}}</label>
-                                @error('username')
-                                <div class="invalid-feedback">
-                                    {{ $message }}
-                                </div>
-                                @enderror
-                            </div>
-                            <div class="form-group form-floating mb-3">
-                                <input
-                                    type="email"
-                                    @class(['form-control', 'is-invalid' => $errors->has('email')])
-                                    name="email"
-                                    id="email"
-                                    autocomplete="email" inputmode="email" autocapitalize="none" autocorrect="off" spellcheck="false"
-                                    placeholder="{{__('Email')}}"
-                                    value="{{ old('email') }}"
-                                    required
-                                >
-                                <label for="email">{{__('Email')}}</label>
-                                @error('email')
-                                <div class="invalid-feedback">
-                                    {{ $message }}
-                                </div>
-                                @enderror
-                            </div>
-                            <x-auth-password autocomplete="new-password" :minlength="config('validation.user.password.min')" />
-                            <x-auth-password name="password_confirmation" :label="__('Confirm password')" autocomplete="new-password" :minlength="config('validation.user.password.min')" />
-                            <div class="form-check my-4">
-                                <input @class(['form-check-input', 'is-invalid' => $errors->has('cgu')]) type="checkbox" id="cgu" name="cgu" value="1" required @checked(old('cgu'))>
-                                <label class="form-check-label" for="cgu">
-                                    {!! __('registration.terms', ['link' => locale_url(route('pages.terms'))]) !!}
-                                </label>
-                                @error('cgu')
-                                <div class="invalid-feedback">
-                                    {{ __('You must agree with Terms of service before creating a account.') }}
-                                </div>
-                                @enderror
-                            </div>
-                            <x-captcha action="register" />
-                            <button class="w-100 btn btn-lg btn-primary" type="submit">{{ __('Register') }}</button>
-                            <div class="mt-4 mb-3 text-muted text-center d-flex justify-content-center flex-wrap mb-3 gap-1 gap-sm-0">
-                                <span class="mr-2 text-body">{{ __('Already have an account ?') }}</span>
-                                <a href="{{ locale_url(route('login')) }}" class="font-weight-bold text-decoration-none">
-                                    <strong>{{ __('Sign In') }}</strong>
-                                </a>
-                            </div>
-                        </form>
-                        <x-auth-social mode="register" />
-                    </div>
-                </div>
-            </div>
-        </div>
+@php
+    $usernameMin = (int) config('validation.user.username.min', 3);
+    $usernameMax = (int) config('validation.user.username.max', 40);
+    $passwordMin = (int) config('validation.user.password.min', 6);
+    $passwordHelp = config('site.require_strong_password', false)
+        ? __('At least :count characters, with upper and lower case letters, a number and a symbol.', ['count' => $passwordMin])
+        : __('At least :count characters.', ['count' => $passwordMin]);
+@endphp
+
+@section('auth-card')
+    <div class="mk-auth__intro" x-data x-init="$nextTick(() => { const card = $el.closest('.mk-auth__card'); const target = card && (card.querySelector('[data-auth-focus]') || card.querySelector('[aria-invalid=true]')); if (target) target.focus(); })">
+        <h1 class="mk-auth__title" id="authTitle">{{ __('Create an account') }}</h1>
+        <p class="mk-auth__lead">{{ config('site.allow_uploads', true) ? __('Free. Save videos, follow creators and upload your own.') : __('Free. Save videos, follow creators and join the conversation.') }}</p>
     </div>
+
+    <x-auth-errors :fields="['username', 'email', 'password', 'password_confirmation', 'cgu', 'captcha']" captcha="register" />
+
+    <form class="mk-form" method="POST" action="{{ locale_url(route('registration.perform')) }}" novalidate>
+        @csrf
+        <div class="mk-field">
+            <label class="mk-label" for="username">{{ __('Username') }}</label>
+            <input
+                class="mk-input"
+                type="text"
+                name="username"
+                id="username"
+                value="{{ old('username') }}"
+                autocomplete="username"
+                inputmode="text"
+                autocapitalize="none"
+                autocorrect="off"
+                spellcheck="false"
+                minlength="{{ $usernameMin }}"
+                maxlength="{{ $usernameMax }}"
+                required
+                aria-describedby="username-help @error('username') username-error @enderror"
+                @error('username') aria-invalid="true" @enderror
+            >
+            <span class="mk-help" id="username-help">{{ __('Letters, numbers, dots, dashes and underscores. :min to :max characters.', ['min' => $usernameMin, 'max' => $usernameMax]) }}</span>
+            @error('username')
+                <span class="mk-error" id="username-error">{{ $message }}</span>
+            @enderror
+        </div>
+
+        <div class="mk-field">
+            <label class="mk-label" for="email">{{ __('E-mail') }}</label>
+            <input
+                class="mk-input"
+                type="email"
+                name="email"
+                id="email"
+                value="{{ old('email') }}"
+                autocomplete="email"
+                inputmode="email"
+                autocapitalize="none"
+                autocorrect="off"
+                spellcheck="false"
+                maxlength="255"
+                required
+                @error('email') aria-invalid="true" aria-describedby="email-error" @enderror
+            >
+            @error('email')
+                <span class="mk-error" id="email-error">{{ $message }}</span>
+            @enderror
+        </div>
+
+        <div class="mk-form__row mk-form__row--2">
+            {{-- A mismatch is an error of "Confirm password", where it is (RegisterRequest, auth-24). --}}
+            <x-auth-password name="password" :label="__('Password')" autocomplete="new-password" :minlength="$passwordMin" :help="$passwordHelp" />
+            <x-auth-password name="password_confirmation" :label="__('Confirm password')" autocomplete="new-password" :minlength="$passwordMin" />
+        </div>
+
+        <x-captcha action="register" />
+
+        <div class="mk-field">
+            <label class="mk-option">
+                <input class="mk-check" type="checkbox" id="cgu" name="cgu" value="1" @checked(old('cgu')) required
+                       @error('cgu') aria-invalid="true" aria-describedby="cgu-error" @enderror>
+                <span class="mk-option__text"><span class="mk-auth__terms">{!! __('I agree to the :terms.', ['terms' => '<a href="'.e(locale_url(route('pages.terms'))).'" target="_blank" rel="noopener">'.e(__('Terms of service')).'</a>']) !!}</span></span>
+            </label>
+            @error('cgu')
+                <span class="mk-error" id="cgu-error">{{ __('Agree to the Terms of service to create an account.') }}</span>
+            @enderror
+        </div>
+
+        <button type="submit" class="mk-btn mk-btn--primary mk-btn--block"><span>{{ __('Create account') }}</span></button>
+    </form>
+
+    <x-auth-social mode="register" />
+
+    <p class="mk-auth__switch">{{ __('Already have an account?') }} <a href="{{ locale_url(route('login')) }}">{{ __('Sign in') }}</a></p>
 @endsection

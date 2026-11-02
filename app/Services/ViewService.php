@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use App\Models\Video;
+use App\Support\LegacyRowTimes;
+use App\Support\WatchHistory;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
@@ -58,10 +60,20 @@ class ViewService
             return;
         }
 
+        // "Pause history" (History page): the video counts the view, the member's history gets no row
+        if (WatchHistory::isPaused(Auth::user())) {
+            return;
+        }
+
         $video->viewsHistory()->create([
             'ip' => request()->getClientIp(),
             'user_id' => Auth::id(),
             'user_agent' => substr((string) request()->userAgent(), 0, 255),
+            // view_at: the application's clock, as every other time the site writes (QA studio-23 / channel-30: left to
+            // the column's default, the database server's zone dated the row, a view at 20:46 Paris under "Monday"
+            // 02:46), once the update has noted the rows that clock dated before (App\Support\LegacyRowTimes puts them
+            // in the site's zone); until then the database's clock, like every row before it
+            ...LegacyRowTimes::stamp('views'),
         ]);
     }
 

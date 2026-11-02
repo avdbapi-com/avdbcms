@@ -27,7 +27,7 @@
                     <td>{{ $p->id }}</td>
                     <td>{{ $p->username ?? __('N/A') }}<br><small class="text-muted">{{ $p->user_email ?? '' }}</small></td>
                     <td><span class="badge bg-info">{{ $p->plan_name ?? __('N/A') }}</span></td>
-                    <td><span class="badge bg-secondary">{{ Str::headline($p->payment_provider ?? 'stripe') }}</span></td>
+                    <td><span class="badge bg-secondary">{{ \App\Support\PaymentProviders::label($p->payment_provider) }}</span></td>
                     <td>{{ $p->ends_at ? \Carbon\Carbon::parse($p->ends_at)->translatedFormat('M d, Y H:i') : 'N/A' }}</td>
                     <td>
                         @if(in_array($p->stripe_status, ['active', 'trialing'], true) && (!$p->ends_at || \Carbon\Carbon::parse($p->ends_at)->isFuture()))

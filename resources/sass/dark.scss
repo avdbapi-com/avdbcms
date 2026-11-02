@@ -53,6 +53,168 @@
     --bs-btn-border-color: #ea868f;
 }
 
+// The rest of the old admin's dark mode (R3-020: Tools, Settings and the lists, measured 1.96-4.26:1). Green outline
+// buttons ("Resume all", "Add my IP", "Verify") take Bootstrap's dark-mode green (6.9:1 and more); the look's outline
+// buttons, at rest, a lighter mix of the look's text colour ("Sync Missing Durations" on the import page's tinted
+// header was 3.75:1; 5.7:1 and more now, on a tinted card too). The look's file sets their colour with !important;
+// hover and press keep the look's fill.
+[data-bs-theme="dark"] body.avd-admin .btn-outline-success {
+    --bs-btn-color: #75b798;
+    --bs-btn-border-color: #75b798;
+}
+
+[data-bs-theme="dark"] body.avd-admin .btn-outline-primary:not(:hover):not(:focus-visible):not(:active):not(.active) {
+    --avd-admin-outline-rest: color-mix(in srgb, var(--avd-brand-ink, var(--bs-primary)) 70%, #fff);
+    color: var(--avd-admin-outline-rest) !important;
+    border-color: var(--avd-admin-outline-rest) !important;
+}
+
+// The look's outline buttons in a coloured box ("Run Due Now" in the amber "scheduler needs attention" box: the look's
+// text colour, 4.13:1 there) take the box's text colour (8:1 and more); hover and press keep the look's fill.
+[data-bs-theme="dark"] body.avd-admin .alert .btn-outline-primary:not(:hover):not(:focus-visible):not(:active):not(.active) {
+    color: var(--bs-alert-color) !important;
+    border-color: var(--bs-alert-color) !important;
+}
+
+// Coloured card headers ("PHP Settings", "Database", "Send Test Email" ...): the theme's light heading colour stood on
+// Bootstrap's light fills (info, success, warning: 1.96-2.09:1) and on the look's colour (4.14:1). In dark mode they
+// are tinted with their colour, with a line of it below, and their text is the page's (10:1 and more).
+[data-bs-theme="dark"] body.avd-admin .card-header {
+    @each $tone in (primary, secondary, success, danger, warning, info) {
+        &.bg-#{$tone} {
+            background-color: rgba(var(--bs-#{$tone}-rgb), .2) !important;
+            border-bottom: 2px solid rgba(var(--bs-#{$tone}-rgb), .7);
+            color: var(--avd-text, #f4f7fb) !important;
+        }
+    }
+}
+
+// In both modes the title of a coloured card header takes the header's text colour (its text-white / text-dark).
+body.avd-admin .card-header:is(.bg-primary, .bg-secondary, .bg-success, .bg-danger, .bg-warning, .bg-info, .bg-dark) :is(h1, h2, h3, h4, h5, h6) {
+    color: inherit;
+}
+
+// Light mode: the look turns .text-white into the page's text colour on its panels (#main-container .text-white),
+// which also hit the coloured card headers: dark titles on the look's saturated fills (3.2-4.1:1). A coloured header
+// takes the text colour the look made for its fill again (as .bg-info etc. set it), white on the grey ones.
+html[data-bs-theme="light"] body.avd-admin #main-container .card-header.text-white {
+    &.bg-primary { color: var(--avd-on-brand, #fff) !important; }
+    &.bg-success { color: var(--avd-on-success, #fff) !important; }
+    &.bg-danger { color: var(--avd-on-danger, #fff) !important; }
+    &.bg-info { color: var(--avd-on-info, #fff) !important; }
+    &.bg-secondary,
+    &.bg-dark { color: var(--bs-white, #fff) !important; }
+}
+
+// Form fields and check boxes: their border is what shows the field (1.2-2.8:1 on the dark cards); 3:1 and more now.
+// A focused field keeps the look's focus colour.
+[data-bs-theme="dark"] body.avd-admin :is(.form-control, .form-select):not(:focus) {
+    border-color: rgba(255, 255, 255, .4);
+}
+
+[data-bs-theme="dark"] body.avd-admin .form-check-input:not(:checked):not(:focus) {
+    border-color: rgba(255, 255, 255, .45);
+}
+
+// The same in the old admin's light mode (1.2-1.3:1 and 2.9:1 on its light cards). A shade that keeps 3:1 on the grey
+// boxes too (the XVIDAPI category list: 2.7:1 with the first shade): 3.6:1 and more on every surface measured.
+[data-bs-theme="light"] body.avd-admin :is(.form-control, .form-select):not(:focus),
+[data-bs-theme="light"] body.avd-admin .form-check-input:not(:checked):not(:focus) {
+    --avd-admin-field-border: #666a75;
+    border-color: var(--avd-admin-field-border);
+}
+
+// And its light mode's outline buttons at rest: Bootstrap's yellow and cyan read 1.5-2:1 on white, its green and red
+// 4.2:1 on the light grey cards; darker shades of the same colours (5:1 and more). Hover and press keep the fills.
+[data-bs-theme="light"] body.avd-admin {
+    .btn-outline-warning { --bs-btn-color: #806104; --bs-btn-border-color: #806104; }
+    .btn-outline-info { --bs-btn-color: #0a6c80; --bs-btn-border-color: #0a6c80; }
+    .btn-outline-success { --bs-btn-color: #146c43; --bs-btn-border-color: #146c43; }
+    .btn-outline-danger { --bs-btn-color: #b02a37; --bs-btn-border-color: #b02a37; }
+}
+
+// --- The old admin, second pass of lane AD: its light mode (the look-around), the field edges (AD-R5) and the selected
+// --- row of a list (AD-R3). Pages: every old-admin page in both modes, measured on the rendered pixels.
+
+// The field edge of the old admin in each mode (the values of the fields above); TomSelect selects and the header's
+// search take it too.
+[data-bs-theme="dark"] body.avd-admin {
+    --avd-admin-field-edge: rgba(255, 255, 255, .4);
+}
+
+[data-bs-theme="light"] body.avd-admin {
+    --avd-admin-field-edge: #666a75;
+}
+
+// TomSelect selects (Tools > Background jobs' queue, Notifications' audience, the import and settings selects, the
+// lists' filters) drew no edge at all in either mode: the site's styles take the border off the wrapper and TomSelect's
+// own Bootstrap styles take it off the control ("border: none !important"). The control gets the field edge back, and
+// the look's focus colour while it is open.
+body.avd-admin .ts-wrapper:is(.form-select, .form-control):not(.disabled) .ts-control {
+    border: 1px solid var(--avd-admin-field-edge) !important;
+}
+
+body.avd-admin .ts-wrapper:is(.form-select, .form-control).focus:not(.disabled) .ts-control {
+    border-color: var(--avd-focus, var(--avd-brand)) !important;
+}
+
+// Dark mode: the settings file's editor (Developer zone, a dark code box without a border filling its card) read 1.15:1
+// on the dark card; it takes the field edge there (light mode: a dark box on a light card, 10:1 without it).
+[data-bs-theme="dark"] body.avd-admin textarea.form-control.border-0:not(:focus) {
+    border: 1px solid var(--avd-admin-field-edge) !important;
+}
+
+// The header's search pill: the look's faint edge (1.2:1 on the header) is the field edge here; the look's focus ring
+// while it is in use.
+body.avd-admin .avd-search-wrap:not(:focus-within) .input-group {
+    border-color: var(--avd-admin-field-edge);
+}
+
+// The selected row of a list (Tools > Logs: the log file shown): Bootstrap's blue under white words is 4.5:1 to the
+// hundredth and read 4.46:1 on screen, in both modes; a darker blue of the same hue, 6.4:1.
+body.avd-admin .list-group {
+    --avd-admin-list-active: #0a58ca;
+    --bs-list-group-active-bg: var(--avd-admin-list-active);
+    --bs-list-group-active-border-color: var(--avd-admin-list-active);
+}
+
+// Light mode: Bootstrap's pink code words read 3.6-4.4:1 on the grey rows of tables and cards (System, Admin actions,
+// Scheduled tasks, Email test, a language's texts, the import page); a darker shade of the same pink, 5.4:1 and more.
+[data-bs-theme="light"] body.avd-admin {
+    --bs-code-color: #ab296a;
+}
+
+// Light mode: the words on a coloured fill (warning, success, danger, info and the look's own colour: buttons, badges,
+// "Clear Caches", the disk badge) take the look's own label colour pushed to black or to white. The looks fit their
+// light labels to 4.5:1 to the hundredth (4.50-4.53), which read 4.49:1 on screen; pushed, a dark label is black (4.8:1
+// and more on every look's light warning fill) and a white label stays white. A browser without relative colours keeps
+// the look's own label.
+@function avd-admin-label($on) {
+    @return unquote("rgb(from var(#{$on}) clamp(0, (r - 127.5) * 1000, 255) clamp(0, (g - 127.5) * 1000, 255) clamp(0, (b - 127.5) * 1000, 255))");
+}
+
+html[data-bs-theme="light"] body.avd-admin {
+    :is(.bg-warning, .text-bg-warning, .btn-warning, .bg-gradient-warning) { color: avd-admin-label(--avd-on-warning) !important; }
+    :is(.bg-success, .text-bg-success, .btn-success) { color: avd-admin-label(--avd-on-success) !important; }
+    :is(.bg-danger, .text-bg-danger, .btn-danger) { color: avd-admin-label(--avd-on-danger) !important; }
+    :is(.bg-info, .text-bg-info, .btn-info) { color: avd-admin-label(--avd-on-info) !important; }
+    :is(.bg-primary, .text-bg-primary, .bg-brand) { color: avd-admin-label(--avd-on-brand) !important; }
+}
+
+// Light mode: a table the page keeps dark (the XVIDAPI import's runs, Database) took the light page's muted words, dark
+// on its dark rows (2:1: "No XVIDAPI imports recorded yet."); light muted words there (8:1).
+html[data-bs-theme="light"] body.avd-admin .table-dark .text-muted {
+    --avd-admin-muted-on-dark: rgba(255, 255, 255, .7);
+    color: var(--avd-admin-muted-on-dark) !important;
+}
+
+// Light mode: a dark badge with half-white words (today's daily design's season, Appearance): the look makes
+// .text-white-50 the page's muted colour on light panels, dark on the dark badge (2:1); the badge keeps light words.
+html[data-bs-theme="light"] body.avd-admin #main-container .badge.bg-dark.text-white-50 {
+    --avd-admin-on-dark-badge: rgba(255, 255, 255, .8);
+    color: var(--avd-admin-on-dark-badge) !important;
+}
+
 [data-bs-theme="dark"] .bg-white,
 [data-bs-theme="dark"] .bg-light,
 [data-bs-theme="dark"] .bg-body,

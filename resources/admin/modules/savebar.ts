@@ -4,6 +4,7 @@
 // first. Pages that save with fetch listen for the cancelable 'ad:save' event on the form.
 
 import {$, $$, t} from '../lib/dom';
+import {plural} from '../lib/plural';
 
 type Snapshot = Map<string, string>;
 
@@ -67,9 +68,8 @@ const attach = (form: HTMLFormElement): void => {
             bar.hidden = changedCount === 0;
             const label = $('[data-ad-changes]', bar);
             if (label) {
-                label.textContent = changedCount === 1
-                    ? t('oneChange', '1 unsaved change')
-                    : t('manyChanges', ':count unsaved changes').replace(':count', String(changedCount));
+                // counted in the admin's language: "3 unsaved changes", three forms in Russian, six in Arabic
+                label.textContent = plural(t('changes', '1 unsaved change|:count unsaved changes'), changedCount);
             }
         }
 

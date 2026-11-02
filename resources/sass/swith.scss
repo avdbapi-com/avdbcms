@@ -57,6 +57,14 @@ theme-switch {
     }
 }
 
+// The labelled switch (footer, side menu: watch-39): "Dark mode" next to the track, in the text colour.
+.input-switch__label {
+    color: var(--avd-text);
+    font-size: 0.85rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
 // Keyboard focus lands on the invisible checkbox: the visible track shows the ring.
 .input-switch input:focus-visible+label .switch {
     outline: 2px solid var(--avd-focus, currentColor);

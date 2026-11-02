@@ -5,6 +5,9 @@ namespace App\Http\Controllers\Admin;
 use App\Models\Plan;
 use App\Models\Setting;
 use App\Models\Subscription;
+use App\Support\AdminText;
+use App\Support\EnvBackups;
+use App\Support\PremiumAvailability;
 use App\Support\RuntimeEnv;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
@@ -28,18 +31,26 @@ class MoneyController
      * in the right shape.
      */
     public const PAYMENT_KEYS = [
-        'STRIPE_KEY' => ['label' => 'Publishable key', 'pattern' => '/^pk_(test|live)_[A-Za-z0-9]+$/', 'secret' => true],
-        'STRIPE_SECRET' => ['label' => 'Secret key', 'pattern' => '/^(sk|rk)_(test|live)_[A-Za-z0-9]+$/', 'secret' => true],
-        'STRIPE_WEBHOOK_SECRET' => ['label' => 'Webhook signing secret', 'pattern' => '/^whsec_[A-Za-z0-9]+$/', 'secret' => true],
-        'CASHIER_CURRENCY' => ['label' => 'Currency', 'pattern' => '/^[a-z]{3}$/', 'secret' => false],
-        'PAYPAL_MODE' => ['label' => 'PayPal mode', 'pattern' => '/^(sandbox|live)$/', 'secret' => false],
-        'PAYPAL_CLIENT_ID' => ['label' => 'Client ID', 'pattern' => '/^[A-Za-z0-9_\-]{10,200}$/', 'secret' => true],
-        'PAYPAL_CLIENT_SECRET' => ['label' => 'Secret', 'pattern' => '/^[A-Za-z0-9_\-]{10,200}$/', 'secret' => true],
-        'PAYPAL_WEBHOOK_ID' => ['label' => 'Webhook ID', 'pattern' => '/^[A-Za-z0-9_\-]{5,100}$/', 'secret' => true],
+        'STRIPE_KEY' => ['label' => 'Publishable key', 'pattern' => '/^pk_(test|live)_[A-Za-z0-9]+$/', 'secret' => true,
+            'format' => 'A publishable key starts with pk_test_ or pk_live_.'],
+        'STRIPE_SECRET' => ['label' => 'Secret key', 'pattern' => '/^(sk|rk)_(test|live)_[A-Za-z0-9]+$/', 'secret' => true,
+            'format' => 'A secret key starts with sk_test_, sk_live_, rk_test_ or rk_live_.'],
+        'STRIPE_WEBHOOK_SECRET' => ['label' => 'Webhook signing secret', 'pattern' => '/^whsec_[A-Za-z0-9]+$/', 'secret' => true,
+            'format' => 'A webhook signing secret starts with whsec_.'],
+        'CASHIER_CURRENCY' => ['label' => 'Currency', 'pattern' => '/^[a-z]{3}$/', 'secret' => false,
+            'format' => 'Three letters, for example usd or eur.'],
+        'PAYPAL_MODE' => ['label' => 'PayPal mode', 'pattern' => '/^(sandbox|live)$/', 'secret' => false,
+            'format' => 'Choose Sandbox or Live.'],
+        'PAYPAL_CLIENT_ID' => ['label' => 'Client ID', 'pattern' => '/^[A-Za-z0-9_\-]{10,200}$/', 'secret' => true,
+            'format' => 'Paste it as PayPal shows it: 10 to 200 letters, digits, - or _.'],
+        'PAYPAL_CLIENT_SECRET' => ['label' => 'Secret', 'pattern' => '/^[A-Za-z0-9_\-]{10,200}$/', 'secret' => true,
+            'format' => 'Paste it as PayPal shows it: 10 to 200 letters, digits, - or _.'],
+        'PAYPAL_WEBHOOK_ID' => ['label' => 'Webhook ID', 'pattern' => '/^[A-Za-z0-9_\-]{5,100}$/', 'secret' => true,
+            'format' => 'Paste it as PayPal shows it: 5 to 100 letters, digits, - or _.'],
     ];
 
     /** Copies of .env kept in storage/app/env-backups (each holds every secret of the site, so only a few). */
-    private const BACKUPS = 5;
+    private const BACKUPS = EnvBackups::KEEP;
 
     /** A saved key shows its last 4 characters ("Saved - ends in 4242") only when it is at least this long. */
     private const ENDING_MIN_LENGTH = 12;
@@ -51,22 +62,29 @@ class MoneyController
         }
 
         $monetization = Setting::getGroup('monetization');
-        $keys = $this->paymentKeyStatus();
-        $stats = Cache::remember('admin.money.overview.v1', now()->addMinutes(5), fn (): array => $this->earnings());
+        // v2 (1.2.3): the amounts are cents, written in the site's currency by the page (v1 held them divided by 100).
+        $stats = Cache::remember('admin.money.overview.v2', now()->addMinutes(5), fn (): array => $this->earnings());
 
+        // The checklist answers what the Premium page does (App\Support\PremiumAvailability): a payment service counts as
+        // connected only with every value its checkout needs, the webhook value included, and a plan only when it has
+        // the id of a connected service. Before 1.2.3 it said "Done" with the keys alone while checkout stayed closed.
+        $connected = PremiumAvailability::stripeReady() || PremiumAvailability::paypalReady();
+        $webhooks = PremiumAvailability::missingWebhooks();
         $steps = [
-            ['done' => ($monetization['premium_enabled'] ?? '0') === '1', 'label' => __('Turn on premium membership'), 'url' => route('admin.money.setup').'#premium_enabled'],
+            ['done' => PremiumAvailability::enabled(), 'label' => __('Turn on premium membership'), 'url' => route('admin.money.setup').'#premium_enabled'],
             ['done' => $stats['plans'] > 0, 'label' => __('Add at least one premium plan'), 'url' => route('admin.plans.index')],
-            ['done' => (($monetization['stripe_enabled'] ?? '0') === '1' && $keys['STRIPE_KEY'] && $keys['STRIPE_SECRET'])
-                || (($monetization['paypal_enabled'] ?? '0') === '1' && $keys['PAYPAL_CLIENT_ID'] && $keys['PAYPAL_CLIENT_SECRET']),
-                'label' => __('Connect card (Stripe) or PayPal payments'), 'url' => route('admin.money.setup').'#card-payment-keys'],
+            ['done' => $connected, 'label' => __('Connect card (Stripe) or PayPal payments'),
+                'url' => route('admin.money.setup').($webhooks === [] ? '#card-payment-keys' : '#pay-'.($webhooks[0] === 'stripe' ? 'STRIPE_WEBHOOK_SECRET' : 'PAYPAL_WEBHOOK_ID')),
+                'note' => self::webhookNote($webhooks)],
+            ['done' => PremiumAvailability::canSell(), 'label' => __('Give a plan the price ID of a connected payment service'), 'url' => route('admin.plans.index'),
+                'note' => PremiumAvailability::plansUnlinked() ? __('Your plans have no Stripe price ID or PayPal plan ID of a connected payment service yet.') : null],
             ['done' => ($monetization['ads_enabled'] ?? '0') === '1', 'label' => __('Optional: show ads'), 'url' => route('admin.money.ads')],
         ];
 
         return view('admin.money.index', [
             'stats' => $stats,
             'steps' => $steps,
-            'currency' => strtoupper((string) RuntimeEnv::get('CASHIER_CURRENCY', 'usd')),
+            'canSell' => PremiumAvailability::canSell(),
         ]);
     }
 
@@ -82,9 +100,25 @@ class MoneyController
         ]);
     }
 
+    /** The checklist's word on a payment service that has its keys but not its webhook value (null: none lacks it). */
+    private static function webhookNote(array $services): ?string
+    {
+        return match (true) {
+            $services === ['stripe'] => __('Stripe has its keys, but the webhook signing secret is missing: members cannot pay by card yet.'),
+            $services === ['paypal'] => __('PayPal has its keys, but the webhook ID is missing: members cannot pay with PayPal yet.'),
+            $services !== [] => __('Stripe and PayPal have their keys, but their webhook values are missing: members cannot pay yet.'),
+            default => null,
+        };
+    }
+
     public function setup(Request $request): View|RedirectResponse
     {
         return app(SettingsPageController::class)->render($request, 'money.setup', [
+            // Above the switches: what keeps checkout closed although payments were set up (the webhook value).
+            'extrasTop' => ['admin.money.checkout-status'],
+            'checkoutProblems' => PremiumAvailability::setupProblems(),
+            'missingWebhooks' => PremiumAvailability::enabled() ? PremiumAvailability::missingWebhooks() : [],
+            'webhookUrls' => ['stripe' => route('stripe_webhook'), 'paypal' => route('paypal_webhook')],
             'extrasBottom' => ['admin.money.payment-keys'],
             'paymentKeys' => self::PAYMENT_KEYS,
             'paymentKeyStatus' => $this->paymentKeyStatus(),
@@ -107,17 +141,21 @@ class MoneyController
     {
         $rules = ['clear' => ['sometimes', 'array'], 'clear.*' => ['string', 'in:'.implode(',', array_keys(self::PAYMENT_KEYS))]];
         $attributes = [];
+        $messages = [];
 
         foreach (self::PAYMENT_KEYS as $key => $definition) {
             $rules[$key] = ['nullable', 'string', 'max:255', 'regex:'.$definition['pattern']];
             $attributes[$key] = __($definition['label']);
+            // A refused value says what the key looks like ("A webhook signing secret starts with whsec_."), never
+            // Laravel's "The ... field format is invalid."
+            $messages[$key.'.regex'] = __($definition['format']);
         }
 
         $currency = $request->input('CASHIER_CURRENCY');
         $request->merge(['CASHIER_CURRENCY' => is_string($currency) && trim($currency) !== '' ? strtolower(trim($currency)) : $currency]);
 
         // Not $request->validate(): a refused form post would flash the typed keys into the session.
-        $validator = Validator::make($request->only([...array_keys(self::PAYMENT_KEYS), 'clear']), $rules, [], $attributes);
+        $validator = Validator::make($request->only([...array_keys(self::PAYMENT_KEYS), 'clear']), $rules, $messages, $attributes);
 
         if ($validator->fails()) {
             return $this->refuse($request, $validator->errors()->toArray());
@@ -177,12 +215,21 @@ class MoneyController
         return redirect()->route('admin.money.setup')->withSuccess($message);
     }
 
-    /** A refused save: 422 (or 429) with the field errors; a form post goes back to the page without its input. */
+    /**
+     * A refused save: 422 (or 429) with the field errors; a form post goes back to the page without its input. The
+     * page script shows the JSON messages as plain text (the field's error, a toast): on a right-to-left page their key
+     * prefixes are isolated there with isolate characters ("whsec_" would read "_whsec"); the page itself isolates the
+     * errors of a form post with markup (AdminText::html()).
+     */
     private function refuse(Request $request, array $errors, int $status = 422): JsonResponse|RedirectResponse
     {
-        $message = (string) (array_values($errors)[0][0] ?? __('Nothing was saved. Check the highlighted settings.'));
-
         if ($request->expectsJson()) {
+            $errors = array_map(
+                static fn ($messages): array => array_map(static fn ($text): string => AdminText::isolate((string) $text), (array) $messages),
+                $errors,
+            );
+            $message = (string) (array_values($errors)[0][0] ?? __('Nothing was saved. Check the highlighted settings.'));
+
             return response()->json(['ok' => false, 'message' => $message, 'errors' => $errors], $status);
         }
 
@@ -220,9 +267,13 @@ class MoneyController
         return self::PAYMENT_KEYS[$key]['secret'] && mb_strlen($value) >= self::ENDING_MIN_LENGTH ? mb_substr($value, -4) : null;
     }
 
+    /**
+     * The overview's numbers. 'month' and 'total' are cents as the payments store them (a currency without cents,
+     * JPY, stores whole units): the page writes them with PremiumAvailability::money(), like Invoices and Payments.
+     */
     private function earnings(): array
     {
-        $stats = ['plans' => 0, 'subscribers' => 0, 'month' => 0.0, 'month_count' => 0, 'total' => 0.0];
+        $stats = ['plans' => 0, 'subscribers' => 0, 'month' => 0, 'month_count' => 0, 'total' => 0];
 
         try {
             $stats['plans'] = Plan::query()->count();
@@ -230,9 +281,9 @@ class MoneyController
 
             if (Schema::hasTable('transactions')) {
                 $month = DB::table('transactions')->where('date', '>=', now()->startOfMonth())->selectRaw('COUNT(*) as n, COALESCE(SUM(amount), 0) as cents')->first();
-                $stats['month'] = (float) ($month->cents ?? 0) / 100;
+                $stats['month'] = (int) round((float) ($month->cents ?? 0));
                 $stats['month_count'] = (int) ($month->n ?? 0);
-                $stats['total'] = (float) DB::table('transactions')->sum('amount') / 100;
+                $stats['total'] = (int) round((float) DB::table('transactions')->sum('amount'));
             }
         } catch (\Throwable) {
             // An install that has not run every migration yet still opens the page.
@@ -310,21 +361,7 @@ class MoneyController
 
     private function backupEnvironment(string $content): void
     {
-        $directory = storage_path('app/env-backups');
-        if (! is_dir($directory)) {
-            @mkdir($directory, 0700, true);
-        }
-
-        $backup = $directory.'/.env.'.now()->format('YmdHis');
-        if (@file_put_contents($backup, $content) !== false) {
-            @chmod($backup, 0600);
-        }
-
-        // Names sort by time; keep the newest copies only (each one holds every secret of the site).
-        $old = glob($directory.'/.env.*') ?: [];
-        rsort($old, SORT_STRING);
-        foreach (array_slice($old, self::BACKUPS) as $file) {
-            @unlink($file);
-        }
+        // storage/app/env-backups, names nobody can guess, the newest BACKUPS copies kept (each holds every secret).
+        EnvBackups::store($content);
     }
 }

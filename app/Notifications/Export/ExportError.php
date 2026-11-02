@@ -4,10 +4,14 @@ namespace App\Notifications\Export;
 
 use App\Models\Export;
 use App\Models\User;
+use App\Notifications\Support\BellNotification;
+use App\Notifications\Support\NotificationText;
 use Illuminate\Notifications\Notification;
 
 class ExportError extends Notification
 {
+    use BellNotification;
+
     private Export $export;
 
     /**
@@ -20,31 +24,18 @@ class ExportError extends Notification
         $this->export = $export;
     }
 
-
     /**
-     * Get the notification's delivery channels.
-     *
-     * @param User $notifiable
-     * @return array
-     */
-    public function via(User $notifiable) : array
-    {
-        return ['database', 'broadcast'];
-    }
-
-    /**
-     * Get the array representation of the notification.
+     * The bell's data: "Your export failed." (translated when shown) and the exports page.
      *
      * @param  User $notifiable
      * @return array
      */
     public function toArray(User $notifiable) : array
     {
-        return [
-            'message' => 'Your export was failed !',
+        return NotificationText::data('export_failed', [], [
             'url' => route('admin.exports.index'),
             'created_at' => now(),
-            'is_read' => false
-        ];
+            'is_read' => false,
+        ]);
     }
 }

@@ -28,7 +28,7 @@
                             @foreach($commands as $cmd => $desc)
                             <tr>
                                 <td><code>{{ $cmd }}</code></td>
-                                <td class="text-muted">{{ $desc }}</td>
+                                <td class="text-muted">{{ __($desc) }}</td>
                             </tr>
                             @endforeach
                         </table>
@@ -47,7 +47,7 @@
                 @if($lastCommand)<span class="badge bg-info">{{ $lastCommand }}</span>@endif
             </div>
             <div class="card-body p-0">
-                <pre class="mb-0 p-3" style="min-height:400px; max-height:70vh; overflow:auto; font-size:13px; line-height:1.5; background:#1e1e2e; color:#a6e3a1; white-space:pre-wrap;">{{ $output ?? '> Waiting for command...' }}</pre>
+                <pre class="mb-0 p-3" style="min-height:400px; max-height:70vh; overflow:auto; font-size:13px; line-height:1.5; background:#1e1e2e; color:#a6e3a1; white-space:pre-wrap;">{{ $output ?? '> '.__('Waiting for a command...') }}</pre>
             </div>
         </div>
     </div>

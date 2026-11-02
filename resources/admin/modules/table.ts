@@ -130,18 +130,19 @@ export const initTables = (): void => {
     initRows();
 
     // Slow server checks fill their sections after the page appears; a section's Refresh button asks them again.
+    // A page left before they answer drops them quietly (no unhandled rejection in Safari's console, R2A-057).
     if (document.querySelector('[data-ad-defer-probes]')) {
-        void import('./list-probes').then(({initProbes}) => initProbes());
+        void import('./list-probes').then(({initProbes}) => initProbes()).catch(() => undefined);
     }
 
     document.addEventListener('click', (event) => {
         const button = (event.target as Element | null)?.closest<HTMLButtonElement>('button[data-ad-probe-refresh]');
 
-        if (button) void import('./list-probes').then(({refreshProbes}) => refreshProbes(button));
+        if (button) void import('./list-probes').then(({refreshProbes}) => refreshProbes(button)).catch(() => undefined);
     });
 
     // Lists put in order with Up / Down buttons (the menu's categories).
     if (document.querySelector('[data-ad-order]')) {
-        void import('./list-order').then(({initOrder}) => initOrder());
+        void import('./list-order').then(({initOrder}) => initOrder()).catch(() => undefined);
     }
 };

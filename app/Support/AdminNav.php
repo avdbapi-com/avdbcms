@@ -4,6 +4,7 @@ namespace App\Support;
 
 use App\Enums\ReportStatus;
 use App\Http\Middleware\EnsureAdminOperationalToolsEnabled;
+use App\Http\Middleware\ViewOnlyDemo;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Route;
@@ -111,11 +112,16 @@ final class AdminNav
         return null;
     }
 
-    /** Where a page (or tab) link goes, or null when it cannot be opened here (route missing or switched off). */
-    public static function url(array $page): ?string
+    /**
+     * Where a page (or tab) link goes, or null when it cannot be opened here (route missing or switched off) or, for a
+     * view-only demo account, when it is a closed page (ViewOnlyDemo::hides()). $viewer false: for every administrator
+     * alike (an answer kept for all of them, such as a status probe's).
+     */
+    public static function url(array $page, bool $viewer = true): ?string
     {
         self::guardApp();
-        $key = ($page['id'] ?? '').'|'.($page['route'] ?? '').'|'.json_encode($page['params'] ?? []).'|'.(config('admin.operational_tools_enabled') ? 1 : 0);
+        $viewer = $viewer && ViewOnlyDemo::active();
+        $key = ($page['id'] ?? '').'|'.($page['route'] ?? '').'|'.json_encode($page['params'] ?? []).'|'.(config('admin.operational_tools_enabled') ? 1 : 0).'|'.($viewer ? 'v' : '');
 
         if (array_key_exists($key, self::$urls)) {
             return self::$urls[$key];
@@ -126,7 +132,7 @@ final class AdminNav
         $url = null;
 
         if ($route instanceof Route) {
-            if (self::reachable($route)) {
+            if (self::reachable($route, $viewer)) {
                 try {
                     $url = route($routeName, (array) ($page['params'] ?? []));
                 } catch (Throwable) {
@@ -440,8 +446,13 @@ final class AdminNav
         }
     }
 
-    private static function reachable(Route $route): bool
+    /** Whether the route can be opened here; $viewer: and by this account (a view-only one: not a closed page). */
+    private static function reachable(Route $route, bool $viewer = true): bool
     {
+        if ($viewer && ViewOnlyDemo::hides((string) $route->getName())) {
+            return false;
+        }
+
         if (config('admin.operational_tools_enabled', false)) {
             return true;
         }

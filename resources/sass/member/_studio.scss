@@ -1,0 +1,984 @@
+/* resources/sass/member/_studio.scss: the studio part of the member entry. First copied from the design kit's
+   pages; this file is the production source now and the
+   design kit mirrors it. Specificity floor: every selector starts with :root or html. */
+/* ---------------------------------------------------------------------------------------------------------------------
+   Studio: phone tab bar (below 768px; the pinned sidebar takes over from 992px, the drawer between)
+   ------------------------------------------------------------------------------------------------------------------ */
+
+:root .mk-tabbar {
+    position: fixed;
+    inset-inline: 0;
+    inset-block-end: 0;
+    z-index: 1030;
+    /* 1.2.3 round 1 (R1-020): flex items of equal share (.mk-tabbar__item flex: 1 1 0) that never get narrower than
+       their label's longest word ("Commentaires", "Комментарии", a whole Japanese label): the others give way. The
+       five (four without uploads) fifths of a grid cut those words with an ellipsis in six languages. Four items
+       (uploads switched off: .mk-tabbar--4) share the bar the same way, so that class needs no rule of its own. */
+    display: flex;
+    padding: .3rem .25rem max(.3rem, env(safe-area-inset-bottom));
+    border-block-start: 1px solid var(--avd-border);
+    background: var(--avd-surface-solid);
+}
+
+:root .mk-tabbar__item {
+    display: grid;
+    justify-items: center;
+    align-content: center;
+    flex: 1 1 0;
+    gap: .15rem;
+    min-block-size: 50px;
+    min-inline-size: auto;
+    border-radius: var(--mk-r-field);
+    color: var(--avd-muted);
+    /* revision 3: the labels stay inside their fifth of a 360px screen whatever the admin's "Text size" */
+    font-size: clamp(10px, .6875rem, 12px);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+:root .mk-tabbar__item i {
+    font-size: 1.05rem;
+}
+
+/* 1.2.3 round 1 (R1-020): a label longer than its share takes a second line at a space ("Tableau de / bord",
+   "Панель / управления", "Bảng điều / khiển") instead of an ellipsis, a word is never broken (keep-all: a Japanese or
+   Chinese label is one word too); two lines of 1.1 line height keep the item within its 50px, so the bar keeps its
+   62px (measured in the 17 site languages at 360-412px; 67px at the admin's largest text size). The Upload label, under
+   its taller button, stays on one line. */
+:root .mk-tabbar__item > span {
+    max-inline-size: 100%;
+    line-height: 1.1;
+    text-align: center;
+    word-break: keep-all;
+}
+
+:root .mk-tabbar__upload > span {
+    white-space: nowrap;
+}
+
+/* revision 3: the Upload item is a <button> (a server-rendered trigger of the upload panel): no browser button skin */
+:root button.mk-tabbar__item {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    font: inherit;
+    font-size: clamp(10px, .6875rem, 12px);
+    font-weight: 600;
+    cursor: pointer;
+}
+
+:root .mk-tabbar__item:focus-visible {
+    outline: 2px solid var(--avd-focus);
+    outline-offset: -2px;
+}
+
+:root .mk-tabbar__item[aria-current="page"] {
+    color: var(--avd-text);
+}
+
+:root .mk-tabbar__item[aria-current="page"] i {
+    color: var(--avd-brand-ink);
+}
+
+:root .mk-tabbar__upload i {
+    display: grid;
+    place-items: center;
+    inline-size: 2.6rem;
+    block-size: 1.9rem;
+    border-radius: var(--avd-radius-button, 999px);
+    background: var(--avd-btn-bg);
+    color: var(--avd-btn-text);
+    font-size: .95rem;
+}
+
+@media (min-width: 768px) {
+    :root .mk-tabbar { display: none; }
+}
+
+@media (max-width: 767.98px) {
+    /* One primary per view: on studio phones the tab bar carries Upload, so the page head's
+       "Upload video" (class mk-head__upload) and the header's Upload icon (_chrome.scss) are hidden,
+       only while the tab bar is printed (body.has-studio-tabbar, the layout's marker); with the admin's
+       "Mobile Bottom Nav Bar" off, the page head keeps its Upload on phones. */
+
+    html[data-avd-back-office] body.has-studio-tabbar .mk-head__actions > .mk-head__upload { display: none; }
+}
+
+/* The Upload18 notices on the draft page (member design 4.4): "The processing of your video
+   failed" (data-upload18-failed-notice, cloned from the poll partial's <template>) and "Video processing is complete"
+   (#video-ready-refresh-notice) are fixed alerts the completion poll appends to <body> with inline physical places
+   (right:1rem; bottom:1rem; z-index:1080). Their markup, texts, hooks and logic stay as they are (hands-off:
+   the poll partial); only their PLACE follows the member layers: the inline end (the left edge in Arabic), above the
+   studio tab bar and a showing save bar, like the toasts. !important beats the inline style. */
+html[data-avd-member] body > :is([data-upload18-failed-notice], #video-ready-refresh-notice) {
+    right: auto !important;
+    bottom: auto !important;
+    left: auto !important;
+    inset-inline: auto 1rem !important;
+    inset-block-end: calc(var(--avd-bottom-chrome, 0px) + var(--mk-bars-h, 0px) + 16px) !important;
+    max-inline-size: min(440px, calc(100vw - 2rem)) !important;
+}
+
+@media (max-width: 575.98px) {
+    html[data-avd-member] body > :is([data-upload18-failed-notice], #video-ready-refresh-notice) {
+        inset-inline: 1rem !important;
+    }
+}
+
+/* Studio menu (_studio.scss + layouts/menus/sidebars/back.blade.php, the type=user branch adds
+   .avd-back-sidebar--member, the group labels and the rail tooltips):
+   - pinned 260px from 1280px, an icon rail of 72px from 992 to 1279px, the offcanvas drawer below 992px;
+   - the rail width beats the theme rules: layout-theme-a.css prints
+   html[data-avd-theme][data-avd-sidebar-style][data-avd-back-office] { --avd-sidebar-w: 260px }   (0,3,1)
+   and the layout's inline <style id="avd-back-office-menu"> html[data-bs-theme][data-avd-theme]  (0,2,1),
+   so the rail rule carries (0,4,1) (and a (0,2,1) twin for a page without a theme record);
+   - calm in every state (4.1a): motion.scss moves a menu link 4px on hover, scales its icon 1.12, sweeps a ::before
+   across it and makes the selected icon breathe forever (avd-icon-breathe 2.8s infinite, rich tier). On member
+   pages none of that runs: colour, background, border colour and shadow only, 0 repaint frames at rest.
+   - rail labels: visually hidden spans (the accessible names) + Bootstrap tooltips (app.ts already starts every
+   [data-bs-toggle="tooltip"]; a tooltip is appended to <body>, so the rail's scroll box never clips it), shown only
+   in the rail range through their custom class .avd-rail-tip. */
+
+html[data-avd-member] .avd-back-sidebar--member :is(.avd-sidebar-link, .avd-sidebar-account-card, .avd-sidebar-group-toggle, .btn-close) {
+    transform: none !important;
+    translate: none !important;
+    scale: none !important;
+    animation: none !important;
+    transition-property: color, background-color, border-color, box-shadow, opacity !important;
+    transition-duration: 140ms !important;
+}
+
+/* the sweep (motion.scss .avd-sidebar-link::before) never draws */
+
+html[data-avd-member] .avd-back-sidebar--member .avd-sidebar-link::before {
+    content: none !important;
+}
+
+/* no icon scale on hover, no breathing icon on the selected item (rich tier), whatever the effect settings are */
+
+html[data-avd-member] .avd-back-sidebar--member :is(.avd-sidebar-link, .avd-sidebar-account-card) :is(i, img, svg) {
+    transform: none !important;
+    animation: none !important;
+    transition: color 140ms ease, opacity 140ms ease !important;
+}
+
+html[data-avd-member] .avd-back-sidebar--member .avd-studio-group-label {
+    margin: 14px 12px 4px;
+    color: var(--avd-sidebar-muted, var(--avd-muted));
+    font-size: .6875rem;
+    font-weight: 800;
+    letter-spacing: .08em;
+    list-style: none;
+    text-align: start;
+    text-transform: uppercase;
+}
+
+html[data-avd-member] .avd-back-sidebar--member .avd-studio-group-label:first-child {
+    margin-block-start: 4px;
+}
+
+/* The account card at the foot of the menu: app.scss paints it with the brand gradient on hover and on its page
+   (.avd-sidebar-account-card:hover / .is-active), the loudest thing in the menu. On member pages: a neutral surface,
+   the calm hover of every menu item, and the selected tint on Account settings (aria-current only there: account-48). */
+html[data-avd-member] .avd-back-sidebar--member .avd-sidebar-account-card {
+    border-color: var(--avd-border) !important;
+    background: var(--avd-surface-1) !important;
+    color: var(--avd-text) !important;
+    box-shadow: none !important;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    html[data-avd-member] .avd-back-sidebar--member .avd-sidebar-account-card:hover {
+        background: var(--avd-surface-2) !important;
+    }
+}
+
+/* 1.2.3 round 1 (R1-030): the selected card takes the selected menu item's pair, the look's sidebar-active fill AND its
+   sidebar-active text (header.scss .avd-sidebar-link.menu-selected); the name and the account badge inside follow it
+   (app.scss gives the badge the page's text colour with !important: 1.66-1.94:1 on Shorts Feed / Velvet Lounge fills).
+   The badge's gray fill goes too (under the pink Spotlight text it gave 3.22:1): on the selected card it is an outline
+   in the card's colour, its text on the card's own fill like the name. */
+html[data-avd-member] .avd-back-sidebar--member .avd-sidebar-account-card[aria-current="page"] {
+    border-color: rgba(var(--avd-brand-rgb), .24) !important;
+    background: var(--avd-sidebar-active-bg, rgba(var(--avd-brand-rgb), .10)) !important;
+    color: var(--avd-sidebar-active-text, var(--avd-text)) !important;
+}
+
+html[data-avd-member] .avd-back-sidebar--member .avd-sidebar-account-card[aria-current="page"] .badge {
+    background: transparent !important;
+    box-shadow: inset 0 0 0 1px currentColor;
+    color: inherit !important;
+}
+
+/* A 1366x768 laptop (the most common one) shows the whole pinned menu, the account card included, without scrolling:
+   with a mouse the links are 40px (44px stay for touch screens), the group labels are tighter. */
+@media (pointer: fine) and (max-height: 820px) {
+    html[data-avd-member] .avd-back-sidebar--member .avd-sidebar-link {
+        min-height: 38px;
+    }
+
+    html[data-avd-member] .avd-back-sidebar--member .avd-studio-group-label {
+        margin-block: 10px 2px;
+    }
+}
+
+/* the rail tooltip skin: inverse colours of the look, the look's badge radius */
+
+:root .avd-rail-tip {
+    --bs-tooltip-bg: var(--avd-text);
+    --bs-tooltip-color: var(--avd-bg);
+    --bs-tooltip-font-size: .8125rem;
+    --bs-tooltip-border-radius: var(--avd-r-badge, 6px);
+    --bs-tooltip-opacity: 1;
+    font-family: var(--avd-font-body);
+    font-weight: 600;
+}
+
+@media not all and (min-width: 992px) and (max-width: 1279.98px) {
+    :root .avd-rail-tip {
+        display: none !important;
+    }
+}
+
+@media (min-width: 992px) and (max-width: 1279.98px) {
+    html[data-avd-member][data-avd-back-office],
+    html[data-avd-member][data-avd-back-office][data-avd-theme][data-avd-sidebar-style] {
+        --avd-sidebar-w: 72px;
+    }
+
+    html[data-avd-member] .avd-back-sidebar--member .avd-sidebar-body {
+        padding-inline: 8px;
+    }
+
+    html[data-avd-member] .avd-back-sidebar--member :is(.avd-sidebar-link, .avd-sidebar-account-card) {
+        justify-content: center !important;
+        gap: 0 !important;
+        padding-inline: 0 !important;
+    }
+
+    html[data-avd-member] .avd-back-sidebar--member .avd-sidebar-account-card {
+        border-color: transparent !important;
+        background: transparent !important;
+    }
+
+    html[data-avd-member] .avd-back-sidebar--member .avd-sidebar-link > span,
+    html[data-avd-member] .avd-back-sidebar--member .avd-sidebar-account-card > div {
+        position: absolute !important;
+        inline-size: 1px;
+        block-size: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+    }
+
+    /* a group label becomes a hairline between the groups (the words are in the tooltips' context) */
+
+    html[data-avd-member] .avd-back-sidebar--member .avd-studio-group-label {
+        block-size: 1px;
+        margin: 10px 8px;
+        overflow: hidden;
+        background: var(--avd-divider, var(--avd-border));
+        color: transparent;
+        font-size: 0;
+    }
+
+    html[data-avd-member] .avd-back-sidebar--member .avd-studio-group-label:first-child {
+        display: none;
+    }
+}
+
+
+/* ---------------------------------------------------------------------------------------------------------------------
+   Studio: video details (edit) and draft create page
+   Phone: one column in reading order (preview, details, visibility, thumbnail, playlists, settings, delete): the two
+   columns are display:contents and every panel carries an order. From 980px of form width: main + 340px side column.
+   ------------------------------------------------------------------------------------------------------------------ */
+
+:root .mk-edit {
+    container-type: inline-size;
+    container-name: mkedit;
+}
+
+:root .mk-edit__grid {
+    display: grid;
+    gap: var(--mk-gap);
+}
+
+:root .mk-edit__main,
+:root .mk-edit__side {
+    display: contents;
+}
+
+:root .mk-edit [data-order="preview"] { order: 1; }
+
+:root .mk-edit [data-order="details"] { order: 2; }
+
+:root .mk-edit [data-order="visibility"] { order: 3; }
+
+:root .mk-edit [data-order="thumbnail"] { order: 4; }
+
+:root .mk-edit [data-order="playlists"] { order: 5; }
+
+:root .mk-edit [data-order="settings"] { order: 6; }
+
+:root .mk-edit [data-order="danger"] { order: 7; }
+
+@container mkedit (min-width: 980px) {
+    :root .mk-edit__grid {
+        grid-template-columns: minmax(0, 1fr) 340px;
+        align-items: start;
+    }
+
+    :root .mk-edit__main,
+    :root .mk-edit__side {
+        display: grid;
+        gap: var(--mk-gap);
+        align-content: start;
+        min-inline-size: 0;
+    }
+}
+
+@media (min-width: 1200px) and (min-height: 860px) {
+    :root .mk-edit__side {
+        position: sticky;
+        inset-block-start: calc(var(--mk-sticky-top, 64px) + 16px);
+    }
+}
+
+/* Preview card: a compact row on phones (thumb + facts), a full card in the side column. */
+
+:root .mk-preview {
+    display: grid;
+    grid-template-columns: 128px minmax(0, 1fr);
+    gap: .85rem;
+    padding: .85rem;
+}
+
+:root .mk-preview__facts {
+    display: grid;
+    gap: .35rem;
+    align-content: start;
+    min-inline-size: 0;
+    font-size: .8125rem;
+}
+
+:root .mk-preview__more {
+    display: none;
+}
+
+@container mkedit (min-width: 980px) {
+    :root .mk-preview {
+        grid-template-columns: minmax(0, 1fr);
+        padding: 1rem;
+    }
+
+    :root .mk-preview__more {
+        display: grid;
+        gap: .65rem;
+    }
+}
+
+:root .mk-copy {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: .25rem .5rem;
+    align-items: center;
+    padding: .55rem .25rem .55rem .75rem;
+    border-radius: var(--mk-r-inner);
+    background: var(--avd-surface-2);
+}
+
+:root .mk-copy__label {
+    grid-column: 1 / -1;
+    color: var(--avd-muted);
+    font-size: .75rem;
+    font-weight: 700;
+}
+
+:root .mk-copy__value {
+    overflow: hidden;
+    color: var(--avd-text);
+    font-size: .8125rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+:root .mk-play-badge {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+}
+
+:root .mk-play-badge i {
+    display: grid;
+    place-items: center;
+    inline-size: 3rem;
+    block-size: 3rem;
+    border-radius: 50%;
+    background: rgba(var(--avd-shade-rgb, 0, 0, 0), .55);
+    color: #fff;
+    font-size: 1.1rem;
+}
+
+/* Thumbnail picker: radio tiles, the chosen one gets the inset ring and a tick. Space is reserved by the grid
+   (16:9 tiles) so the React picker mounts without moving the page. */
+
+:root .mk-thumbs {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+    gap: .6rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+:root .mk-thumb-pick {
+    position: relative;
+    display: block;
+    border-radius: var(--mk-r-thumb);
+    cursor: pointer;
+}
+
+:root .mk-thumb-pick input {
+    position: absolute;
+    opacity: 0;
+}
+
+:root .mk-thumb-pick .mk-thumb::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    box-shadow: inset 0 0 0 1px var(--avd-border);
+    pointer-events: none;
+}
+
+:root .mk-thumb-pick input:checked + .mk-thumb::after {
+    box-shadow: inset 0 0 0 3px var(--avd-brand-ink);
+}
+
+:root .mk-thumb-pick input:focus-visible + .mk-thumb {
+    outline: 2px solid var(--avd-focus);
+    outline-offset: 2px;
+}
+
+:root .mk-thumb-pick__tick {
+    position: absolute;
+    inset-block-start: 6px;
+    inset-inline-end: 6px;
+    display: none;
+    place-items: center;
+    inline-size: 1.4rem;
+    block-size: 1.4rem;
+    border-radius: 50%;
+    background: var(--avd-brand-fill);
+    color: var(--avd-on-brand);
+    font-size: .7rem;
+}
+
+:root .mk-thumb-pick input:checked ~ .mk-thumb-pick__tick {
+    display: grid;
+}
+
+:root .mk-thumb-add {
+    display: grid;
+    place-items: center;
+    align-content: center;
+    gap: .25rem;
+    aspect-ratio: 16 / 9;
+    border: 1px dashed var(--avd-border-input);
+    border-radius: var(--mk-r-thumb);
+    color: var(--avd-muted);
+    font-size: .8125rem;
+    font-weight: 600;
+    text-align: center;
+    cursor: pointer;
+}
+
+/* The picture picker's "Upload picture" tile (Thumbnails.tsx AddTile). ImageUpload's file field sits in the site's
+   1x1 .avd-hidden-file-input; inside the tile's item it lies, still invisible, over the whole tile instead, so a click,
+   a tap and the keyboard reach the field itself (a 44px target) and its focus shows on the tile. */
+:root .mk-thumb-upload {
+    position: relative;
+}
+
+:root .mk-thumb-upload > .avd-hidden-file-input {
+    inset: 0;
+    z-index: 1;
+    width: auto;
+    height: auto;
+    pointer-events: auto;
+}
+
+:root .mk-thumb-upload > .avd-hidden-file-input input {
+    display: block;
+    inline-size: 100%;
+    block-size: 100%;
+    cursor: pointer;
+}
+
+:root .mk-thumb-upload > .avd-hidden-file-input:focus-within + .mk-thumb-add {
+    outline: 2px solid var(--avd-focus);
+    outline-offset: 2px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    :root .mk-thumb-upload:hover > .mk-thumb-add {
+        border-color: var(--avd-focus);
+        color: var(--avd-text);
+    }
+}
+
+
+/* ---------------------------------------------------------------------------------------------------------------------
+   Studio: dashboard and analytics
+   ------------------------------------------------------------------------------------------------------------------ */
+
+:root .mk-period {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+}
+
+:root .mk-attn {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: .2rem .75rem;
+    align-items: start;
+    padding: .8rem var(--mk-pad);
+    border-block-start: 1px solid var(--avd-divider, var(--avd-border));
+}
+
+:root .mk-attn:first-child { border-block-start: 0; }
+
+:root .mk-attn__icon {
+    display: grid;
+    place-items: center;
+    inline-size: 2.1rem;
+    block-size: 2.1rem;
+    border-radius: var(--mk-r-field);
+    background: rgba(var(--mk-tone-rgb, var(--avd-info-rgb)), .12);
+    color: var(--mk-tone, var(--avd-info));
+}
+
+:root .mk-attn--danger { --mk-tone: var(--mk-danger); --mk-tone-rgb: var(--mk-danger-rgb); }
+
+:root .mk-attn--warning { --mk-tone: var(--avd-warning); --mk-tone-rgb: var(--avd-warning-rgb); }
+
+:root .mk-attn__body { display: grid; gap: .15rem; min-inline-size: 0; }
+
+:root .mk-attn__actions { grid-column: 2; display: flex; flex-wrap: wrap; gap: .4rem; margin-block-start: .35rem; }
+
+:root .mk-chart-wrap {
+    position: relative;
+    padding: .25rem var(--mk-pad) 1rem;
+}
+
+:root .mk-note {
+    display: flex;
+    gap: .5rem;
+    align-items: flex-start;
+    padding: .65rem var(--mk-pad) 1rem;
+    color: var(--avd-muted);
+    font-size: .8125rem;
+}
+
+:root .mk-ratio--lg {
+    block-size: 12px;
+}
+
+:root .mk-bignum {
+    color: var(--avd-text);
+    font-family: var(--avd-font-display);
+    font-size: 1.6rem;
+    font-weight: var(--avd-display-weight, 700);
+    font-variant-numeric: tabular-nums;
+}
+
+
+/* =====================================================================================================================
+   Revision 1 page parts (member design 6.x). Same rules: tokens only (creator band colours are the creator's
+   content, like avatars), calm states, mobile first, logical properties, no :has() dependence.
+   ===================================================================================================================== */
+
+/* ---------------------------------------------------------------------------------------------------------------------
+   Studio (_studio.scss)
+   ------------------------------------------------------------------------------------------------------------------ */
+
+:root .mk-item--drag { align-items: center; }
+
+:root .mk-drag {
+    flex: none;
+    display: grid;
+    place-items: center;
+    inline-size: 1.5rem;
+    color: var(--avd-faint);
+    cursor: grab;
+}
+
+:root .mk-item__pos {
+    flex: none;
+    min-inline-size: 1.5rem;
+    color: var(--avd-muted);
+    font-size: .8125rem;
+    font-variant-numeric: tabular-nums;
+    text-align: end;
+}
+
+:root .mk-added {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    color: var(--avd-text);
+    font-size: .8125rem;
+    font-weight: 700;
+}
+
+:root .mk-added i { color: var(--avd-success); }
+
+:root .mk-item__ref {
+    display: inline-flex;
+    align-items: center;
+    gap: .5rem;
+    min-inline-size: 0;
+    max-inline-size: 100%;
+    color: var(--avd-muted);
+    font-size: .8125rem;
+    text-decoration: none;
+}
+
+:root .mk-item__tools { display: flex; flex-wrap: wrap; gap: .25rem; margin-block-start: .15rem; }
+
+:root .mk-item__tools:empty { display: none; }
+
+:root .mk-item--parent { padding-inline: 0; border-block-end: 1px solid var(--avd-divider, var(--avd-border)); }
+
+:root .mk-days { margin: 0; padding: 0; list-style: none; }
+
+:root .mk-day__title {
+    margin: 0;
+    padding: .9rem var(--mk-pad) .35rem;
+    color: var(--avd-muted);
+    font-size: .75rem;
+    font-weight: 800;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+}
+
+:root .mk-day__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .5rem;
+    padding-inline-end: .25rem;
+}
+
+:root .mk-day__head .mk-day__title { padding-inline-start: 0; }
+
+:root .mk-item--activity { align-items: center; }
+
+:root .mk-item--invoice { align-items: center; }
+
+:root .mk-amount {
+    min-inline-size: 4.5rem;
+    margin-inline-end: .5rem;
+    font-weight: 700;
+}
+
+:root .mk-chart-table summary { cursor: pointer; color: var(--avd-text); font-weight: 600; }
+
+:root .mk-chart-table table { margin-block-start: .5rem; border-collapse: collapse; font-size: .8125rem; }
+
+:root .mk-chart-table th,
+:root .mk-chart-table td { padding: .2rem 1.2rem .2rem 0; text-align: start; }
+
+/* Inline studio preview (studio_video_preview_mode = inline): the <video> or the Upload18 <iframe> embed (hands-off)
+   in the reserved 16:9 box, with the browser's own controls. */
+
+:root .mk-inline-player { display: block; }
+
+/* The preview's processing states (the draft page, a video still uploading): x-show shows a state by removing its
+   display:none, so the state's own display is this rule's (it was an inline style, and the [hidden] attribute
+   kept "almost ready" hidden for good). */
+:root .mk-processing {
+    display: grid;
+    place-items: center;
+    box-shadow: inset 0 0 0 1px var(--avd-border);
+}
+
+:root .mk-processing__body {
+    display: grid;
+    justify-items: center;
+    gap: .4rem;
+    padding: 1rem;
+    text-align: center;
+}
+
+:root .mk-processing__body > strong { font-size: .875rem; }
+
+:root .mk-processing__body > .mk-muted { font-size: .8125rem; }
+
+:root .mk-processing__body > .mk-spinner { color: var(--avd-muted); }
+
+/* 1.2.3 round 1 (R1-092): on phones and tablets the preview is a compact row (a 128px thumbnail + the link facts); while
+   it shows a processing state (.mk-preview--busy: the draft page's Alpine state, printed by the server for the first
+   paint) the state takes the whole row, as tall as its text, and the facts go under it: in the 128 x 72px thumbnail its
+   heading was cut and "You will receive a notification ..." never showed. The side column (from 980px) keeps its 16:9
+   card. */
+:root .mk-preview--busy > * {
+    grid-column: 1 / -1;
+}
+
+:root .mk-preview--busy > .mk-processing {
+    aspect-ratio: auto;
+    min-block-size: 7rem;
+}
+
+@container mkedit (min-width: 980px) {
+    :root .mk-preview--busy > .mk-processing {
+        aspect-ratio: 16 / 9;
+        min-block-size: 0;
+    }
+}
+
+:root .mk-schedule .mk-input { min-inline-size: 0; }
+
+:root .mk-schedule__zone {
+    display: block;
+    margin-block-start: .6rem;
+    line-height: 1.5;
+}
+
+:root .mk-schedule__zone strong { color: var(--avd-text); font-weight: 650; }
+
+:root .mk-sheet-list .mk-item { padding-inline: 0; align-items: center; }
+
+:root .mk-sheet-list .mk-item > .mk-thumb { flex: none; inline-size: 96px; }
+
+/* Playlist editor: two panes from 992px; below, tabs (real links: ?pane=list | ?pane=add, server side, no JS) show
+   one pane at a time. Revision 2: real rules instead of the first mock-only classes. */
+
+:root .mk-pl-editor[data-pane="list"] .mk-pl-pane--add,
+:root .mk-pl-editor[data-pane="add"] .mk-pl-pane--list {
+    display: none;
+}
+
+@media (min-width: 992px) {
+    :root .mk-pl-editor { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+
+    :root .mk-pl-tabs { display: none; }
+
+    :root .mk-pl-editor[data-pane] .mk-pl-pane { display: block; }
+}
+
+/* The <playlist-videos> element (Playlist.tsx) holds the two panes: it lays out as if it were not there, so the panes
+   are the editor grid's own items (two columns from 992px). */
+:root .mk-pl-editor > playlist-videos { display: contents; }
+
+/* ---------------------------------------------------------------------------------------------------------------------
+   The parts the studio pages added to the kit (member design 6.4-6.8)
+   ------------------------------------------------------------------------------------------------------------------ */
+
+/* Comments: "Read more" under a long comment, at the start of the text column. Its box is a 24px target (44px on touch
+   screens, the kit's rule for links that share their item) while its text stays where it was: the padding that grows it
+   is taken back by the same negative margin (it was 19px tall). */
+:root .mk-readmore {
+    justify-self: start;
+    min-block-size: 0;
+    padding-block: 3px;
+    margin-block: -3px;
+    padding-inline: 0;
+}
+
+@media (pointer: coarse) {
+    :root .mk-readmore {
+        padding-block: .9rem;
+        margin-block: -.9rem;
+    }
+}
+
+:root .mk-readmore:hover { text-decoration: underline; }
+
+/* The replies sheet: the fetched part (its body and its foot) belongs to the sheet's own column. */
+:root .mk-replies { display: contents; }
+
+:root .mk-replies__text {
+    margin: 0;
+    color: var(--avd-text);
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+}
+
+:root .mk-replies-panel > .mk-sheet__body { overflow: visible; }
+
+:root .mk-replies-panel > .mk-sheet__foot { border-block-start: 1px solid var(--avd-divider, var(--avd-border)); }
+
+/* Who rated it (Analytics; perf-13). The list box has ONE fixed height, in every pop-up window style
+   and on phones (a bottom sheet there, anchored at the bottom: a sheet that grew when its rows arrived moved its head up
+   by 193px, CLS 0.05-0.20). Its first frame (the server's skeleton) and every later one (the rows, a filter, a search,
+   the next page) keep the dialog's size, so nothing above or below the list moves; the rows scroll inside it, where
+   the next page loads (the sentinel is seen inside the scrolled box). */
+:root .mk-likes {
+    display: flex;
+    flex-direction: column;
+    gap: .75rem;
+    block-size: min(28rem, 58vh);
+    block-size: min(28rem, 58dvh);
+}
+
+/* the rows take the rest of the box and scroll; 4px of padding keeps a focused row's ring inside the scroll box */
+:root .mk-likes__list {
+    flex: 1 1 auto;
+    min-block-size: 0;
+    margin: -4px;
+    padding: 4px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+:root .mk-likes__tools {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .5rem;
+}
+
+:root .mk-likes__tools > .mk-search { flex: 1 1 12rem; }
+
+:root .mk-likes__count { margin: 0; font-size: .8125rem; }
+
+:root .mk-likes__list .mk-item { padding-inline: 0; }
+
+/* Thumbnail tiles that are still being made, or could not be made: not choosable. */
+:root .mk-thumb-wait { cursor: default; }
+
+/* The preview card is the box of the Upload18 thumbnail overlay (#thumb-processing, driven by the hands-off poll partial:
+   .is-visible, .fade-out, the steps). Its markup and logic stay as they are; the overlay takes the look's tokens. With
+   the overlay in it, the card keeps the overlay's room (the :has() rule; without :has() support the overlay is
+   clipped to the card, never spilled over the page). */
+:root .mk-preview-panel {
+    position: relative;
+    overflow: hidden;
+}
+
+:root .mk-preview-panel--generating:has(> #thumb-processing) { min-block-size: 18rem; }
+
+@container mkedit (min-width: 980px) {
+    :root .mk-preview-panel--generating:has(> #thumb-processing) { min-block-size: 23rem; }
+}
+
+:root .mk-preview-panel > #thumb-processing {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: .8rem;
+    padding: 1.25rem;
+    background: var(--avd-surface-solid);
+    color: var(--avd-text);
+    text-align: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .2s ease;
+}
+
+:root .mk-preview-panel > #thumb-processing.is-visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+:root .mk-preview-panel > #thumb-processing.fade-out {
+    opacity: 0;
+    pointer-events: none;
+}
+
+:root .mk-preview-panel .tp-ring {
+    position: relative;
+    inline-size: 112px;
+    block-size: 112px;
+}
+
+:root .mk-preview-panel .tp-ring svg {
+    display: block;
+    inline-size: 100%;
+    block-size: 100%;
+    transform: rotate(-90deg);
+}
+
+:root .mk-preview-panel .tp-ring .tp-bg {
+    fill: none;
+    stroke: var(--avd-border);
+    stroke-width: 5;
+}
+
+:root .mk-preview-panel .tp-ring .tp-progress {
+    fill: none;
+    stroke: var(--avd-brand-ink);
+    stroke-width: 5;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 1s linear;
+}
+
+:root .mk-preview-panel .tp-number {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    color: var(--avd-text);
+    font-size: 1.6rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+:root .mk-preview-panel .tp-status {
+    max-inline-size: 100%;
+    color: var(--avd-text);
+    font-size: .875rem;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+}
+
+:root .mk-preview-panel #tp-steps {
+    display: grid;
+    gap: .2rem;
+    inline-size: min(300px, 100%);
+    text-align: start;
+}
+
+:root .mk-preview-panel .tp-step {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    color: var(--avd-muted);
+    font-size: .8125rem;
+    line-height: 1.3;
+}
+
+:root .mk-preview-panel .tp-step > span:last-child { min-inline-size: 0; overflow-wrap: anywhere; }
+
+:root .mk-preview-panel .tp-step.done { color: var(--avd-text); }
+
+:root .mk-preview-panel .tp-step .check { color: var(--avd-success); }
+
+:root .mk-preview-panel .tp-step .pending { color: var(--avd-faint); }
+
+:root .mk-preview-panel .tp-step.active .tp-spin {
+    display: inline-block;
+    color: var(--avd-brand-ink);
+    animation: mk-spin 1.5s linear infinite;
+}
+
+@media (max-width: 575.98px) {
+    :root .mk-preview-panel .tp-ring {
+        inline-size: 88px;
+        block-size: 88px;
+    }
+
+    :root .mk-preview-panel .tp-number { font-size: 1.3rem; }
+}

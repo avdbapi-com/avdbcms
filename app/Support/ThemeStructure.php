@@ -29,8 +29,8 @@ class ThemeStructure
     /** A page that renders a hero zone (pages.partials.hero) declares it with @section(ThemeStructure::HERO_ZONE_SECTION, '1'). */
     public const HERO_ZONE_SECTION = 'avd_hero_zone';
 
-    /** Routes that never pin the side menu (the watch page and the premium page use the drawer only). */
-    private const UNPINNED_ROUTES = ['video.show', 'video.seo-show', 'pages.premium'];
+    /** Routes that never pin the side menu (the watch page uses the drawer only). */
+    private const UNPINNED_ROUTES = ['video.show', 'video.seo-show'];
 
     private const RECIPE_DEFAULTS = [
         'header_deco' => 'none',
@@ -226,7 +226,9 @@ class ThemeStructure
             return false;
         }
 
-        return rtrim((string) parse_url($href, PHP_URL_PATH), '/') === rtrim((string) parse_url(url()->current(), PHP_URL_PATH), '/');
+        // The same page of the site: the language, /index.php and the folder of a site installed in one aside (the link
+        // has the page's language, url()->current() never has it).
+        return locale_path_parts($href)['path'] === locale_path_parts(url()->current())['path'];
     }
 
     /** Header links replace the side menu on wide screens when it is hidden, and sit in the island and crest bars. */

@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Models\User;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\IpUtils;
 
@@ -121,6 +122,28 @@ final class AdminIpLock
         }
 
         return $hop;
+    }
+
+    /**
+     * Whether an administrator may use administrator powers outside /admin too: other members' private videos,
+     * comments, playlists and invoices (VideoPolicy, CommentPolicy, PlaylistPolicy, UserPolicy, InvoicePolicy and the
+     * playlist pages). With an admin IP list set, only from an address on it, like the admin itself; from anywhere else
+     * an administrator is an ordinary member there. An empty list changes nothing. Without a routed request (a command,
+     * a queued job, the scheduler) there is no visitor address to check: unchanged.
+     */
+    public static function adminPowersHere(?User $user): bool
+    {
+        if ($user === null || ! $user->is_admin) {
+            return false;
+        }
+
+        $request = app()->bound('request') ? app('request') : null;
+
+        if (! $request instanceof Request || $request->route() === null) {
+            return true;
+        }
+
+        return self::allows($request, (string) config('site.admin_ip_whitelist', ''));
     }
 
     /** Whether the request may open the admin under this list (an empty list allows everyone). */

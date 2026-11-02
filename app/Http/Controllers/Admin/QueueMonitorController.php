@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Redis;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Throwable;
 
 class QueueMonitorController
@@ -70,7 +71,7 @@ class QueueMonitorController
         $queues = $this->queueNames();
         $activityLogs = $this->activityLogs('queue.');
         $workerLog = $this->readLogTail(storage_path('logs/queue-worker.log'), 80);
-        $queueLog = $this->filteredLogTail(storage_path('logs/laravel.log'), ['queue', 'job', 'RunAvdbImport', 'UploadToUpload18'], 80);
+        $queueLog = $this->filteredLogTail((string) config('logging.channels.single.path', storage_path('logs/laravel.log')), ['queue', 'job', 'RunAvdbImport', 'UploadToUpload18'], 80);
 
         return view('admin.queue.index', compact(
             'queuedJobs',
@@ -96,7 +97,7 @@ class QueueMonitorController
 
         $php = $this->phpBinary();
         if (! PhpBinary::usable($php)) {
-            return back()->withErrors('Could not find a PHP CLI binary for the queue worker.');
+            return back()->withErrors(__('No PHP command-line program was found for the queue worker.'));
         }
 
         $command = [
@@ -120,12 +121,12 @@ class QueueMonitorController
 
         $ok = ShellRunner::runBackground($command, storage_path('logs/queue-worker.log'), base_path());
         if (! $ok) {
-            return back()->withErrors('Could not start a background queue worker. Check PHP process support.');
+            return back()->withErrors(__('The queue worker could not be started in the background. Check that PHP may start processes on this server.'));
         }
 
         $this->audit('queue.worker.start', 'Started worker: '.implode(' ', array_slice($command, 2)));
 
-        return back()->withSuccess('Queue worker started in the background.');
+        return back()->withSuccess(__('Queue worker started'));
     }
 
     public function restartWorkers(): RedirectResponse
@@ -133,7 +134,7 @@ class QueueMonitorController
         Artisan::call('queue:restart');
         $this->audit('queue.worker.restart', 'Requested queue worker restart.');
 
-        return back()->withSuccess('Queue restart signal sent.');
+        return back()->withSuccess(__('Queue workers asked to restart'));
     }
 
     public function cleanupStale(Request $request): RedirectResponse
@@ -157,7 +158,9 @@ class QueueMonitorController
         $output = trim(Artisan::output());
         $this->audit('queue.cleanup.stale', $output !== '' ? $output : 'Cleaned stale queue rows.');
 
-        return back()->withSuccess($output !== '' ? $output : 'Stale queue rows cleaned.');
+        // The command's own lines (English, with the counts) stay in the admin actions log; the message is in the
+        // admin's language.
+        return back()->withSuccess(__('Stale queue rows cleaned. The counts are in Tools > Logs > Admin actions.'));
     }
 
     public function pauseJob(Request $request, int $id): RedirectResponse
@@ -170,7 +173,7 @@ class QueueMonitorController
 
         $this->audit('queue.job.pause', "Paused job #{$id} for {$seconds} seconds.");
 
-        return back()->with($updated ? 'success' : 'error', $updated ? "Job #{$id} paused." : "Job #{$id} was not found.");
+        return back()->with($updated ? 'success' : 'error', $updated ? __('Job #:id paused.', ['id' => $id]) : __('Job #:id was not found.', ['id' => $id]));
     }
 
     public function resumeJob(int $id): RedirectResponse
@@ -182,7 +185,7 @@ class QueueMonitorController
 
         $this->audit('queue.job.resume', "Released job #{$id} to run now.");
 
-        return back()->with($updated ? 'success' : 'error', $updated ? "Job #{$id} is available now." : "Job #{$id} was not found.");
+        return back()->with($updated ? 'success' : 'error', $updated ? __('Job #:id is available now.', ['id' => $id]) : __('Job #:id was not found.', ['id' => $id]));
     }
 
     public function retryQueuedJob(int $id): RedirectResponse
@@ -195,27 +198,28 @@ class QueueMonitorController
 
         $this->audit('queue.job.retry', "Reset queued job #{$id}.");
 
-        return back()->with($updated ? 'success' : 'error', $updated ? "Job #{$id} reset for retry." : "Job #{$id} was not found.");
+        return back()->with($updated ? 'success' : 'error', $updated ? __('Job #:id reset for retry.', ['id' => $id]) : __('Job #:id was not found.', ['id' => $id]));
     }
 
     public function deleteQueuedJob(int $id): RedirectResponse
     {
         $job = DB::table('jobs')->where('id', $id)->first();
         if (! $job) {
-            return back()->with('error', "Job #{$id} was not found.");
+            return back()->with('error', __('Job #:id was not found.', ['id' => $id]));
         }
 
         $inspection = QueueJobInspector::inspectPayload((string) $job->payload);
         if ($inspection['delete_protected']) {
-            $this->audit('queue.job.delete.blocked', "Blocked delete for protected job #{$id}: {$inspection['risk_label']}.");
+            // in English like every stored detail (R3-070): Admin actions shows it in the reader's language
+            $this->audit('queue.job.delete.blocked', "Blocked delete for protected job #{$id}: {$inspection['risk_key']}.");
 
-            return back()->withErrors("Job #{$id} is protected: {$inspection['risk_description']}");
+            return back()->withErrors(__('Job #:id is protected: :reason', ['id' => $id, 'reason' => $inspection['risk_description']]));
         }
 
         $deleted = DB::table('jobs')->where('id', $id)->delete();
         $this->audit('queue.job.delete', "Deleted queued job #{$id}.");
 
-        return back()->with($deleted ? 'success' : 'error', $deleted ? "Job #{$id} deleted." : "Job #{$id} was not found.");
+        return back()->with($deleted ? 'success' : 'error', $deleted ? __('Job #:id deleted.', ['id' => $id]) : __('Job #:id was not found.', ['id' => $id]));
     }
 
     public function pauseAll(Request $request): RedirectResponse
@@ -232,9 +236,9 @@ class QueueMonitorController
             'available_at' => now()->addSeconds($seconds)->timestamp,
         ]);
 
-        $this->audit('queue.jobs.pause_all', "Paused {$count} queued jobs".($queue ? " on {$queue}" : '').'.');
+        $this->audit('queue.jobs.pause_all', "Paused {$count} queued ".Str::plural('job', $count).($queue ? " on {$queue}" : '').'.');
 
-        return back()->withSuccess("Paused {$count} queued jobs.");
+        return back()->withSuccess(trans_choice('Paused 1 queued job.|Paused :count queued jobs.', $count));
     }
 
     public function resumeAll(Request $request): RedirectResponse
@@ -250,9 +254,9 @@ class QueueMonitorController
             'available_at' => now()->timestamp,
         ]);
 
-        $this->audit('queue.jobs.resume_all', "Released {$count} queued jobs".($queue ? " on {$queue}" : '').'.');
+        $this->audit('queue.jobs.resume_all', "Released {$count} queued ".Str::plural('job', $count).($queue ? " on {$queue}" : '').'.');
 
-        return back()->withSuccess("Released {$count} queued jobs.");
+        return back()->withSuccess(trans_choice('1 queued job can run now.|:count queued jobs can run now.', $count));
     }
 
     public function deleteAllQueued(Request $request): RedirectResponse
@@ -280,9 +284,9 @@ class QueueMonitorController
         }, 'id');
 
         $count = $ids === [] ? 0 : DB::table('jobs')->whereIn('id', $ids)->delete();
-        $this->audit('queue.jobs.delete_all', "Deleted {$count} deletable queued jobs".($queue ? " on {$queue}" : '')."; kept {$skipped} protected job(s).");
+        $this->audit('queue.jobs.delete_all', "Deleted {$count} deletable queued ".Str::plural('job', $count).($queue ? " on {$queue}" : '')."; kept {$skipped} protected ".Str::plural('job', $skipped).'.');
 
-        return back()->withSuccess("Deleted {$count} deletable queued jobs. Kept {$skipped} protected job(s).");
+        return back()->withSuccess(trans_choice('Deleted 1 queued job.|Deleted :count queued jobs.', $count).self::kept($skipped));
     }
 
     public function retryFailed(string $uuid): RedirectResponse
@@ -290,7 +294,7 @@ class QueueMonitorController
         Artisan::call('queue:retry', ['id' => [$uuid]]);
         $this->audit('queue.failed.retry', "Retried failed job {$uuid}.");
 
-        return back()->withSuccess('Failed job queued for retry.');
+        return back()->withSuccess(__('Sent back to the queue'));
     }
 
     public function retryAllFailed(): RedirectResponse
@@ -298,21 +302,22 @@ class QueueMonitorController
         Artisan::call('queue:retry', ['id' => ['all']]);
         $this->audit('queue.failed.retry_all', 'Retried all failed jobs.');
 
-        return back()->withSuccess('All failed jobs queued for retry.');
+        return back()->withSuccess(__('All failed jobs sent back to the queue'));
     }
 
     public function deleteFailed(string $uuid): RedirectResponse
     {
         $job = DB::table('failed_jobs')->where('uuid', $uuid)->first();
         if (! $job) {
-            return back()->with('error', 'Failed job was not found.');
+            return back()->with('error', __('Failed job not found.'));
         }
 
         $inspection = QueueJobInspector::inspectPayload((string) $job->payload);
         if ($inspection['delete_protected']) {
-            $this->audit('queue.failed.delete.blocked', "Blocked delete for protected failed job {$uuid}: {$inspection['risk_label']}.");
+            // in English like every stored detail (R3-070): Admin actions shows it in the reader's language
+            $this->audit('queue.failed.delete.blocked', "Blocked delete for protected failed job {$uuid}: {$inspection['risk_key']}.");
 
-            return back()->withErrors("Failed job is protected: {$inspection['risk_description']}");
+            return back()->withErrors(__('This failed job is protected: :reason', ['reason' => $inspection['risk_description']]));
         }
 
         try {
@@ -323,13 +328,13 @@ class QueueMonitorController
 
         $this->audit('queue.failed.delete', "Deleted failed job {$uuid}.");
 
-        return back()->withSuccess('Failed job deleted.');
+        return back()->withSuccess(__('Failed job deleted'));
     }
 
     public function flushFailed(): RedirectResponse
     {
         if (! Schema::hasTable('failed_jobs')) {
-            return back()->withSuccess('No failed jobs table found.');
+            return back()->withSuccess(__('This database has no table of failed jobs.'));
         }
 
         $ids = [];
@@ -352,28 +357,34 @@ class QueueMonitorController
             }, 'id');
 
         $count = $ids === [] ? 0 : DB::table('failed_jobs')->whereIn('id', $ids)->delete();
-        $this->audit('queue.failed.flush', "Cleared {$count} deletable failed jobs; kept {$skipped} protected job(s).");
+        $this->audit('queue.failed.flush', "Cleared {$count} deletable failed ".Str::plural('job', $count)."; kept {$skipped} protected ".Str::plural('job', $skipped).'.');
 
-        return back()->withSuccess("Cleared {$count} deletable failed jobs. Kept {$skipped} protected job(s).");
+        return back()->withSuccess(trans_choice('Cleared 1 failed job.|Cleared :count failed jobs.', $count).self::kept($skipped));
+    }
+
+    /** " Kept 2 protected jobs." after a clean-up that left the jobs that must not be deleted (nothing when none). */
+    private static function kept(int $skipped): string
+    {
+        return $skipped > 0 ? ' '.trans_choice('Kept 1 protected job.|Kept :count protected jobs.', $skipped) : '';
     }
 
     public function deleteBatch(string $id): RedirectResponse
     {
         $batch = DB::table('job_batches')->where('id', $id)->first();
         if (! $batch) {
-            return back()->with('error', 'Batch was not found.');
+            return back()->with('error', __('Batch not found.'));
         }
 
         if ((int) $batch->pending_jobs > 0 && $batch->finished_at === null && $batch->cancelled_at === null) {
             $this->audit('queue.batch.delete.blocked', "Blocked delete for active batch {$id}.");
 
-            return back()->withErrors('This batch still has pending jobs. Let it finish or cancel before deleting the metadata.');
+            return back()->withErrors(__('This batch still has jobs waiting. Let it finish, or cancel it, before you delete it.'));
         }
 
         DB::table('job_batches')->where('id', $id)->delete();
         $this->audit('queue.batch.delete', "Deleted batch {$id}.");
 
-        return back()->withSuccess('Batch deleted.');
+        return back()->withSuccess(__('Batch deleted'));
     }
 
     private function decorateQueuedJob(object $job, int $now): object

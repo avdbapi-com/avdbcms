@@ -82,7 +82,7 @@
 @php(ob_start())
 </head>
 <body class="ad-body" data-ad-legacy="{{ $oldScripts ? 'on' : 'off' }}"@if($iconsAll) data-ad-icons="all"@endif>
-<a class="ad-skip" href="#ad-main">{{ __('Skip to content') }}</a>
+<a class="ad-skip" href="#ad-main" tabindex="0">{{ __('Skip to content') }}</a>
 <div class="ad-shell">
     <aside id="ad-side" class="ad-side" aria-label="{{ __('Admin menu') }}">
         <a class="ad-brand" href="{{ route('admin.index') }}">
@@ -199,11 +199,13 @@
 <div id="ad-i18n" hidden
      data-undo="{{ __('Undo') }}" data-close="{{ __('Close') }}" data-cancel="{{ __('Cancel') }}" data-confirm="{{ __('Confirm') }}"
      data-confirm-title="{{ __('Are you sure you want to continue?') }}" data-saving="{{ __('Saving...') }}"
-     data-one-change="{{ __('1 unsaved change') }}" data-many-changes="{{ __(':count unsaved changes') }}"
+     data-changes="{{ __('1 unsaved change|:count unsaved changes') }}"
      data-pref-error="{{ __('Could not save this choice. Try again.') }}" data-pages="{{ __('Pages') }}" data-settings="{{ __('Settings') }}"
      data-members="{{ __('Members') }}" data-videos="{{ __('Videos') }}" data-more-options="{{ __('More options') }}"
      data-no-results="{{ __('Nothing found for ":query". Try another word.') }}"
      data-search-hint="{{ __('Type to search pages, settings, members and videos.') }}"
+     data-search-loading="{{ __('Searching pages and settings...') }}"
+     data-search-failed="{{ __('Pages and settings could not be loaded. Type again to try once more.') }}"
      data-contrast-good="{{ __('Text on this colour: :ratio:1 Good') }}" data-contrast-low="{{ __('Text on this colour: :ratio:1 Hard to read') }}"></div>
 {!! $compact(ob_get_clean()) !!}
 @if ($oldView && trim($scripts) !== '')

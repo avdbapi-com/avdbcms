@@ -15,6 +15,11 @@ class SpamWords implements ValidationRule
      */
     public function validate(string $attribute, mixed $value, Closure $fail): void
     {
+        // A value that is not text is left to the field's "string" rule.
+        if (! is_string($value)) {
+            return;
+        }
+
         $spamService = new SpamService();
 
         if ($spamService->checkIfSpam($value)) {

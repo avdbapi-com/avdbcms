@@ -1,5 +1,5 @@
 {{--
-    Draft preview banner on public pages (interface I9). Only the admin who made the draft gets it: the
+    Draft preview banner on public pages. Only the admin who made the draft gets it: the
     ApplyAppearanceDraft middleware sets the request attribute avd.appearance_draft ('ok' or 'stale') for them alone.
     Hidden inside the admin's preview frame; keeps the draft link on same-site links and GET forms (search) so the
     preview follows the admin around the site. Self-contained (inline style and script, no theme CSS): it must look
@@ -8,7 +8,7 @@
 @php
     $draftState = request()->attributes->get('avd.appearance_draft');
     $draftToken = (string) request()->query(\App\Support\AppearanceDraft::QUERY, '');
-    $exitUrl = \App\Support\AppearanceDraft::previewUrl(request()->fullUrl(), null);
+    $exitUrl = \App\Support\AppearanceDraft::previewUrl(\App\Support\CleanUrls::requestForm(request()->fullUrl()), null);
 @endphp
 <div id="avd-draft-banner" role="status" data-state="{{ $draftState }}">
     <span>{{ $draftState === 'ok' ? __('Preview of your unpublished changes. Visitors do not see them.') : __('This preview link is out of date. You see the published design.') }}</span>
@@ -52,8 +52,10 @@
         if (event.target && event.target.closest && event.target.closest('.ad-slot-close')) setTimeout(lift, 0);
     });
     if (!token || banner.getAttribute('data-state') !== 'ok') return;
+    // The admin's own pages start with the site's folder and /index.php where the site's links carry them.
+    var adminPath = @json(rtrim((string) parse_url(route('admin.index'), PHP_URL_PATH), '/'));
     var sameSite = function (url) {
-        return url.origin === location.origin && url.pathname.indexOf('/admin') !== 0;
+        return url.origin === location.origin && url.pathname.indexOf(adminPath) !== 0;
     };
     // Same-site links and GET forms keep the draft, so the preview follows the admin from page to page.
     document.addEventListener('click', function (event) {

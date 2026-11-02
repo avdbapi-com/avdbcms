@@ -13,22 +13,22 @@
     <div class="card-body">
         <div class="row mb-3">
             <div class="col-md-6">
-                <strong>{{__('Name')}}:</strong>
+                <strong>{{ rtrim(\App\Support\AdminText::labelled(__('Name'), '')) }}</strong>{{ \App\Support\LabelGap::admin() }}
                 <p class="mb-0">{{ $message->name }}</p>
             </div>
             <div class="col-md-6">
-                <strong>{{__('Email')}}:</strong>
+                <strong>{{ rtrim(\App\Support\AdminText::labelled(__('Email'), '')) }}</strong>{{ \App\Support\LabelGap::admin() }}
                 <p class="mb-0"><a href="mailto:{{ $message->email }}">{{ $message->email }}</a></p>
             </div>
         </div>
 
         <div class="row mb-3">
             <div class="col-md-6">
-                <strong>{{__('Subject')}}:</strong>
+                <strong>{{ rtrim(\App\Support\AdminText::labelled(__('Subject'), '')) }}</strong>{{ \App\Support\LabelGap::admin() }}
                 <p class="mb-0">{{ $message->subject ?: '—' }}</p>
             </div>
             <div class="col-md-6">
-                <strong>{{__('Date')}}:</strong>
+                <strong>{{ rtrim(\App\Support\AdminText::labelled(__('Date'), '')) }}</strong>{{ \App\Support\LabelGap::admin() }}
                 <p class="mb-0">{{ \Carbon\Carbon::parse($message->created_at)->translatedFormat('M d, Y H:i') }} ({{ \Carbon\Carbon::parse($message->created_at)->diffForHumans() }})</p>
             </div>
         </div>
@@ -36,7 +36,7 @@
         @if($message->ip_address ?? null)
         <div class="row mb-3">
             <div class="col-md-6">
-                <strong>{{__('IP Address')}}:</strong>
+                <strong>{{ rtrim(\App\Support\AdminText::labelled(__('IP Address'), '')) }}</strong>{{ \App\Support\LabelGap::admin() }}
                 <p class="mb-0"><code>{{ $message->ip_address }}</code></p>
             </div>
         </div>
@@ -45,7 +45,7 @@
         <hr>
 
         <div class="mb-3">
-            <strong>{{__('Message')}}:</strong>
+            <strong>{{ rtrim(\App\Support\AdminText::labelled(__('Message'), '')) }}</strong>{{ \App\Support\LabelGap::admin() }}
             <div class="mt-2 p-3 bg-light rounded" style="white-space: pre-wrap;">{{ $message->message }}</div>
         </div>
 

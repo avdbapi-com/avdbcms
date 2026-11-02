@@ -5,15 +5,16 @@
     @include('pages.partials.category-chips-scroller', ['chipsSpacing' => 'mb-2'])
 @endif
 
-<section class="avd-home-feed px-2 px-sm-0" aria-labelledby="avdHomeFeedTitle">
+{{-- R1-151: the page gutter of the phone mockups (16px; the cards sat 8px from the edges) --}}
+<section class="avd-home-feed px-3 px-sm-0" aria-labelledby="avdHomeFeedTitle">
     <x-theme.section-head
         :title="__(\App\Support\ThemeStructure::voice('feed'))"
         :kicker="filled(\App\Support\ThemeStructure::voice('feed_kicker')) ? __(\App\Support\ThemeStructure::voice('feed_kicker')) : null"
         title-id="avdHomeFeedTitle"
         :icon="$feedIcon"
     />
-    {{-- Server-rendered skeleton grid (perf plan step 20) and, as the page's first feed, the early
-         first-page fetch and eager first row (step 21): see resources/views/components/videos-area.blade.php. --}}
+    {{-- Server-rendered skeleton grid and, as the page's first feed, the early
+         first-page fetch and eager first row: see resources/views/components/videos-area.blade.php. --}}
     <x-videos-area
         :url="$homeMainFeed['url']"
         :columns="$homeMainFeed['columns']"

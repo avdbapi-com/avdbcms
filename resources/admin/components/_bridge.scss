@@ -578,6 +578,27 @@ html[data-theme="dark"] .btn-close {
     --bs-progress-bar-color: var(--on-accent);
 }
 
+// A bar coloured by its state (bg-success / -info / -danger: the *-fill colours, made for white text; bg-warning: the
+// yellow fill, made for dark text) takes the text colour of that fill, not the accent's: with the admin colour
+// "Black and white" in dark mode the accent's text is near black, "93%" on the red disk bar read 2.96:1 (R2A-019).
+// A bg-primary bar is the accent itself with its own text colour.
+.progress-bar {
+    &.bg-success,
+    &.bg-info,
+    &.bg-danger {
+        color: #fff;
+    }
+
+    &.bg-warning {
+        color: var(--on-fill-dark);
+    }
+
+    &.bg-primary {
+        background-color: var(--accent) !important;
+        color: var(--on-accent);
+    }
+}
+
 // No infinite animation in the admin: animated stripes stand still.
 .progress-bar-animated {
     animation: none;

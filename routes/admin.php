@@ -129,7 +129,8 @@ Route::prefix('admin')->name('admin.')->middleware(['admin', 'admin.cache'])->gr
         Route::post('/{user}/confirm', 'confirm')->name('confirm');
         Route::post('/{user}/unverify', 'unverify')->name('unverify');
         Route::delete('/{user}/delete', 'delete')->name('delete');
-        Route::get('/export', 'export')->name('export');
+        // A POST with the CSRF token: a link on another site cannot queue an export (the list's filters ride in the query).
+        Route::post('/export', 'export')->name('export');
     });
 
     // Videos
@@ -553,8 +554,8 @@ Route::prefix('admin')->name('admin.')->middleware(['admin', 'admin.cache'])->gr
         return redirect('/'.trim((string) config('horizon.path', 'admin/horizon'), '/'));
     })->middleware('admin.ops')->name('horizon');
 
-    // IMPERSONATE
-    Route::get('/impersonate/take/{id}/{guardName?}', '\Lab404\Impersonate\Controllers\ImpersonateController@take')
+    // IMPERSONATE: a POST with the CSRF token (a link on another site cannot switch an administrator's session).
+    Route::post('/impersonate/take/{id}/{guardName?}', '\Lab404\Impersonate\Controllers\ImpersonateController@take')
         ->middleware('admin.ops')
         ->name('impersonate');
 

@@ -20,7 +20,7 @@
     @endphp
 
     <x-admin.page-header page="content.stats"
-        :description="__(':total views in all (counted on the videos), :today today. :ips different addresses and :members members are in the history.', ['total' => number_format($summary['total']), 'today' => number_format($summary['today']), 'ips' => number_format($summary['unique_ips']), 'members' => number_format($summary['logged_in_viewers'])])">
+        :description="__('Views in all: :total (counted on the videos). Today: :today. Addresses in the history: :ips. Members in the history: :members.', ['total' => number_format($summary['total']), 'today' => number_format($summary['today']), 'ips' => number_format($summary['unique_ips']), 'members' => number_format($summary['logged_in_viewers'])])">
         <x-slot:actions>
             @if ($views->total() > 0)
                 <form method="POST" action="{{ route('admin.views.clear') }}"
@@ -73,7 +73,7 @@
                 <td class="c-main"><p><b id="ad-w-{{ $view->id }}">{{ \Illuminate\Support\Str::limit((string) ($view->video_title ?? __('Deleted video')), 90) }}</b></p></td>
                 <td class="c-meta">{{ $view->username ?? __('Visitor') }}</td>
                 <td class="hide-tab"><code>{{ $view->ip ?? '-' }}</code></td>
-                <td class="is-date" title="{{ $when->translatedFormat('j M Y, H:i') }}">{{ $when->diffForHumans(short: true) }}</td>
+                <td class="is-date" title="{{ $when->translatedFormat('j M Y, H:i') }}">{{ $when->diffForHumans(short: \App\Support\AdminText::shortTimes()) }}</td>
                 <td class="is-actions"><button type="button" class="ad-iconbtn is-more" aria-haspopup="true" aria-labelledby="ad-l-act ad-w-{{ $view->id }}" data-id="{{ $view->id }}" @if ($view->video_title !== null) data-video="{{ $view->video_id }}" @endif @if ($view->username !== null) data-user="{{ $view->user_id }}" @endif></button></td>
             </tr>
         @endforeach

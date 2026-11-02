@@ -696,7 +696,6 @@ final class ZeroWidth
 /**
  * A translated value that still holds a whole English sentence of its source (machine translation returned part of the
  * text untranslated): a sentence of 4+ words with 3+ English words, placeholders, brands and quoted text excluded.
- * Port of the review probe work/i18n3-review/scripts/partial_english.py.
  */
 final class PartialEnglish
 {

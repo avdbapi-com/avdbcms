@@ -34,11 +34,19 @@
         :description="trans_choice('1 member.|:count members.', $counts['all'], ['count' => number_format($counts['all'])])"
         :tabs="$tabs">
         <x-slot:actions>
-            <a class="ad-btn" href="{{ route('admin.users.export', request()->query()) }}">{{ AdminTheme::icon('download') }}{{ __('Export') }}</a>
+            {{-- A view-only demo account is not offered a closed page (ViewOnlyDemo::hides()): no export. --}}
+            @unless (\App\Http\Middleware\ViewOnlyDemo::hides('admin.users.export'))
+                <form method="POST" action="{{ route('admin.users.export', request()->query()) }}">
+                    @csrf
+                    <button type="submit" class="ad-btn">{{ AdminTheme::icon('download') }}{{ __('Export') }}</button>
+                </form>
+            @endunless
         </x-slot:actions>
     </x-admin.page-header>
 
     <form id="ad-users-bulk" method="POST" action="{{ route('admin.bulk.users') }}" hidden>@csrf</form>
+    {{-- "Log in as this member" is a POST with the token (a plain page load, so no data-ad-row-action). --}}
+    <form id="ad-user-impersonate" method="POST" hidden>@csrf</form>
     {{-- The row menus' actions: one form each, the row's button brings its member (formaction). --}}
     {{-- Administrator rights go through the bulk action (users.is_admin is not mass-assignable, so the old
          toggle-admin address does not change it); granting them asks first, as the bulk bar does. --}}
@@ -59,7 +67,7 @@
         <a href="{{ route('admin.users.show', ['user' => '__ID__'], false) }}">{{ AdminTheme::icon('user') }}{{ __('Details') }}</a>
         <a href="__URL__" target="_blank" rel="noopener">{{ AdminTheme::icon('external') }}{{ __('Open channel') }}</a>
         @if ($impersonate !== null)
-            <a href="{{ $impersonate }}" data-ad-when="!self,admin">{{ AdminTheme::icon('key') }}{{ __('Log in as this member') }}</a>
+            <button type="submit" form="ad-user-impersonate" formaction="{{ $impersonate }}" data-ad-when="!self,admin">{{ AdminTheme::icon('key') }}{{ __('Log in as this member') }}</button>
         @endif
         <hr>
         <button type="submit" form="ad-user-confirm" formaction="{{ route('admin.users.confirm', ['user' => '__ID__'], false) }}" data-ad-if="unverified" data-ad-undo-url="{{ route('admin.users.unverify', ['user' => '__ID__'], false) }}">{{ AdminTheme::icon('check-circle') }}{{ __('Mark email as confirmed') }}</button>

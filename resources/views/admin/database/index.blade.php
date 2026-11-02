@@ -27,7 +27,7 @@
     <div class="col-md-4">
         <div class="card shadow-sm border-success"><div class="card-body text-center">
             <i class="fa-solid fa-weight-hanging fa-2x text-success mb-2"></i>
-            <h3>{{ number_format($totalSize, 2) }} MB</h3>
+            <h3 class="text-nowrap" dir="ltr">{{ number_format($totalSize, 2) }} MB</h3>
             <small class="text-muted">{{__('Total Database Size')}}</small>
         </div></div>
     </div>
@@ -52,7 +52,7 @@
             <form method="POST" action="{{ route('admin.database.truncate', $t) }}" onsubmit='return confirm(@json(__('Truncate table `:table`? This cannot be undone.', ['table' => $t])))'>
                 @csrf @method('DELETE')
                 <button type="submit" class="btn btn-outline-danger btn-sm">
-                    <i class="fa-solid fa-eraser me-1"></i>{{ str_replace('_', ' ', ucfirst($t)) }}
+                    <i class="fa-solid fa-eraser me-1"></i>{{ ['activities' => __('Activity'), 'views' => __('Views'), 'searches' => __('Searches'), 'notifications' => __('Notifications'), 'failed_jobs' => __('Failed jobs'), 'password_reset_tokens' => __('Password resets')][$t] ?? $t }}
                 </button>
             </form>
             @endforeach
@@ -79,7 +79,7 @@
             <td class="align-middle text-end">{{ number_format((float)($table->data_mb ?? 0), 2) }}</td>
             <td class="align-middle text-end">{{ number_format((float)($table->index_mb ?? 0), 2) }}</td>
             <td class="align-middle text-end">
-                <span class="badge {{ (float)($table->total_mb ?? 0) > 10 ? 'bg-warning' : 'bg-success' }}">
+                <span class="badge {{ (float)($table->total_mb ?? 0) > 10 ? 'bg-warning' : 'bg-success' }}" dir="ltr">
                     {{ number_format((float)($table->total_mb ?? 0), 2) }} MB
                 </span>
             </td>
@@ -90,11 +90,11 @@
         </tbody>
         <tfoot>
         <tr class="table-dark fw-bold">
-            <td>TOTAL</td>
+            <td>{{ __('Total') }}</td>
             <td class="text-end">{{ number_format((int)collect($tables)->sum('table_rows')) }}</td>
             <td class="text-end">{{ number_format((float)collect($tables)->sum('data_mb'), 2) }}</td>
             <td class="text-end">{{ number_format((float)collect($tables)->sum('index_mb'), 2) }}</td>
-            <td class="text-end">{{ number_format((float)($totalSize ?? 0), 2) }} MB</td>
+            <td class="text-end"><span dir="ltr" class="text-nowrap">{{ number_format((float)($totalSize ?? 0), 2) }} MB</span></td>
             <td colspan="2"></td>
         </tr>
         </tfoot>

@@ -11,7 +11,7 @@ use Tests\Feature\Updater\Support\UpdaterSandbox;
 use Tests\TestCase;
 
 /**
- * The journaled swap (F8 10, 11, 13): forward moves each changed file into the backup and the new one into place,
+ * The journaled swap: forward moves each changed file into the backup and the new one into place,
  * rollback puts the tree back byte for byte, a swap cut off half-way goes on from its journal, running it twice changes
  * nothing, and a move that fails (a damaged new file, a folder in the way, a file changed meanwhile) leaves a tree the
  * way back can restore.

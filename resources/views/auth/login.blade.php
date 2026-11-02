@@ -1,56 +1,59 @@
-@extends('layouts.default')
+@extends('auth.layout')
 
-@section('title', __('Login'))
+@section('title', __('Sign in'))
 
-@section('content')
-    <div class="avd-auth-page">
-        <div class="row mx-0">
-            <div class="avd-auth-panel border border-1 bg-light">
-                <div class="row">
-                    <div class="col-6 d-none d-xl-flex px-0 border-end border-gray-200 d-flex justify-content-center align-items-center bg-white">
-                        <img class="img-fluid" src="{{asset('images/pages/login.png')}}" alt="{{__('Login')}}" width="640" height="640" decoding="async">
-                    </div>
-                    <div class="col-12 col-xl-6 py-4 py-sm-5 px-3 px-sm-5">
-                        @if (session('success'))
-                            <div class="alert alert-success fade show" role="alert">
-                                <strong>{!! session('success') !!}</strong>
-                            </div>
-                        @endif
-                        <h1 class="h3 mb-5 fw-normal text-center">{{__('Welcome Back !')}}</h1>
-                        <form method="POST" action="{{ locale_url(route('login.perform')) }}">
-                            @csrf
-                            <x-auth-errors />
-                            <div class="form-group form-floating mb-3 position-relative">
-                                <input type="text" class="form-control" name="username" id="username" placeholder="{{__('Username')}}" required autocomplete="username" inputmode="text" autocapitalize="none" autocorrect="off" spellcheck="false" value="{{ old('username') }}">
-                                <label for="username">{{__('Email or Username')}}</label>
-                            </div>
-                            <x-auth-password />
-                            <div class="form-group d-flex justify-content-between align-items-center mb-3">
-                                <div class="form-check">
-                                    <input type="checkbox" id="remember" name="remember" class="form-check-input">
-                                    <label class="form-check-label" for="remember">
-                                        {{__('Remember me')}}
-                                    </label>
-                                </div>
-                            </div>
-                            <x-captcha action="login" />
-                            <button class="w-100 btn btn-lg btn-primary" type="submit">{{__('Sign In')}}</button>
-                            <div class="mt-4 mb-3 text-muted text-center">
-                                @if(config('site.registration_enabled', true))
-                                <div class="d-flex justify-content-center flex-wrap mb-3 gap-1 gap-sm-0">
-                                    <span class="mr-2 text-body">{{__('Do not have an account ?')}}</span>
-                                    <a href="{{ locale_url(route('registration')) }}" class="font-weight-bold text-decoration-none">
-                                        <strong>{{__('Sign Up')}}</strong>
-                                    </a>
-                                </div>
-                                @endif
-                                <a href="{{ locale_url(route('password.forgot')) }}" class="text-muted text-decoration-none">{{__('Forgot your password ?')}}</a>
-                            </div>
-                        </form>
-                        <x-auth-social mode="login" />
-                    </div>
-                </div>
-            </div>
-        </div>
+@section('auth-card')
+    <div class="mk-auth__intro" x-data x-init="$nextTick(() => { const card = $el.closest('.mk-auth__card'); const target = card && (card.querySelector('[data-auth-focus]') || card.querySelector('[aria-invalid=true]')); if (target) target.focus(); })">
+        <h1 class="mk-auth__title" id="authTitle">{{ __('Sign in') }}</h1>
+        <p class="mk-auth__lead">{{ __('Welcome back. Sign in with your username or e-mail.') }}</p>
     </div>
+
+    @if(session('success') && is_string(session('success')))
+        <x-mk.alert type="success">{{ session('success') }}</x-mk.alert>
+    @endif
+    <x-auth-errors :fields="['username', 'password', 'captcha']" captcha="login" />
+
+    <form class="mk-form" method="POST" action="{{ locale_url(route('login.perform')) }}" novalidate>
+        @csrf
+        <div class="mk-field">
+            <label class="mk-label" for="username">{{ __('Username or e-mail') }}</label>
+            <input
+                class="mk-input"
+                type="text"
+                name="username"
+                id="username"
+                value="{{ old('username') }}"
+                autocomplete="username"
+                inputmode="text"
+                autocapitalize="none"
+                autocorrect="off"
+                spellcheck="false"
+                maxlength="255"
+                required
+                @error('username') aria-invalid="true" aria-describedby="username-error" @enderror
+            >
+            @error('username')
+                <span class="mk-error" id="username-error">{{ $message }}</span>
+            @enderror
+        </div>
+
+        <x-auth-password name="password" :label="__('Password')" autocomplete="current-password">
+            <x-slot:aside><a class="mk-label__aside mk-auth__forgot" href="{{ locale_url(route('password.forgot')) }}">{{ __('Forgot password?') }}</a></x-slot:aside>
+        </x-auth-password>
+
+        <x-captcha action="login" />
+
+        <label class="mk-option">
+            <input class="mk-check" type="checkbox" name="remember" value="1" @checked(old('remember'))>
+            <span class="mk-option__text"><span>{{ __('Keep me signed in') }}</span></span>
+        </label>
+
+        <button type="submit" class="mk-btn mk-btn--primary mk-btn--block"><span>{{ __('Sign in') }}</span></button>
+    </form>
+
+    <x-auth-social mode="login" />
+
+    @if(config('site.registration_enabled', true))
+        <p class="mk-auth__switch">{{ __('New here?') }} <a href="{{ locale_url(route('registration')) }}">{{ __('Create an account') }}</a></p>
+    @endif
 @endsection

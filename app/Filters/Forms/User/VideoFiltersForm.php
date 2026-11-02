@@ -48,7 +48,8 @@ class VideoFiltersForm extends FilterForm
 
     private function getCategories(): array
     {
-        $categories = Category::all()
+        // 1.2.3: no category named with a word that is always blocked (App\Support\ContentSafety)
+        $categories = \App\Support\ContentSafety::visibleCategories(Category::all())
             ->pluck('title', 'id')
             ->transform(function ($title) {
                 return __($title);

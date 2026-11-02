@@ -4,6 +4,7 @@ namespace App\Policies;
 
 use App\Models\User;
 use App\Models\Playlist;
+use App\Support\AdminIpLock;
 use Illuminate\Auth\Access\HandlesAuthorization;
 use Illuminate\Auth\Access\Response;
 
@@ -15,7 +16,7 @@ class PlaylistPolicy
 
     public function before(?User $user, string $ability): bool|null
     {
-        if (in_array($ability, self::ADMIN_ABILITIES) && $user?->is_admin) {
+        if (in_array($ability, self::ADMIN_ABILITIES) && AdminIpLock::adminPowersHere($user)) {
             return true;
         }
 
@@ -56,7 +57,7 @@ class PlaylistPolicy
     {
         return $playlist->is_active || $playlist->user()->is($user)
             ? Response::allow()
-            : Response::denyWithStatus(404, 'This playlist is private');
+            : Response::denyWithStatus(404, __('This playlist is private'));
     }
 
     /**
@@ -110,6 +111,6 @@ class PlaylistPolicy
     {
         return ($playlist->is_active || $playlist->user()->is($user)) && $playlist->is_deletable
             ? Response::allow()
-            : Response::denyWithStatus(404, 'This playlist is private');
+            : Response::denyWithStatus(404, __('This playlist is private'));
     }
 }

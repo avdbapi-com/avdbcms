@@ -1,11 +1,11 @@
 @extends('layouts.admin')
 
-@section('title', __('Edit Plan:') . ' ' . $plan->name)
+@section('title', __('Edit Plan:') . \App\Support\LabelGap::admin() . $plan->name)
 
 @section('content')
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h3 class="mb-0"><i class="fa-solid fa-edit me-2"></i>{{__('Edit Plan:')}} {{ $plan->name }}</h3>
+        <h3 class="mb-0"><i class="fa-solid fa-edit me-2"></i>{{__('Edit Plan:')}}{{ \App\Support\LabelGap::admin() }}{{ $plan->name }}</h3>
         <a href="{{ route('admin.plans.index') }}" class="btn btn-secondary btn-sm"><i class="fa-solid fa-arrow-left me-1"></i>{{__('Back')}}</a>
     </div>
 

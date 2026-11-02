@@ -9,8 +9,8 @@ use Tests\TestCase;
 
 /**
  * The ONE colour engine (App\Support\Color) against the redesign's golden vectors
- * (tests/Fixtures/color_engine_golden.json = spec/data/color_engine_golden.json, produced by the reference
- * contrast_engine.py + colorlib.py + build_spec.derive): 42 label cases, 20 admin accent cases (both modes)
+ * (tests/Fixtures/color_engine_golden.json, produced by the redesign's reference implementation of the colour
+ * engine and of the token derivation): 42 label cases, 20 admin accent cases (both modes)
  * and 348 theme x mode x flavor vectors. Tolerance: +-1 per sRGB channel, and every WCAG target still holds.
  */
 class ColorContrastGoldenTest extends TestCase
@@ -62,7 +62,7 @@ class ColorContrastGoldenTest extends TestCase
 
     public function test_demo1_hot_pink_keeps_its_white_labels(): void
     {
-        // Owner decision D1 / critique B2: #ff0055 + white -> #ea094e at 4.52:1, the label stays white.
+        // Owner decision D1: #ff0055 + white -> #ea094e at 4.52:1, the label stays white.
         [$fill, $label, $rule] = Contrast::labelFill('#ff0055', 'light');
 
         $this->assertSame('#ea094e', $fill);

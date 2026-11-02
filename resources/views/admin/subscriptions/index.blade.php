@@ -46,7 +46,7 @@
                     <span class="badge bg-primary">{{ $sub->plan?->name ?? __('N/A') }}</span>
                 </td>
                 <td class="align-middle">
-                    <span class="badge bg-secondary">{{ Str::headline($sub->payment_provider ?? 'stripe') }}</span>
+                    <span class="badge bg-secondary">{{ \App\Support\PaymentProviders::label($sub->payment_provider) }}</span>
                 </td>
                 <td class="align-middle">
                     @php
@@ -61,8 +61,8 @@
                     <span class="badge bg-{{ $statusColor }}">{{ __(Str::headline($sub->stripe_status)) }}</span>
                 </td>
                 <td class="align-middle">
-                    @if($sub->card_last4)
-                        <span class="text-muted">•••• {{ $sub->card_last4 }}</span>
+                    @if(\App\Support\PaymentProviders::card($sub->card_last4) !== null)
+                        <span class="text-muted">{{ \App\Support\PaymentProviders::card($sub->card_last4) }}</span>
                         <div><small class="text-muted">{{ $sub->card_expired_at?->format('m/Y') }}</small></div>
                     @else
                         <span class="text-muted">{{__('N/A')}}</span>

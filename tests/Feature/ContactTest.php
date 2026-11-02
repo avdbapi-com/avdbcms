@@ -45,7 +45,7 @@ class ContactTest extends TestCase
 
         $response
             ->assertRedirectToRoute('contact.show')
-            ->assertSessionHas('success', "Thank you for contacting us! We've received your message and will get back to you shortly.");
+            ->assertSessionHas('success', __('Your message is sent. We will answer you by e-mail.'));
 
         Notification::assertSentOnDemand(Contact::class);
     }

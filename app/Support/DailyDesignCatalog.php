@@ -7,7 +7,7 @@ use DateTimeImmutable;
 use Throwable;
 
 /**
- * The Daily Design rule (redesign 2026-10, reference daily_rule.py): every day shows a theme and colour style
+ * The Daily Design rule (redesign 2026-10, ported from its reference implementation): every day shows a theme and colour style
  * of the vetted catalogue, so every day passes the gallery's contrast checks. Deterministic, no cron, no
  * database writes: every node shows the same design.
  *
@@ -627,7 +627,7 @@ class DailyDesignCatalog
     }
 
     /**
-     * OKLCH chroma and hue of a #rrggbb colour (as the redesign's colorlib.to_oklch).
+     * OKLCH chroma and hue of a #rrggbb colour (as the redesign's reference colour library computes them).
      */
     private static function chromaHue(string $hex): array
     {

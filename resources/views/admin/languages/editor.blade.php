@@ -15,10 +15,12 @@
 
     <x-admin.page-header page="settings.languages"
         :title="__('Translate :language', ['language' => trim($language->emoji.' '.$language->label)])"
-        :description="__(':done of :total strings translated, :missing missing.', ['done' => number_format($total - $missing), 'total' => number_format($total), 'missing' => number_format($missing)])"
+        :description="__('Translated: :done of :total. Missing: :missing.', ['done' => number_format($total - $missing), 'total' => number_format($total), 'missing' => number_format($missing)])"
         :tabs="[]">
         <x-slot:actions>
-            <a class="ad-btn" href="{{ route('admin.languages.export', $locale) }}">{{ AdminTheme::icon('download') }}{{ __('Export JSON') }}</a>
+            @unless (\App\Http\Middleware\ViewOnlyDemo::hides('admin.languages.export'))
+                <a class="ad-btn" href="{{ route('admin.languages.export', $locale) }}">{{ AdminTheme::icon('download') }}{{ __('Export JSON') }}</a>
+            @endunless
             <a class="ad-btn" href="{{ route('admin.languages.edit-meta', $language) }}">{{ AdminTheme::icon('gear') }}{{ __('Language Settings') }}</a>
         </x-slot:actions>
     </x-admin.page-header>
@@ -71,7 +73,7 @@
             @csrf
             @method('PUT')
             <input type="hidden" name="partial" value="1">
-            <span class="ad-small ad-muted">{{ __('Saves the :count strings of this page. Empty fields fall back to English.', ['count' => $rows->count()]) }}</span>
+            <span class="ad-small ad-muted">{{ trans_choice('Saves the 1 text of this page. An empty field falls back to English.|Saves the :count texts of this page. Empty fields fall back to English.', $rows->count()) }}</span>
             <button type="submit" class="ad-btn is-primary">{{ __('Save this page') }}</button>
         </form>
     @endif

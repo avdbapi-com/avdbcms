@@ -186,10 +186,10 @@ function earlyFirstPage(url: string): Promise<CursorPaginator<VideoType>> | null
     );
 }
 
-// The first page of the page's `early` feed when the page carries it (guests on a home feed: the inline <head> script
-// parsed #avdFeedEarlyPage into window.__avdFeedShipped[url]). Taken once, as the query's initial data: the first
-// render then shows the cards, in the same task that replaces the server skeleton (whose first row already shows
-// these thumbnails), with no request and no skeleton frame in between.
+// The first page of the page's `early` feed when the page carries it (a home feed, guests and members: the inline
+// <head> script parsed #avdFeedEarlyPage into window.__avdFeedShipped[url]). Taken once, as the query's initial data:
+// the first render then shows the cards, in the same task that replaces the server skeleton (whose first row already
+// shows these thumbnails), with no request and no skeleton frame in between.
 function shippedFirstPage(url: string): CursorPaginator<VideoType> | undefined {
     if (typeof window === 'undefined') {
         return undefined;

@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Support\AuditDetails;
 use App\Models\Subscription;
+use App\Services\SubscriptionCanceller;
 use App\Support\AdminCache;
 use App\Support\AdminPagination;
 use App\Support\AdminPreferences;
@@ -47,33 +49,63 @@ class SubscriptionController
         ]);
     }
 
-    public function cancel(Subscription $subscription): RedirectResponse
+    public function cancel(Subscription $subscription, SubscriptionCanceller $canceller): RedirectResponse
     {
+        // Stripe / PayPal first, so the member is not charged again (the site's own change is made either way).
+        $confirmed = $canceller->cancelAtProvider($subscription, 'Cancelled by the site administrator');
+
         $subscription->update([
             'stripe_status' => 'canceled',
             'ends_at' => now(),
         ]);
+        // Tools > Logs > Admin actions (R3-019): whose subscription it is.
+        AuditLogController::log('subscription.cancelled', self::memberOf($subscription));
 
-        return redirect()->route('admin.subscriptions.index')
-            ->withSuccess('Subscription canceled successfully.');
+        return $this->done($confirmed, 'Subscription canceled successfully.');
     }
 
     public function activate(Subscription $subscription): RedirectResponse
     {
+        $wasActive = $subscription->stripe_status === 'active' && $subscription->ends_at === null;
         $subscription->update([
             'stripe_status' => 'active',
             'ends_at' => null,
         ]);
 
+        if (! $wasActive) {
+            AuditLogController::log('subscription.activated', self::memberOf($subscription));
+        }
+
         return redirect()->route('admin.subscriptions.index')
-            ->withSuccess('Subscription activated successfully.');
+            ->withSuccess(__('Subscription active again'));
     }
 
-    public function destroy(Subscription $subscription): RedirectResponse
+    public function destroy(Subscription $subscription, SubscriptionCanceller $canceller): RedirectResponse
     {
-        $subscription->delete();
+        $confirmed = $canceller->cancelAtProvider($subscription, 'Cancelled by the site administrator');
 
-        return redirect()->route('admin.subscriptions.index')
-            ->withSuccess('Subscription deleted successfully.');
+        $name = self::memberOf($subscription);
+        $subscription->delete();
+        AuditLogController::log('subscription.deleted', $name);
+
+        return $this->done($confirmed, 'Subscription deleted successfully.');
+    }
+
+    /** "alice (#12)": the member a subscription belongs to, or its number when the member is gone. */
+    private static function memberOf(Subscription $subscription): string
+    {
+        $member = $subscription->user_id !== null ? DB::table('users')->where('id', $subscription->user_id)->first(['id', 'username']) : null;
+
+        return $member !== null ? AuditDetails::member($member) : '#'.$subscription->getKey();
+    }
+
+    /** Back to the list with the message, plus a warning when Stripe or PayPal did not confirm the cancellation. */
+    private function done(bool $confirmed, string $message): RedirectResponse
+    {
+        $redirect = redirect()->route('admin.subscriptions.index')->withSuccess($message);
+
+        return $confirmed ? $redirect : $redirect->withErrors([
+            'payment_provider' => __('The payment provider did not confirm the cancellation. Cancel this subscription in the Stripe or PayPal dashboard too.'),
+        ]);
     }
 }

@@ -39,6 +39,8 @@ class SendCardExpiration extends Command
             ->where('payment_provider', 'stripe')
             ->where('card_expired_at', '>=', $monthStart)
             ->where('card_expired_at', '<', $nextMonthStart)
+            // A member who deleted the account (until the queue removes it for good) gets no mail, and the others still do.
+            ->whereHas('user')
             ->get();
 
         foreach ($subscriptions as $subscription) {

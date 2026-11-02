@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 /**
- * PUT /admin/settings/save (interface I7): one save for a page whose fields belong to several settings groups.
+ * PUT /admin/settings/save: one save for a page whose fields belong to several settings groups.
  * Only the listed keys are validated and written, with the legacy group rules, in one transaction.
  */
 class AdminSettingsSaveEndpointTest extends TestCase
@@ -156,7 +156,7 @@ class AdminSettingsSaveEndpointTest extends TestCase
     public function test_the_new_appearance_keys_of_the_theme_catalogue_are_accepted(): void
     {
         if (! method_exists(AppearanceSettings::class, 'v2TextKeys')) {
-            $this->markTestSkipped('The theme catalogue v2 (WP2) adds these settings.');
+            $this->markTestSkipped('The theme catalogue v2 adds these settings.');
         }
 
         $this->actingAs($this->admin())
@@ -195,7 +195,7 @@ class AdminSettingsSaveEndpointTest extends TestCase
     public function test_theme_and_look_settings_are_written_by_the_appearance_applier(): void
     {
         if (! class_exists(AppearanceApplier::class) || ! method_exists(AppearanceSettings::class, 'lookKeys')) {
-            $this->markTestSkipped('AppearanceApplier (interface I5) arrives with the theme catalogue v2 (WP2).');
+            $this->markTestSkipped('AppearanceApplier arrives with the theme catalogue v2.');
         }
 
         // The applier's colour rule: a colour equal to the active colour style's is not stored (the style supplies
@@ -221,7 +221,7 @@ class AdminSettingsSaveEndpointTest extends TestCase
     public function test_a_save_is_kept_as_one_revision_without_passwords(): void
     {
         if (! class_exists(SettingsRevision::class) || ! Schema::hasTable('admin_setting_revisions')) {
-            $this->markTestSkipped('Settings revisions (interface I6) arrive with the theme catalogue v2 (WP2).');
+            $this->markTestSkipped('Settings revisions arrive with the theme catalogue v2.');
         }
 
         Setting::set('mail_from_name', 'Old sender', 'email');
@@ -411,15 +411,17 @@ class AdminSettingsSaveEndpointTest extends TestCase
             ]);
         $this->assertSame($before, $this->rows());
 
-        // A hidden setting is never saved by the pages, and an expert password cannot be removed either.
+        // A hidden setting is never saved by the pages, and an expert setting cannot be removed either. (The Upload18
+        // key is an everyday setting since 1.2.3: AdminSettingsSearchTest sets, replaces and removes it without
+        // Developer mode.)
         $this->actingAs($admin)
             ->putJson('/admin/settings/save', ['groups' => ['appearance' => ['font_family' => 'Inter']], 'fields' => ['appearance' => ['font_family']]])
             ->assertStatus(422)
             ->assertJsonValidationErrors(['appearance.font_family']);
         $this->actingAs($admin)
-            ->putJson('/admin/settings/save', ['fields' => ['uploads' => ['upload18_api_key']], 'clear' => ['uploads' => ['upload18_api_key']]])
+            ->putJson('/admin/settings/save', ['fields' => ['security' => ['admin_ip_whitelist']], 'clear' => ['security' => ['admin_ip_whitelist']]])
             ->assertStatus(422)
-            ->assertJsonValidationErrors(['uploads.upload18_api_key']);
+            ->assertJsonValidationErrors(['security.admin_ip_whitelist']);
         $this->assertSame($before, $this->rows());
 
         // Developer mode on: saved.

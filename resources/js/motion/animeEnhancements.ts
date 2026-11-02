@@ -4,6 +4,7 @@
 // this chunk.
 import {initScrollMotionScheduler, isWindowScrolling, subscribeWindowScroll} from './scrollMotionScheduler';
 import {allows, atLeast, onTierChange, type TierFx} from './tier';
+import {imageMayFade, isOnScreen} from './revealPolicy';
 import {watchAddedElements} from '../dom/addedRoots';
 
 // Capability tier (html[data-avd-tier], see ./tier.ts): lite never loads this chunk; balanced gets
@@ -67,55 +68,12 @@ const runQueue = (tasks: Array<() => void>): void => {
     runSoon(next);
 };
 
-// How long ago the page first painted content: from the first-contentful-paint entry, or, where
-// paint timing is missing, from the first response byte (minus a typical byte-to-paint gap).
-// null when neither is known.
-const sinceFirstPaint = (): number | null => {
-    try {
-        const fcp = performance.getEntriesByName('first-contentful-paint')[0];
-
-        if (fcp) {
-            return performance.now() - fcp.startTime;
-        }
-
-        // Paint timing is supported but nothing has painted yet: the page is not on screen.
-        if (typeof PerformanceObserver !== 'undefined' && PerformanceObserver.supportedEntryTypes?.includes('paint')) {
-            return 0;
-        }
-    } catch {
-        /* no paint timing */
-    }
-
-    try {
-        const navigation = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
-
-        if (navigation && navigation.responseStart > 0) {
-            return Math.max(0, performance.now() - navigation.responseStart - 500);
-        }
-    } catch {
-        /* no navigation timing */
-    }
-
-    return null;
-};
-
-// Entrances for content that is already on screen only look right right after the first paint:
-// later, they blink painted content out and back in. The page intro and the first reveal batch
-// therefore run only when init happens within this window of the first paint.
-const FIRST_PAINT_WINDOW_MS = 300;
-
-const initIsTimely = (): boolean => {
-    const since = sinceFirstPaint();
-
-    return since === null || since <= FIRST_PAINT_WINDOW_MS;
-};
-
-// On screen right now (not just inside the 12% early-reveal margin).
-const onScreen = (entry: IntersectionObserverEntry): boolean => {
-    const rect = entry.boundingClientRect;
-
-    return rect.bottom > 0 && rect.top < window.innerHeight;
-};
+// On screen when observed (revealPolicy.isOnScreen): content the browser may already have painted.
+const entryOnScreen = (entry: IntersectionObserverEntry): boolean => isOnScreen({
+    top: entry.boundingClientRect.top,
+    bottom: entry.boundingClientRect.bottom,
+    viewportHeight: window.innerHeight,
+});
 
 type HomeWidgetDirection = 'left' | 'right' | 'up' | 'down' | 'none';
 type HomeWidgetMotionStyle = 'slide' | 'lift' | 'zoom' | 'fade';
@@ -142,17 +100,6 @@ const homeWidgetMotionSettings = () => {
         pauseOnHover: settings.pauseOnHover !== false,
         speedPxPerSecond: clampNumber(settings.speedPxPerSecond, 48, 4, 160),
     };
-};
-
-const visible = (element: Element): element is HTMLElement => {
-    const rect = element.getBoundingClientRect();
-    const style = window.getComputedStyle(element);
-
-    return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
-};
-
-const $all = <T extends Element = HTMLElement>(selector: string, root: ParentNode = document): T[] => {
-    return Array.from(root.querySelectorAll<T>(selector)).filter(visible);
 };
 
 // Entrances run on WAAPI, i.e. on the compositor: no main-thread tween, no inline-style
@@ -198,30 +145,12 @@ const cardSelector = [
 // but they are replaced within moments: they do not count toward the reveal budget below.
 const isSkeletonCard = (element: Element): boolean => element.firstElementChild?.classList.contains('avd-placeholder-thumb') === true;
 
-const runPageIntro = () => {
-    // Same groups, offsets, start positions and staggers as the old 620 ms timeline. Every
-    // visibility read happens first (one style/layout pass), then all animations start, so
-    // reads and writes never interleave. Hidden duplicates (the off-canvas or mobile copies)
-    // still get no stagger slot, exactly as before.
-    const groups: Array<{targets: HTMLElement[]; from: string; at: number; step: number}> = [
-        {targets: $all('.avd-brand, .avd-sidebar-toggle'), from: 'translate3d(-14px,0,0) scale(.96)', at: 0, step: 0},
-        {targets: $all('.avd-header-actions > *, search-bar'), from: 'translate3d(0,-10px,0)', at: 60, step: 55},
-        {targets: $all('.avd-page-kicker, .avd-home-title, .avd-home-subtitle, .avd-watch-title'), from: 'translate3d(0,18px,0)', at: 120, step: 80},
-        {targets: $all('.avd-category-tabs .avd-tag'), from: 'translate3d(0,12px,0) scale(.94)', at: 240, step: 38},
-        {targets: $all('.avd-sidebar-link'), from: 'translate3d(-10px,0,0)', at: 180, step: 22},
-    ];
-
-    groups.forEach(({targets, from, at, step}) => {
-        targets.forEach((element, index) => enter(element, from, 620, at + index * step));
-    });
-};
-
-// skipPainted: init came late, so content that was already on screen at init keeps its painted
-// state instead of fading in again (it would blink). Content added or scrolled to later still fades.
-const installRevealObserver = (skipPainted: boolean): Disposer => {
+// Content that is on screen when it is first observed keeps its painted state (it may have been painted:
+// fading it in again would blink it), whether it was there at init or was added later (a list that rendered
+// on screen is painted long before the scan below sees it). Only content that enters the early-reveal margin
+// below the fold, before it is visible, fades in as it scrolls up (revealPolicy.ts, auth-5).
+const installRevealObserver = (): Disposer => {
     const seen = new WeakSet<Element>();
-    const initial = new WeakSet<Element>();
-    let initialScan = true;
     const revealSelector = [
         cardSelector,
         '.avd-mobile-comments',
@@ -250,7 +179,7 @@ const installRevealObserver = (skipPainted: boolean): Disposer => {
             seen.add(entry.target);
             revealObserver.unobserve(entry.target);
 
-            if (skipPainted && initial.has(entry.target) && onScreen(entry)) {
+            if (entryOnScreen(entry)) {
                 return;
             }
 
@@ -290,14 +219,12 @@ const installRevealObserver = (skipPainted: boolean): Disposer => {
             if (!seen.has(element) && !observed.has(element) && observedCount < observedLimit) {
                 observed.add(element);
                 observedCount += 1;
-                if (initialScan) initial.add(element);
                 revealObserver.observe(element);
             }
         });
     };
 
     scan();
-    initialScan = false;
 
     let scheduled: number | null = null;
     const pendingRoots = new Set<HTMLElement>();
@@ -318,7 +245,6 @@ const installRevealObserver = (skipPainted: boolean): Disposer => {
             scheduled = null;
             pendingRoots.forEach((root) => scan(root));
             pendingRoots.clear();
-            animateSearchPanels();
         }, 240);
     };
 
@@ -385,8 +311,9 @@ const widgetFrom = (element: HTMLElement): string | null => {
     return null;
 };
 
-// Rich tier only (widgetCascade). skipPainted: see installRevealObserver.
-const installHomeWidgetMotion = (skipPainted: boolean): Disposer | undefined => {
+// Rich tier only (widgetCascade). A widget on screen when first observed keeps its painted state (see
+// installRevealObserver); the cascade plays for the sections that scroll in from below the fold.
+const installHomeWidgetMotion = (): Disposer | undefined => {
     const settings = homeWidgetMotionSettings();
 
     if (!settings.enabled || document.documentElement.dataset.avdHomeWidgetMotion !== 'on') {
@@ -401,8 +328,6 @@ const installHomeWidgetMotion = (skipPainted: boolean): Disposer | undefined => 
 
     const seen = new WeakSet<Element>();
     const observed = new WeakSet<Element>();
-    const initial = new WeakSet<Element>();
-    let initialScan = true;
 
     const animateWidget = (element: HTMLElement, index: number) => {
         if (seen.has(element)) {
@@ -438,7 +363,7 @@ const installHomeWidgetMotion = (skipPainted: boolean): Disposer | undefined => 
 
             observer.unobserve(entry.target);
 
-            if (skipPainted && initial.has(entry.target) && onScreen(entry)) {
+            if (entryOnScreen(entry)) {
                 seen.add(entry.target);
                 return;
             }
@@ -462,14 +387,12 @@ const installHomeWidgetMotion = (skipPainted: boolean): Disposer | undefined => 
         candidates.forEach((element) => {
             if (!observed.has(element) && !seen.has(element)) {
                 observed.add(element);
-                if (initialScan) initial.add(element);
                 observer.observe(element);
             }
         });
     };
 
     scan();
-    initialScan = false;
 
     let scheduled: number | null = null;
     const pendingRoots = new Set<HTMLElement>();
@@ -504,13 +427,18 @@ const installHomeWidgetMotion = (skipPainted: boolean): Disposer | undefined => 
     };
 };
 
+// Navigation chips never auto-scroll (watch-5, WCAG 2.2.2): the marquee cloned the strip, so two
+// "All" chips (one active) showed at once, the strip started mid-list and the targets moved under
+// the pointer. They stay a static row that the visitor scrolls.
+const NAVIGATION_CHIPS = '.avd-category-tabs, [data-avd-chips-scroller]';
+
 const homeWidgetAutoSurface = (element: HTMLElement): HTMLElement | null => {
-    if (element.matches('.avd-category-tabs, .avd-discovery-track, .avd-creator-track, .avd-shelf-track, .avd-shorts-track, #avdCyberGridTrack')) {
-        return element;
+    if (element.matches(NAVIGATION_CHIPS) || element.dataset.avdHomeWidget === 'category_chips') {
+        return null;
     }
 
-    if (element.matches('[data-avd-chips-scroller]') || element.dataset.avdHomeWidget === 'category_chips') {
-        return element.querySelector<HTMLElement>('.avd-category-tabs');
+    if (element.matches('.avd-discovery-track, .avd-creator-track, .avd-shelf-track, .avd-shorts-track, #avdCyberGridTrack')) {
+        return element;
     }
 
     if (element.matches('.avd-creator-spotlight') || element.id === 'home-widget-creator-spotlight') {
@@ -529,7 +457,9 @@ const homeWidgetAutoSurface = (element: HTMLElement): HTMLElement | null => {
         return element.querySelector<HTMLElement>('#avdCyberGridTrack, [data-shelf-track]');
     }
 
-    return element.querySelector<HTMLElement>('.avd-discovery-track, .avd-creator-track, .avd-shelf-track, .avd-slider-track, .avd-shorts-track, #avdCyberGridTrack, [data-shelf-track]');
+    const surface = element.querySelector<HTMLElement>('.avd-discovery-track, .avd-creator-track, .avd-shelf-track, .avd-slider-track, .avd-shorts-track, #avdCyberGridTrack, [data-shelf-track]');
+
+    return surface && !surface.matches(NAVIGATION_CHIPS) ? surface : null;
 };
 
 const originalAutoChildren = (surface: HTMLElement): HTMLElement[] => {
@@ -628,6 +558,14 @@ const installHomeWidgetAutoRun = (): Disposer | undefined => {
     let cadenceTimer: number | null = null;
     let lastFrame = performance.now();
     let disposed = false;
+    // perf-15: the page goes idle. The rails stop 20 s after the visitor's last pointer, key, wheel or
+    // touch input and while the window is not focused (another tab or app in front); the next input or
+    // focus starts them again. Before, the loop wrote scrollLeft every frame for as long as the tab was
+    // open (60 style recalculations a second, 12-15% of a core).
+    const IDLE_STOP_MS = 20000;
+    let lastInput = performance.now();
+    let windowFocused = typeof document.hasFocus === 'function' ? document.hasFocus() : true;
+    const inputIdle = (now: number = performance.now()) => now - lastInput > IDLE_STOP_MS;
     // Web font loads (see the listeners next to the resize one below): the loop widths are measured
     // again once document.fonts.ready settles, one wait at a time.
     const fontSet = (document as Document & {fonts?: FontFaceSet}).fonts;
@@ -676,6 +614,8 @@ const installHomeWidgetAutoRun = (): Disposer | undefined => {
 
     const motionAllowed = () => !disposed
         && !document.hidden
+        && windowFocused
+        && !inputIdle()
         && !motionPreference.matches
         && configuredMotion() !== 'off'
         && !decorativeMotionBlocked()
@@ -745,6 +685,36 @@ const installHomeWidgetAutoRun = (): Disposer | undefined => {
             frame = window.requestAnimationFrame(tick);
         }
     };
+
+    // Any input (or focus coming back) restarts stopped rails; an input while they run only moves the
+    // idle deadline (one timestamp, no layout work).
+    const onVisitorInput = () => {
+        const wasIdle = inputIdle();
+        lastInput = performance.now();
+
+        if (wasIdle && !disposed) {
+            syncCadence();
+        }
+    };
+    const onWindowBlur = () => {
+        windowFocused = false;
+        syncCadence();
+    };
+    const onWindowFocus = () => {
+        windowFocused = true;
+        lastInput = performance.now();
+        syncCadence();
+    };
+    const visitorInputs = ['pointermove', 'pointerdown', 'keydown', 'wheel', 'touchstart'] as const;
+    visitorInputs.forEach((type) => window.addEventListener(type, onVisitorInput, {passive: true}));
+    window.addEventListener('blur', onWindowBlur);
+    window.addEventListener('focus', onWindowFocus);
+    // The idle deadline also stops loops that run without any input event to notice it.
+    const idleCheck = window.setInterval(() => {
+        if (!disposed && inputIdle() && frame !== null) {
+            syncCadence();
+        }
+    }, 5000);
 
     const start = (widget: HTMLElement): AutoRunRow | null => {
         const surface = homeWidgetAutoSurface(widget);
@@ -1096,6 +1066,10 @@ const installHomeWidgetAutoRun = (): Disposer | undefined => {
     // their own snap behaviour back; window.avdScrollRail keeps scrolling them on demand.
     return () => {
         disposed = true;
+        visitorInputs.forEach((type) => window.removeEventListener(type, onVisitorInput));
+        window.removeEventListener('blur', onWindowBlur);
+        window.removeEventListener('focus', onWindowFocus);
+        window.clearInterval(idleCheck);
         if (frame !== null) window.cancelAnimationFrame(frame);
         if (cadenceTimer !== null) window.clearTimeout(cadenceTimer);
         if (resizeTimer !== null) window.clearTimeout(resizeTimer);
@@ -1123,31 +1097,21 @@ const installHomeWidgetAutoRun = (): Disposer | undefined => {
     };
 };
 
-const animateSearchPanels = () => {
-    // Rich only. Balanced keeps the panel's own CSS entrance (motion.scss avd-popover-in), which
-    // this WAAPI version used to override while it ran.
-    if (!allows('revealMotion')) {
-        return;
+// How long a picture's download took (fetch start to the last byte), from its resource timing entry; null when
+// the entry is missing (the buffer is full, or no Resource Timing).
+const downloadMs = (image: HTMLImageElement): number | null => {
+    try {
+        const entries = performance.getEntriesByName(image.currentSrc || image.src, 'resource');
+        const entry = entries[entries.length - 1] as PerformanceResourceTiming | undefined;
+
+        return entry && entry.responseEnd > 0 ? entry.responseEnd - entry.startTime : null;
+    } catch {
+        return null;
     }
-
-    // The panel only exists while its results are shown (SearchBar renders it conditionally),
-    // so no visibility pre-filter: it cost a style/layout read per panel and per item.
-    document.querySelectorAll<HTMLElement>('.avd-search-results').forEach((panel) => {
-        if (panel.dataset.avdAnimeReady === 'true') {
-            return;
-        }
-
-        panel.dataset.avdAnimeReady = 'true';
-
-        enter(panel, 'translate3d(0,-8px,0) scale(.98)', 240);
-
-        panel.querySelectorAll('li').forEach((item, index) => {
-            enter(item, 'translate3d(-12px,0,0)', 360, index * 28);
-        });
-    });
 };
 
-// Rich + fine pointer: the scale fade as before. Balanced or a touch device: a 260 ms opacity fade.
+// Rich + fine pointer: the scale fade as before. Balanced or a touch device: a 260 ms opacity fade. Only for a
+// picture that came at once (see downloadMs above).
 const installImageReveal = (): Disposer => {
     const selector = [
         '.avd-thumb img',
@@ -1173,6 +1137,12 @@ const installImageReveal = (): Disposer => {
 
         image.dataset.avdImageReady = 'true';
 
+        // A picture that downloaded slowly may already be partly drawn (the browser paints an image as its
+        // bytes arrive): it keeps its painted state. Without a timing entry nothing is known, so no fade either.
+        if (!imageMayFade(downloadMs(image))) {
+            return;
+        }
+
         if (allows('revealMotion') && finePointer()) {
             enter(image, 'scale(1.035)', 520);
         } else {
@@ -1183,34 +1153,6 @@ const installImageReveal = (): Disposer => {
     document.addEventListener('load', onLoad, true);
 
     return () => document.removeEventListener('load', onLoad, true);
-};
-
-// Rich tier only (modalFx); balanced keeps Bootstrap's own CSS transition.
-const installModalEffects = (): Disposer => {
-    const onShown = (event: Event) => {
-        const modal = event.target instanceof HTMLElement ? event.target : null;
-
-        if (!modal) {
-            return;
-        }
-
-        const content = modal.querySelector<HTMLElement>('.modal-content');
-        // One batched visibility read before any animation starts: hidden controls (other
-        // steps, collapsed sections) must not take stagger slots, as before.
-        const items = $all('.fa-stack, .btn, .form-control, .form-select', modal);
-
-        if (content) {
-            enter(content, 'translate3d(0,20px,0) scale(.965)', 360);
-        }
-
-        items.forEach((item, index) => {
-            enter(item, 'translate3d(0,12px,0) scale(.94)', 360, index * 28);
-        });
-    };
-
-    document.addEventListener('shown.bs.modal', onShown);
-
-    return () => document.removeEventListener('shown.bs.modal', onShown);
 };
 
 // Installed effects that a later tier downgrade may switch off: each keeps the gate it was
@@ -1266,26 +1208,15 @@ export const initAnimeEnhancements = () => {
     document.documentElement.classList.add('avd-anime-enabled');
     onTierChange(disposeDisallowed);
 
-    window.requestAnimationFrame(() => {
-        // The intro and the first reveal batch only make sense while the page is first painting
-        // (measured from first contentful paint, or from the first response byte without paint
-        // timing). A later init leaves already-painted content alone instead of blinking it.
-        const timely = initIsTimely();
-
-        if (timely && allows('pageIntro')) {
-            runPageIntro();
-        }
-
-        // One installer per idle slot. Each is gated by its tier minimum when its slot comes, and
-        // the reveal observers re-check the first-paint window then: a slot that comes late leaves
-        // the already-painted content alone.
-        runQueue([
-            () => install('reveal', () => installRevealObserver(!initIsTimely())),
-            () => install('widgetCascade', () => installHomeWidgetMotion(!initIsTimely())),
-            () => install('autoRail', installHomeWidgetAutoRun),
-            () => install('imageReveal', installImageReveal),
-            () => install('modalFx', installModalEffects),
-            animateSearchPanels,
-        ]);
-    });
+    // No page intro (auth-5): the header, menus, titles and chips are server-rendered and usually painted
+    // before this chunk runs, and paint timing cannot tell reliably whether they are, so they are never hidden
+    // and faded in again. Dialogs and the search panel keep their own CSS entrances (motion.scss), which start
+    // before they are first painted. One installer per idle slot, each gated by its tier minimum when its slot
+    // comes; the reveal observers leave on-screen content alone whenever they run.
+    runQueue([
+        () => install('reveal', installRevealObserver),
+        () => install('widgetCascade', installHomeWidgetMotion),
+        () => install('autoRail', installHomeWidgetAutoRun),
+        () => install('imageReveal', installImageReveal),
+    ]);
 };

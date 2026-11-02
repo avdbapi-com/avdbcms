@@ -8,7 +8,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 /**
- * The API's release answer (F8 4, 18): only a published release with both update assets uploaded to this
+ * The API's release answer: only a published release with both update assets uploaded to this
  * repository's releases, at most 300 MB, is offered; every refusal has its own message.
  */
 class ReleaseAnswerTest extends TestCase

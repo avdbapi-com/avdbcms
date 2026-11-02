@@ -12,7 +12,7 @@ use Tests\Feature\Updater\Support\UpdaterScenario;
 use Tests\TestCase;
 
 /**
- * One time zone in the step log (1.2.1, B2 of the 1.2.0 tests): the maintenance hook runs without Laravel, so PHP used
+ * One time zone in the step log (1.2.1): the maintenance hook runs without Laravel, so PHP used
  * php.ini's date.timezone for the lines of the swap while every other line used the site's time zone ("15:10:26 swap
  * the site is in maintenance", then "16:10:26 swap caches cleared"). The hook's config now carries the site's time
  * zone, and the hook and its SwapEngine write their lines (and the time of a failure) in it.

@@ -66,7 +66,7 @@
                         {{$plan->name}}
                     </td>
                     <td class="align-middle">
-                        {{$plan->price}}
+                        {{ \App\Support\PremiumAvailability::price($plan) }}
                     </td>
                     <td class="align-middle">
                         @if((int) $plan->duration === 1)
@@ -74,7 +74,7 @@
                         @elseif((int) $plan->duration === 12)
                             <span class="badge bg-info">{{ __('Yearly') }}</span>
                         @else
-                            <span class="badge bg-danger">{{ __('Invalid') }}: {{ $plan->duration }}</span>
+                            <span class="badge bg-danger">{{ \App\Support\AdminText::labelled(__('Invalid'), (string) $plan->duration) }}</span>
                         @endif
                     </td>
                     <td class="align-middle">

@@ -3,9 +3,12 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Console\Commands\ImportXvidVideos;
+use App\Http\Middleware\ViewOnlyDemo;
 use App\Support\AdminNav;
 use App\Support\AppVersion;
+use App\Support\LaravelSchedulerCron;
 use App\Support\PhpBinary;
+use App\Support\StorageExposureProbe;
 use App\Support\Updater\ReleaseCheck;
 use Illuminate\Http\Client\Pool;
 use Illuminate\Http\Client\Response;
@@ -38,6 +41,8 @@ class StatusProbeController
         'health' => 600,
         'php' => 600,
         'updates' => 43200,
+        // Can anybody download the files under storage/? (App\Support\StorageExposureProbe; a day.)
+        'storage' => 86400,
     ];
 
     private const FAILURE_SECONDS = 120;
@@ -48,7 +53,20 @@ class StatusProbeController
     {
         abort_unless(array_key_exists($probe, self::PROBES), 404);
 
-        return response()->json(self::result($probe, request()->boolean('refresh')));
+        return response()->json(self::forViewer(self::result($probe, request()->boolean('refresh'))));
+    }
+
+    /**
+     * An answer as this administrator is shown it. Answers are kept for every administrator alike, so a view-only demo
+     * account's copy drops a link to a closed page there (ViewOnlyDemo::hides()); everybody else gets it unchanged.
+     */
+    public static function forViewer(array $answer): array
+    {
+        if (is_array($answer['action'] ?? null) && ViewOnlyDemo::hidesUrl((string) ($answer['action']['url'] ?? ''))) {
+            $answer['action'] = null;
+        }
+
+        return $answer;
     }
 
     /** The cached answer of a probe, or null when it has not run lately (the page then asks after it appears). */
@@ -83,6 +101,7 @@ class StatusProbeController
                 'health' => self::health(),
                 'php' => self::php(),
                 'updates' => self::updates(),
+                'storage' => self::storage($fresh),
                 default => throw new \InvalidArgumentException('Unknown status probe: '.$probe),
             };
         } catch (Throwable $e) {
@@ -125,17 +144,20 @@ class StatusProbeController
         return 'admin.status.'.$probe.'.'.($locale ?? app()->getLocale());
     }
 
-    /** A link for the answer, or null when this site cannot open that page (e.g. the operational tools are off). */
+    /**
+     * A link for the answer, or null when this site cannot open that page (e.g. the operational tools are off). For every
+     * administrator alike (the answer is kept for all of them): forViewer() leaves out what one of them is not offered.
+     */
     private static function action(string $label, string $route): ?array
     {
-        $url = AdminNav::url(['route' => $route, 'params' => []]);
+        $url = AdminNav::url(['route' => $route, 'params' => []], false);
 
         return $url === null ? null : ['label' => $label, 'url' => $url];
     }
 
     /**
      * Do the video providers answer? (Only asked while imports are set up; both at once, within one time budget.)
-     * They are asked the way the imports ask them (no certificate check), and AVDBAPI is asked its import console's
+     * They are asked the way the imports ask them (with the certificate check), and AVDBAPI is asked its import console's
      * question, so the console shows this answer's catalog numbers (data.providers.AVDBAPI.summary) instead of asking
      * the provider again before the page appears.
      */
@@ -158,7 +180,6 @@ class StatusProbeController
                     ->timeout(self::BUDGET_SECONDS)
                     ->connectTimeout(self::BUDGET_SECONDS)
                     ->withHeaders(['Accept' => 'application/json', 'User-Agent' => 'Mozilla/5.0'])
-                    ->withOptions(['verify' => false])
                     ->get($providers[$name], $queries[$name]),
                 array_keys($providers)
             ));
@@ -191,7 +212,7 @@ class StatusProbeController
 
         return [
             'status' => $down === [] ? 'ok' : (count($down) === count($answers) ? 'danger' : 'warn'),
-            'label' => $down === [] ? __('Video providers answer') : __(':providers did not answer', ['providers' => implode(', ', $down)]),
+            'label' => $down === [] ? __('Video providers answer') : __(':providers did not answer', ['providers' => \App\Support\AdminText::list($down)]),
             'detail' => $down === [] ? null : __('Imports from there fail until it answers again. Nothing on your site is wrong.'),
             'data' => ['providers' => $answers],
             'action' => $down === [] ? null : self::action(__('See imports'), 'admin.avdb-import.index'),
@@ -218,8 +239,14 @@ class StatusProbeController
         ];
     }
 
-    /** @return array{exists: bool, size: int, files: int, formatted_size: string, partial: bool} */
-    private static function folderSize(string $path, float $deadline): array
+    /**
+     * The size of a folder, counted until the deadline (microtime): "partial" when it stopped early (the sizes are
+     * then at least what is shown). Also used by the old admin's Cache & storage page and the Health check's Server tab,
+     * which counted every file before answering (a big storage passed the time limit and answered 500).
+     *
+     * @return array{exists: bool, size: int, files: int, formatted_size: string, partial: bool}
+     */
+    public static function folderSize(string $path, float $deadline): array
     {
         if (! is_dir($path)) {
             return ['exists' => false, 'size' => 0, 'files' => 0, 'formatted_size' => '0 B', 'partial' => false];
@@ -250,29 +277,39 @@ class StatusProbeController
         return ['exists' => true, 'size' => $size, 'files' => $files, 'formatted_size' => StorageController::formatBytes($size), 'partial' => $partial];
     }
 
-    /** Scheduled tasks (schedule:list) and whether the scheduler ran in the last minutes. */
+    /**
+     * Scheduled tasks (schedule:list) and who started them in the last minutes: the system cron (running), or only the
+     * site after page requests (they then wait for visitors: a warning), or nobody. The runs the site starts itself
+     * never count as the cron (judge R1B-004: a site whose cron could not run still said "running").
+     */
     private static function schedule(): array
     {
         $tasks = CronController::listScheduledTasks();
-        $lastRun = null;
-
-        foreach (['logs/cron.log', 'logs/schedule-run.log', 'logs/schedule-work.out.log', 'framework/scheduler-last-run.timestamp'] as $file) {
-            $time = is_file(storage_path($file)) ? @filemtime(storage_path($file)) : false;
-            $lastRun = $time !== false && $time > (int) $lastRun ? $time : $lastRun;
-        }
-
-        $recent = $lastRun !== null && $lastRun >= now()->subMinutes(10)->getTimestamp();
+        $run = LaravelSchedulerCron::runStatus();
+        $lastRun = max((int) $run['last_cron'], (int) $run['last_site']) ?: null;
+        $cron = $run['source'] === 'cron';
 
         return [
-            'status' => $tasks === [] ? 'off' : ($recent ? 'ok' : 'warn'),
-            'label' => $recent ? __('Scheduled tasks are running') : __('Scheduled tasks are not running'),
-            'detail' => $recent ? null : __('Daily imports and clean-ups will not start until this is fixed.'),
+            'status' => $tasks === [] ? 'off' : ($cron ? 'ok' : 'warn'),
+            'label' => match ($run['source']) {
+                'cron' => __('Scheduled tasks are running'),
+                'site' => __('Scheduled tasks run only while people visit the site'),
+                default => __('Scheduled tasks are not running'),
+            },
+            'detail' => match ($run['source']) {
+                'cron' => null,
+                'site' => __('Without visitors, daily imports and clean-ups start late or not at all. Add the cron line shown on the Scheduled tasks page.'),
+                default => __('Daily imports and clean-ups will not start until this is fixed.'),
+            },
             'data' => [
                 'tasks' => $tasks,
                 'count' => count($tasks),
                 'last_run' => $lastRun !== null ? date(DATE_ATOM, $lastRun) : null,
+                'source' => $run['source'],
+                'last_cron_run' => $run['last_cron'] !== null ? date(DATE_ATOM, $run['last_cron']) : null,
+                'last_site_run' => $run['last_site'] !== null ? date(DATE_ATOM, $run['last_site']) : null,
             ],
-            'action' => $recent ? null : self::action(__('How to fix'), 'admin.cron.index'),
+            'action' => $cron ? null : self::action(__('How to fix'), 'admin.cron.index'),
         ];
     }
 
@@ -322,6 +359,24 @@ class StatusProbeController
         } catch (Throwable) {
             return false;
         }
+    }
+
+    /**
+     * Private files under storage/ must never be downloadable (security plan S03): nginx with the web root at the project
+     * folder and only a try_files rule hands them out. Unknown (the site cannot reach itself) shows nothing.
+     */
+    private static function storage(bool $fresh): array
+    {
+        return match (StorageExposureProbe::cached($fresh)) {
+            StorageExposureProbe::EXPOSED => [
+                'status' => 'danger',
+                'label' => __('Private files of your site can be downloaded'),
+                'detail' => __('The web server hands out files from storage/ (logs with password-reset links, backups, invoices).').' '.StorageExposureProbe::fix(),
+                'action' => self::action(__('See details'), 'admin.preflight.index'),
+            ],
+            StorageExposureProbe::SAFE => ['status' => 'ok', 'label' => __('Private files are not reachable from the web')],
+            default => ['status' => 'off', 'label' => __('Not checked: the site could not reach itself'), 'keep' => StorageExposureProbe::KEEP_UNKNOWN_SECONDS],
+        };
     }
 
     private static function disk(): array

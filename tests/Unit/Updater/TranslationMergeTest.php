@@ -8,7 +8,7 @@ use App\Support\Updater\TranslationMerge;
 use Tests\TestCase;
 
 /**
- * Translations (updater.md amendment 1, F8 9, 18). A language file still as shipped is replaced as a whole, so its
+ * Translations. A language file still as shipped is replaced as a whole, so its
  * unchanged keys take the new texts and the keys the release removed go. A file the owner changed is merged: the
  * owner's text wins for every key both files have, the release's new keys come in, and keys only the owner's file has
  * stay (with the installed manifest's file hash as the only "base", a key the release removed cannot be told from a key

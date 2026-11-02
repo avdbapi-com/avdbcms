@@ -5,18 +5,19 @@ namespace App\Http\Controllers\Admin;
 use App\Support\AdminPreferences;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Support\Facades\File;
 
 class StorageController
 {
     public function index(): View
     {
         // The new admin shows the page at once and counts the folders after it appears (status probe "folders",
-        // cached 10 minutes); the old admin counts them before it answers, as it always did.
+        // cached 10 minutes). The old admin answers with that probe's answer too: the probe counts for about 3 seconds
+        // at most (a folder with more files shows "at least"), where the old admin counted every file before it
+        // answered and, with about 78,000 files, passed the time limit and answered 500.
         if (AdminPreferences::usesNewAdmin()) {
             $directories = StatusProbeController::peek('folders')['data']['folders'] ?? null;
         } else {
-            $directories = array_map(fn (string $path): array => $this->getDirectoryInfo($path), self::folders());
+            $directories = (array) (StatusProbeController::result('folders')['data']['folders'] ?? []);
         }
 
         $total = @disk_total_space(base_path());
@@ -57,48 +58,61 @@ class StorageController
         ];
 
         if (!isset($paths[$type])) {
-            return redirect()->route('admin.storage.index')->withErrors(['error' => 'Invalid directory type.']);
+            return redirect()->route('admin.storage.index')->withErrors(['error' => __('That folder cannot be cleared.')]);
         }
 
+        // the folder as Tools > Cache & storage shows it
+        $folder = ['cache' => 'storage/framework/cache', 'sessions' => 'storage/framework/sessions', 'views' => 'storage/framework/views', 'logs' => 'storage/logs'][$type] ?? $type;
         $path = $paths[$type];
         if (is_dir($path)) {
-            $files = File::allFiles($path);
-            $count = count($files);
-            foreach ($files as $file) {
-                @unlink($file->getPathname());
-            }
+            ['removed' => $count, 'left' => $left] = self::removeFiles($path, microtime(true) + self::CLEAR_SECONDS);
             StatusProbeController::forget('folders');
+
+            // Tools > Logs > Admin actions (R3-019): "storage/framework/cache: 120 files"; a folder with nothing to remove
+            // writes nothing.
+            if ($count > 0) {
+                AuditLogController::log('tools.storage.cleared', $folder.': '.$count.' '.($count === 1 ? 'file' : 'files'));
+            }
+            $message = trans_choice('Removed 1 file from :folder.|Removed :count files from :folder.', $count, ['folder' => $folder]);
+
             return redirect()->route('admin.storage.index')
-                ->withSuccess("{$count} files removed from {$type}.");
+                ->withSuccess($left ? $message.' '.__('More files are left: click Clear again to remove them.') : $message);
         }
 
-        return redirect()->route('admin.storage.index')->withSuccess("Directory is already empty.");
+        return redirect()->route('admin.storage.index')->withSuccess(__('That folder is already empty.'));
     }
 
-    private function getDirectoryInfo(string $path): array
+    /** Seconds one Clear may spend deleting files (a hosting time limit is often 30 s): the rest waits for the next. */
+    private const CLEAR_SECONDS = 10;
+
+    /**
+     * Deletes the files under a folder (not its folders, and not the dot files that keep a folder in a package, as
+     * before), one at a time and never past the deadline, so a folder of 100,000 cache files never holds the answer.
+     *
+     * @return array{removed: int, left: bool}
+     */
+    private static function removeFiles(string $path, float $deadline): array
     {
-        if (!is_dir($path)) {
-            return ['size' => 0, 'files' => 0, 'exists' => false];
-        }
+        $removed = 0;
+        $seen = 0;
 
-        $size = 0;
-        $count = 0;
         try {
-            $files = File::allFiles($path);
-            foreach ($files as $file) {
-                $size += $file->getSize();
-                $count++;
+            $items = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($path, \FilesystemIterator::SKIP_DOTS));
+
+            foreach ($items as $item) {
+                if (($item->isFile() || $item->isLink()) && ! str_starts_with($item->getFilename(), '.') && @unlink($item->getPathname())) {
+                    $removed++;
+                }
+
+                if ((++$seen & 255) === 0 && microtime(true) > $deadline) {
+                    return ['removed' => $removed, 'left' => true];
+                }
             }
-        } catch (\Exception $e) {
-            // Skip unreadable directories
+        } catch (\Throwable) {
+            // An unreadable part of the folder keeps its files; what could be deleted is counted.
         }
 
-        return [
-            'size' => $size,
-            'files' => $count,
-            'exists' => true,
-            'formatted_size' => self::formatBytes($size),
-        ];
+        return ['removed' => $removed, 'left' => false];
     }
 
     public static function formatBytes(int $bytes): string

@@ -6,7 +6,7 @@ use App\Http\Middleware\ViewOnlyDemo;
 use Tests\TestCase;
 
 /**
- * AVDBCMS 1.2.2, lane V: what the view-only demo account is shown (App\Http\Middleware\ViewOnlyDemo::mask / maskJson /
+ * AVDBCMS 1.2.2: what the view-only demo account is shown (App\Http\Middleware\ViewOnlyDemo::mask / maskJson /
  * withNote). Secrets, e-mail addresses, IP addresses, server paths, session ids and credential fields are masked; a
  * JSON answer stays valid JSON; the site's own address, asset names, times and the CSRF field stay.
  */

@@ -44,6 +44,29 @@ class ApiAuthenticationTest extends TestCase
             ->assertJsonPath('token', fn (mixed $token): bool => is_string($token) && $token !== '');
     }
 
+    public function test_api_login_names_the_token_like_the_sign_up_when_the_device_name_is_blank(): void
+    {
+        $user = User::factory()->create([
+            'email' => 'blank-device@example.test',
+            'password' => 'correct-password',
+        ]);
+
+        // An empty or blank field arrives as null (TrimStrings, ConvertEmptyStringsToNull); the member's Devices list
+        // and the admin's API tokens still need a name.
+        foreach (['', '   ', null, 'Living room TV'] as $deviceName) {
+            $this->postJson('/api/login', [
+                'username' => $user->email,
+                'password' => 'correct-password',
+                'device_name' => $deviceName,
+            ])->assertOk();
+        }
+
+        $this->assertSame(
+            ['api-token', 'api-token', 'api-token', 'Living room TV'],
+            $user->tokens()->orderBy('id')->pluck('name')->all()
+        );
+    }
+
     public function test_auth_payloads_reject_non_scalar_credentials(): void
     {
         $this->postJson('/api/login', [

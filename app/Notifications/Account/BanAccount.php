@@ -2,6 +2,7 @@
 
 namespace App\Notifications\Account;
 
+use App\Notifications\Support\MemberMail;
 use App\Models\User;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
@@ -40,8 +41,8 @@ class BanAccount extends Notification
     protected function buildMailMessage(User $notifiable) : MailMessage
     {
         return (new MailMessage)
-            ->subject(Lang::get('Your account was suspended'))
-            ->markdown('mails.account.ban', [
+            ->subject(MemberMail::ban($notifiable)['subject'])
+            ->view(['mails.account.ban', 'mails.text.account.ban'], [
                 'notifiable' => $notifiable,
             ]);
     }

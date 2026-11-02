@@ -103,7 +103,7 @@ class SyncAvdbDurations extends Command
             }
 
             if (($result['remote_skipped'] ?? 0) > 0) {
-                $this->line("Upload18 duration lookup is paused; waiting to retry {$result['remote_skipped']} remote-only video(s).");
+                $this->line("Upload18 duration lookup is paused; waiting to retry {$result['remote_skipped']} remote-only ".\Illuminate\Support\Str::plural('video', (int) $result['remote_skipped']).'.');
                 if ($this->timeLimitReached($deadline)) {
                     $this->info("AVDB duration sync paused after {$maxRuntime}s. Scanned {$totalScanned}; updated {$totalUpdated}; {$totalMissing} could not resolve yet.");
 
@@ -122,7 +122,7 @@ class SyncAvdbDurations extends Command
             if ($result['scanned'] === 0) {
                 $waitingForRetry = $watchRetries ? $this->missingDurationCount() : 0;
                 if ($waitingForRetry > 0) {
-                    $this->line("AVDB duration sync is waiting to retry {$waitingForRetry} unresolved video(s).");
+                    $this->line("AVDB duration sync is waiting to retry {$waitingForRetry} unresolved ".\Illuminate\Support\Str::plural('video', (int) $waitingForRetry).'.');
 
                     if ($this->timeLimitReached($deadline)) {
                         $this->info("AVDB duration sync paused after {$maxRuntime}s. Scanned {$totalScanned}; updated {$totalUpdated}; {$totalMissing} could not resolve yet.");
@@ -266,7 +266,6 @@ class SyncAvdbDurations extends Command
 
             try {
                 $response = Http::timeout($apiTimeout)
-                    ->withOptions(['verify' => false])
                     ->get(self::API, [
                         'ac' => 'detail',
                         'ids' => $ids->implode(','),
@@ -395,7 +394,7 @@ class SyncAvdbDurations extends Command
     {
         $dryRun = (bool) $this->option('dry-run');
 
-        $this->info(($dryRun ? 'Would update ' : 'Updated ')."{$updated} video(s). {$missing} could not resolve a duration.");
+        $this->info(($dryRun ? 'Would update ' : 'Updated ')."{$updated} ".\Illuminate\Support\Str::plural('video', (int) $updated).". {$missing} could not resolve a duration.");
     }
 
     private function markDurationAttempt(int $videoId, bool $resolved, bool $dryRun): void

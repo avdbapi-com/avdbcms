@@ -1,15 +1,2 @@
-@component('mail::message')
-
-# Dear {{$notifiable->username}}.
-
-Your last payment of **{{ $amount }}** for {{ config('app.name') }} Premium was unsuccessful.
-
-Please update your payment method to continue to profit premium features.
-
-@component('mail::button', ['url' => $url])
-    Update payment information
-@endcomponent
-
-Regards, {{ config('app.name') }}
-
-@endcomponent
+{{-- A payment did not go through (App\Notifications\Premium\Unpaid). The HTML part (member design 6.21); the plain-text part: mails.text.premium.unpaid. The words: App\Notifications\Support\MemberMail. --}}
+@include('mails.layouts.html', ['mail' => \App\Notifications\Support\MemberMail::unpaid($notifiable, (string) ($url ?? ''), is_scalar($amount ?? null) ? (string) $amount : '')])

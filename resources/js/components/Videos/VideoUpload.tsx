@@ -1,5 +1,6 @@
 import { useState, useRef } from 'preact/hooks';
 import {formatSizeUnits} from "@/functions/size";
+import {requestBase} from "@/functions/sitePath";
 import { useTranslation } from "react-i18next";
 import {ChangeEvent} from "react";
 
@@ -20,7 +21,80 @@ const DEFAULT_CHUNK_SIZE = 90 * 1000 * 1000;
 type Upload18Identifiers = {
     did: string;
     vid: string;
+    // Upload18's answer said duplicate = 1: it handed back a video it already had instead of this file.
+    duplicate?: boolean;
 };
+
+// "Never lose a video": what the site answered when the page said Upload18 has the whole file.
+type AnnounceResult = {
+    saved: boolean;
+    refused: string | null;
+};
+
+// After the 10-minute wait or a finish that did not get through: the video is safe, the member chooses what next.
+type Recovery = {
+    saved: boolean;
+    busy: boolean;
+    note: string;
+};
+
+type ResumeState = {
+    uploadIds: Upload18Identifiers;
+    config: any;
+    file: File;
+    csrfToken: string;
+    capturedThumbsPromise: Promise<string[]>;
+    localDurationPromise: Promise<number | null>;
+    announce: Promise<AnnounceResult>;
+    uploadStatus: any;
+};
+
+// The length of the local file (metadata only, no frames): the site compares it with what Upload18 stored.
+function readLocalDuration(file: File, timeoutMs = 8000): Promise<number | null> {
+    return new Promise((resolve) => {
+        let objectUrl: string | null = null;
+        try {
+            objectUrl = URL.createObjectURL(file);
+        } catch {
+            resolve(null);
+            return;
+        }
+
+        const video = document.createElement('video');
+        video.preload = 'metadata';
+        video.muted = true;
+        let settled = false;
+
+        const done = (value: number | null) => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timer);
+            video.removeAttribute('src');
+            try {
+                video.load();
+            } catch {}
+            try {
+                URL.revokeObjectURL(objectUrl as string);
+            } catch {}
+            resolve(value);
+        };
+
+        const timer = setTimeout(() => done(null), timeoutMs);
+        video.onloadedmetadata = () => done(Number.isFinite(video.duration) && video.duration > 0 ? video.duration : null);
+        video.onerror = () => done(null);
+        video.src = objectUrl;
+    });
+}
+
+function settleWithin<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+    return new Promise((resolve) => {
+        const timer = setTimeout(() => resolve(fallback), ms);
+        promise.then(
+            (value) => { clearTimeout(timer); resolve(value); },
+            () => { clearTimeout(timer); resolve(fallback); },
+        );
+    });
+}
 
 async function captureThumbnailsFromFile(file: File, count = 3): Promise<string[]> {
     return new Promise((resolve) => {
@@ -152,9 +226,13 @@ export function VideoUpload ({configendpoint, completeendpoint, maxsize, maxfile
     const [progress, setProgress] = useState<number>(0);
     const [statusText, setStatusText] = useState<string>('');
     const [isDrag, setDrag] = useState<boolean>(false);
+    const [recovery, setRecovery] = useState<Recovery | null>(null);
 
     const abortRef = useRef<boolean>(false);
     const input = useRef<HTMLInputElement>(null);
+    // The upload Upload18 already has (for "Keep waiting" / "Retry finishing") and a refusal the site gave for it.
+    const resumeRef = useRef<ResumeState | null>(null);
+    const refusalRef = useRef<string | null>(null);
 
     const change = async (event: ChangeEvent<HTMLInputElement>) => {
 
@@ -196,9 +274,13 @@ export function VideoUpload ({configendpoint, completeendpoint, maxsize, maxfile
 
         setLoading(true);
         setProgress(0);
+        setRecovery(null);
         abortRef.current = false;
+        refusalRef.current = null;
+        resumeRef.current = null;
 
         const capturedThumbsPromise = captureThumbnailsFromFile(file, 3);
+        const localDurationPromise = readLocalDuration(file);
 
         try {
             setStatusText(t('Preparing upload...'));
@@ -228,7 +310,7 @@ export function VideoUpload ({configendpoint, completeendpoint, maxsize, maxfile
                 const capturedThumbnails = await capturedThumbsPromise.catch(() => []);
                 if (capturedThumbnails.length > 0 && fallback?.video_id) {
                     try {
-                        await fetch(`/api/videos/${fallback.video_id}/generate-thumbnails`, {
+                        await fetch(`${requestBase()}/api/videos/${fallback.video_id}/generate-thumbnails`, {
                             method: 'POST',
                             headers: {
                                 'Accept': 'application/json',
@@ -265,7 +347,7 @@ export function VideoUpload ({configendpoint, completeendpoint, maxsize, maxfile
                 const capturedThumbnails = await capturedThumbsPromise.catch(() => []);
                 if (capturedThumbnails.length > 0 && fallback?.video_id) {
                     try {
-                        await fetch(`/api/videos/${fallback.video_id}/generate-thumbnails`, {
+                        await fetch(`${requestBase()}/api/videos/${fallback.video_id}/generate-thumbnails`, {
                             method: 'POST',
                             headers: {
                                 'Accept': 'application/json',
@@ -285,50 +367,215 @@ export function VideoUpload ({configendpoint, completeendpoint, maxsize, maxfile
 
             if (abortRef.current) return;
 
+            // Never lose a video: Upload18 has the whole file now. The site keeps a private draft of it at once and
+            // finishes that draft by itself if this page is closed. Sent next to the first status check, so the
+            // checks keep their timing; a refusal (another member's video, a copy Upload18 handed back, another
+            // file) stops the checks with the site's message.
+            resumeRef.current = {
+                uploadIds,
+                config,
+                file,
+                csrfToken,
+                capturedThumbsPromise,
+                localDurationPromise,
+                announce: announceUpload(uploadIds, file, config, csrfToken, localDurationPromise),
+                uploadStatus: null,
+            };
+
             setStatusText(t('Processing video on Upload18...'));
             setProgress(92);
 
-            const uploadStatus = await pollForEmbedCode(uploadIds, config);
+            await waitThenFinish();
 
+        } catch (err: any) {
+            if (!abortRef.current) {
+                setLoading(false);
+                setError(err?.message || 'Upload failed. Please try again.');
+            }
+        }
+    }
+
+    // The 92 % checks, then the finish. After the 10-minute wait the panel offers "Keep waiting" and
+    // "Retry finishing" instead of an error: the video is already on Upload18.
+    async function waitThenFinish(): Promise<void> {
+        const resume = resumeRef.current;
+        if (!resume) return;
+
+        let uploadStatus: any;
+
+        try {
+            uploadStatus = await pollForEmbedCode(resume.uploadIds, resume.config);
+        } catch (err: any) {
             if (abortRef.current) return;
 
-            setStatusText(t('Finalizing metadata...'));
-            setProgress(98);
+            if (err?.code === 'processing-timeout') {
+                const announced = await settleWithin(resume.announce, 20000, { saved: false, refused: null });
+                if (announced.refused) throw new Error(announced.refused);
+                setRecovery({ saved: announced.saved, busy: false, note: '' });
+                return;
+            }
 
-            const capturedThumbnails = await capturedThumbsPromise.catch(() => []);
+            throw err;
+        }
 
-            const completeRes = await fetch(completeendpoint, {
+        if (abortRef.current) return;
+
+        resume.uploadStatus = uploadStatus;
+        const announced = await settleWithin(resume.announce, 20000, { saved: false, refused: null });
+        if (announced.refused) throw new Error(announced.refused);
+
+        setStatusText(t('Finalizing metadata...'));
+        setProgress(98);
+
+        await finishUpload(resume, announced.saved);
+    }
+
+    // POST /complete with the frames the browser captured. A finish that did not get through for a passing reason
+    // (network, server error, too many requests, "not finished yet") shows the recovery choices instead of an error.
+    async function finishUpload(resume: ResumeState, saved: boolean): Promise<void> {
+        const capturedThumbnails = await resume.capturedThumbsPromise.catch(() => []);
+        const localDuration = await settleWithin(resume.localDurationPromise, 1000, null);
+        const uploadStatus = resume.uploadStatus || {};
+        let completeRes: Response;
+
+        try {
+            completeRes = await fetch(completeendpoint, {
                 method: 'POST',
                 headers: {
                     'Accept': 'application/json',
                     'Content-Type': 'application/json',
                     'X-Requested-With': 'XMLHttpRequest',
-                    'X-CSRF-TOKEN': csrfToken,
+                    'X-CSRF-TOKEN': resume.csrfToken,
                 },
                 credentials: 'same-origin',
                 body: JSON.stringify({
-                    did: uploadIds.did,
-                    vid: uploadStatus.vid || uploadIds.vid,
-                    filename: file.name,
-                    size: file.size,
+                    did: resume.uploadIds.did,
+                    vid: uploadStatus.vid || resume.uploadIds.vid,
+                    filename: resume.file.name,
+                    size: resume.file.size,
                     duration: uploadStatus.duration,
                     duration_seconds: uploadStatus.duration_seconds,
+                    file_duration: localDuration !== null ? Math.round(localDuration * 1000) / 1000 : undefined,
                     thumbnails: capturedThumbnails.length > 0 ? capturedThumbnails : undefined,
                 }),
             });
+        } catch {
+            if (abortRef.current) return;
+            setRecovery({ saved, busy: false, note: '' });
+            return;
+        }
 
-            if (!completeRes.ok) {
-                const data = await completeRes.json().catch(() => ({}));
-                throw new Error(data?.message || `Complete failed: ${completeRes.status}`);
+        if (!completeRes.ok) {
+            const data = await completeRes.json().catch(() => ({}));
+
+            if (isPassingFinishProblem(completeRes.status, data, saved)) {
+                if (abortRef.current) return;
+                setRecovery({ saved, busy: false, note: typeof data?.message === 'string' ? data.message : '' });
+                return;
             }
 
-            const data = await completeRes.json();
-            setProgress(100);
+            throw new Error(data?.message || `Complete failed: ${completeRes.status}`);
+        }
 
-            window.location.replace(data.route);
+        const data = await completeRes.json();
+        setProgress(100);
 
+        window.location.replace(data.route);
+    }
+
+    function isPassingFinishProblem(status: number, data: any, saved: boolean): boolean {
+        const code = String(data?.code || '');
+
+        if (status === 429 || status >= 500) return true;
+        if (status === 409) return code === '' || code === 'not_ready' || code === 'status_required' || code === 'unavailable';
+        // A sign-in that ran out during a long upload: the site still finishes the draft it kept.
+        if ((status === 401 || status === 419) && saved) return true;
+
+        return false;
+    }
+
+    // Tells the site that Upload18 has the whole file. Never throws: a failed call leaves the normal path as it is.
+    function announceUpload(
+        uploadIds: Upload18Identifiers,
+        file: File,
+        config: any,
+        csrfToken: string,
+        localDurationPromise: Promise<number | null>,
+    ): Promise<AnnounceResult> {
+        const url = config?.pending_url;
+        if (!url) return Promise.resolve({ saved: false, refused: null });
+
+        return (async (): Promise<AnnounceResult> => {
+            const localDuration = await settleWithin(localDurationPromise, 3000, null);
+
+            try {
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-TOKEN': csrfToken,
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({
+                        did: uploadIds.did,
+                        vid: uploadIds.vid || undefined,
+                        filename: file.name,
+                        size: file.size,
+                        file_duration: localDuration !== null ? Math.round(localDuration * 1000) / 1000 : undefined,
+                        duplicate: uploadIds.duplicate ? 1 : undefined,
+                    }),
+                });
+                const data = await res.json().catch(() => ({}));
+
+                if (res.ok) return { saved: data?.saved === true, refused: null };
+
+                if (res.status === 403 || res.status === 409 || res.status === 422) {
+                    const firstError = data?.errors ? Object.values(data.errors).flat()[0] : null;
+                    const message = String(data?.message || firstError || `HTTP ${res.status}`);
+                    refusalRef.current = message;
+                    return { saved: false, refused: message };
+                }
+            } catch {
+            }
+
+            return { saved: false, refused: null };
+        })();
+    }
+
+    const keepWaiting = async () => {
+        if (!resumeRef.current || recovery?.busy) return;
+
+        setRecovery(null);
+        setError('');
+        setStatusText(t('Processing video on Upload18...'));
+        setProgress(92);
+
+        try {
+            await waitThenFinish();
         } catch (err: any) {
             if (!abortRef.current) {
+                setLoading(false);
+                setError(err?.message || 'Upload failed. Please try again.');
+            }
+        }
+    }
+
+    const retryFinishing = async () => {
+        const resume = resumeRef.current;
+        if (!resume || !recovery || recovery.busy) return;
+
+        setRecovery({ ...recovery, busy: true, note: '' });
+
+        try {
+            const announced = await settleWithin(resume.announce, 20000, { saved: false, refused: null });
+            if (announced.refused) throw new Error(announced.refused);
+
+            await finishUpload(resume, announced.saved);
+        } catch (err: any) {
+            if (!abortRef.current) {
+                setRecovery(null);
                 setLoading(false);
                 setError(err?.message || 'Upload failed. Please try again.');
             }
@@ -343,6 +590,7 @@ export function VideoUpload ({configendpoint, completeendpoint, maxsize, maxfile
 
         while (elapsed < maxWait) {
             if (abortRef.current) throw new Error('Upload cancelled');
+            if (refusalRef.current) throw new Error(refusalRef.current);
 
             const waitSec = Math.round(elapsed / 1000);
             setStatusText(t('Processing video on Upload18... ({seconds}s)', { seconds: waitSec.toString() }));
@@ -375,7 +623,10 @@ export function VideoUpload ({configendpoint, completeendpoint, maxsize, maxfile
             elapsed += pollInterval;
         }
 
-        throw new Error('Video processing timed out. Please try again.');
+        // Not an error for the member: the caller offers "Keep waiting" and "Retry finishing".
+        const timeout: any = new Error('Video processing timed out. Please try again.');
+        timeout.code = 'processing-timeout';
+        throw timeout;
     }
 
     async function uploadToUpload18(file: File, config: any): Promise<Upload18Identifiers> {
@@ -569,8 +820,28 @@ export function VideoUpload ({configendpoint, completeendpoint, maxsize, maxfile
         const did = extractUpload18Id(result, ['did', 'id']);
         const vid = extractUpload18Id(result, ['vid']) || '';
 
-        if (did) return { did, vid };
+        if (did) return { did, vid, duplicate: hasUpload18Flag(result, 'duplicate') };
         throw new Error(`Upload completed but no video ID received (${describeResponseShape(result)})`);
+    }
+
+    // Upload18 answers yes as 1, "1", true or "true" (its "duplicate" field), at the top or under data/result.
+    function hasUpload18Flag(value: any, key: string, depth = 0): boolean {
+        if (depth > 6 || value === null || typeof value !== 'object') return false;
+
+        if (Object.prototype.hasOwnProperty.call(value, key)) {
+            const flag = value[key];
+            if (flag === true || flag === 1 || String(flag).trim().toLowerCase() === '1' || String(flag).trim().toLowerCase() === 'true') {
+                return true;
+            }
+        }
+
+        for (const nested of ['data', 'result', 'video', 'file', 'response']) {
+            if (Object.prototype.hasOwnProperty.call(value, nested) && hasUpload18Flag(value[nested], key, depth + 1)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     function extractUpload18Id(value: any, keys: string[], depth = 0): string | null {
@@ -792,14 +1063,38 @@ export function VideoUpload ({configendpoint, completeendpoint, maxsize, maxfile
                     >
                         <span>{progress}%</span>
                     </div>
-                    <div className="video-upload-progress-copy">
-                        <h2>{t('Your video is uploading ...')}</h2>
-                        {statusText && <span role="status" aria-live="polite">{statusText}</span>}
-                    </div>
-                    <div className="alert alert-danger video-upload-warn">
-                        <i className="fa-solid fa-circle-exclamation"></i>
-                        {t('Dont quit or reload page please')}
-                    </div>
+                    {
+                        recovery
+                            ? <div className="video-upload-progress-copy" data-upload-recovery={recovery.saved ? 'saved' : 'waiting'}>
+                                <h2>{recovery.saved ? t('Your video is safe.') : t('Upload18 is still processing your video.')}</h2>
+                                <span role="status" aria-live="polite">
+                                    {recovery.saved
+                                        ? t('Upload18 is still processing it. It will appear in your studio when it is ready, so you can close this page.')
+                                        : t('Keep this page open and try again in a minute.')}
+                                </span>
+                                {recovery.note && <small className="d-block text-muted mt-1">{recovery.note}</small>}
+                                <div className="d-flex flex-wrap justify-content-center gap-2 mt-3">
+                                    <button type="button" className="btn btn-primary" onClick={keepWaiting} disabled={recovery.busy}>
+                                        {t('Keep waiting')}
+                                    </button>
+                                    <button type="button" className="btn btn-outline-primary" onClick={retryFinishing} disabled={recovery.busy}>
+                                        {recovery.busy && <span className="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>}
+                                        {t('Retry finishing')}
+                                    </button>
+                                </div>
+                            </div>
+                            : <div className="video-upload-progress-copy">
+                                <h2>{t('Your video is uploading ...')}</h2>
+                                {statusText && <span role="status" aria-live="polite">{statusText}</span>}
+                            </div>
+                    }
+                    {
+                        !(recovery && recovery.saved) &&
+                        <div className="alert alert-danger video-upload-warn">
+                            <i className="fa-solid fa-circle-exclamation"></i>
+                            {t('Dont quit or reload page please')}
+                        </div>
+                    }
                     <div className="progress video-upload-progress-bar">
                         <div
                             className="progress-bar progress-bar-striped progress-bar-animated"

@@ -8,6 +8,8 @@ import {Fragment} from "preact";
 import {QueryClient, QueryClientProvider} from "@tanstack/react-query";
 import {useTranslation} from "react-i18next";
 import {enumToArray} from "@/functions/string";
+import {useSheetFocus} from "@/components/Comments/useSheetFocus";
+import {localePath} from "@/functions/sitePath";
 
 type Props = {
     buttonClass: string,
@@ -21,6 +23,9 @@ export function Main ({buttonClass, reportedClass, type, id} : Props)  {
     const [open, setOpen] = useState<boolean>(false);
     const [count, setCount] = useState<number>(0);
     const [reported, setReported] = useState<boolean>(false);
+    // Opened from the comments sheet, the dialog takes the focus from the sheet while it is open (watch-2).
+    const {release, reArm} = useSheetFocus();
+    const reportsUrl = localePath('/profile/reports');
 
     const {mutate, isPending} = useErrorMutation({
         mutationFn: (data: ReportData) => report(data),
@@ -45,31 +50,34 @@ export function Main ({buttonClass, reportedClass, type, id} : Props)  {
         <>
             {
                 !reported &&
-                <button className={buttonClass + ' d-flex gap-2 items-center'} onClick={() => setOpen(true)}>
-                    <i class="fa-regular fa-flag"></i>
+                <button type="button" className={buttonClass + ' d-flex gap-2 items-center avd-report-action'} onClick={() => { release(); setOpen(true); }}>
+                    <i class="fa-regular fa-flag" aria-hidden="true"></i>
                     <span>{t('Report')}</span>
                 </button>
             }
             {
+                // A short state in the same place: the row never jumps (it grew to "Reported a few seconds ago").
                 reported &&
-                <div class={reportedClass}>
-                    <i class="fa-regular fa-flag"></i>
-                   <span>{t('Reported a few seconds ago')}</span>
+                <div class={reportedClass + ' avd-report-action'} role="status">
+                    <i class="fa-solid fa-flag" aria-hidden="true"></i>
+                   <span>{t('Reported')}</span>
                 </div>
             }
-            <Modal size={'lg'} show={open} onHide={() => setOpen(false)} animation={true}>
-                <Modal.Header closeButton>
+            <Modal size={'lg'} show={open} onHide={() => setOpen(false)} onExited={reArm} restoreFocus={false} animation={true}>
+                <Modal.Header closeButton closeLabel={t('Close')}>
                     <h5 className="modal-title">
                         {t('Report {type}', {type: t(type)})}
                     </h5>
                 </Modal.Header>
                 <Modal.Body className="ms-3 mt-2">
                     {
+                        // An icon tile in the look's colours (watch-16: a white stock picture with an off-brand teal, a
+                        // white box in the dark looks).
                         reported &&
-                        <div className={'text-center'}>
-                            <img className="img-fluid" src="/images/reports/ok.jpg" alt="Report success"/>
-                            <h3 className="my-4">{t('Thanks for reporting')}</h3>
-                            <p className="text-muted mt-4">
+                        <div className={'text-center avd-report-done'} role="status">
+                            <span className="avd-report-done__icon" aria-hidden="true"><i className="fa-solid fa-check"></i></span>
+                            <h3 className="h5 mt-3 mb-2">{t('Thanks for reporting')}</h3>
+                            <p className="avd-report-done__text mb-0">
                                 {t('If we find this content to be in violation of our Community Guidelines, we will remove it.')}
                             </p>
                         </div>
@@ -104,13 +112,11 @@ export function Main ({buttonClass, reportedClass, type, id} : Props)  {
                             </div>
                             <input type="hidden" name="id" value={id}/>
                             <input type="hidden" name="type" value={'App\\Models\\' + type.charAt(0).toUpperCase() + type.slice(1)}/>
-                            <div className="text-muted text-sm mt-3">
-                                <span className={'mb-0'}>
-                                    {t('Reported videos, comments and users are reviewed by staff 24 hours a day, 7 days a week to determine whether they violate Community Guidelines.You can follow the progress of your reports from your account')}
-                                </span>
-                                <span> : </span>
-                                <a target="_blank" className="text-decoration-none" href="/profile/reports">{t('See my reports')}</a>
-                            </div>
+                            <p className="text-muted text-sm mt-3 mb-0">
+                                {t('Our team reviews reported videos, comments and channels every day. You can follow your reports in your account.')}
+                                {' '}
+                                <a target="_blank" rel="noopener" href={reportsUrl}>{t('See my reports')}</a>
+                            </p>
                         </form>
                     }
                 </Modal.Body>

@@ -234,5 +234,8 @@ class StudioHealthAlertsServiceTest extends TestCase
             'ip' => '127.0.7.1',
             'view_at' => now()->subMinutes(10),
         ]);
+        // a counted view, as ViewService::incrementView records it (the count first, then the row): "No recent views"
+        // reads the count since 1.2.3 round 1 (R1-019)
+        $video->increment('views');
     }
 }

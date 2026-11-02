@@ -22,7 +22,7 @@ Route::prefix('profile')->name('user.')->middleware(['auth'])->group(function ()
     Route::controller(ProfileController::class)->group(function () {
         Route::get('/edit', 'edit')->name('edit');
         Route::put('/update', 'update')->name('update');
-        Route::post('/update-password', 'updatePassword')->name('update.password')->middleware('password.confirm');;
+        Route::post('/update-password', 'updatePassword')->name('update.password')->middleware(['password.confirm', 'throttle:member-sessions']);
         Route::delete('/delete', 'delete')->name('delete')->middleware('password.confirm');;
     });
 
@@ -82,6 +82,20 @@ Route::prefix('profile')->name('user.')->middleware(['auth'])->group(function ()
             ->name('click')
             ->can('click', 'notification');
     });
+
+    // Member redesign (member design 9.1 step 4): the routes of the rebuilt member pages: the bulk visibility of My
+    // videos and the replies sheet of Comments, "Sign out of the other devices" and "Download my data", the
+    // notifications page and its settings.
+    // The bulk visibility and "Sign out of the other devices" have a limit per member (R1B-026: RouteServiceProvider).
+    Route::post('videos/mass-visibility', [VideoController::class, 'massVisibility'])->name('videos.mass-visibility')
+        ->middleware('throttle:member-bulk-visibility');
+    Route::get('comments/{comment}/replies', [CommentController::class, 'replies'])->name('comments.replies');
+    Route::post('devices/sign-out-others', [ProfileController::class, 'signOutOtherDevices'])
+        ->name('devices.sign-out-others')
+        ->middleware(['password.confirm', 'throttle:member-sessions']);
+    Route::get('export', [ProfileController::class, 'export'])->name('export')->middleware('throttle:member-export');
+    Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::put('notifications/settings', [NotificationController::class, 'settings'])->name('notifications.settings');
 });
 
 

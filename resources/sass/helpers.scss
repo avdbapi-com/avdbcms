@@ -110,6 +110,23 @@ em {
     font-style: inherit;
 }
 
+// R1-145: the typed part of a search suggestion (SearchBar.tsx, <em> marks) stands out in the bold title too, where the
+// rule above left it looking like the rest: the look's link ink and an underline.
+.avd-search-hit em {
+    color: var(--avd-brand-ink, var(--bs-link-color));
+    text-decoration: underline;
+    text-decoration-thickness: 2px;
+    text-underline-offset: 0.15em;
+}
+
+// On the raised row (pointer or keyboard selection, --avd-surface-hover) the brand ink fell under 4.5:1 in some looks
+// (3.9-4.1:1 in the default look, Daylight and Cinema Night): there the typed part keeps the row's own ink, which every
+// look fits to that background, and its weight and underline still mark it.
+.avd-search-result:hover .avd-search-hit em,
+.avd-search-result.selected .avd-search-hit em {
+    color: inherit;
+}
+
 .btn-file {
     position: relative;
     overflow: hidden;

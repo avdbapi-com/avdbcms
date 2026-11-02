@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Http\Middleware\ViewOnlyDemo;
 use App\Models\User;
 use App\Support\AppVersion;
 use App\Support\DatabaseBackup;
 use App\Support\Environment;
 use App\Support\Updater\PlanStore;
 use App\Support\Updater\ReleaseCheck;
+use App\Support\Updater\ShippedTexts;
 use App\Support\Updater\Updater;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Exceptions\HttpResponseException;
@@ -22,14 +24,14 @@ use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Throwable;
 
 /**
- * Tools > Updates (F8): is a newer AVDBCMS out, and its one-click install. The page renders from what is kept (the
+ * Tools > Updates: is a newer AVDBCMS out, and its one-click install. The page renders from what is kept (the
  * cached GitHub check, plan.json, state.json, the file backups); when nothing is kept yet it asks GitHub after it
  * appears (status?check=1, a deferred section). Its script (resources/admin/updates/updates.ts) walks the steps of
  * App\Support\Updater: start -> step ... -> swap (the maintenance hook) -> finish.
  *
  * Every action answers JSON to the script and a redirect with the message to a plain form, and never a 500: anything
  * unexpected is reported (without addresses, tokens or cookies) and answered with a message. Start and Undo ask for
- * the administrator's password again (Hash::check, not the redirect-only password.confirm middleware: F8 §15); five
+ * the administrator's password again (Hash::check, not the redirect-only password.confirm middleware); five
  * wrong passwords in ten minutes block both for ten minutes.
  */
 class UpdatesController
@@ -67,6 +69,9 @@ class UpdatesController
             'tidy' => false,
             // A Finish / Undo click of a maintenance page that had stood down (see choice()).
             'choice' => null,
+            // Language files the owner changed that still have texts an older version shipped, which this version
+            // corrected (an upload by hand without Finish update): name => how many; "Correct the texts" does them.
+            'pendingTexts' => [],
         ];
 
         try {
@@ -76,6 +81,13 @@ class UpdatesController
             $view = $plan !== null ? $this->planView($plan, $admin) : null;
             $state = $updater->state();
             $state = is_array($state) && ($state['installed_version'] ?? null) === AppVersion::CURRENT ? $state : null;
+            // The database backups this page names, as Tools > Backups lists them (see backupFile()).
+            $file = fn (?string $shown): ?string => $this->backupFile($updater, $shown, ViewOnlyDemo::isViewOnlyUser($admin));
+
+            if ($view !== null && is_array($view['database_backup'])) {
+                $name = $file($view['database_backup']['name']);
+                $view['database_backup'] = $name === null ? null : ['name' => $name] + $view['database_backup'];
+            }
 
             $data = array_merge($data, [
                 // "Last updated" only while it speaks of the running version (an upload by hand may have come since).
@@ -88,11 +100,12 @@ class UpdatesController
                 'plan' => $view !== null && $view['active'] ? $view : null,
                 'result' => $view !== null && ! $view['active'] && $view['step_at'] >= time() - self::RESULT_SECONDS ? $view : null,
                 'blockers' => $updater->blockers(),
-                'recentBackup' => $ops ? $this->recentBackup() : null,
-                'backups' => $this->backupList($updater),
+                'recentBackup' => $ops ? $this->recentBackup(ViewOnlyDemo::isViewOnlyUser($admin)) : null,
+                'backups' => array_map(fn (array $backup): array => ['database_backup' => $file($backup['database_backup'] ?? null)] + $backup, $this->backupList($updater)),
                 'lockedFor' => $this->lockedFor($admin),
                 'log' => $plan !== null ? $updater->logLines($plan) : [],
                 'choice' => $ops ? self::choice($request, $view) : null,
+                'pendingTexts' => self::languageNames($updater->pendingTexts()),
             ]);
         } catch (Throwable $e) {
             self::reportSafely($e);
@@ -260,14 +273,36 @@ class UpdatesController
         return app()->bound(ReleaseCheck::class) ? app(ReleaseCheck::class) : new ReleaseCheck();
     }
 
-    /** The newest backup in Tools > Backups from the last 24 hours (the dialog then offers to skip the update's own). */
-    private function recentBackup(): ?array
+    /**
+     * The newest backup in Tools > Backups from the last 24 hours (the dialog then offers to skip the update's own),
+     * named as Tools > Backups lists it; for a view-only account (Tools > Backups is closed to it) without its random
+     * part (DatabaseBackup::shownName()).
+     */
+    private function recentBackup(bool $viewOnly = false): ?array
     {
         try {
-            return app(DatabaseBackup::class)->recent(24);
+            $recent = app(DatabaseBackup::class)->recent(24);
         } catch (Throwable) {
             return null;
         }
+
+        return $recent === null ? null : ['name' => $viewOnly ? DatabaseBackup::shownName($recent['name']) : $recent['name']] + $recent;
+    }
+
+    /**
+     * A database backup an update made, by the name the update kept (without its random part: plan.json, backup.json and
+     * the step log outlive the update, security plan S03), as Tools > Backups lists the file: the file in
+     * storage/app/backups whose name is that one with its random part (the newest, should there be two). The Undo dialog
+     * tells the administrator to restore exactly that file. A view-only account (Tools > Backups is closed to it) gets
+     * the name without the random part. Null when no such file is there any more: the page then names none.
+     */
+    private function backupFile(Updater $updater, ?string $shown, bool $viewOnly): ?string
+    {
+        if (! is_string($shown) || ($found = DatabaseBackup::listedName($shown, $updater->paths()->databaseBackups())) === null) {
+            return null;
+        }
+
+        return $viewOnly ? $shown : $found;
     }
 
     /**
@@ -326,6 +361,8 @@ class UpdatesController
             'rolled_back' => ! empty($plan['rolled_back']),
             'kept' => array_values(array_filter((array) ($plan['kept'] ?? []), 'is_string')),
             'report' => self::report($plan),
+            // The language files of the update: new texts added, texts corrected, the owner's own texts kept.
+            'languages' => self::languages($plan),
             'release' => [
                 'version' => (string) ($release['version'] ?? ($plan['version'] ?? '')),
                 'name' => (string) ($release['name'] ?? ''),
@@ -333,7 +370,7 @@ class UpdatesController
                 'size' => isset($release['zip']['size']) ? (int) $release['zip']['size'] : null,
             ],
             'database_backup' => is_array($plan['database_backup'] ?? null) ? [
-                'name' => (string) ($plan['database_backup']['name'] ?? ''),
+                'name' => DatabaseBackup::shownName((string) ($plan['database_backup']['name'] ?? '')),
                 'size' => (int) ($plan['database_backup']['size'] ?? 0),
             ] : null,
             'backup_id' => is_string($plan['backup_id'] ?? null) ? $plan['backup_id'] : null,
@@ -440,6 +477,78 @@ class UpdatesController
             'merged' => $merged,
             'overwritten' => $overwritten,
         ];
+    }
+
+    /**
+     * The language files of a finished update, one row each (path order): the new texts the update added to a file the
+     * owner had changed (report.merged, the merge of the version before) and what Finish did with the texts this version
+     * corrected (texts: corrected where the file still had exactly an older version's text, the owner's own kept; failed
+     * when the file could not be saved; removed: the texts this version no longer uses that left the file). Each with the
+     * language's own name (config/languages.php) when it has one.
+     *
+     * @return list<array{path: string, name: ?string, added: int, updated: int, kept: int, removed: int, failed: bool}>
+     */
+    private static function languages(array $plan): array
+    {
+        $rows = [];
+        $blank = fn (string $path): array => ['path' => $path, 'added' => 0, 'updated' => 0, 'kept' => 0, 'removed' => 0, 'failed' => false];
+
+        foreach ((array) ($plan['report']['merged'] ?? []) as $item) {
+            if (is_array($item) && is_string($item['path'] ?? null)) {
+                $rows[$item['path']] = ['added' => max(0, (int) ($item['added'] ?? 0))] + $blank($item['path']);
+            }
+        }
+
+        foreach ((array) ($plan['texts'] ?? []) as $locale => $entry) {
+            // A file whose write a cut-off Finish left open is not reported (that Finish goes on with it).
+            if (! ShippedTexts::isLocale($locale) || ! is_array($entry) || ! empty($entry['writing'])) {
+                continue;
+            }
+
+            $path = 'lang/'.$locale.'.json';
+            $row = $rows[$path] ?? $blank($path);
+            $row['updated'] = max(0, (int) ($entry['updated'] ?? 0));
+            $row['kept'] = max(0, (int) ($entry['kept'] ?? 0));
+            $row['removed'] = max(0, (int) ($entry['removed'] ?? 0));
+            $row['failed'] = ! empty($entry['failed']);
+
+            if ($row['added'] + $row['updated'] + $row['kept'] + $row['removed'] > 0 || $row['failed']) {
+                $rows[$path] = $row;
+            }
+        }
+
+        ksort($rows, SORT_STRING);
+
+        return array_values(array_map(function (array $row): array {
+            $locale = preg_match('#^lang/([A-Za-z0-9_-]+)\.json\z#', $row['path'], $match) === 1 ? $match[1] : null;
+            $name = $locale !== null ? config('languages.'.$locale.'.label') : null;
+
+            return $row + ['name' => is_string($name) && $name !== '' ? $name : null];
+        }, $rows));
+    }
+
+    /**
+     * Updater::pendingTexts() for the page: one row per language file (path order) with the language's own name
+     * (config/languages.php) when it has one.
+     *
+     * @param  array<string, int>  $pending  locale => texts to correct
+     * @return list<array{path: string, name: ?string, count: int}>
+     */
+    private static function languageNames(array $pending): array
+    {
+        ksort($pending, SORT_STRING);
+        $rows = [];
+
+        foreach ($pending as $locale => $count) {
+            if (! ShippedTexts::isLocale($locale) || (int) $count <= 0) {
+                continue;
+            }
+
+            $name = config('languages.'.$locale.'.label');
+            $rows[] = ['path' => 'lang/'.$locale.'.json', 'name' => is_string($name) && $name !== '' ? $name : null, 'count' => (int) $count];
+        }
+
+        return $rows;
     }
 
     /**
@@ -586,7 +695,7 @@ class UpdatesController
 
     /**
      * report() a copy without addresses and without the exception chain: a client error can quote the signed download
-     * address, and the site log must never hold it (F8 §16).
+     * address, and the site log must never hold it.
      */
     private static function reportSafely(Throwable $e): void
     {

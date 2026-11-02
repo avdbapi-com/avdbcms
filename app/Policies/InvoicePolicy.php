@@ -4,6 +4,7 @@ namespace App\Policies;
 
 use App\Models\Transaction;
 use App\Models\User;
+use App\Support\AdminIpLock;
 use Illuminate\Auth\Access\HandlesAuthorization;
 use Illuminate\Auth\Access\Response;
 
@@ -20,7 +21,7 @@ class InvoicePolicy
      */
     public function before(User $user, string $ability)
     {
-        if ($user->is_admin) {
+        if (AdminIpLock::adminPowersHere($user)) {
             return true;
         }
     }

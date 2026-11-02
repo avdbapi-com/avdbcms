@@ -46,14 +46,15 @@
                     @if(!$thumb->is_active)
                     <form method="POST" action="{{ route('admin.thumbnails.set-active', $thumb->id) }}">
                         @csrf
-                        <button class="btn btn-xs btn-success py-0 px-2" style="font-size:11px">
-                            <i class="fa-solid fa-star"></i> {{__('Set Active')}}
+                        {{-- 24 px tall targets (they were 19 px: R3-076's look-around) --}}
+                        <button class="btn btn-xs btn-success py-0 px-2" style="font-size:11px;min-height:24px">
+                            <i class="fa-solid fa-star" aria-hidden="true"></i> {{__('Set Active')}}
                         </button>
                     </form>
                     @endif
                     <form method="POST" action="{{ route('admin.thumbnails.delete', $thumb->id) }}" onsubmit='return confirm(@json(__('Delete thumbnail?')))'>
                         @csrf @method('DELETE')
-                        <button class="btn btn-xs btn-danger py-0 px-2" style="font-size:11px" aria-label="{{ __('Delete thumbnail') }}">
+                        <button class="btn btn-xs btn-danger py-0 px-2" style="font-size:11px;min-height:24px;min-width:24px" aria-label="{{ __('Delete thumbnail') }}">
                             <i class="fa-solid fa-trash" aria-hidden="true"></i>
                         </button>
                     </form>

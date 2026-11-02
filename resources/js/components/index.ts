@@ -34,6 +34,67 @@ const handleChunkError = (tag: string, error: unknown): void => {
     }
 };
 
+// The header search's server-printed form (layouts/menus/headers/search-fallback.blade.php, watch-8) is replaced by the
+// component when <search-bar> is defined: what a visitor typed there meanwhile, and the focus, go to the component
+// (its `typed` and `refocus` props) instead of being lost.
+const carryFallbackSearch = (): void => {
+    document.querySelectorAll<HTMLElement>('search-bar').forEach((element) => {
+        const input = element.querySelector<HTMLInputElement>('input[name="q"]');
+
+        if (!input) {
+            return;
+        }
+
+        if (input.value !== '') {
+            element.setAttribute('typed', input.value);
+        }
+
+        if (document.activeElement === input) {
+            element.setAttribute('refocus', '');
+        }
+    });
+};
+
+// The playlist editor's server-printed "Add videos" field (users/playlists/partials/editor.blade.php) goes the same way:
+// the light DOM of <playlist-videos> is cleared when the element is defined, before the editor's first render
+// (1.2.3 round 1, R1-107).
+const carryPlaylistSearch = (): void => {
+    document.querySelectorAll<HTMLElement>('playlist-videos').forEach((element) => {
+        const input = element.querySelector<HTMLInputElement>('.mk-pl-pane--add input[type="search"]');
+
+        if (!input) {
+            return;
+        }
+
+        if (input.value !== '') {
+            element.setAttribute('typed', input.value);
+        }
+
+        if (document.activeElement === input) {
+            element.setAttribute('refocus', '');
+        }
+    });
+};
+
+// The same for the server-printed picture picker of the video form (users/videos/partials/form.blade.php): a picture
+// picked there before <thumbnails-select> was defined goes to the picker (its `picked` prop: the radio's value, '' for
+// "Current picture") instead of the active picture coming back.
+const carryPickedThumbnail = (): void => {
+    document.querySelectorAll<HTMLElement>('thumbnails-select').forEach((element) => {
+        const picked = element.querySelector<HTMLInputElement>('input[type="radio"][name="thumbnail"]:checked');
+
+        if (picked && !picked.defaultChecked) {
+            element.setAttribute('picked', picked.value);
+        }
+    });
+};
+
+const beforeRegister: Record<string, () => void> = {
+    'search-bar': carryFallbackSearch,
+    'playlist-videos': carryPlaylistSearch,
+    'thumbnails-select': carryPickedThumbnail,
+};
+
 const registerPreactElement = ({tag, exportName, load, props = []}: Registration): void => {
     if (customElements.get(tag) || pending.has(tag) || !hasElement(tag)) {
         return;
@@ -46,6 +107,7 @@ const registerPreactElement = ({tag, exportName, load, props = []}: Registration
             const component = module[exportName] ?? module.default;
 
             if (component && !customElements.get(tag)) {
+                beforeRegister[tag]?.();
                 register(component, tag, props, {shadow: false});
             }
         })
@@ -130,7 +192,7 @@ const scanAndRegister = (): void => {
 };
 
 // ---------------------------------------------------------------------------------------------
-// Public pages (perf plan step 23): the shared added-nodes bus instead of ~20 document-wide tag
+// Public pages: the shared added-nodes bus instead of ~20 document-wide tag
 // walks per mutation batch for the whole life of the page.
 //
 // - Hands-off: the upload flow (<video-upload>) and the Upload18 player (<video-player>) keep the
@@ -141,7 +203,7 @@ const scanAndRegister = (): void => {
 //   per frame. A lookup is one querySelector per round over the still-undefined tags (each
 //   match drops its tag), so k present tags cost k + 1 subtree walks. The subscription ends once
 //   every tag is defined.
-// - Perf plan step 22.7: these components first render after the page language is active
+// - These components first render after the page language is active
 //   (i18nReady: at once for English, after the locale chunk otherwise, at most LOCALE_WAIT_MS),
 //   instead of rendering English and re-rendering. The server skeletons hold their space meanwhile.
 // Admin pages and the embed shell keep the original observer and scan, unchanged (below).
@@ -176,6 +238,7 @@ const definePreactElement = ({tag, exportName, load, props = []}: Registration):
             const component = module[exportName] ?? module.default;
 
             if (component && !customElements.get(tag)) {
+                beforeRegister[tag]?.();
                 register(component, tag, props, {shadow: false});
             }
         })

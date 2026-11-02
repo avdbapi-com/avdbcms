@@ -38,7 +38,10 @@ class CompleteUploadRequest extends FormRequest
     {
         return [
             'did' => ['required', 'string', 'max:120', 'regex:/^[A-Za-z0-9_-]+$/'],
-            'vid' => ['required', 'string', 'max:160', 'regex:/^[A-Za-z0-9_-]+$/'],
+            // Always sent, but may be empty on "Retry finishing" (the upload answer had no vid and no status check said
+            // ready): the member's kept draft then takes the vid Upload18 lists; a finish without a kept draft still
+            // needs it (VideoController::completeUpload() answers "check the status first").
+            'vid' => ['present', 'nullable', 'string', 'max:160', 'regex:/^[A-Za-z0-9_-]+$/'],
             'filename' => [
                 'required',
                 'string',
@@ -71,6 +74,8 @@ class CompleteUploadRequest extends FormRequest
             'size' => ['required', 'integer', 'min:1', 'max:' . $this->maxUploadSize()],
             'duration' => 'nullable|string|max:32',
             'duration_seconds' => 'nullable|integer|min:1|max:' . max(1, (int) (config('site.upload_max_duration') ?? 3600)),
+            // The length the member's browser read from the file itself (1.2.3): compared with Upload18's item.
+            'file_duration' => 'nullable|numeric|min:0|max:864000',
             'thumbnails' => 'nullable|array|max:5',
             'thumbnails.*' => 'required|string',
         ];

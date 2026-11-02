@@ -1,21 +1,22 @@
 @extends('layouts.admin')
 @section('title', __('Transactions & Revenue'))
 @section('content')
+@php $money = fn (float|int $units): string => \App\Support\PremiumAvailability::money((int) round((float) $units * 100), 2); @endphp
 <div class="d-flex justify-content-between align-items-center my-3">
     <h2><i class="fa-solid fa-money-bill-wave me-2"></i>{{__('Transactions & Revenue')}}</h2>
-    <span class="badge bg-success fs-6">${{ number_format($stats->total_revenue ?? 0, 2) }} {{__('total')}}</span>
+    <span class="badge bg-success fs-6">{{ $money($stats->total_revenue ?? 0) }} {{__('total')}}</span>
 </div>
 <hr>
 
 {{-- Revenue Summary --}}
 <div class="row mb-4">
     @foreach([
-        [__('Total Revenue'), '$'.number_format($stats->total_revenue ?? 0, 2), 'fa-dollar-sign', 'success'],
-        [__('Net Revenue'), '$'.number_format($stats->net_revenue ?? 0, 2), 'fa-circle-check', 'primary'],
-        [__('Total Tax'), '$'.number_format($stats->total_tax ?? 0, 2), 'fa-receipt', 'warning'],
-        [__('Total Fees'), '$'.number_format($stats->total_fees ?? 0, 2), 'fa-hand-holding-dollar', 'danger'],
-        [__('Today Revenue'), '$'.number_format($stats->today_revenue ?? 0, 2), 'fa-clock', 'info'],
-        [__('Month Revenue'), '$'.number_format($stats->month_revenue ?? 0, 2), 'fa-calendar', 'primary'],
+        [__('Total Revenue'), $money($stats->total_revenue ?? 0), 'fa-dollar-sign', 'success'],
+        [__('Net Revenue'), $money($stats->net_revenue ?? 0), 'fa-circle-check', 'primary'],
+        [__('Total Tax'), $money($stats->total_tax ?? 0), 'fa-receipt', 'warning'],
+        [__('Total Fees'), $money($stats->total_fees ?? 0), 'fa-hand-holding-dollar', 'danger'],
+        [__('Today Revenue'), $money($stats->today_revenue ?? 0), 'fa-clock', 'info'],
+        [__('Month Revenue'), $money($stats->month_revenue ?? 0), 'fa-calendar', 'primary'],
         [__('Unique Customers'), number_format($stats->unique_customers ?? 0), 'fa-users', 'info'],
         [__('Total Transactions'), number_format($stats->total ?? 0), 'fa-hashtag', 'secondary'],
     ] as $s)
@@ -37,7 +38,7 @@
             <div class="card-body p-0">
                 <table class="table table-sm mb-0">
                     <thead><tr><th>{{__('Month')}}</th><th class="text-end">{{__('Revenue')}}</th><th class="text-end">{{__('Transactions')}}</th></tr></thead>
-                    <tbody>@foreach($monthlyRevenue as $m)<tr><td class="fw-bold">{{ $m->month }}</td><td class="text-end">${{ number_format($m->revenue, 2) }}</td><td class="text-end">{{ $m->count }}</td></tr>@endforeach</tbody>
+                    <tbody>@foreach($monthlyRevenue as $m)<tr><td class="fw-bold">{{ $m->month }}</td><td class="text-end">{{ $money($m->revenue) }}</td><td class="text-end">{{ $m->count }}</td></tr>@endforeach</tbody>
                 </table>
             </div>
         </div>
@@ -51,7 +52,7 @@
                     <thead><tr><th>{{__('User')}}</th><th class="text-end">{{__('Total Spent')}}</th><th class="text-end">{{__('Txns')}}</th></tr></thead>
                     <tbody>@foreach($topCustomers as $c)<tr>
                         <td><a href="{{ route('admin.users.edit', $c->id) }}" class="text-decoration-none">{{ $c->username }}</a></td>
-                        <td class="text-end fw-bold">${{ number_format($c->total_spent, 2) }}</td>
+                        <td class="text-end fw-bold">{{ $money($c->total_spent) }}</td>
                         <td class="text-end">{{ $c->transactions }}</td>
                     </tr>@endforeach</tbody>
                 </table>
@@ -76,12 +77,12 @@
                 @if($t->username) <a href="{{ route('admin.users.edit', $t->user_id) }}" class="text-decoration-none">{{ $t->username }}</a>
                 @else <span class="text-muted">{{__('Deleted')}}</span> @endif
             </td>
-            <td class="align-middle"><span class="badge bg-secondary">{{ Str::headline($t->payment_provider ?? 'stripe') }}</span></td>
+            <td class="align-middle"><span class="badge bg-secondary">{{ \App\Support\PaymentProviders::label($t->payment_provider) }}</span></td>
             <td class="align-middle"><code class="small">{{ Str::limit($t->stripe_id, 20) }}</code></td>
             <td class="align-middle"><small>{{ \Carbon\Carbon::parse($t->date)->translatedFormat('M d, Y H:i') }}</small></td>
-            <td class="align-middle text-end fw-bold">${{ number_format($t->amount / 100, 2) }}</td>
-            <td class="align-middle text-end">${{ number_format($t->tax / 100, 2) }}</td>
-            <td class="align-middle text-end">${{ number_format($t->fee / 100, 2) }}</td>
+            <td class="align-middle text-end fw-bold">{{ $money($t->amount / 100) }}</td>
+            <td class="align-middle text-end">{{ $money($t->tax / 100) }}</td>
+            <td class="align-middle text-end">{{ $money($t->fee / 100) }}</td>
             <td class="align-middle"><small>{{ $t->name }}</small></td>
             <td class="align-middle"><small>{{ $t->country }}</small></td>
             <td class="align-middle">

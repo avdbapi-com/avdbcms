@@ -1,15 +1,2 @@
-@component('mail::message')
-
-# Hello {{$notifiable->username}} !
-
-You are receiving this email because your password has been updated.
-
-If you did not request a password update, please **immediately** contact our support.
-
-@component('mail::button', ['url' => route('contact.show')])
-Contact Support
-@endcomponent
-
-Regards, {{ config('app.name') }}
-
-@endcomponent
+{{-- The password was changed (App\Notifications\Account\PasswordUpdate). The HTML part (member design 6.21); the plain-text part: mails.text.account.password. The words: App\Notifications\Support\MemberMail. --}}
+@include('mails.layouts.html', ['mail' => \App\Notifications\Support\MemberMail::password($notifiable)])

@@ -12,7 +12,7 @@ use Tests\TestCase;
 /**
  * Theme collection v2 token build: `php artisan avd:themes:build` writes resources/css/themes/<id>.css and
  * <id>/<flavor>.css from the catalogue and the colour engine. The reference derivation (pageFit off) must reproduce
- * the redesign's reference token files (tests/Fixtures/theme_tokens_reference.json.gz = spec/theme/tokens/*.css with
+ * the redesign's reference token files (tests/Fixtures/theme_tokens_reference.json.gz: those token CSS files with
  * production selectors) to within one sRGB step per channel; the shipped derivation differs from it only where an
  * ink is fitted to the colours the page backdrop paints behind text and by the real-page bar and card tokens; the
  * committed files must be exactly what the command writes.
@@ -32,10 +32,11 @@ class ThemeTokensBuildTest extends TestCase
     ];
 
     // Real-page tokens that are not inks: the transparent bar off a hero + its overlay tokens, the solid surface
-    // style's colour band and frameless card (ThemeTokens::build, $pageFit).
+    // style's colour band and frameless card (ThemeTokens::build, $pageFit). 1.2.3 round 1b (R1R-13): the primary
+    // button's fill (and the play button, which takes it), moved a shade so its label keeps 4.6:1 over the film grain.
     private const REAL_PAGE_TOKENS = [
         '--avd-header-bg', '--avd-header-text', '--avd-header-overlay-bg', '--avd-header-overlay-text', '--avd-header-solid-bg',
-        '--avd-card-solid-bg', '--avd-card-body-pad',
+        '--avd-card-solid-bg', '--avd-card-body-pad', '--avd-btn-bg', '--avd-play-bg',
     ];
 
     private ?string $tmp = null;
@@ -376,7 +377,7 @@ class ThemeTokensBuildTest extends TestCase
         }
 
         sort($pages);
-        // build_spec WP1 speed: largest <= 8.6 KB, median <= 3.4 KB (the theme CSS budget then holds for every theme).
+        // Speed budget: largest <= 8.6 KB, median <= 3.4 KB (the theme CSS budget then holds for every theme).
         $this->assertLessThanOrEqual(8.6 * 1024, max($pages));
         $this->assertLessThanOrEqual(3.4 * 1024, $pages[intdiv(count($pages), 2)]);
     }
@@ -394,11 +395,11 @@ class ThemeTokensBuildTest extends TestCase
         $coral = (string) file_get_contents(resource_path('css/themes/tokyo_neon/coral.css'));
         $this->assertStringContainsString('html[data-bs-theme="dark"][data-avd-flavor="coral"] {', $coral);
         $this->assertStringContainsString('html[data-bs-theme="light"][data-avd-flavor="coral"] {', $coral);
-        // demo1 parity (owner decision D1): white labels on the #ea094e -> #7928ca gradient.
+        // parity with the demo site (owner decision D1): white labels on the #ea094e -> #7928ca gradient.
         $this->assertStringContainsString('--avd-brand-fill: #ea094e;', $css);
         $this->assertStringContainsString('--avd-on-brand: #ffffff;', $css);
         $this->assertStringContainsString('--avd-btn-bg: linear-gradient(135deg, #ea094e 0%, #7928ca 100%);', $css);
-        // Audit G3: the five compatibility names the player CSS reads are defined.
+        // The five compatibility names the player CSS reads are defined.
         foreach (['--avd-primary:', '--avd-primary-rgb:', '--avd-surface-rgb:', '--avd-dark-surface-rgb:', '--avd-surface-card:', '--avd-cyan:', '--avd-cyan-rgb:'] as $name) {
             $this->assertStringContainsString($name, $css);
         }
@@ -490,12 +491,13 @@ class ThemeTokensBuildTest extends TestCase
         // Vietnamese pages swap Outfit (no Vietnamese glyphs) for the pairing's vi_display.
         $vi = ThemeTokens::fonts(ThemeTokens::theme('tokyo_neon'), 'modern_tech', 'vi');
         $this->assertSame(['Plus Jakarta Sans' => ['normal']], $vi['families']);
-        $this->assertSame(["'Plus Jakarta Sans', system-ui, 'Segoe UI', Roboto, sans-serif"], array_values($vi['tokens']));
+        // R1-068: each web font is followed by its metric-matched fallback face (ThemeTokens::fallbackFaces())
+        $this->assertSame(["'Plus Jakarta Sans', 'Plus Jakarta Sans Fallback', system-ui, 'Segoe UI', Roboto, sans-serif"], array_values($vi['tokens']));
 
         // Another pairing drives the fonts; Poppins is requested with its static weights.
         $pop = ThemeTokens::fonts(ThemeTokens::theme('tokyo_neon'), 'playful_pop');
         $this->assertStringContainsString('family=Poppins:wght@400;500;600;700&family=Quicksand:wght@500;700', (string) $pop['url']);
-        $this->assertSame("'Poppins', system-ui, 'Segoe UI', Roboto, sans-serif", $pop['tokens']['--avd-font-display']);
+        $this->assertSame("'Poppins', 'Poppins Fallback', system-ui, 'Segoe UI', Roboto, sans-serif", $pop['tokens']['--avd-font-display']);
 
         // The v1 back office keeps every family, with Poppins fixed, plus the theme's own.
         $backOffice = (string) ThemeTokens::backOfficeFontsUrl(['Poppins' => 'Poppins:wght@400..700', 'Inter' => 'Inter:wght@400..800'], ['Geist' => ['normal']]);

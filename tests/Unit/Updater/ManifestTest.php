@@ -9,7 +9,7 @@ use Tests\Feature\Updater\Support\UpdaterSandbox;
 use Tests\TestCase;
 
 /**
- * avdbcms-manifest.json (updater.md amendment 1, F8 5, 18): a valid list of the package's files, never a path the
+ * avdbcms-manifest.json: a valid list of the package's files, never a path the
  * updater must not write; requires_php and min_from refuse a package before anything on the site changes.
  */
 class ManifestTest extends TestCase

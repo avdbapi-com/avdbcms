@@ -6,6 +6,8 @@
     $videoDescription = trim(strip_tags((string) $video->description));
     $videoCategoryRawTitle = $video->category ? decode_html_entities($video->category->title) : null;
     $videoCategoryTitle = $video->localized_type_name ?: ($videoCategoryRawTitle ? __($videoCategoryRawTitle) : null);
+    // 1.2.3: a category named with a word that is always blocked is never shown (App\Support\ContentSafety)
+    $videoCategoryShown = $video->category && ! \App\Support\ContentSafety::hides($video->category->title);
     $videoTags = $video->relationLoaded('tags') ? $video->tags : collect();
     $videoTagNames = $videoTags
         ->map(fn ($tag) => $tag->localized_name ?: $tag->name)
@@ -21,11 +23,10 @@
     $videoAuthor = $metaValue($video->xvid_author) ?: $metaValue($video->avdb_writer);
     $videoQuality = trim((string) $video->xvid_quality);
     $videoDuration = trim((string) $video->duration);
-    $videoUuid = trim((string) $video->uuid);
+    // The video's internal id (UUID) is not a fact for viewers (watch-42): it is in the page's address already.
     $videoSourceDetails = collect([
         ['label' => __('Source').' '.__('Quality'), 'value' => $videoQuality],
         ['label' => __('Duration'), 'value' => $videoDuration],
-        ['label' => __('UUID'), 'value' => $videoUuid],
     ])->filter(fn ($row) => filled($row['value'] ?? null))->values();
     $videoMetaDescription = collect([
         $videoDescription,
@@ -47,12 +48,32 @@
     $seoService = app(\App\Services\SeoService::class);
     $videoDescriptionFallback = Str::limit($videoMetaDescription !== '' ? $videoMetaDescription : __('Watch :title on :site.', ['title' => $video->title, 'site' => config('app.name')]), 155);
     $videoSeoValues = $seoService->videoTemplateValues($video, $videoDescriptionFallback);
+    // Time codes (watch-22): a code is a seek button only inside the video's length and on a player the page drives
+    // itself; an Upload18 video plays in the provider's frame, which the page cannot seek
+    // (resources/js/components/Videos/Player.tsx: is_upload18 + embed_url).
+    $watchDurationSeconds = max(0, (int) $video->getRawOriginal('duration'));
+    $watchSeekable = ! $video->is_upload18;
+    // Sign-in prompts of the page bring the visitor back here, in their language (auth-18), through the header's own link
+    // (ReturnPath::loginUrl(): ?redirect= is a path of this site, never the address as received; round 3 R3-079). Create
+    // account carries no return address (the sign-up page reads none).
+    $watchSignInUrl = \App\Http\Controllers\Auth\ReturnPath::loginUrl();
+    $watchSignUpUrl = locale_url(route('registration'));
+    // The page's canonical (round 4, R3M-01): an AVDBAPI import's page in a language other than the default one where it
+    // is indexable (its translation's page, App\Support\VideoLanguages; the sitemaps and the hreflang links offer it) names
+    // itself, in the form of its sitemap entry (SeoController::localizedAbsoluteUrl()); every other watch page names the
+    // default-language page, as in 1.2.2 (a member's upload, another source's import, an import's page that answers
+    // noindex). The controller left the import's indexable languages in the request (VideoLanguages::HREFLANG): no query.
+    $watchLocale = app()->getLocale();
+    $watchCanonical = $watchLocale !== site_default_locale()
+        && in_array($watchLocale, (array) request()->attributes->get(\App\Support\VideoLanguages::HREFLANG, []), true)
+        ? url('/'.$watchLocale.$seoService->videoPath($video))
+        : $video->route;
 @endphp
 
 @section('title', $seoService->renderTemplate('video_meta_title_template', $videoSeoValues, $video->title, 180))
 @section('description', $seoService->renderTemplate('video_meta_description_template', $videoSeoValues, $videoDescriptionFallback, 500))
 @section('image'){{$video->thumbnail_url}}@stop
-@section('canonical', $video->route)
+@section('canonical', $watchCanonical)
 @section('og_type', 'video.other')
 @section('rating', 'adult')
 
@@ -61,7 +82,7 @@
         @php
             $jsonScriptFlags = JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT;
         @endphp
-        <script type="application/ld+json">{!! json_encode(app(\App\Services\SeoService::class)->videoSchema($video), $jsonScriptFlags) !!}</script>
+        <script type="application/ld+json">{!! json_encode(app(\App\Services\SeoService::class)->videoSchema($video, $watchCanonical), $jsonScriptFlags) !!}</script>
     @endif
 @endpush
 
@@ -76,13 +97,137 @@
     @endif
 @endpush
 
+{{-- watch-7: the watch page's own rules (resources/css/watch-page.css) and its tools (resources/js/layout/watchTools.ts)
+     are cached build files instead of 117 KB of inline style and script. Without a build entry (views newer than
+     public/build) the page links neither and core.ts loads both itself. --}}
+@php
+    $watchAsset = static function (string $entry): ?string {
+        try {
+            return \Illuminate\Support\Facades\Vite::asset($entry);
+        } catch (\Throwable) {
+            return null;
+        }
+    };
+    $watchPageCss = $watchAsset('resources/css/watch-page.css');
+    $watchToolsSrc = $watchAsset('resources/js/layout/watchTools.ts');
+    // The tools' settings, printed as JSON at the end of the page (#avd-watch-tools). Computed in this block, which
+    // comes before the view's one-line php directives: Blade pairs a block's start with the next block end it finds.
+    // (The ambient-glow switch is added where the JSON is printed: the view sets it further down.)
+    $watchToolsSettings = [
+        'title' => (string) $video->title,
+        'uuid' => (string) $video->uuid,
+        'embedUrl' => route('video.embed', ['video' => $video->uuid]),
+        't' => [
+                'Disabled' => (string) __('Disabled'),
+                'Embed code copied to clipboard!' => (string) __('Embed code copied to clipboard!'),
+                'Embed code copied!' => (string) __('Embed code copied!'),
+                'Filter' => (string) __('Filter'),
+                'No notes to copy yet' => (string) __('No notes to copy yet'),
+                'No notes to export yet' => (string) __('No notes to export yet'),
+                'Notes copied to clipboard!' => (string) __('Notes copied to clipboard!'),
+                'Notes copied!' => (string) __('Notes copied!'),
+                'Notes exported as .txt!' => (string) __('Notes exported as .txt!'),
+                'Remove' => (string) __('Remove'),
+                'Sleep' => (string) __('Sleep'),
+                'Sleep: End' => (string) __('Sleep: End'),
+                'Video link copied to clipboard!' => (string) __('Video link copied to clipboard!'),
+                // R1-146 (owner proposal): the filters' names and the toast's word, read by watchTools.ts's __r()
+                'Anime' => (string) __('Anime'),
+                'Black and white' => (string) __('Black and white'),
+                'Color filter' => (string) __('Color filter'),
+                'Cyberpunk' => (string) __('Cyberpunk'),
+                'Deep black' => (string) __('Deep black'),
+                'Night' => (string) __('Night'),
+                'Normal' => (string) __('Normal'),
+                'Vivid' => (string) __('Vivid'),
+                'Warm film' => (string) __('Warm film'),
+                // 1.2.3 round 2 (R2A-059, R1R-15): the tools' names in their toasts, the phone sheet's badges and the
+                // Video details dialog, as the dock, the sheet and the dialogs name them
+                'Active' => (string) __('Active'),
+                'Aspect ratio' => (string) __('Aspect ratio'),
+                'At the end of the video' => (string) __('At the end of the video'),
+                'Brightness' => (string) __('Brightness'),
+                'Fill' => (string) __('Fill'),
+                'Focus mode' => (string) __('Focus mode'),
+                'Full screen' => (string) __('Full screen'),
+                'Glow around the player' => (string) __('Glow around the player'),
+                'Mirror the video' => (string) __('Mirror the video'),
+                'Neon' => (string) __('Neon'),
+                'Off' => (string) __('Off'),
+                'On' => (string) __('On'),
+                'Paused by the sleep timer' => (string) __('Paused by the sleep timer'),
+                'Pulse' => (string) __('Pulse'),
+                'Rotate the video' => (string) __('Rotate the video'),
+                'Sleep timer' => (string) __('Sleep timer'),
+                'Theme' => (string) __('Theme'),
+                'Warm' => (string) __('Warm'),
+                // R1-146: the player's kind on the dock's Tools menu (watchTools.ts avdUpdatePlayerCapabilities)
+                'Built-in player' => (string) __('Built-in player'),
+                'Player ready' => (string) __('Player ready'),
+                'Upload18 player' => (string) __('Upload18 player'),
+                // 1.2.3 round 3 (R2R-01, owner approved 2026-10-28): the tools the dock, the Tools menu and the sleep overlay
+                // now name in plain words, named the same way in their toasts and labels (snapshot, loop, sound mode, sound
+                // bars, mini player, reload, resume), and the browser's own copy box of the dock's Copy video link button
+                'Bass boost' => (string) __('Bass boost'),
+                'Clear voices' => (string) __('Clear voices'),
+                'Copy link' => (string) __('Copy link'),
+                'Loop the video' => (string) __('Loop the video'),
+                'Looping works only with the built-in player' => (string) __('Looping works only with the built-in player'),
+                'Mini player' => (string) __('Mini player'),
+                'Night listening' => (string) __('Night listening'),
+                'Normal sound' => (string) __('Normal sound'),
+                'Snapshot saved' => (string) __('Snapshot saved'),
+                'Snapshots work only with the built-in player' => (string) __('Snapshots work only with the built-in player'),
+                'Sound bars' => (string) __('Sound bars'),
+                'Sound modes work only with the built-in player' => (string) __('Sound modes work only with the built-in player'),
+                'Video reloaded' => (string) __('Video reloaded'),
+                'Video resumed' => (string) __('Video resumed'),
+                // 1.2.3 round 3 (R3-048, R3X-03): a tool's name and its value in the reader's punctuation (watchTools.ts
+                // avdPair), sentences with the time where the language puts it, and what a visitor can do where a tool needs
+                // the built-in player
+                ':label: :value' => (string) __(':label: :value'),
+                'Bookmark saved at :time' => (string) __('Bookmark saved at :time'),
+                'Bookmarks work only with the built-in player' => (string) __('Bookmarks work only with the built-in player'),
+                'Jumped to :time' => (string) __('Jumped to :time'),
+                'Playback speed' => (string) __('Playback speed'),
+                'Resumed playback from :time' => (string) __('Resumed playback from :time'),
+                'Use the gear icon inside the player to change the speed' => (string) __('Use the gear icon inside the player to change the speed'),
+        ],
+        // the sleep timer's lengths as its dialog shows them ("15 minutes"), for its toast (R2A-059)
+        'sleepLengths' => collect([15, 30, 45])->mapWithKeys(fn (int $minutes) => [$minutes => trans_choice('1 minute|:count minutes', $minutes, ['count' => \App\Support\LocalNumber::format($minutes)])])->all(),
+    ];
+@endphp
+@push('head-styles')
+    {{-- Where the inline block was in the cascade: after every head stylesheet, before the body's own style blocks. --}}
+    @if($watchPageCss)
+        <link rel="stylesheet" href="{{ $watchPageCss }}" data-avd-watch-css>
+    @endif
+    @if($watchToolsSrc)
+        <link rel="modulepreload" href="{{ $watchToolsSrc }}">
+    @endif
+@endpush
+
 @section('class', 'mt-0 mt-lg-3 ms-0')
 
 @section('content')
+    {{-- The two entrances the player's notices and the mini player name (its guarded markup and rules); the rest of the
+         watch page's own rules are the cached resources/css/watch-page.css. --}}
+    <style>
+        @keyframes avdPipSlide {
+            from { transform: translateY(30px) scale(0.92); opacity: 0; }
+            to { transform: translateY(0) scale(1); opacity: 1; }
+        }
+        @keyframes avdFadeSlideDown {
+            from { transform: translateY(-16px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+    </style>
     @php
         $status = null;
         if ($video->is_planned) {
-            $status = ['class' => 'text-warning', 'icon' => 'clock', 'label' => __('Planned').' - '.($video->scheduled_at?->translatedFormat('d M Y H:i') ?? '')];
+            // 1.2.3 round 3 (R3-062's class): the studio's words, the admin's date format in the reader's order and the
+            // site's time zone ("Goes public Oct 31, 2026, 20:00 GMT+1"; it was "Planned - 31 Oct 2026 20:00" in every language)
+            $status = ['class' => 'text-warning', 'icon' => 'clock', 'label' => $video->scheduled_at ? \App\Support\Studio\ZoneLabel::goesPublic($video->scheduled_at) : __('Planned')];
         } elseif ($video->is_banned) {
             $status = ['class' => 'text-danger', 'icon' => 'ban', 'label' => __('Banned')];
         } elseif ($video->is_private) {
@@ -153,448 +298,6 @@
         $watchLayoutMode = in_array($watchLayoutMode, ['classic_two_column', 'theater_cinema', 'floating_focus', 'studio_dashboard'], true) ? $watchLayoutMode : 'classic_two_column';
     @endphp
 
-    <style id="avdWatchEnhancedStyles">
-        /* =========================================================================
-           AVD WATCH PAGE & RELATED VIDEOS ENHANCED RESPONSIVE DESIGN SYSTEM
-           Guarantees stunning presentation across all 120+ themes and all layouts.
-           ========================================================================= */
-
-        /* Theater and floating focus: the layout container caps its width so the 16:9 player is at most 62% of
-           the viewport height and the title, actions and Up next stay on the first screen; floating focus also
-           stops at 980px. Only the container is sized: the player inside keeps its own rules. Important and
-           specific on purpose: older layout rules pin these columns to 100% / 1140px with !important. */
-        .avd-watch-layout[data-avd-watch-layout] > .avd-watch-contained.col-12 {
-            margin-inline: auto !important;
-            max-width: min(100%, calc(62vh * 16 / 9)) !important;
-        }
-
-        .avd-watch-layout[data-avd-watch-layout="floating_focus"] > .avd-watch-contained.col-12 {
-            max-width: min(980px, 100%, calc(62vh * 16 / 9)) !important;
-        }
-
-        /* Compact Up next strip under the title (theater / floating focus). */
-        .avd-upnext-strip-title {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            margin: 0 0 0.6rem;
-            font-size: 0.95rem;
-            font-weight: 700;
-        }
-
-        .avd-upnext-strip-list {
-            display: grid;
-            grid-auto-columns: minmax(150px, 1fr);
-            grid-auto-flow: column;
-            gap: 0.75rem;
-            margin: 0;
-            padding: 0 0 0.25rem;
-            list-style: none;
-            overflow-x: auto;
-            overscroll-behavior-x: contain;
-            scrollbar-width: thin;
-        }
-
-        .avd-upnext-strip-item {
-            display: flex;
-            align-items: center;
-            gap: 0.6rem;
-            min-width: 0;
-            color: var(--avd-text, inherit);
-            text-decoration: none;
-        }
-
-        .avd-upnext-strip-thumb {
-            position: relative;
-            flex: none;
-            width: 96px;
-            aspect-ratio: 16 / 9;
-            overflow: hidden;
-            border-radius: var(--avd-r-thumb, 8px);
-            background: var(--avd-surface-2, var(--bs-tertiary-bg));
-        }
-
-        .avd-upnext-strip-thumb img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-        .avd-upnext-strip-thumb .avd-duration {
-            inset-inline-end: 4px;
-            bottom: 4px;
-            padding: 2px 4px;
-            font-size: 10px;
-        }
-
-        /* Studio facts (studio_dashboard): the stored source details on the theme's surface. */
-        .avd-studio-facts {
-            border: 1px solid var(--avd-border);
-            border-radius: var(--avd-r-card, 12px);
-            background: var(--avd-surface-1);
-        }
-
-        .avd-studio-facts-head {
-            border-bottom: 1px solid var(--avd-border);
-        }
-
-        .avd-studio-facts-tag {
-            padding: 2px 8px;
-            border-radius: 999px;
-            background: var(--avd-surface-2);
-            color: var(--avd-muted);
-            font-size: 0.72rem;
-            font-weight: 700;
-        }
-
-        .avd-studio-facts dt {
-            color: var(--avd-muted);
-            font-size: 0.72rem;
-            font-weight: 600;
-        }
-
-        .avd-studio-facts dd {
-            font-size: 0.85rem;
-            font-weight: 600;
-        }
-
-        .avd-upnext-strip-text {
-            display: -webkit-box;
-            min-width: 0;
-            overflow: hidden;
-            font-size: 0.8rem;
-            font-weight: 600;
-            line-height: 1.3;
-            -webkit-box-orient: vertical;
-            -webkit-line-clamp: 2;
-        }
-
-        /* --- 1. Featured Up Next Spotlight Card --- */
-        .avd-up-next-card {
-            background: linear-gradient(135deg, rgba(var(--avd-brand-rgb, 255, 61, 97), 0.08) 0%, rgba(var(--avd-brand-rgb, 255, 61, 97), 0.02) 60%, rgba(255, 255, 255, 0.02) 100%) !important;
-            border: 1px solid rgba(var(--avd-brand-rgb, 255, 61, 97), 0.26) !important;
-            border-radius: 16px !important;
-            padding: 0.9rem 1.1rem !important;
-            transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.28s ease, box-shadow 0.28s ease !important;
-            position: relative !important;
-            overflow: hidden !important;
-        }
-        .avd-up-next-card:hover {
-            border-color: rgba(var(--avd-brand-rgb, 255, 61, 97), 0.55) !important;
-            box-shadow: 0 12px 28px -6px rgba(0, 0, 0, 0.55), 0 0 24px -4px rgba(var(--avd-brand-rgb, 255, 61, 97), 0.3) !important;
-            transform: translateY(-2px) !important;
-        }
-        .avd-up-next-content {
-            display: flex !important;
-            align-items: center !important;
-            gap: 1.1rem !important;
-            min-width: 0 !important;
-        }
-        .avd-up-next-thumb {
-            position: relative !important;
-            flex-shrink: 0 !important;
-            width: 220px !important;
-            max-width: 240px !important;
-            aspect-ratio: 16 / 9 !important;
-            border-radius: 10px !important;
-            overflow: hidden !important;
-            background: rgba(0, 0, 0, 0.35) !important;
-            border: 1px solid rgba(255, 255, 255, 0.08) !important;
-            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3) !important;
-        }
-        .avd-up-next-thumb img,
-        .avd-up-next-thumb image-loaded,
-        .avd-up-next-thumb .avd-image-loaded {
-            display: block !important;
-            width: 100% !important;
-            height: 100% !important;
-            object-fit: cover !important;
-            transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1) !important;
-        }
-        .avd-up-next-card:hover .avd-up-next-thumb img {
-            transform: scale(1.05) !important;
-        }
-        .avd-up-next-body {
-            flex: 1 1 auto !important;
-            min-width: 0 !important;
-            display: flex !important;
-            flex-direction: column !important;
-            gap: 0.25rem !important;
-        }
-        .avd-up-next-title {
-            font-size: 1.02rem !important;
-            font-weight: 800 !important;
-            line-height: 1.35 !important;
-            color: var(--avd-text, #fff) !important;
-            display: -webkit-box !important;
-            -webkit-line-clamp: 2 !important;
-            -webkit-box-orient: vertical !important;
-            overflow: hidden !important;
-            transition: color 0.2s ease !important;
-        }
-        .avd-up-next-card:hover .avd-up-next-title {
-            color: var(--avd-brand, #ff3d61) !important;
-        }
-        .avd-up-next-cta .btn {
-            box-shadow: 0 4px 14px rgba(var(--avd-brand-rgb, 255, 61, 97), 0.35) !important;
-            transition: transform 0.2s ease, box-shadow 0.2s ease !important;
-        }
-        .avd-up-next-card:hover .avd-up-next-cta .btn {
-            transform: scale(1.04) !important;
-            box-shadow: 0 6px 18px rgba(var(--avd-brand-rgb, 255, 61, 97), 0.5) !important;
-        }
-
-        /* --- 2. Wide / Below-Player Layout: Multi-Column Responsive Grid --- */
-        body.theater-mode .avd-watch-sidebar-col .avd-related-list,
-        .avd-watch-sidebar-col.col-12 .avd-related-list,
-        .avd-watch-layout[data-avd-watch-layout="theater_cinema"] .avd-related-list,
-        .avd-watch-layout[data-avd-watch-layout="floating_focus"] .avd-related-list {
-            display: grid !important;
-            grid-template-columns: repeat(auto-fill, minmax(255px, 1fr)) !important;
-            gap: 1.25rem 1rem !important;
-            width: 100% !important;
-        }
-
-        /* Vertical Card in Wide Mode */
-        body.theater-mode .avd-watch-sidebar-col .suggested_video.avd-related-card,
-        .avd-watch-sidebar-col.col-12 .suggested_video.avd-related-card,
-        .avd-watch-layout[data-avd-watch-layout="theater_cinema"] .suggested_video.avd-related-card,
-        .avd-watch-layout[data-avd-watch-layout="floating_focus"] .suggested_video.avd-related-card {
-            display: flex !important;
-            flex-direction: column !important;
-            grid-template-columns: none !important;
-            background: var(--avd-surface-card, rgba(255, 255, 255, 0.025)) !important;
-            border: 1px solid var(--avd-border, rgba(255, 255, 255, 0.07)) !important;
-            border-radius: 14px !important;
-            padding: 0.55rem !important;
-            margin-bottom: 0 !important;
-            height: 100% !important;
-            transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease, border-color 0.25s ease, background 0.25s ease !important;
-        }
-
-        body.theater-mode .avd-watch-sidebar-col .suggested_video.avd-related-card:hover,
-        .avd-watch-sidebar-col.col-12 .suggested_video.avd-related-card:hover,
-        .avd-watch-layout[data-avd-watch-layout="theater_cinema"] .suggested_video.avd-related-card:hover,
-        .avd-watch-layout[data-avd-watch-layout="floating_focus"] .suggested_video.avd-related-card:hover {
-            transform: translateY(-4px) !important;
-            background: var(--avd-surface-hover, rgba(255, 255, 255, 0.05)) !important;
-            border-color: rgba(var(--avd-brand-rgb, 255, 61, 97), 0.45) !important;
-            box-shadow: 0 14px 28px -6px rgba(0, 0, 0, 0.55), 0 0 18px -2px rgba(var(--avd-brand-rgb, 255, 61, 97), 0.25) !important;
-        }
-
-        body.theater-mode .avd-watch-sidebar-col .suggested_video.avd-related-card .avd-thumb,
-        .avd-watch-sidebar-col.col-12 .suggested_video.avd-related-card .avd-thumb,
-        .avd-watch-layout[data-avd-watch-layout="theater_cinema"] .suggested_video.avd-related-card .avd-thumb,
-        .avd-watch-layout[data-avd-watch-layout="floating_focus"] .suggested_video.avd-related-card .avd-thumb {
-            width: 100% !important;
-            max-width: 100% !important;
-            aspect-ratio: 16 / 9 !important;
-            border-radius: 10px !important;
-            flex-shrink: 0 !important;
-            position: relative !important;
-            overflow: hidden !important;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25) !important;
-        }
-
-        .avd-watch-sidebar-col.col-12 .suggested_video.avd-related-card .avd-related-info,
-        .avd-watch-layout[data-avd-watch-layout="theater_cinema"] .suggested_video.avd-related-card .avd-related-info,
-        .avd-watch-layout[data-avd-watch-layout="floating_focus"] .suggested_video.avd-related-card .avd-related-info {
-            padding: 0.5rem 0.2rem 0.2rem !important;
-            display: flex !important;
-            flex-direction: column !important;
-            flex-grow: 1 !important;
-        }
-
-        .avd-watch-sidebar-col.col-12 .suggested_video.avd-related-card .avd-related-title,
-        .avd-watch-layout[data-avd-watch-layout="theater_cinema"] .suggested_video.avd-related-card .avd-related-title,
-        .avd-watch-layout[data-avd-watch-layout="floating_focus"] .suggested_video.avd-related-card .avd-related-title {
-            font-size: 0.92rem !important;
-            font-weight: 750 !important;
-            line-height: 1.32 !important;
-            display: -webkit-box !important;
-            -webkit-line-clamp: 2 !important;
-            -webkit-box-orient: vertical !important;
-            overflow: hidden !important;
-            margin-bottom: 0.3rem !important;
-            color: var(--avd-text, #fff) !important;
-        }
-
-        /* --- 3. Standard 2-Column Sidebar Layout (Classic Two Column & Studio Dashboard on Desktop) --- */
-        @media (min-width: 992px) {
-            .avd-watch-sidebar-col:not(.col-12) .avd-related-list {
-                display: flex !important;
-                flex-direction: column !important;
-                gap: 0.65rem !important;
-            }
-
-            .avd-watch-sidebar-col:not(.col-12) .suggested_video.avd-related-card {
-                display: flex !important;
-                flex-direction: row !important;
-                grid-template-columns: none !important;
-                align-items: flex-start !important;
-                gap: 0.75rem !important;
-                padding: 0.45rem 0.55rem !important;
-                border-radius: 12px !important;
-                border: 1px solid transparent !important;
-                transition: transform 0.2s ease, background-color 0.2s ease, border-color 0.2s ease !important;
-            }
-
-            .avd-watch-sidebar-col:not(.col-12) .suggested_video.avd-related-card:hover {
-                background: var(--avd-surface-hover, rgba(255, 255, 255, 0.05)) !important;
-                border-color: rgba(var(--avd-brand-rgb, 255, 61, 97), 0.28) !important;
-                transform: translateX(3px) !important;
-            }
-
-            .avd-watch-sidebar-col:not(.col-12) .suggested_video.avd-related-card .avd-thumb {
-                width: 148px !important;
-                min-width: 148px !important;
-                max-width: 148px !important;
-                aspect-ratio: 16 / 9 !important;
-                border-radius: 9px !important;
-                flex-shrink: 0 !important;
-            }
-
-            .avd-watch-sidebar-col:not(.col-12) .suggested_video.avd-related-card .avd-related-info {
-                flex: 1 1 auto !important;
-                min-width: 0 !important;
-                display: flex !important;
-                flex-direction: column !important;
-                gap: 0.18rem !important;
-            }
-
-            .avd-watch-sidebar-col:not(.col-12) .suggested_video.avd-related-card .avd-related-title {
-                font-size: 0.85rem !important;
-                font-weight: 700 !important;
-                line-height: 1.28 !important;
-                display: -webkit-box !important;
-                -webkit-line-clamp: 2 !important;
-                -webkit-box-orient: vertical !important;
-                overflow: hidden !important;
-                color: var(--avd-text, #fff) !important;
-            }
-
-            .avd-watch-sidebar-col:not(.col-12) .avd-up-next-thumb {
-                width: 135px !important;
-                min-width: 135px !important;
-                max-width: 135px !important;
-            }
-            .avd-watch-sidebar-col:not(.col-12) .avd-up-next-cta {
-                display: none !important;
-            }
-        }
-
-        /* --- 4. Responsive Viewports for Mobile / Tablet --- */
-        @media (max-width: 991.98px) {
-            .avd-related-list {
-                display: grid !important;
-                grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)) !important;
-                gap: 1rem !important;
-                width: 100% !important;
-            }
-            .suggested_video.avd-related-card {
-                display: flex !important;
-                flex-direction: column !important;
-                grid-template-columns: none !important;
-                background: var(--avd-surface-card, rgba(255, 255, 255, 0.025)) !important;
-                border: 1px solid var(--avd-border, rgba(255, 255, 255, 0.07)) !important;
-                border-radius: 12px !important;
-                padding: 0.5rem !important;
-            }
-            .suggested_video.avd-related-card .avd-thumb {
-                width: 100% !important;
-                max-width: 100% !important;
-                aspect-ratio: 16 / 9 !important;
-            }
-            .avd-up-next-content {
-                flex-direction: column !important;
-                align-items: stretch !important;
-            }
-            .avd-up-next-thumb {
-                width: 100% !important;
-                max-width: 100% !important;
-            }
-        }
-
-        @media (max-width: 575.98px) {
-            .avd-related-list {
-                grid-template-columns: 1fr !important;
-            }
-        }
-
-        /* Thumbnail Image & Custom Tags Universal Fit */
-        .suggested_video.avd-related-card .avd-thumb image-loaded,
-        .suggested_video.avd-related-card .avd-thumb .avd-image-loaded,
-        .suggested_video.avd-related-card .avd-thumb img {
-            width: 100% !important;
-            height: 100% !important;
-            object-fit: cover !important;
-            display: block !important;
-            transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1) !important;
-        }
-
-        .suggested_video.avd-related-card:hover .avd-thumb img {
-            transform: scale(1.05) !important;
-        }
-
-        /* Duration badges: the theme's badge (video.scss: tokens, inline-end corner, no blur). */
-
-        /* Center Play Icon Hover Watermark */
-        .avd-thumb-play-center {
-            position: absolute !important;
-            inset: 0 !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            background: rgba(0, 0, 0, 0.32) !important;
-            color: #ffffff !important;
-            font-size: 1.5rem !important;
-            opacity: 0 !important;
-            pointer-events: none !important;
-            transition: opacity 0.22s ease, transform 0.22s ease !important;
-            transform: scale(0.85) !important;
-            z-index: 3 !important;
-        }
-        .suggested_video.avd-related-card:hover .avd-thumb-play-center,
-        .avd-up-next-card:hover .avd-thumb-play-center {
-            opacity: 1 !important;
-            transform: scale(1) !important;
-        }
-
-        /* Light Theme Styling Adapters */
-        [data-bs-theme="light"] .suggested_video.avd-related-card {
-            background: #ffffff !important;
-            border-color: rgba(0, 0, 0, 0.08) !important;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04) !important;
-        }
-        [data-bs-theme="light"] .suggested_video.avd-related-card:hover {
-            background: #ffffff !important;
-            border-color: var(--avd-brand, #ff3d61) !important;
-            box-shadow: 0 8px 22px rgba(0, 0, 0, 0.08) !important;
-        }
-        [data-bs-theme="light"] .avd-up-next-card {
-            background: linear-gradient(135deg, rgba(var(--avd-brand-rgb, 255, 61, 97), 0.06), #ffffff) !important;
-            border-color: rgba(var(--avd-brand-rgb, 255, 61, 97), 0.24) !important;
-            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.05) !important;
-        }
-        [data-bs-theme="light"] .avd-related-title,
-        [data-bs-theme="light"] .avd-up-next-title {
-            color: #0f172a !important;
-        }
-        [data-bs-theme="light"] .avd-channel-name,
-        [data-bs-theme="light"] .avd-video-meta {
-            color: var(--avd-muted, #64748b) !important;
-        }
-
-        /* OLED Pure Black Theme Adapter */
-        html[data-avd-oled="on"][data-bs-theme="dark"] .suggested_video.avd-related-card {
-            background: #080808 !important;
-            border-color: #181818 !important;
-        }
-        html[data-avd-oled="on"][data-bs-theme="dark"] .avd-up-next-card {
-            background: #060606 !important;
-            border-color: #222222 !important;
-        }
-    </style>
 
     <div
         class="row avd-watch-layout"
@@ -620,12 +323,12 @@
 
                     <!-- Floating Speed HUD Overlay -->
                     <div class="avd-speed-hud" id="avdSpeedHud" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.9); opacity: 0; pointer-events: none; z-index: 1050; background: rgba(0,0,0,0.85); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.25); color: #fff; padding: 12px 24px; border-radius: 999px; font-weight: 700; font-size: 1.25rem; transition: transform 0.2s cubic-bezier(0.16,1,0.3,1), opacity 0.2s ease; box-shadow: 0 10px 30px rgba(0,0,0,0.7);">
-                        <i class="fa-solid fa-gauge-high text-info me-2"></i><span id="avdSpeedHudText">1.0x Speed</span>
+                        <i class="fa-solid fa-gauge-high text-info me-2"></i><span id="avdSpeedHudText">1x</span>
                     </div>
 
                     <!-- Floating Aspect Ratio HUD Overlay -->
                     <div class="avd-aspect-hud" id="avdAspectHud" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.9); opacity: 0; pointer-events: none; z-index: 1050; background: rgba(0,0,0,0.85); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.25); color: #fff; padding: 12px 24px; border-radius: 999px; font-weight: 700; font-size: 1.15rem; transition: transform 0.2s cubic-bezier(0.16,1,0.3,1), opacity 0.2s ease; box-shadow: 0 10px 30px rgba(0,0,0,0.7);">
-                        <i class="fa-solid fa-arrows-up-down-left-right text-warning me-2"></i><span id="avdAspectHudText">Fit (16:9)</span>
+                        <i class="fa-solid fa-arrows-up-down-left-right text-warning me-2"></i><span id="avdAspectHudText">16:9</span>
                     </div>
 
                     <!-- Audio Spectrum Visualizer Canvas Overlay -->
@@ -655,10 +358,10 @@
                         </div>
                         <div class="d-flex align-items-center gap-1.5 flex-shrink-0">
                             <button type="button" class="btn btn-xs btn-primary rounded-pill px-2.5 py-1 fw-bold" onclick="window.avdAcceptResume()" style="font-size: 0.76rem;">
-                                <i class="fa-solid fa-play me-1"></i> {{ __('Resume') }}
+                                <i class="fa-solid fa-play me-1" aria-hidden="true"></i> {{ __('Resume') }}
                             </button>
-                            <button type="button" class="btn btn-xs btn-link text-white-50 p-1" onclick="window.avdDismissResume()" title="{{ __('Dismiss') }}">
-                                <i class="fa-solid fa-xmark"></i>
+                            <button type="button" class="btn btn-xs btn-link text-white-50 p-1" onclick="window.avdDismissResume()" title="{{ __('Dismiss') }}" aria-label="{{ __('Dismiss') }}">
+                                <i class="fa-solid fa-xmark" aria-hidden="true"></i>
                             </button>
                         </div>
                     </div>
@@ -670,11 +373,11 @@
                             <i class="fa-solid fa-play me-1 text-danger"></i> {{ $video->title }}
                         </span>
                         <div class="d-flex align-items-center gap-2">
-                            <button type="button" class="btn btn-xs btn-link text-white p-0" onclick="window.scrollTo({top:0, behavior:'smooth'}); window.avdTogglePip(false);" title="{{ __('Expand to Full Player') }}">
-                                <i class="fa-solid fa-up-right-and-down-left-from-center"></i>
+                            <button type="button" class="btn btn-xs btn-link text-white p-0" onclick="window.scrollTo({top:0, behavior:'smooth'}); window.avdTogglePip(false);" title="{{ __('Expand to the full player') }}">
+                                <i class="fa-solid fa-up-right-and-down-left-from-center" aria-hidden="true"></i>
                             </button>
-                            <button type="button" class="btn btn-xs btn-link text-white-50 p-0" onclick="window.avdTogglePip(false)" title="{{ __('Close Mini Player') }}">
-                                <i class="fa-solid fa-xmark"></i>
+                            <button type="button" class="btn btn-xs btn-link text-white-50 p-0" onclick="window.avdTogglePip(false)" title="{{ __('Close the mini player') }}">
+                                <i class="fa-solid fa-xmark" aria-hidden="true"></i>
                             </button>
                         </div>
                     </div>
@@ -705,13 +408,13 @@
                         <!-- Sleep Timer Finished Overlay (Works for Upload18 Iframes & HTML5 Streams) -->
                         <div id="avdSleepFinishedOverlay" class="d-none position-absolute top-0 start-0 w-100 h-100 d-flex flex-column align-items-center justify-content-center text-center p-4" style="background: rgba(5, 8, 17, 0.96); z-index: 80; backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);">
                             <div class="mb-3" style="font-size: 3.2rem; filter: drop-shadow(0 0 16px rgba(245, 158, 11, 0.5));">🌙</div>
-                            <h3 class="h4 fw-bold text-white mb-2">{{ __('Stream Paused by Cinema Sleep Timer') }}</h3>
+                            <h3 class="h4 fw-bold text-white mb-2">{{ __('Paused by the sleep timer') }}</h3>
                             <p class="text-white-50 small mb-4" style="max-width: 420px; line-height: 1.5;">
-                                {{ __('Your scheduled sleep timer reached zero. Video playback and audio were paused automatically to save bandwidth and ensure peaceful sleep.') }}
+                                {{ __('The time you set is up, so the video was paused.') }}
                             </p>
                             <button type="button" class="btn btn-primary rounded-pill px-4 py-2 fw-bold shadow-lg d-inline-flex align-items-center gap-2" onclick="window.avdResumeFromSleep()">
-                                <i class="fa-solid fa-play"></i>
-                                <span>{{ __('Resume Playback') }}</span>
+                                <i class="fa-solid fa-play" aria-hidden="true"></i>
+                                <span>{{ __('Resume') }}</span>
                             </button>
                         </div>
                     </div>
@@ -725,21 +428,21 @@
                         <div class="container-fluid d-flex align-items-center justify-content-between">
                             <div class="d-flex align-items-center gap-2.5 min-w-0">
                                 <button type="button" class="btn btn-xs btn-primary rounded-pill px-2.5 py-1 text-nowrap fw-bold" onclick="window.scrollTo({top: 0, behavior: 'smooth'})" style="font-size: 0.78rem;">
-                                    <i class="fa-solid fa-arrow-up me-1"></i> {{ __('Back to Video') }}
+                                    <i class="fa-solid fa-arrow-up me-1" aria-hidden="true"></i> {{ __('Back to the video') }}
                                 </button>
                                 <span class="text-white fw-bold text-truncate small d-none d-sm-inline" style="max-width: 450px;">
                                     {{ $video->title }}
                                 </span>
                             </div>
                             <div class="d-flex align-items-center gap-1.5">
-                                <button type="button" class="btn btn-xs btn-outline-light rounded-pill px-2 py-1 avd-lights-out-btn" onclick="window.avdToggleLightsOut()" title="{{ __('Lights Out (L)') }}">
-                                    <i class="fa-solid fa-moon"></i>
+                                <button type="button" class="btn btn-xs btn-outline-light rounded-pill px-2 py-1 avd-lights-out-btn" onclick="window.avdToggleLightsOut()" title="{{ __('Lights out') }} (L)">
+                                    <i class="fa-solid fa-moon" aria-hidden="true"></i>
                                 </button>
-                                <button type="button" class="btn btn-xs btn-outline-light rounded-pill px-2 py-1" onclick="window.avdToggleZenMode()" title="{{ __('Zen Mode (Shift+F)') }}">
-                                    <i class="fa-regular fa-eye-slash"></i>
+                                <button type="button" class="btn btn-xs btn-outline-light rounded-pill px-2 py-1" onclick="window.avdToggleZenMode()" title="{{ __('Focus mode') }} (Shift+F)">
+                                    <i class="fa-regular fa-eye-slash" aria-hidden="true"></i>
                                 </button>
-                                <button type="button" class="btn btn-xs btn-outline-light rounded-pill px-2 py-1" onclick="window.avdReloadPlayer()" title="{{ __('Reload Stream') }}">
-                                    <i class="fa-solid fa-rotate-right"></i>
+                                <button type="button" class="btn btn-xs btn-outline-light rounded-pill px-2 py-1" onclick="window.avdReloadPlayer()" title="{{ __('Reload the video') }}">
+                                    <i class="fa-solid fa-rotate-right" aria-hidden="true"></i>
                                 </button>
                             </div>
                         </div>
@@ -751,40 +454,39 @@
                             <!-- Left Cluster: Core Cinema Experience Tools (Works 100% on All Video Types: Upload18 Iframes & HTML5) -->
                             <div class="avd-dock-cluster avd-dock-primary">
                                 <!-- Mobile Cinema Suite Quick Trigger (Direct one-tap access on iOS & Android) -->
-                                <button type="button" class="avd-dock-btn avd-dock-btn-tools-highlight d-md-none" onclick="window.avdOpenMobileTools && window.avdOpenMobileTools();" title="{{ __('Cinema Suite & Tools') }}">
-                                    <i class="fa-solid fa-sliders text-primary"></i>
+                                <button type="button" class="avd-dock-btn avd-dock-btn-tools-highlight d-md-none" onclick="window.avdOpenMobileTools && window.avdOpenMobileTools();" title="{{ __('Video tools') }}">
+                                    <i class="fa-solid fa-sliders text-primary" aria-hidden="true"></i>
                                     <span>{{ __('Tools') }}</span>
-                                    <span class="badge rounded-pill bg-primary text-white" style="font-size: 0.62rem; padding: 0.2em 0.5em;">PRO</span>
                                 </button>
                                 @if($watchTheaterEnabled)
-                                <button type="button" class="avd-dock-btn" data-theater-toggle aria-pressed="false" onclick="window.AvdAudio && window.AvdAudio.playWhoosh()" title="{{ __('Theater Cinema Mode (T)') }}">
-                                    <i class="fa-solid fa-expand"></i>
+                                <button type="button" class="avd-dock-btn" data-theater-toggle aria-pressed="false" onclick="window.AvdAudio && window.AvdAudio.playWhoosh()" title="{{ __('Theater mode') }} (T)">
+                                    <i class="fa-solid fa-expand" aria-hidden="true"></i>
                                 </button>
-                                <button type="button" class="avd-dock-btn avd-lights-out-btn" id="avdLightsOutBtn" onclick="window.avdToggleLightsOut(); window.AvdAudio && window.AvdAudio.playWhoosh();" title="{{ __('Lights Out Ambient Spotlight (L)') }}">
-                                    <i class="fa-solid fa-moon"></i>
+                                <button type="button" class="avd-dock-btn avd-lights-out-btn" id="avdLightsOutBtn" onclick="window.avdToggleLightsOut(); window.AvdAudio && window.AvdAudio.playWhoosh();" title="{{ __('Lights out') }} (L)">
+                                    <i class="fa-solid fa-moon" aria-hidden="true"></i>
                                 </button>
-                                <button type="button" class="avd-dock-btn" id="avdFullscreenBtn" onclick="window.avdToggleFullscreen()" title="{{ __('True Fullscreen (F)') }}">
-                                    <i class="fa-solid fa-maximize"></i>
+                                <button type="button" class="avd-dock-btn" id="avdFullscreenBtn" onclick="window.avdToggleFullscreen()" title="{{ __('Full screen') }} (F)">
+                                    <i class="fa-solid fa-maximize" aria-hidden="true"></i>
                                 </button>
                                 @if($watchFloatingMiniPlayerEnabled)
-                                    <button type="button" class="avd-dock-btn" id="avdPipToggle" onclick="window.avdTogglePip()" title="{{ __('Mini Player Floating PiP (P)') }}">
-                                        <i class="fa-solid fa-clone"></i>
+                                    <button type="button" class="avd-dock-btn" id="avdPipToggle" onclick="window.avdTogglePip()" title="{{ __('Mini player') }} (P)">
+                                        <i class="fa-solid fa-clone" aria-hidden="true"></i>
                                     </button>
                                 @endif
                                 @if($watchPlayerAmbientGlowEnabled)
-                                <button type="button" class="avd-dock-btn active" id="avdAmbilightToggle" aria-pressed="true" onclick="window.avdToggleAmbilight()" title="{{ __('Ambient Backlight Halo (A)') }}">
-                                    <i class="fa-solid fa-wand-magic-sparkles"></i>
+                                <button type="button" class="avd-dock-btn active" id="avdAmbilightToggle" aria-pressed="true" onclick="window.avdToggleAmbilight()" title="{{ __('Glow around the player') }} (A)">
+                                    <i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i>
                                 </button>
                                 @endif
-                                <button type="button" class="avd-dock-btn" id="avdAspectBtn" onclick="window.avdCycleAspectRatio()" title="{{ __('Cinema Aspect: 16:9 / 21:9 / Fill / Zoom (W)') }}">
-                                    <i class="fa-solid fa-arrows-up-down-left-right"></i>
+                                <button type="button" class="avd-dock-btn" id="avdAspectBtn" onclick="window.avdCycleAspectRatio()" title="{{ __('Aspect ratio') }} (W)">
+                                    <i class="fa-solid fa-arrows-up-down-left-right" aria-hidden="true"></i>
                                     <span id="avdAspectLabel">16:9</span>
                                 </button>
-                                <button type="button" class="avd-dock-btn" id="avdFilterBtn" onclick="window.avdCycleVideoFilter()" title="{{ __('Cinema Color Grading: Vivid / 35mm / Cyberpunk / OLED (C)') }}">
-                                    <i class="fa-solid fa-palette text-primary"></i>
+                                <button type="button" class="avd-dock-btn" id="avdFilterBtn" onclick="window.avdCycleVideoFilter()" title="{{ __('Color filter') }} (C)">
+                                    <i class="fa-solid fa-palette text-primary" aria-hidden="true"></i>
                                 </button>
-                                <button type="button" class="avd-dock-btn" id="avdSleepTimerBtn" onclick="window.avdToggleSleepTimerModal()" title="{{ __('Cinema Sleep Timer (Z)') }}">
-                                    <i class="fa-solid fa-clock"></i>
+                                <button type="button" class="avd-dock-btn" id="avdSleepTimerBtn" onclick="window.avdToggleSleepTimerModal()" title="{{ __('Sleep timer') }} (Z)">
+                                    <i class="fa-solid fa-clock" aria-hidden="true"></i>
                                     <span id="avdSleepTimerLabel">{{ __('Sleep') }}</span>
                                 </button>
                                 @endif
@@ -796,60 +498,58 @@
                             <!-- Right Cluster: Actions & Advanced Cinema Tools -->
                             <div class="avd-dock-cluster avd-dock-secondary ms-auto">
                                 <!-- Stream Reload (Upload18 recovery button) -->
-                                <button type="button" class="avd-dock-btn" onclick="window.avdReloadPlayer()" title="{{ __('Reload Player Stream') }}">
-                                    <i class="fa-solid fa-rotate-right"></i>
+                                <button type="button" class="avd-dock-btn" onclick="window.avdReloadPlayer()" title="{{ __('Reload the video') }}">
+                                    <i class="fa-solid fa-rotate-right" aria-hidden="true"></i>
                                 </button>
 
                                 <!-- Mirror Flip View (100% works on Upload18 iframe) -->
-                                <button type="button" class="avd-dock-btn" id="avdMirrorBtn" onclick="window.avdToggleMirror()" title="{{ __('Mirror Horizontal Flip (M)') }}">
-                                    <i class="fa-solid fa-arrows-split-up-and-left"></i>
+                                <button type="button" class="avd-dock-btn" id="avdMirrorBtn" onclick="window.avdToggleMirror()" title="{{ __('Mirror the video') }} (M)">
+                                    <i class="fa-solid fa-arrows-split-up-and-left" aria-hidden="true"></i>
                                 </button>
 
                                 <!-- Pure Zen Mode -->
-                                <button type="button" class="avd-dock-btn" id="avdZenBtn" onclick="window.avdToggleZenMode()" title="{{ __('Zen Focus Immersion (Shift+F)') }}">
-                                    <i class="fa-regular fa-eye-slash"></i>
+                                <button type="button" class="avd-dock-btn" id="avdZenBtn" onclick="window.avdToggleZenMode()" title="{{ __('Focus mode') }} (Shift+F)">
+                                    <i class="fa-regular fa-eye-slash" aria-hidden="true"></i>
                                 </button>
 
                                 <!-- Quick Share Video Link -->
-                                <button type="button" class="avd-dock-btn" onclick="window.avdQuickShare()" title="{{ __('Share Video Link') }}">
-                                    <i class="fa-solid fa-share-nodes"></i>
+                                <button type="button" class="avd-dock-btn" onclick="window.avdQuickShare()" title="{{ __('Copy video link') }}">
+                                    <i class="fa-solid fa-share-nodes" aria-hidden="true"></i>
                                 </button>
 
                                 @if($watchShortcutsEnabled)
-                                <button type="button" class="avd-dock-btn d-none d-md-inline-flex" onclick="var o=document.getElementById('shortcuts-overlay'); if(o){ o.classList.add('active'); window.AvdAudio && window.AvdAudio.playClick(); }" title="{{ __('Keyboard Shortcuts (?)') }}">
-                                    <i class="fa-regular fa-keyboard"></i>
+                                <button type="button" class="avd-dock-btn d-none d-md-inline-flex" onclick="var o=document.getElementById('shortcuts-overlay'); if(o){ o.classList.add('active'); window.AvdAudio && window.AvdAudio.playClick(); }" title="{{ __('Keyboard shortcuts') }} (?)">
+                                    <i class="fa-regular fa-keyboard" aria-hidden="true"></i>
                                 </button>
                                 @endif
 
                                 <!-- More Tools & Settings Dropdown (Pops upwards on desktop, opens Bottom Sheet on mobile) -->
                                 <div class="dropdown dropup d-inline-block">
-                                    <button type="button" class="avd-dock-btn dropdown-toggle" id="avdMoreToolsBtn" onclick="if(window.innerWidth < 768){ window.avdOpenMobileTools && window.avdOpenMobileTools(); return false; }" data-bs-toggle="dropdown" data-bs-placement="top" data-bs-display="static" aria-expanded="false" title="{{ __('More Cinema Tools & Controls') }}">
-                                        <i class="fa-solid fa-sliders"></i>
+                                    <button type="button" class="avd-dock-btn dropdown-toggle" id="avdMoreToolsBtn" onclick="if(window.innerWidth < 768){ window.avdOpenMobileTools && window.avdOpenMobileTools(); return false; }" data-bs-toggle="dropdown" data-bs-placement="top" data-bs-display="static" aria-expanded="false" title="{{ __('Video tools') }}">
+                                        <i class="fa-solid fa-sliders" aria-hidden="true"></i>
                                         <span>{{ __('Tools') }}</span>
                                     </button>
                                     <ul class="dropdown-menu dropdown-menu-end shadow-lg avd-cinema-dropdown-menu" aria-labelledby="avdMoreToolsBtn" style="width: min(310px, calc(100vw - 1rem)); min-width: 0; z-index: 1055;">
                                         <li class="dropdown-header text-uppercase fw-bold small text-muted px-3 py-1.5 d-flex align-items-center justify-content-between">
-                                            <span><i class="fa-solid fa-clapperboard me-1 text-primary"></i>{{ __('Cinema Suite') }}</span>
-                                            <span class="badge rounded-pill bg-body-secondary text-muted font-monospace" id="avdPlayerTypeBadge" style="font-size: 0.65rem;">Auto</span>
+                                            <span><i class="fa-solid fa-sliders me-1 text-primary" aria-hidden="true"></i>{{ __('Video tools') }}</span>
                                         </li>
 
                                         <!-- Real-Time Visual Grading / Cinema Color Filters (Works 100% on Upload18 Iframe!) -->
                                         <li class="px-3 py-2">
                                             <div class="d-flex align-items-center justify-content-between mb-1.5">
                                                 <span class="small fw-semibold text-muted d-flex align-items-center gap-1">
-                                                    <i class="fa-solid fa-palette text-primary"></i>{{ __('Color Grade Filter') }}
+                                                    <i class="fa-solid fa-palette text-primary" aria-hidden="true"></i>{{ __('Color filter') }}
                                                 </span>
-                                                <span class="badge bg-primary text-white font-monospace" id="avdCurrentFilterBadge" style="font-size: 0.68rem;">Normal</span>
                                             </div>
                                             <div class="d-flex flex-wrap gap-1">
                                                 <button type="button" class="btn btn-xs btn-outline-secondary avd-filter-chip active btn-primary px-2 py-0.5" style="font-size: 11px; border-radius: 8px;" onclick="window.avdSetVideoFilter('normal', this)">{{ __('Normal') }}</button>
-                                                <button type="button" class="btn btn-xs btn-outline-secondary avd-filter-chip px-2 py-0.5" style="font-size: 11px; border-radius: 8px;" onclick="window.avdSetVideoFilter('vivid', this)">{{ __('Vivid HDR') }}</button>
-                                                <button type="button" class="btn btn-xs btn-outline-secondary avd-filter-chip px-2 py-0.5" style="font-size: 11px; border-radius: 8px;" onclick="window.avdSetVideoFilter('cinema', this)">{{ __('35mm Warm') }}</button>
+                                                <button type="button" class="btn btn-xs btn-outline-secondary avd-filter-chip px-2 py-0.5" style="font-size: 11px; border-radius: 8px;" onclick="window.avdSetVideoFilter('vivid', this)">{{ __('Vivid') }}</button>
+                                                <button type="button" class="btn btn-xs btn-outline-secondary avd-filter-chip px-2 py-0.5" style="font-size: 11px; border-radius: 8px;" onclick="window.avdSetVideoFilter('cinema', this)">{{ __('Warm film') }}</button>
                                                 <button type="button" class="btn btn-xs btn-outline-secondary avd-filter-chip px-2 py-0.5" style="font-size: 11px; border-radius: 8px;" onclick="window.avdSetVideoFilter('cyberpunk', this)">{{ __('Cyberpunk') }}</button>
-                                                <button type="button" class="btn btn-xs btn-outline-secondary avd-filter-chip px-2 py-0.5" style="font-size: 11px; border-radius: 8px;" onclick="window.avdSetVideoFilter('oled', this)">{{ __('OLED Dark') }}</button>
-                                                <button type="button" class="btn btn-xs btn-outline-secondary avd-filter-chip px-2 py-0.5" style="font-size: 11px; border-radius: 8px;" onclick="window.avdSetVideoFilter('noir', this)">{{ __('Noir B&W') }}</button>
-                                                <button type="button" class="btn btn-xs btn-outline-secondary avd-filter-chip px-2 py-0.5" style="font-size: 11px; border-radius: 8px;" onclick="window.avdSetVideoFilter('night', this)" title="{{ __('Eye-Care Warm Blue Light Filter (Shift+N)') }}">🌙 {{ __('Night Shift') }}</button>
-                                                <button type="button" class="btn btn-xs btn-outline-secondary avd-filter-chip px-2 py-0.5" style="font-size: 11px; border-radius: 8px;" onclick="window.avdSetVideoFilter('anime', this)">✨ {{ __('Anime Pop') }}</button>
+                                                <button type="button" class="btn btn-xs btn-outline-secondary avd-filter-chip px-2 py-0.5" style="font-size: 11px; border-radius: 8px;" onclick="window.avdSetVideoFilter('oled', this)">{{ __('Deep black') }}</button>
+                                                <button type="button" class="btn btn-xs btn-outline-secondary avd-filter-chip px-2 py-0.5" style="font-size: 11px; border-radius: 8px;" onclick="window.avdSetVideoFilter('noir', this)">{{ __('Black and white') }}</button>
+                                                <button type="button" class="btn btn-xs btn-outline-secondary avd-filter-chip px-2 py-0.5" style="font-size: 11px; border-radius: 8px;" onclick="window.avdSetVideoFilter('night', this)" title="{{ __(':label: :value', ['label' => __('Color filter'), 'value' => __('Night')]) }} (Shift+N)">🌙 {{ __('Night') }}</button>
+                                                <button type="button" class="btn btn-xs btn-outline-secondary avd-filter-chip px-2 py-0.5" style="font-size: 11px; border-radius: 8px;" onclick="window.avdSetVideoFilter('anime', this)">✨ {{ __('Anime') }}</button>
                                             </div>
                                         </li>
 
@@ -857,9 +557,8 @@
                                         <li class="px-3 py-1.5">
                                             <div class="d-flex align-items-center justify-content-between mb-1.5">
                                                 <span class="small fw-semibold text-muted d-flex align-items-center gap-1">
-                                                    <i class="fa-solid fa-arrows-rotate text-info"></i>{{ __('Rotate Video Frame (O)') }}
+                                                    <i class="fa-solid fa-arrows-rotate text-info" aria-hidden="true"></i>{{ __('Rotate the video') }}
                                                 </span>
-                                                <span class="badge bg-secondary-subtle text-secondary font-monospace" id="avdCurrentRotationBadge" style="font-size: 0.68rem;">0°</span>
                                             </div>
                                             <div class="d-flex align-items-center gap-1">
                                                 <button type="button" class="btn btn-xs btn-outline-secondary avd-rotate-chip active btn-primary px-2 py-0.5 flex-fill text-center" style="font-size: 11px; border-radius: 8px;" onclick="window.avdRotateVideo(0, this)">0°</button>
@@ -873,14 +572,13 @@
                                         <li class="px-3 py-1.5">
                                             <div class="d-flex align-items-center justify-content-between mb-1.5">
                                                 <span class="small fw-semibold text-muted d-flex align-items-center gap-1">
-                                                    <i class="fa-solid fa-sun text-warning"></i>{{ __('Screen Brightness') }}
+                                                    <i class="fa-solid fa-sun text-warning" aria-hidden="true"></i>{{ __('Brightness') }}
                                                 </span>
-                                                <span class="badge bg-secondary-subtle text-secondary font-monospace" id="avdCurrentBrightBadge" style="font-size: 0.68rem;">Normal</span>
                                             </div>
                                             <div class="d-flex align-items-center gap-1">
                                                 <button type="button" class="btn btn-xs btn-outline-secondary avd-bright-chip active btn-primary px-2 py-0.5 flex-fill text-center" style="font-size: 11px; border-radius: 8px;" onclick="window.avdSetBrightness('normal', this)">{{ __('Normal') }}</button>
-                                                <button type="button" class="btn btn-xs btn-outline-secondary avd-bright-chip px-2 py-0.5 flex-fill text-center" style="font-size: 11px; border-radius: 8px;" onclick="window.avdSetBrightness('boost', this)">+15%</button>
-                                                <button type="button" class="btn btn-xs btn-outline-secondary avd-bright-chip px-2 py-0.5 flex-fill text-center" style="font-size: 11px; border-radius: 8px;" onclick="window.avdSetBrightness('dim', this)">-15%</button>
+                                                <button type="button" class="btn btn-xs btn-outline-secondary avd-bright-chip px-2 py-0.5 flex-fill text-center" style="font-size: 11px; border-radius: 8px;" dir="ltr" onclick="window.avdSetBrightness('boost', this)">+15%</button>
+                                                <button type="button" class="btn btn-xs btn-outline-secondary avd-bright-chip px-2 py-0.5 flex-fill text-center" style="font-size: 11px; border-radius: 8px;" dir="ltr" onclick="window.avdSetBrightness('dim', this)">-15%</button>
                                             </div>
                                         </li>
 
@@ -889,15 +587,14 @@
                                         <li class="px-3 py-1.5">
                                             <div class="d-flex align-items-center justify-content-between mb-1.5">
                                                 <span class="small fw-semibold text-muted d-flex align-items-center gap-1">
-                                                    <i class="fa-solid fa-wand-magic-sparkles text-primary"></i>{{ __('Ambilight Mode (A)') }}
+                                                    <i class="fa-solid fa-wand-magic-sparkles text-primary" aria-hidden="true"></i>{{ __('Glow around the player') }}
                                                 </span>
-                                                <span class="badge bg-primary text-white font-monospace" id="avdCurrentAmbiBadge" style="font-size: 0.68rem;">Theme</span>
                                             </div>
                                             <div class="d-flex flex-wrap gap-1">
-                                                <button type="button" class="btn btn-xs btn-outline-secondary avd-ambi-chip active btn-primary px-2 py-0.5" style="font-size: 11px; border-radius: 8px;" onclick="window.avdSetAmbiMode('theme', this)">{{ __('Theme Sync') }}</button>
+                                                <button type="button" class="btn btn-xs btn-outline-secondary avd-ambi-chip active btn-primary px-2 py-0.5" style="font-size: 11px; border-radius: 8px;" onclick="window.avdSetAmbiMode('theme', this)">{{ __('Theme') }}</button>
                                                 <button type="button" class="btn btn-xs btn-outline-secondary avd-ambi-chip px-2 py-0.5" style="font-size: 11px; border-radius: 8px;" onclick="window.avdSetAmbiMode('pulse', this)">{{ __('Pulse') }}</button>
-                                                <button type="button" class="btn btn-xs btn-outline-secondary avd-ambi-chip px-2 py-0.5" style="font-size: 11px; border-radius: 8px;" onclick="window.avdSetAmbiMode('neon', this)">{{ __('Neon Aura') }}</button>
-                                                <button type="button" class="btn btn-xs btn-outline-secondary avd-ambi-chip px-2 py-0.5" style="font-size: 11px; border-radius: 8px;" onclick="window.avdSetAmbiMode('warm', this)">{{ __('Warm Hearth') }}</button>
+                                                <button type="button" class="btn btn-xs btn-outline-secondary avd-ambi-chip px-2 py-0.5" style="font-size: 11px; border-radius: 8px;" onclick="window.avdSetAmbiMode('neon', this)">{{ __('Neon') }}</button>
+                                                <button type="button" class="btn btn-xs btn-outline-secondary avd-ambi-chip px-2 py-0.5" style="font-size: 11px; border-radius: 8px;" onclick="window.avdSetAmbiMode('warm', this)">{{ __('Warm') }}</button>
                                             </div>
                                         </li>
                                         @endif
@@ -907,30 +604,29 @@
                                         <!-- Mirror Flip & Zen Focus Options (100% works on Upload18 iframe) -->
                                         <li>
                                             <button type="button" class="dropdown-item py-2 px-3 d-flex align-items-center gap-2" onclick="window.avdToggleMirror()">
-                                                <i class="fa-solid fa-arrows-split-up-and-left text-info" style="width: 18px;"></i>
-                                                <span class="flex-grow-1">{{ __('Mirror Flip View') }}</span>
+                                                <i class="fa-solid fa-arrows-split-up-and-left text-info" style="width: 18px;" aria-hidden="true"></i>
+                                                <span class="flex-grow-1">{{ __('Mirror the video') }}</span>
                                                 <span class="badge bg-secondary-subtle text-secondary small">M</span>
                                             </button>
                                         </li>
                                         <li>
                                             <button type="button" class="dropdown-item py-2 px-3 d-flex align-items-center gap-2" onclick="window.avdToggleZenMode()">
-                                                <i class="fa-regular fa-eye-slash text-warning" style="width: 18px;"></i>
-                                                <span class="flex-grow-1">{{ __('Zen Focus Immersion') }}</span>
+                                                <i class="fa-regular fa-eye-slash text-warning" style="width: 18px;" aria-hidden="true"></i>
+                                                <span class="flex-grow-1">{{ __('Focus mode') }}</span>
                                                 <span class="badge bg-secondary-subtle text-secondary small">Shift+F</span>
                                             </button>
                                         </li>
                                         <li>
                                             <button type="button" class="dropdown-item py-2 px-3 d-flex align-items-center gap-2" onclick="window.avdToggleFullscreen()">
-                                                <i class="fa-solid fa-maximize text-success" style="width: 18px;"></i>
-                                                <span class="flex-grow-1">{{ __('True Fullscreen') }}</span>
+                                                <i class="fa-solid fa-maximize text-success" style="width: 18px;" aria-hidden="true"></i>
+                                                <span class="flex-grow-1">{{ __('Full screen') }}</span>
                                                 <span class="badge bg-secondary-subtle text-secondary small">F</span>
                                             </button>
                                         </li>
                                         <li>
                                             <button type="button" class="dropdown-item py-2 px-3 d-flex align-items-center gap-2" onclick="window.avdOpenEmbedModal()">
-                                                <i class="fa-solid fa-code text-primary" style="width: 18px;"></i>
-                                                <span class="flex-grow-1">{{ __('Embed Video Player') }}</span>
-                                                <span class="badge bg-primary-subtle text-primary small">&lt;/&gt;</span>
+                                                <i class="fa-solid fa-code text-primary" style="width: 18px;" aria-hidden="true"></i>
+                                                <span class="flex-grow-1">{{ __('Embed code') }}</span>
                                             </button>
                                         </li>
 
@@ -939,8 +635,8 @@
                                         <!-- Timestamp Quick-Notes Scratchpad (Always works) -->
                                         <li>
                                             <button type="button" class="dropdown-item py-2 px-3 d-flex align-items-center gap-2" onclick="window.avdToggleNotes()">
-                                                <i class="fa-regular fa-note-sticky text-warning" style="width: 18px;"></i>
-                                                <span class="flex-grow-1">{{ __('Quick-Notes Scratchpad') }}</span>
+                                                <i class="fa-regular fa-note-sticky text-warning" style="width: 18px;" aria-hidden="true"></i>
+                                                <span class="flex-grow-1">{{ __('Notes') }}</span>
                                                 <span class="badge bg-secondary-subtle text-secondary small">N</span>
                                             </button>
                                         </li>
@@ -948,7 +644,7 @@
                                         <!-- Video details -->
                                         <li>
                                             <button type="button" class="dropdown-item py-2 px-3 d-flex align-items-center gap-2" onclick="window.avdToggleTelemetryModal()">
-                                                <i class="fa-solid fa-circle-info text-primary" style="width: 18px;"></i>
+                                                <i class="fa-solid fa-circle-info text-primary" style="width: 18px;" aria-hidden="true"></i>
                                                 <span class="flex-grow-1">{{ __('Video details') }}</span>
                                                 <span class="badge bg-secondary-subtle text-secondary small">I</span>
                                             </button>
@@ -958,14 +654,14 @@
                                         <div id="avdHtml5OnlyTools" class="d-none">
                                             <li class="dropdown-divider my-1"></li>
                                             <li class="px-3 py-1 text-uppercase fw-bold text-muted" style="font-size: 0.65rem;">
-                                                {{ __('HTML5 Stream Controls') }}
+                                                {{ __('More options') }}
                                             </li>
 
                                             <!-- Snapshot Frame Capture -->
                                             <li id="avdMenuSnapshotItem">
                                                 <button type="button" class="dropdown-item py-2 px-3 d-flex align-items-center gap-2" onclick="window.avdCaptureFrame()">
-                                                    <i class="fa-solid fa-camera text-info" style="width: 18px;"></i>
-                                                    <span class="flex-grow-1">{{ __('Capture Snapshot') }}</span>
+                                                    <i class="fa-solid fa-camera text-info" style="width: 18px;" aria-hidden="true"></i>
+                                                    <span class="flex-grow-1">{{ __('Take a snapshot') }}</span>
                                                     <span class="badge bg-secondary-subtle text-secondary small">S</span>
                                                 </button>
                                             </li>
@@ -973,8 +669,8 @@
                                             <!-- Video Loop Toggle -->
                                             <li id="avdMenuLoopItem">
                                                 <button type="button" class="dropdown-item py-2 px-3 d-flex align-items-center gap-2" onclick="window.avdToggleLoop()">
-                                                    <i class="fa-solid fa-repeat text-success" style="width: 18px;"></i>
-                                                    <span class="flex-grow-1">{{ __('Infinite Loop') }}</span>
+                                                    <i class="fa-solid fa-repeat text-success" style="width: 18px;" aria-hidden="true"></i>
+                                                    <span class="flex-grow-1">{{ __('Loop the video') }}</span>
                                                     <span class="badge bg-secondary-subtle text-secondary small">R</span>
                                                 </button>
                                             </li>
@@ -982,8 +678,8 @@
                                             <!-- Audio Boost Equalizer -->
                                             <li id="avdMenuAudioItem">
                                                 <button type="button" class="dropdown-item py-2 px-3 d-flex align-items-center gap-2" onclick="window.avdCycleAudioBoost()">
-                                                    <i class="fa-solid fa-headphones text-primary" style="width: 18px;"></i>
-                                                    <span class="flex-grow-1" id="avdMenuAudioLabel">{{ __('Audio EQ Boost') }}</span>
+                                                    <i class="fa-solid fa-headphones text-primary" style="width: 18px;" aria-hidden="true"></i>
+                                                    <span class="flex-grow-1" id="avdMenuAudioLabel">{{ __('Sound mode') }}</span>
                                                     <span class="badge bg-secondary-subtle text-secondary small">B</span>
                                                 </button>
                                             </li>
@@ -991,8 +687,8 @@
                                             <!-- Audio Spectrum Visualizer -->
                                             <li id="avdMenuVisualizerItem">
                                                 <button type="button" class="dropdown-item py-2 px-3 d-flex align-items-center gap-2" onclick="window.avdToggleVisualizer()">
-                                                    <i class="fa-solid fa-chart-simple text-danger" style="width: 18px;"></i>
-                                                    <span class="flex-grow-1">{{ __('Spectrum Visualizer') }}</span>
+                                                    <i class="fa-solid fa-chart-simple text-danger" style="width: 18px;" aria-hidden="true"></i>
+                                                    <span class="flex-grow-1">{{ __('Sound bars') }}</span>
                                                     <span class="badge bg-secondary-subtle text-secondary small">V</span>
                                                 </button>
                                             </li>
@@ -1002,7 +698,7 @@
                                         <li id="avdIframeHelperNotice" class="px-3 py-2">
                                             <div class="p-2 rounded-3 text-muted small" style="background: rgba(255, 255, 255, 0.04); font-size: 0.72rem; line-height: 1.4;">
                                                 <i class="fa-solid fa-circle-check text-success me-1"></i>
-                                                {{ __('Upload18 Stream Active. Internal playback speed, volume & quality are managed directly inside the video player frame.') }}
+                                                {{ __('This video plays in the Upload18 player: change its speed, volume and quality inside the player.') }}
                                             </div>
                                         </li>
                                     </ul>
@@ -1123,14 +819,16 @@
                 ])>
                     <div class="avd-meta-chip">
                         <i class="fa-regular fa-eye"></i>
-                        <span>{{trans_choice('views', $video->views, ['count' => number_format($video->views)])}}</span>
+                        <span>{{trans_choice('views', $video->views, ['count' => \App\Support\LocalNumber::format($video->views)])}}</span>
                         <span aria-hidden="true">&middot;</span>
-                        <span>{{ ($video->published_at ?? $video->created_at)?->translatedFormat('d F Y') ?? '' }}</span>
+                        {{-- the admin's "Date format" in the reader's order and the site's time zone, as on the Library, History,
+                             playlist and channel pages (R3-062; it was "18 九月 2026" in Chinese, "18 September 2026" in English) --}}
+                        <span>{{ \App\Support\SiteDate::date($video->published_at ?? $video->created_at) }}</span>
                     </div>
 
                     @if($watchActionControlsEnabled)
                     @auth
-                        <div class="avd-action-row col-12 col-sm-auto">
+                        <div class="avd-action-row col-12 col-sm-auto" data-avd-strip-yield>
                             @if($watchReactionsEnabled)
                             <interaction-buttons
                                 model="{{get_class($video)}}"
@@ -1139,7 +837,7 @@
                                 dislikes="{{$video->dislikes_count}}"
                                 liked="{{$video->liked_by_auth_user}}"
                                 disliked="{{$video->disliked_by_auth_user}}"
-                                show-count="{{!$video->show_likes}}"
+                                show-count="{{ $video->show_likes ? 'true' : 'false' }}"
                             ></interaction-buttons>
                             @endif
                             @if($watchShareEnabled && $video->is_public)
@@ -1170,24 +868,30 @@
                             @endif
                         </div>
                     @else
-                        <div class="avd-action-row col-12 col-sm-auto">
+                        <div class="avd-action-row col-12 col-sm-auto" data-avd-strip-yield>
                             @if($watchReactionsEnabled)
+                            @php
+                                // R1-060: a name and the reader's count (the member's buttons, Interaction.tsx, read the same)
+                                $guestLikes = $video->show_likes && $video->likes_count ? \App\Support\LocalNumber::short($video->likes_count) : null;
+                                $guestDislikes = $video->show_likes && $video->dislikes_count ? \App\Support\LocalNumber::short($video->dislikes_count) : null;
+                            @endphp
                             <div class="d-flex justify-content-between rounded-pill bg-body-element border">
                                 <button
                                     type="button"
                                     tabindex="0"
                                     class="btn border-0 text-body px-3 rounded-start-pill"
+                                    aria-label="{{ __('I like this') }}{{ $guestLikes !== null ? ' ('.$guestLikes.')' : '' }}"
                                     data-bs-toggle="popover"
                                     data-bs-placement="left"
-                                    data-bs-title="{{__('Like this video ?')}}"
+                                    data-bs-title="{{ __('Like this video?') }}"
                                     data-bs-trigger="focus"
                                     data-bs-html="true"
-                                    data-bs-content="{{ __('Sign in to make your opinion count.') }}<hr><a href='{{ route('login') }}' class='btn btn-primary btn-sm'>{{__('Sign In')}}</a>"
+                                    data-bs-content="{{ __('Sign in to make your opinion count.') }}<hr><a href='{{ $watchSignInUrl }}' class='btn btn-primary btn-sm'>{{ __('Sign in') }}</a>"
                                 >
                                     <span class="d-flex gap-1 align-items-center">
-                                        <i class="fa-regular fa-thumbs-up"></i>
-                                        @if($video->show_likes && $video->likes_count)
-                                            <span>@abbreviate($video->likes_count)</span>
+                                        <i class="fa-regular fa-thumbs-up" aria-hidden="true"></i>
+                                        @if($guestLikes !== null)
+                                            <span>{{ $guestLikes }}</span>
                                         @endif
                                     </span>
                                 </button>
@@ -1196,17 +900,18 @@
                                     type="button"
                                     tabindex="0"
                                     class="btn border-0 text-body px-3 rounded-end-pill"
+                                    aria-label="{{ __('I dislike this') }}{{ $guestDislikes !== null ? ' ('.$guestDislikes.')' : '' }}"
                                     data-bs-toggle="popover"
                                     data-bs-placement="right"
-                                    data-bs-title="{{ __("Don't like this video ?") }}"
+                                    data-bs-title="{{ __("Don't like this video?") }}"
                                     data-bs-trigger="focus"
                                     data-bs-html="true"
-                                    data-bs-content="{{ __('Sign in to make your opinion count.') }}<hr><a href='{{ route('login') }}' class='btn btn-primary btn-sm'>{{__('Sign In')}}</a>"
+                                    data-bs-content="{{ __('Sign in to make your opinion count.') }}<hr><a href='{{ $watchSignInUrl }}' class='btn btn-primary btn-sm'>{{ __('Sign in') }}</a>"
                                 >
                                     <span class="d-flex gap-1 align-items-center">
-                                        <i class="fa-regular fa-thumbs-down"></i>
-                                        @if($video->show_likes && $video->dislikes_count)
-                                            <span>@abbreviate($video->dislikes_count)</span>
+                                        <i class="fa-regular fa-thumbs-down" aria-hidden="true"></i>
+                                        @if($guestDislikes !== null)
+                                            <span>{{ $guestDislikes }}</span>
                                         @endif
                                     </span>
                                 </button>
@@ -1225,10 +930,11 @@
                                 class="btn border text-body btn-sm px-3 flex-shrink-0"
                                 data-bs-toggle="popover"
                                 data-bs-placement="top"
-                                data-bs-title="{{ __('Save to playlist ?') }}"
+                                data-bs-title="{{ __('Save to playlist?') }}"
                                 data-bs-trigger="focus"
                                 data-bs-html="true"
-                                data-bs-content="{{ __('Sign in to save this video to Watch Later or a playlist.') }}<hr><div class='d-flex gap-2'><a href='{{ route('login') }}' class='btn btn-primary btn-sm'>{{__('Sign In')}}</a><a href='{{ route('registration') }}' class='btn btn-outline-secondary btn-sm'>{{__('Sign Up')}}</a></div>"
+                                {{-- R1-147: the site's words ("Create account", "Watch later"), and no sign-up link while sign-ups are closed --}}
+                                data-bs-content="{{ __('Sign in to save this video to Watch later or a playlist.') }}<hr><div class='d-flex flex-wrap gap-2'><a href='{{ $watchSignInUrl }}' class='btn btn-primary btn-sm'>{{ __('Sign in') }}</a>@if(config('site.registration_enabled', true))<a href='{{ $watchSignUpUrl }}' class='btn btn-outline-secondary btn-sm'>{{ __('Create account') }}</a>@endif</div>"
                             >
                                 <i class="fa-regular fa-bookmark"></i>
                                 <span>{{__('Save')}}</span>
@@ -1241,10 +947,10 @@
                                 class="btn border text-body btn-sm px-3 flex-shrink-0"
                                 data-bs-toggle="popover"
                                 data-bs-placement="right"
-                                data-bs-title="{{ __('Need to report this video ?') }}"
+                                data-bs-title="{{ __('Need to report this video?') }}"
                                 data-bs-trigger="focus"
                                 data-bs-html="true"
-                                data-bs-content="{{ __('Sign in to report inappropriate content.') }}<hr><a href='{{ route('login') }}' class='btn btn-primary btn-sm'>{{__('Sign In')}}</a>"
+                                data-bs-content="{{ __('Sign in to report inappropriate content.') }}<hr><a href='{{ $watchSignInUrl }}' class='btn btn-primary btn-sm'>{{ __('Sign in') }}</a>"
                             >
                                 <i class="fa-regular fa-flag"></i>
                                 <span>{{__('Report')}}</span>
@@ -1256,7 +962,16 @@
                 </div>
 
                 @if($watchChannelPanelEnabled)
-                <div class="avd-channel-panel avd-video-author-panel mt-4 d-flex gap-3 justify-content-between align-items-center">
+                @php
+                    // One query for the Subscribe button and the count beside it (watch-17).
+                    $watchViewer = auth()->user();
+                    $watchCanSubscribe = $watchViewer && $video->user && $watchViewer->isNot($video->user);
+                    $watchSubscribed = $watchCanSubscribe && $watchViewer->isSubscribeTo($video->user);
+                    $watchIsOwner = $watchViewer && $video->user && $watchViewer->is($video->user);
+                @endphp
+                {{-- data-avd-strip-yield: the phone ad strip steps aside while this row is under it (watch-31: it covered
+                     Subscribe on the first screen; resources/js/layout/core.ts initAdStrip). --}}
+                <div class="avd-channel-panel avd-video-author-panel mt-4 d-flex gap-3 justify-content-between align-items-center" data-avd-strip-yield>
                     <div class="avd-video-author-summary d-flex gap-3 flex-grow-1 min-w-0">
                         @if($video->user)
                             <a class="avd-video-author-avatar-link flex-shrink-0" href="{{$video->user->route}}" aria-label="{{$video->user->username}}">
@@ -1267,8 +982,11 @@
                                 @if($video->user->show_subscribers)
                                     @php
                                         $vSubCount = (int) ($video->user->subscribers_count ?? 0);
+                                        $vSubLabel = fn (int $count): string => trans_choice('subscribers', $count, ['count' => trim(\App\Helpers\Number::humanize($count))]);
                                     @endphp
-                                    <small class="text-muted d-block">{{trans_choice('subscribers', $vSubCount, ['count' => \App\Helpers\Number::humanize($vSubCount)])}}</small>
+                                    {{-- watch-17: the count follows the Subscribe button (resources/js/layout/core.ts initSubscriberCounts):
+                                         the two counts this member can see are printed, the button's state picks one. --}}
+                                    <small class="text-muted d-block avd-subscriber-count" @if($watchCanSubscribe) data-avd-subscriber-count="{{ $video->user->id }}" data-avd-count-on="{{ $vSubLabel($watchSubscribed ? $vSubCount : $vSubCount + 1) }}" data-avd-count-off="{{ $vSubLabel($watchSubscribed ? max(0, $vSubCount - 1) : $vSubCount) }}" @endif>{{ $vSubLabel($vSubCount) }}</small>
                                 @endif
                             </div>
                         @else
@@ -1288,19 +1006,34 @@
                                 class="avd-subscribe-button btn btn-primary px-3 fw-bold shadow-sm d-inline-flex align-items-center justify-content-center text-nowrap"
                                 data-bs-toggle="popover"
                                 data-bs-placement="right"
-                                data-bs-title="{{__('Want to subscribe to this channel ?')}}"
+                                data-bs-title="{{ __('Want to subscribe to this channel?') }}"
                                 data-bs-trigger="focus"
                                 data-bs-html="true"
-                                data-bs-content="{{ __('Sign in to subscribe to this channel.') }}<hr><a href='{{ route('login') }}' class='btn btn-primary btn-sm'>{{__('Sign In')}}</a>"
+                                data-bs-content="{{ __('Sign in to subscribe to this channel.') }}<hr><a href='{{ $watchSignInUrl }}' class='btn btn-primary btn-sm'>{{ __('Sign in') }}</a>"
                             >
                                 <span class="text-sm"><i class="fa-solid fa-user-plus me-1"></i>{{ __('Subscribe') }}</span>
                             </button>
-                        @elseif($video->user && auth()->user()->isNot($video->user))
+                        @elseif($watchCanSubscribe)
+                            {{-- Subscribe.tsx: the state by name and the channel's name for its
+                                 "Unsubscribe from <name>?" question (member design 6.10, QA watch-35) --}}
                             <subscribe-button
-                                @if(!Auth()->user()->isSubscribeTo($video->user)) is-subscribe @endif
+                                subscribed="{{ $watchSubscribed ? '1' : '0' }}"
                                 user="{{$video->user->id}}"
+                                name="{{ $video->user->username }}"
                                 class="avd-subscribe-host"
                             ></subscribe-button>
+                        @elseif($watchIsOwner)
+                            {{-- watch-40: the creator's own video leads to its studio pages. --}}
+                            <div class="avd-owner-shortcuts d-flex flex-wrap gap-2 justify-content-end">
+                                <a href="{{ route('user.videos.edit', $video) }}" class="btn btn-sm btn-primary d-inline-flex align-items-center gap-2 text-nowrap">
+                                    <i class="fa-solid fa-pen" aria-hidden="true"></i>
+                                    <span>{{ __('Edit video') }}</span>
+                                </a>
+                                <a href="{{ route('user.videos.show', $video) }}" class="btn btn-sm bg-light-dark d-inline-flex align-items-center gap-2 text-nowrap">
+                                    <i class="fa-solid fa-chart-simple" aria-hidden="true"></i>
+                                    <span>{{ __('Statistics') }}</span>
+                                </a>
+                            </div>
                         @endif
                     </div>
                 </div>
@@ -1308,18 +1041,23 @@
 
                 @if($watchDescriptionEnabled)
                 @if($video->description && $video->description_is_long)
-                    <div class="avd-description-panel my-4" data-clickable="true" x-data="{ open: {{ $watchDescriptionDefaultOpen ? 'true' : 'false' }} }" @click="open=!open">
-                        <template x-if="open">
-                            <p class="mb-0">{!! nl2br($video->parsed_description) !!}</p>
-                        </template>
-                        <template x-if="!open">
-                            <p class="mb-0">{!! nl2br($video->short_description) !!}</p>
-                        </template>
-                        <div class="text-primary fw-bold mt-2" x-text="open ? '{{__('Show less')}}' : '{{__('Show more')}}'"></div>
+                    {{-- R1-061: a click on the shortened text opens it, but never a click on its links or time codes, and an
+                         open text closes only with its button (any click used to toggle it, also on a link). "Show more"
+                         is a real button (it was a div no keyboard could reach). --}}
+                    <div class="avd-description-panel my-4" data-clickable="{{ $watchDescriptionDefaultOpen ? 'false' : 'true' }}" :data-clickable="open ? 'false' : 'true'" x-data="{ open: {{ $watchDescriptionDefaultOpen ? 'true' : 'false' }} }" @click="if (!open && !$event.target.closest('a, button')) open = true">
+                        <div id="avdDescriptionText">
+                            <template x-if="open">
+                                <p class="mb-0">{!! nl2br(\App\Parsers\TimeCodeParser::playable($video->parsed_description, $watchDurationSeconds, $watchSeekable)) !!}</p>
+                            </template>
+                            <template x-if="!open">
+                                <p class="mb-0">{!! nl2br(\App\Parsers\TimeCodeParser::playable($video->short_description, $watchDurationSeconds, $watchSeekable)) !!}</p>
+                            </template>
+                        </div>
+                        <button type="button" class="avd-description-toggle text-primary fw-bold mt-2" aria-controls="avdDescriptionText" aria-expanded="{{ $watchDescriptionDefaultOpen ? 'true' : 'false' }}" :aria-expanded="open ? 'true' : 'false'" @click.stop="open = !open" x-text="open ? @js(__('Show less')) : @js(__('Show more'))">{{ $watchDescriptionDefaultOpen ? __('Show less') : __('Show more') }}</button>
                     </div>
                 @elseif($video->description)
                     <div class="avd-description-panel my-4">
-                        {!! nl2br($video->parsed_description) !!}
+                        {!! nl2br(\App\Parsers\TimeCodeParser::playable($video->parsed_description, $watchDurationSeconds, $watchSeekable)) !!}
                     </div>
                 @else
                     <div class="avd-description-panel my-4">
@@ -1372,9 +1110,9 @@
                     </div>
                 @endif
 
-                @if($video->category || $video->language)
+                @if($videoCategoryShown || $video->language)
                     <div class="avd-chip-list">
-                        @if($video->category)
+                        @if($videoCategoryShown)
                             <a href="{{locale_url($video->category->route)}}" class="avd-meta-chip text-decoration-none">
                                 <i class="fa-solid fa-{{$video->category->icon_name}}"></i>
                                 <strong>{{ $videoCategoryTitle }}</strong>
@@ -1437,7 +1175,7 @@
                 @if($effectiveNextVideo && $watchNextVideoEnabled)
                     @if($watchUpNextCardEnabled)
                         @php($upNextVideo = $effectiveNextVideo->video)
-                        <section class="avd-up-next-card mx-2 mx-sm-0 mb-4" aria-label="{{__('Next Video')}}">
+                        <section class="avd-up-next-card mx-2 mx-sm-0 mb-4" aria-label="{{__('Next video')}}">
                             <a href="{{$effectiveNextVideo->route}}" class="avd-up-next-link text-decoration-none" data-avd-upnext-item>
                                 <div class="avd-up-next-kicker d-flex align-items-center justify-content-between mb-2">
                                     <div class="d-flex align-items-center gap-2">
@@ -1457,7 +1195,7 @@
                                 </div>
                                 <div class="avd-up-next-content">
                                     <div class="avd-up-next-thumb position-relative overflow-hidden">
-                                        <image-loaded source="{{$upNextVideo->thumbnail_url}}" title="{{$effectiveNextVideo->title}}"></image-loaded>
+                                        @include('videos.partials.thumb', ['src' => $upNextVideo->thumbnail_url, 'alt' => $effectiveNextVideo->title])
                                         <span class="avd-duration">{{$upNextVideo->duration}}</span>
                                         <div class="avd-thumb-play-center">
                                             <i class="fa-solid fa-play"></i>
@@ -1467,7 +1205,9 @@
                                         <h4 class="avd-up-next-title fw-bold mb-1" title="{{$effectiveNextVideo->title}}">{{$effectiveNextVideo->title}}</h4>
                                         <div class="avd-channel-name text-muted d-flex align-items-center gap-1 mb-1">
                                             <span>{{$upNextVideo->user?->username ?? __('Deleted user')}}</span>
-                                            <i class="fa-solid fa-circle-check text-primary" style="font-size: 9px;" title="{{ __('Verified') }}"></i>
+                                            @if(\App\Support\VerifiedCreator::is($upNextVideo->user))
+                                                <i class="fa-solid fa-circle-check text-primary" style="font-size: 9px;" title="{{ __('Verified creator') }}" aria-label="{{ __('Verified creator') }}" role="img"></i>
+                                            @endif
                                         </div>
                                         <div class="avd-video-meta text-muted small">
                                             {{trans_choice('views', $upNextVideo->views, ['count' => \App\Helpers\Number::humanize($upNextVideo->views)])}} <span aria-hidden="true">&middot;</span> {{ ($upNextVideo->published_at ?? $upNextVideo->created_at ?? $upNextVideo->date)?->diffForHumans() ?? __('Recently') }}
@@ -1476,7 +1216,7 @@
                                     <div class="avd-up-next-cta ms-auto d-none d-md-flex align-items-center pe-2">
                                         <span class="btn btn-primary rounded-pill px-3.5 py-2 fw-bold d-inline-flex align-items-center gap-2 shadow-sm text-nowrap" style="font-size: 0.84rem;">
                                             <i class="fa-solid fa-play"></i>
-                                            <span>{{ __('Play Next') }}</span>
+                                            <span>{{ __('Watch next') }}</span>
                                         </span>
                                     </div>
                                 </div>
@@ -1486,7 +1226,7 @@
                         <div class="d-flex align-items-center justify-content-between gap-2 px-2 px-sm-0 flex-wrap">
                             <a href="{{$effectiveNextVideo->route}}" class="btn btn-sm btn-primary d-flex align-items-center justify-content-center gap-2">
                                 <i class="fa-solid fa-forward-step"></i>
-                                <span>{{__('Next Video')}}</span>
+                                <span>{{__('Next video')}}</span>
                             </a>
                         </div>
                         <hr>
@@ -1523,7 +1263,7 @@
                                                         <small class="text-muted">{{$index + 1}}</small>
                                                     @endif
                                                     <div class="avd-playlist-thumb position-relative">
-                                                        <image-loaded source="{{$playlistVideo->thumbnail_url}}" title="{{$playlistVideo->title}}"></image-loaded>
+                                                        @include('videos.partials.thumb', ['src' => $playlistVideo->thumbnail_url, 'alt' => $playlistVideo->title])
                                                         <span class="avd-duration">{{$playlistVideo->duration}}</span>
                                                     </div>
                                                 </div>
@@ -1556,7 +1296,7 @@
                             <div class="d-flex justify-content-between align-items-center gap-2">
                                 <div class="d-flex flex-column gap-1 min-w-0">
                                     @if($effectiveNextVideo)
-                                        <div class="text-truncate"><span class="fw-bold">{{__('Next')}}:</span> {{$effectiveNextVideo->title}}</div>
+                                        <div class="text-truncate"><span class="fw-bold">{{ __(':label:', ['label' => __('Next')]) }}</span>{{ \App\Support\LabelGap::member() }}{{$effectiveNextVideo->title}}</div>
                                     @endif
                                     <small class="text-sm">{{Str::limit($playlist->title, 45)}} <span aria-hidden="true">&middot;</span> <span class="text-muted text-sm">{{$currentIndex + 1}}/{{$playlist->videos_count}}</span></small>
                                 </div>
@@ -1582,7 +1322,7 @@
                             </div>
                             <div class="d-flex align-items-center gap-2">
                                 <span class="badge rounded-pill bg-primary bg-opacity-15 text-primary px-2.5 py-1 fw-semibold d-none d-sm-inline" style="font-size: 0.72rem;">
-                                    <i class="fa-solid fa-wand-magic-sparkles me-1"></i> {{ __('Curated For You') }}
+                                    <i class="fa-solid fa-wand-magic-sparkles me-1" aria-hidden="true"></i> {{ __('Picked for you') }}
                                 </span>
                             </div>
                         </div>
@@ -1612,37 +1352,40 @@
         @endif
     </div>
 
-    <!-- Cinema Sleep Timer Popover Modal -->
+    {{-- The sleep timer dialog: rendered the first time it opens (watch-7; window.avdLazy, core.ts). R2A-059: plain words in
+         sentence case, as the tools sheet has them (it named the timer after the cinema, and its first option said off and
+         disabled at once). --}}
+    <template data-avd-lazy="avdSleepTimerModal">
     <div class="modal fade" id="avdSleepTimerModal" tabindex="-1" aria-hidden="true" style="backdrop-filter: blur(14px);">
         <div class="modal-dialog modal-dialog-centered" style="max-width: 380px;">
             <div class="modal-content text-white border-0 shadow-2xl" style="background: rgba(14, 18, 30, 0.96); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 18px; box-shadow: 0 20px 40px rgba(0,0,0,0.8);">
                 <div class="modal-header border-0 pb-0">
                     <h6 class="modal-title d-flex align-items-center gap-2 fw-bold">
-                        <i class="fa-solid fa-moon text-info"></i> {{ __('Cinema Sleep Timer') }}
+                        <i class="fa-solid fa-moon text-info" aria-hidden="true"></i> {{ __('Sleep timer') }}
                     </h6>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="{{ __('Close') }}"></button>
                 </div>
                 <div class="modal-body">
-                    <p class="text-white-50 small mb-3">{{ __('Automatically fade out audio and pause video when timer reaches zero.') }}</p>
+                    <p class="text-white-50 small mb-3">{{ __('The video pauses when the time is up.') }}</p>
                     <div class="d-grid gap-2">
                         <button type="button" class="btn btn-sm btn-outline-secondary text-white text-start d-flex justify-content-between align-items-center p-2.5 rounded-3 avd-sleep-opt" data-mins="0" onclick="window.avdSetSleepTimer(0)">
-                            <span><i class="fa-solid fa-ban me-2 text-danger"></i> {{ __('Off (Disabled)') }}</span>
+                            <span><i class="fa-solid fa-ban me-2 text-danger" aria-hidden="true"></i> {{ __('Off') }}</span>
                             <span class="badge bg-secondary" id="avdSleepBadge0"></span>
                         </button>
                         <button type="button" class="btn btn-sm btn-outline-secondary text-white text-start d-flex justify-content-between align-items-center p-2.5 rounded-3 avd-sleep-opt" data-mins="15" onclick="window.avdSetSleepTimer(15)">
-                            <span><i class="fa-regular fa-clock me-2 text-info"></i> {{ __('15 Minutes') }}</span>
+                            <span><i class="fa-regular fa-clock me-2 text-info" aria-hidden="true"></i> {{ trans_choice('1 minute|:count minutes', 15, ['count' => \App\Support\LocalNumber::format(15)]) }}</span>
                             <span class="badge bg-secondary" id="avdSleepBadge15"></span>
                         </button>
                         <button type="button" class="btn btn-sm btn-outline-secondary text-white text-start d-flex justify-content-between align-items-center p-2.5 rounded-3 avd-sleep-opt" data-mins="30" onclick="window.avdSetSleepTimer(30)">
-                            <span><i class="fa-regular fa-clock me-2 text-warning"></i> {{ __('30 Minutes') }}</span>
+                            <span><i class="fa-regular fa-clock me-2 text-warning" aria-hidden="true"></i> {{ trans_choice('1 minute|:count minutes', 30, ['count' => \App\Support\LocalNumber::format(30)]) }}</span>
                             <span class="badge bg-secondary" id="avdSleepBadge30"></span>
                         </button>
                         <button type="button" class="btn btn-sm btn-outline-secondary text-white text-start d-flex justify-content-between align-items-center p-2.5 rounded-3 avd-sleep-opt" data-mins="45" onclick="window.avdSetSleepTimer(45)">
-                            <span><i class="fa-regular fa-clock me-2 text-success"></i> {{ __('45 Minutes') }}</span>
+                            <span><i class="fa-regular fa-clock me-2 text-success" aria-hidden="true"></i> {{ trans_choice('1 minute|:count minutes', 45, ['count' => \App\Support\LocalNumber::format(45)]) }}</span>
                             <span class="badge bg-secondary" id="avdSleepBadge45"></span>
                         </button>
                         <button type="button" class="btn btn-sm btn-outline-secondary text-white text-start d-flex justify-content-between align-items-center p-2.5 rounded-3 avd-sleep-opt" data-mins="-1" onclick="window.avdSetSleepTimer(-1)">
-                            <span><i class="fa-solid fa-film me-2 text-primary"></i> {{ __('End of Video') }}</span>
+                            <span><i class="fa-solid fa-film me-2 text-primary" aria-hidden="true"></i> {{ __('At the end of the video') }}</span>
                             <span class="badge bg-secondary" id="avdSleepBadgeEnd"></span>
                         </button>
                     </div>
@@ -1650,33 +1393,36 @@
             </div>
         </div>
     </div>
+    </template>
 
-    <!-- Video Timestamp Notes Scratchpad Modal -->
+    {{-- The notes dialog: rendered the first time it opens (watch-7; window.avdLazy, core.ts). R2A-059: "Notes", as the tools
+         sheet that opens it says (its title spoke of study notes and a scratchpad), and plain words for its buttons. --}}
+    <template data-avd-lazy="avdNotesModal">
     <div class="modal fade" id="avdNotesModal" tabindex="-1" aria-hidden="true" style="backdrop-filter: blur(14px);">
         <div class="modal-dialog modal-dialog-centered" style="max-width: 520px;">
             <div class="modal-content text-white border-0 shadow-2xl" style="background: rgba(14, 18, 30, 0.96); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 18px; box-shadow: 0 20px 40px rgba(0,0,0,0.8);">
                 <div class="modal-header border-0 pb-0">
                     <h6 class="modal-title d-flex align-items-center gap-2 fw-bold">
-                        <i class="fa-regular fa-note-sticky text-warning"></i> {{ __('Video Study Notes & Scratchpad') }}
+                        <i class="fa-regular fa-note-sticky text-warning" aria-hidden="true"></i> {{ __('Notes') }}
                     </h6>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="{{ __('Close') }}"></button>
                 </div>
                 <div class="modal-body">
                     <div class="d-flex align-items-center justify-content-between mb-2">
-                        <span class="text-white-50 small">{{ __('Autosaved locally for this video') }}</span>
+                        <span class="text-white-50 small">{{ __('Saved in this browser for this video') }}</span>
                         <button type="button" class="btn btn-xs btn-outline-warning rounded-pill px-2.5 py-1" onclick="window.avdInsertNoteTimestamp()">
-                            <i class="fa-solid fa-stopwatch me-1"></i> {{ __('Insert Timestamp') }}
+                            <i class="fa-solid fa-stopwatch me-1" aria-hidden="true"></i> {{ __('Add the current time') }}
                         </button>
                     </div>
-                    <textarea id="avdNotesTextarea" class="form-control text-white border-0 shadow-none font-monospace p-3" rows="7" placeholder="{{ __('Type your timestamped notes, scene analysis, or reminders here...') }}" style="background: rgba(255,255,255,0.05); border-radius: 12px; font-size: 0.85rem; resize: vertical;" oninput="window.avdSaveNotes && window.avdSaveNotes()"></textarea>
+                    <textarea id="avdNotesTextarea" class="form-control text-white border-0 shadow-none font-monospace p-3" rows="7" placeholder="{{ __('Write your notes here…') }}" aria-label="{{ __('Notes') }}" style="background: rgba(255,255,255,0.05); border-radius: 12px; font-size: 0.85rem; resize: vertical;" oninput="window.avdSaveNotes && window.avdSaveNotes()"></textarea>
                 </div>
                 <div class="modal-footer border-0 pt-0 d-flex justify-content-between">
                     <div class="d-flex gap-2">
                         <button type="button" class="btn btn-sm btn-outline-info" onclick="window.avdCopyNotes()">
-                            <i class="fa-regular fa-copy me-1"></i> {{ __('Copy All') }}
+                            <i class="fa-regular fa-copy me-1" aria-hidden="true"></i> {{ __('Copy all') }}
                         </button>
                         <button type="button" class="btn btn-sm btn-outline-secondary text-white" onclick="window.avdDownloadNotes()">
-                            <i class="fa-solid fa-download me-1"></i> {{ __('Export .txt') }}
+                            <i class="fa-solid fa-download me-1" aria-hidden="true"></i> {{ __('Download') }}
                         </button>
                     </div>
                     <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">
@@ -1686,8 +1432,10 @@
             </div>
         </div>
     </div>
+    </template>
 
-    <!-- Video details modal -->
+    {{-- Video details modal: rendered the first time it opens or when the page is idle (watch-7; core.ts, and watchTools.ts brings its badges up to date). --}}
+    <template data-avd-lazy="avdTelemetryModal">
     <div class="modal fade" id="avdTelemetryModal" tabindex="-1" aria-hidden="true" style="backdrop-filter: blur(14px);">
         <div class="modal-dialog modal-dialog-centered" style="max-width: 480px;">
             <div class="modal-content text-white border-0 shadow-2xl" style="background: rgba(14, 18, 30, 0.96); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 18px; box-shadow: 0 20px 40px rgba(0,0,0,0.8);">
@@ -1695,7 +1443,7 @@
                     <h6 class="modal-title d-flex align-items-center gap-2 fw-bold font-monospace">
                         <i class="fa-solid fa-circle-info text-primary"></i> {{ __('Video details') }}
                     </h6>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="{{ __('Close') }}"></button>
                 </div>
                 <div class="modal-body font-monospace" style="font-size: 0.8rem;">
                     <div class="p-2.5 rounded-3 mb-3" style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);">
@@ -1705,7 +1453,7 @@
                     <div class="list-group list-group-flush rounded-3 overflow-hidden border border-secondary border-opacity-25" style="background: rgba(0,0,0,0.3);">
                         @forelse($videoSourceDetails as $detail)
                             <div class="list-group-item bg-transparent text-white-50 d-flex justify-content-between align-items-center gap-3 py-2 px-3 border-secondary border-opacity-25">
-                                <span>{{ $detail['label'] }}:</span>
+                                <span>{{ __(':label:', ['label' => $detail['label']]) }}</span>
                                 <strong class="text-white text-break text-end">{{ $detail['value'] }}</strong>
                             </div>
                         @empty
@@ -1714,19 +1462,19 @@
                             </div>
                         @endforelse
                         <div class="list-group-item bg-transparent text-white-50 d-flex justify-content-between align-items-center py-2 px-3 border-secondary border-opacity-25">
-                            <span>{{ __('Cinema Color Grading') }}:</span>
+                            <span>{{ __(':label:', ['label' => __('Color filter')]) }}</span>
                             <strong class="text-info" id="avdTelemFilter">{{ __('Normal') }}</strong>
                         </div>
                         <div class="list-group-item bg-transparent text-white-50 d-flex justify-content-between align-items-center py-2 px-3 border-secondary border-opacity-25">
-                            <span>{{ __('Aspect Ratio') }}:</span>
-                            <strong class="text-warning" id="avdTelemAspect">16:9 {{ __('Standard') }}</strong>
+                            <span>{{ __(':label:', ['label' => __('Aspect ratio')]) }}</span>
+                            <strong class="text-warning" id="avdTelemAspect">16:9</strong>
                         </div>
                         <div class="list-group-item bg-transparent text-white-50 d-flex justify-content-between align-items-center py-2 px-3 border-secondary border-opacity-25">
-                            <span>{{ __('Mirror Flip View') }}:</span>
-                            <span class="badge bg-secondary-subtle text-secondary" id="avdTelemMirror">{{ __('Standard') }}</span>
+                            <span>{{ __(':label:', ['label' => __('Mirror the video')]) }}</span>
+                            <span class="badge bg-secondary-subtle text-secondary" id="avdTelemMirror">{{ __('Off') }}</span>
                         </div>
                         <div class="list-group-item bg-transparent text-white-50 d-flex justify-content-between align-items-center py-2 px-3 border-secondary border-opacity-25">
-                            <span>{{ __('Player Ambient Glow') }}:</span>
+                            <span>{{ __(':label:', ['label' => __('Glow around the player')]) }}</span>
                             <span class="text-white" id="avdTelemAmbilight">{{ $watchPlayerAmbientGlowEnabled ? __('Active') : __('Disabled') }}</span>
                         </div>
                     </div>
@@ -1739,23 +1487,25 @@
             </div>
         </div>
     </div>
+    </template>
 
-    <!-- Direct Embed Code Generator Modal -->
+    {{-- Direct Embed Code Generator Modal: rendered the first time it opens (watch-7; window.avdLazy, core.ts). --}}
+    <template data-avd-lazy="avdEmbedModal">
     <div class="modal fade" id="avdEmbedModal" tabindex="-1" aria-labelledby="avdEmbedModalLabel" aria-hidden="true" style="backdrop-filter: blur(14px);">
         <div class="modal-dialog modal-dialog-centered" style="max-width: 520px;">
             <div class="modal-content rounded-4 border-0 shadow-lg" style="background: var(--avd-surface, #1e293b); color: var(--avd-text, #f8fafc); border: 1px solid var(--avd-border, rgba(255,255,255,0.12));">
                 <div class="modal-header border-bottom border-secondary border-opacity-25 px-4 py-3">
                     <h5 class="modal-title h6 fw-bold d-flex align-items-center gap-2" id="avdEmbedModalLabel">
-                        <i class="fa-solid fa-code text-primary"></i> {{ __('Embed Video Player') }}
+                        <i class="fa-solid fa-code text-primary" aria-hidden="true"></i> {{ __('Embed video player') }}
                     </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ __('Close') }}"></button>
                 </div>
                 <div class="modal-body p-4">
                     <p class="small text-muted mb-3">{{ __('Copy the responsive HTML code below to embed this video player on external blogs, forums, or websites:') }}</p>
                     <textarea id="avdEmbedCodeTextarea" class="form-control font-monospace text-sm p-3 mb-3" rows="4" readonly style="background: rgba(0,0,0,0.25); border: 1px solid var(--avd-border, rgba(255,255,255,0.15)); border-radius: 10px; color: var(--avd-text, #f8fafc); font-size: 0.8rem;"></textarea>
                     <div class="d-flex justify-content-between align-items-center">
                         <button type="button" class="btn btn-sm btn-primary rounded-pill px-3 fw-bold" onclick="window.avdCopyEmbedCode()">
-                            <i class="fa-regular fa-copy me-1"></i> {{ __('Copy Embed Code') }}
+                            <i class="fa-regular fa-copy me-1" aria-hidden="true"></i> {{ __('Copy embed code') }}
                         </button>
                         <button type="button" class="btn btn-sm btn-secondary rounded-pill px-3" data-bs-dismiss="modal">{{ __('Close') }}</button>
                     </div>
@@ -1763,15 +1513,16 @@
             </div>
         </div>
     </div>
+    </template>
 
-    <!-- Mobile Cinema Suite Bottom Sheet (Specifically optimized for iOS & Android) -->
+    {{-- Mobile Cinema Suite Bottom Sheet (Specifically optimized for iOS & Android): rendered the first time it opens, not when the page is idle (watch-7: laid out while hidden, it would cost its whole layout on every phone visit; core.ts, and watchTools.ts brings its badges up to date). --}}
+    <template data-avd-lazy="avdMobileToolsSheet" data-avd-lazy-idle="off">
     <div class="offcanvas offcanvas-bottom avd-mobile-sheet d-md-none" tabindex="-1" id="avdMobileToolsSheet" aria-labelledby="avdMobileToolsSheetLabel">
         <div class="avd-sheet-drag-handle mx-auto my-2"></div>
         <div class="offcanvas-header border-bottom border-secondary border-opacity-25 px-4 py-2">
             <h6 class="offcanvas-title fw-bold text-white d-flex align-items-center gap-2" id="avdMobileToolsSheetLabel">
-                <i class="fa-solid fa-clapperboard text-primary"></i> {{ __('Cinema Suite & Tools') }}
+                <i class="fa-solid fa-sliders text-primary" aria-hidden="true"></i> {{ __('Video tools') }}
             </h6>
-            <span class="badge rounded-pill bg-body-secondary text-muted font-monospace" id="avdMobilePlayerTypeBadge" style="font-size: 0.68rem;">Upload18</span>
             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" onclick="window.avdCloseMobileTools && window.avdCloseMobileTools();" aria-label="{{ __('Close') }}"></button>
         </div>
         <div class="offcanvas-body px-4 py-3" style="max-height: 75vh; overflow-y: auto; -webkit-overflow-scrolling: touch;">
@@ -1779,17 +1530,16 @@
             <div class="mb-3">
                 <div class="d-flex align-items-center justify-content-between mb-2">
                     <span class="small fw-bold text-white-50 text-uppercase" style="font-size: 0.72rem; letter-spacing: 0.5px;">
-                        <i class="fa-solid fa-palette text-primary me-1"></i> {{ __('Color Grade Filter Shaders') }}
+                        <i class="fa-solid fa-palette text-primary me-1" aria-hidden="true"></i> {{ __('Color filter') }}
                     </span>
-                    <span class="badge bg-primary text-white font-monospace" id="avdMobileFilterBadge" style="font-size: 0.7rem;">Normal</span>
                 </div>
                 <div class="d-grid gap-1.5 avd-mobile-filter-grid" style="grid-template-columns: repeat(3, minmax(0, 1fr));">
                     <button type="button" class="btn btn-sm btn-outline-secondary avd-mob-filter-chip active btn-primary py-2" onclick="window.avdSetVideoFilter('normal', this)">{{ __('Normal') }}</button>
-                    <button type="button" class="btn btn-sm btn-outline-secondary avd-mob-filter-chip py-2" onclick="window.avdSetVideoFilter('vivid', this)">{{ __('Vivid HDR') }}</button>
-                    <button type="button" class="btn btn-sm btn-outline-secondary avd-mob-filter-chip py-2" onclick="window.avdSetVideoFilter('cinema', this)">{{ __('35mm Warm') }}</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary avd-mob-filter-chip py-2" onclick="window.avdSetVideoFilter('vivid', this)">{{ __('Vivid') }}</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary avd-mob-filter-chip py-2" onclick="window.avdSetVideoFilter('cinema', this)">{{ __('Warm film') }}</button>
                     <button type="button" class="btn btn-sm btn-outline-secondary avd-mob-filter-chip py-2" onclick="window.avdSetVideoFilter('cyberpunk', this)">{{ __('Cyberpunk') }}</button>
-                    <button type="button" class="btn btn-sm btn-outline-secondary avd-mob-filter-chip py-2" onclick="window.avdSetVideoFilter('oled', this)">{{ __('OLED Dark') }}</button>
-                    <button type="button" class="btn btn-sm btn-outline-secondary avd-mob-filter-chip py-2" onclick="window.avdSetVideoFilter('noir', this)">{{ __('Noir B&W') }}</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary avd-mob-filter-chip py-2" onclick="window.avdSetVideoFilter('oled', this)">{{ __('Deep black') }}</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary avd-mob-filter-chip py-2" onclick="window.avdSetVideoFilter('noir', this)">{{ __('Black and white') }}</button>
                     <button type="button" class="btn btn-sm btn-outline-secondary avd-mob-filter-chip py-2" onclick="window.avdSetVideoFilter('night', this)">🌙 {{ __('Night') }}</button>
                     <button type="button" class="btn btn-sm btn-outline-secondary avd-mob-filter-chip py-2" onclick="window.avdSetVideoFilter('anime', this)">✨ {{ __('Anime') }}</button>
                 </div>
@@ -1799,9 +1549,8 @@
             <div class="mb-3">
                 <div class="d-flex align-items-center justify-content-between mb-2">
                     <span class="small fw-bold text-white-50 text-uppercase" style="font-size: 0.72rem; letter-spacing: 0.5px;">
-                        <i class="fa-solid fa-arrows-rotate text-info me-1"></i> {{ __('Video Frame Rotation') }}
+                        <i class="fa-solid fa-arrows-rotate text-info me-1" aria-hidden="true"></i> {{ __('Rotate the video') }}
                     </span>
-                    <span class="badge bg-secondary-subtle text-secondary font-monospace" id="avdMobileRotateBadge">0°</span>
                 </div>
                 <div class="row g-1">
                     <div class="col-3"><button type="button" class="btn btn-sm btn-outline-secondary w-100 avd-mob-rotate-chip active btn-primary py-2" onclick="window.avdRotateVideo(0, this)">0°</button></div>
@@ -1815,14 +1564,14 @@
             <div class="mb-3">
                 <div class="d-flex align-items-center justify-content-between mb-2">
                     <span class="small fw-bold text-white-50 text-uppercase" style="font-size: 0.72rem; letter-spacing: 0.5px;">
-                        <i class="fa-solid fa-sun text-warning me-1"></i> {{ __('Display Brightness') }}
+                        <i class="fa-solid fa-sun text-warning me-1" aria-hidden="true"></i> {{ __('Brightness') }}
                     </span>
-                    <span class="badge bg-secondary-subtle text-secondary font-monospace" id="avdMobileBrightBadge">Normal</span>
                 </div>
                 <div class="row g-1">
                     <div class="col-4"><button type="button" class="btn btn-sm btn-outline-secondary w-100 avd-mob-bright-chip active btn-primary py-2" onclick="window.avdSetBrightness('normal', this)">{{ __('Normal') }}</button></div>
-                    <div class="col-4"><button type="button" class="btn btn-sm btn-outline-secondary w-100 avd-mob-bright-chip py-2" onclick="window.avdSetBrightness('boost', this)">+15%</button></div>
-                    <div class="col-4"><button type="button" class="btn btn-sm btn-outline-secondary w-100 avd-mob-bright-chip py-2" onclick="window.avdSetBrightness('dim', this)">-15%</button></div>
+                    {{-- R3-049: the sign stays before the number in right-to-left languages ("15%+" in Arabic) --}}
+                    <div class="col-4"><button type="button" class="btn btn-sm btn-outline-secondary w-100 avd-mob-bright-chip py-2" dir="ltr" onclick="window.avdSetBrightness('boost', this)">+15%</button></div>
+                    <div class="col-4"><button type="button" class="btn btn-sm btn-outline-secondary w-100 avd-mob-bright-chip py-2" dir="ltr" onclick="window.avdSetBrightness('dim', this)">-15%</button></div>
                 </div>
             </div>
 
@@ -1831,9 +1580,8 @@
             <div class="mb-3">
                 <div class="d-flex align-items-center justify-content-between mb-2">
                     <span class="small fw-bold text-white-50 text-uppercase" style="font-size: 0.72rem; letter-spacing: 0.5px;">
-                        <i class="fa-solid fa-wand-magic-sparkles text-primary me-1"></i> {{ __('Ambilight Halo Mode') }}
+                        <i class="fa-solid fa-wand-magic-sparkles text-primary me-1" aria-hidden="true"></i> {{ __('Glow around the player') }}
                     </span>
-                    <span class="badge bg-primary text-white font-monospace" id="avdMobileAmbiBadge">Theme</span>
                 </div>
                 <div class="row g-1">
                     <div class="col-3"><button type="button" class="btn btn-sm btn-outline-secondary w-100 avd-mob-ambi-chip active btn-primary py-2" onclick="window.avdSetAmbiMode('theme', this)">{{ __('Theme') }}</button></div>
@@ -1848,56 +1596,50 @@
             <div class="list-group list-group-flush rounded-3 overflow-hidden border border-secondary border-opacity-25 mb-2">
                 <button type="button" class="list-group-item list-group-item-action bg-transparent text-white d-flex align-items-center justify-content-between py-2.5 px-3 border-secondary border-opacity-25" onclick="window.avdToggleMirror()">
                     <div class="d-flex align-items-center gap-2">
-                        <i class="fa-solid fa-arrows-split-up-and-left text-info" style="width: 20px;"></i>
-                        <span>{{ __('Mirror Horizontal Flip') }}</span>
+                        <i class="fa-solid fa-arrows-split-up-and-left text-info" style="width: 20px;" aria-hidden="true"></i>
+                        <span>{{ __('Mirror the video') }}</span>
                     </div>
-                    <span class="badge bg-secondary-subtle text-secondary">Toggle</span>
                 </button>
                 <button type="button" class="list-group-item list-group-item-action bg-transparent text-white d-flex align-items-center justify-content-between py-2.5 px-3 border-secondary border-opacity-25" onclick="window.avdCloseMobileTools && window.avdCloseMobileTools(); window.avdToggleLightsOut();">
                     <div class="d-flex align-items-center gap-2">
-                        <i class="fa-solid fa-moon text-info" style="width: 20px;"></i>
-                        <span>{{ __('Lights Out Ambient Spotlight') }}</span>
+                        <i class="fa-solid fa-moon text-info" style="width: 20px;" aria-hidden="true"></i>
+                        <span>{{ __('Lights out') }}</span>
                     </div>
-                    <span class="badge bg-secondary-subtle text-secondary">{{ __('Spotlight') }}</span>
                 </button>
                 <button type="button" class="list-group-item list-group-item-action bg-transparent text-white d-flex align-items-center justify-content-between py-2.5 px-3 border-secondary border-opacity-25" onclick="window.avdToggleZenMode()">
                     <div class="d-flex align-items-center gap-2">
-                        <i class="fa-regular fa-eye-slash text-warning" style="width: 20px;"></i>
-                        <span>{{ __('Zen Focus Immersion') }}</span>
+                        <i class="fa-regular fa-eye-slash text-warning" style="width: 20px;" aria-hidden="true"></i>
+                        <span>{{ __('Focus mode') }}</span>
                     </div>
-                    <span class="badge bg-secondary-subtle text-secondary">OLED</span>
                 </button>
                 <button type="button" class="list-group-item list-group-item-action bg-transparent text-white d-flex align-items-center justify-content-between py-2.5 px-3 border-secondary border-opacity-25" onclick="window.avdToggleFullscreen()">
                     <div class="d-flex align-items-center gap-2">
-                        <i class="fa-solid fa-maximize text-success" style="width: 20px;"></i>
-                        <span>{{ __('True Fullscreen') }}</span>
+                        <i class="fa-solid fa-maximize text-success" style="width: 20px;" aria-hidden="true"></i>
+                        <span>{{ __('Full screen') }}</span>
                     </div>
-                    <span class="badge bg-secondary-subtle text-secondary">Fullscreen</span>
                 </button>
                 <button type="button" class="list-group-item list-group-item-action bg-transparent text-white d-flex align-items-center justify-content-between py-2.5 px-3 border-secondary border-opacity-25" onclick="window.avdCloseMobileTools && window.avdCloseMobileTools(); window.avdToggleTelemetryModal();">
                     <div class="d-flex align-items-center gap-2">
-                        <i class="fa-solid fa-circle-info text-primary" style="width: 20px;"></i>
+                        <i class="fa-solid fa-circle-info text-primary" style="width: 20px;" aria-hidden="true"></i>
                         <span>{{ __('Video details') }}</span>
                     </div>
-                    <span class="badge bg-secondary-subtle text-secondary">Inspect</span>
                 </button>
                 <button type="button" class="list-group-item list-group-item-action bg-transparent text-white d-flex align-items-center justify-content-between py-2.5 px-3 border-secondary border-opacity-25" onclick="window.avdCloseMobileTools && window.avdCloseMobileTools(); window.avdToggleNotes();">
                     <div class="d-flex align-items-center gap-2">
-                        <i class="fa-regular fa-note-sticky text-warning" style="width: 20px;"></i>
-                        <span>{{ __('Quick-Notes Scratchpad') }}</span>
+                        <i class="fa-regular fa-note-sticky text-warning" style="width: 20px;" aria-hidden="true"></i>
+                        <span>{{ __('Notes') }}</span>
                     </div>
-                    <span class="badge bg-secondary-subtle text-secondary">Notes</span>
                 </button>
                 <button type="button" class="list-group-item list-group-item-action bg-transparent text-white d-flex align-items-center justify-content-between py-2.5 px-3 border-secondary border-opacity-25" onclick="window.avdCloseMobileTools && window.avdCloseMobileTools(); window.avdOpenEmbedModal();">
                     <div class="d-flex align-items-center gap-2">
-                        <i class="fa-solid fa-code text-primary" style="width: 20px;"></i>
-                        <span>{{ __('Embed Player Code') }}</span>
+                        <i class="fa-solid fa-code text-primary" style="width: 20px;" aria-hidden="true"></i>
+                        <span>{{ __('Embed code') }}</span>
                     </div>
-                    <span class="badge bg-secondary-subtle text-secondary">&lt;/&gt;</span>
                 </button>
             </div>
         </div>
     </div>
+    </template>
 
     @includeWhen($watchShareEnabled, 'modals.share')
 @endsection
@@ -1936,10 +1678,14 @@
 
 @pushIf($video->is_uploaded, 'scripts')
     <script>
-        function time(timecode) {
-            const video = document.querySelector("video");
+        // The comments' time codes read these (resources/js/components/Comments/ExpandComment.tsx).
+        window.AVD_WATCH = {duration: {{ $watchDurationSeconds }}, seekable: {{ $watchSeekable ? 'true' : 'false' }}};
 
-            if (!video) {
+        function time(timecode) {
+            const video = document.querySelector("#avdPlayerWrapper video") || document.querySelector("video");
+            const length = window.AVD_WATCH.duration;
+
+            if (!video || !window.AVD_WATCH.seekable || !(timecode >= 0) || (length > 0 && timecode >= length)) {
                 return;
             }
 
@@ -1956,6 +1702,49 @@
 
 @push('scripts')
 <script>
+    // On phones the tool bar scrolls sideways; data-avd-overflow names the edge(s) with more buttons behind
+    // them (the dock's CSS fades that edge). Read on scroll and resize, written only when it changes.
+    (() => {
+        const dock = document.getElementById('avdCinemaDock');
+        if (!dock) {
+            return;
+        }
+        let queued = false;
+        const update = () => {
+            queued = false;
+            const max = dock.scrollWidth - dock.clientWidth;
+            const at = Math.abs(dock.scrollLeft);
+            const edges = [];
+            if (max > 2 && at > 2) {
+                edges.push('start');
+            }
+            if (max > 2 && at < max - 2) {
+                edges.push('end');
+            }
+            const value = edges.join(' ');
+            if ((dock.getAttribute('data-avd-overflow') || '') !== value) {
+                if (value) {
+                    dock.setAttribute('data-avd-overflow', value);
+                } else {
+                    dock.removeAttribute('data-avd-overflow');
+                }
+            }
+        };
+        const queue = () => {
+            if (!queued) {
+                queued = true;
+                requestAnimationFrame(update);
+            }
+        };
+        dock.addEventListener('scroll', queue, {passive: true});
+        if ('ResizeObserver' in window) {
+            new ResizeObserver(queue).observe(dock);
+        } else {
+            window.addEventListener('resize', queue, {passive: true});
+        }
+        queue();
+    })();
+
     // Keep the fixed comments sheet outside contained and animated preview panels.
     (() => {
         const commentsSheet = document.getElementById('comments-offcanvas');
@@ -2127,18 +1916,19 @@
     }
 
     /* Keep the related list's real height through fast scroll reversals. */
+    /* No paint containment: it clipped the comment and card "More actions" menus at the column's edge. */
     .avd-related-section,
     .avd-related-list {
         content-visibility: visible;
         contain-intrinsic-size: none;
-        contain: layout style paint;
+        contain: layout style;
     }
     #comments_area,
     .avd-mobile-comments,
     .avd-comments-offcanvas {
         content-visibility: visible;
         contain-intrinsic-size: none;
-        contain: layout style paint;
+        contain: layout style;
     }
     .avd-channel-panel,
     .avd-description-panel,
@@ -2230,238 +2020,6 @@
     /* Glassmorphic Cinema Dock Styling */
     .avd-player-shell {
         overflow: visible !important;
-    }
-    .avd-cinema-dock-container {
-        width: 100%;
-        max-width: 100%;
-        position: relative;
-        z-index: 20;
-    }
-    .avd-cinema-dock {
-        width: 100%;
-        max-width: 100%;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 0.35rem;
-        padding: 0.35rem 0.65rem;
-        border-radius: 999px;
-        background: rgba(15, 23, 42, 0.85);
-        backdrop-filter: blur(20px);
-        -webkit-backdrop-filter: blur(20px);
-        border: 1px solid rgba(255, 255, 255, 0.10);
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.12);
-        overflow: visible;
-        white-space: nowrap;
-    }
-    .avd-dock-divider {
-        width: 1px;
-        height: 18px;
-        background: rgba(255, 255, 255, 0.12);
-        margin: 0 0.2rem;
-        flex-shrink: 0;
-    }
-    @media (max-width: 767.98px) {
-        .avd-cinema-dock {
-            overflow-x: auto !important;
-            -webkit-overflow-scrolling: touch !important;
-            touch-action: pan-x !important;
-            scrollbar-width: none !important;
-            -ms-overflow-style: none !important;
-            padding: 0.32rem 0.55rem !important;
-            gap: 0.38rem !important;
-            justify-content: flex-start;
-        }
-    }
-    .avd-cinema-dock::-webkit-scrollbar {
-        display: none;
-    }
-    .avd-dock-cluster {
-        display: flex;
-        align-items: center;
-        gap: 0.3rem;
-        flex-shrink: 0;
-    }
-    .avd-dock-btn {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 0.35rem;
-        min-width: 34px;
-        min-height: 34px;
-        padding: 0.25rem 0.52rem;
-        border-radius: 999px;
-        border: 1px solid transparent;
-        background: transparent;
-        color: var(--avd-muted, #94a3b8);
-        font-size: 0.8rem;
-        font-weight: 700;
-        letter-spacing: 0.2px;
-        transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
-        cursor: pointer;
-        user-select: none;
-        white-space: nowrap;
-        text-decoration: none !important;
-    }
-    .avd-dock-btn:hover {
-        background: rgba(255, 255, 255, 0.08);
-        color: #ffffff;
-        border-color: rgba(255, 255, 255, 0.14);
-        transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-    }
-    .avd-dock-btn:active {
-        transform: translateY(0) scale(0.97);
-    }
-    .avd-dock-btn-tools-highlight {
-        background: rgba(var(--avd-brand-rgb, 255, 61, 97), 0.18) !important;
-        border: 1px solid rgba(var(--avd-brand-rgb, 255, 61, 97), 0.55) !important;
-        color: #ffffff !important;
-        box-shadow: 0 0 14px rgba(var(--avd-brand-rgb, 255, 61, 97), 0.35) !important;
-        font-weight: 800 !important;
-    }
-    @media (max-width: 767.98px) {
-        .avd-dock-btn {
-            min-height: 40px !important;
-            padding: 0.32rem 0.65rem !important;
-        }
-    }
-    .avd-cinema-dropdown-menu {
-        background: rgba(15, 23, 42, 0.96) !important;
-        backdrop-filter: blur(20px) !important;
-        -webkit-backdrop-filter: blur(20px) !important;
-        border: 1px solid rgba(255, 255, 255, 0.14) !important;
-        border-radius: 16px !important;
-        padding: 0.5rem !important;
-        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6) !important;
-        margin-bottom: 8px !important;
-        max-height: 460px;
-        max-height: min(460px, calc(100vh - 160px));
-        overflow-y: auto !important;
-        overscroll-behavior: contain;
-        scrollbar-width: thin;
-        right: 0 !important;
-        left: auto !important;
-    }
-    .avd-cinema-dropdown-menu::-webkit-scrollbar {
-        width: 6px;
-    }
-    .avd-cinema-dropdown-menu::-webkit-scrollbar-thumb {
-        background: rgba(255, 255, 255, 0.2);
-        border-radius: 999px;
-    }
-    @media (max-width: 767.98px) {
-        .avd-cinema-dropdown-menu {
-            display: none !important;
-        }
-    }
-
-    /* Mobile Cinema Suite Bottom Sheet for iOS & Android */
-    .avd-mobile-sheet {
-        background: rgba(14, 18, 30, 0.98) !important;
-        backdrop-filter: blur(25px) !important;
-        -webkit-backdrop-filter: blur(25px) !important;
-        border-top: 1px solid rgba(255, 255, 255, 0.18) !important;
-        border-radius: 24px 24px 0 0 !important;
-        padding-bottom: calc(24px + env(safe-area-inset-bottom, 12px)) !important;
-        z-index: 1095 !important;
-        box-shadow: 0 -15px 40px rgba(0, 0, 0, 0.8) !important;
-    }
-    .avd-sheet-drag-handle {
-        width: 44px;
-        height: 5px;
-        background: rgba(255, 255, 255, 0.28);
-        border-radius: 999px;
-    }
-    [data-bs-theme="light"] .avd-mobile-sheet {
-        background: rgba(255, 255, 255, 0.98) !important;
-        border-top: 1px solid rgba(15, 23, 42, 0.14) !important;
-        color: #0f172a !important;
-    }
-    [data-bs-theme="light"] .avd-mobile-sheet .text-white {
-        color: #0f172a !important;
-    }
-    [data-bs-theme="light"] .avd-mobile-sheet .text-white-50 {
-        color: #64748b !important;
-    }
-    [data-bs-theme="light"] .avd-sheet-drag-handle {
-        background: rgba(15, 23, 42, 0.25);
-    }
-    .avd-cinema-dropdown-menu .dropdown-item {
-        color: #e2e8f0;
-        border-radius: 10px;
-        font-size: 0.82rem;
-        font-weight: 600;
-        transition: transform 0.15s ease, background-color 0.15s ease, color 0.15s ease;
-    }
-    .avd-cinema-dropdown-menu .dropdown-item:hover {
-        background: rgba(255, 255, 255, 0.08);
-        color: #ffffff;
-        transform: translateX(2px);
-    }
-
-    /* Light Theme Styling for Cinema Dock & Dropup Menu */
-    [data-bs-theme="light"] .avd-cinema-dock {
-        background: rgba(255, 255, 255, 0.94) !important;
-        border: 1px solid rgba(15, 23, 42, 0.12) !important;
-        box-shadow: 0 8px 30px rgba(15, 23, 42, 0.08) !important;
-    }
-    [data-bs-theme="light"] .avd-dock-divider {
-        background: rgba(15, 23, 42, 0.15) !important;
-    }
-    [data-bs-theme="light"] .avd-dock-btn {
-        color: #334155 !important;
-    }
-    [data-bs-theme="light"] .avd-dock-btn:hover {
-        background: rgba(15, 23, 42, 0.06) !important;
-        color: #0f172a !important;
-    }
-    [data-bs-theme="light"] .avd-dock-btn.active {
-        color: var(--avd-primary, #ff3d61) !important;
-        background: rgba(var(--avd-primary-rgb, 255, 61, 97), 0.12) !important;
-        border-color: rgba(var(--avd-primary-rgb, 255, 61, 97), 0.25) !important;
-    }
-    [data-bs-theme="light"] .avd-cinema-dropdown-menu {
-        background: rgba(255, 255, 255, 0.98) !important;
-        border: 1px solid rgba(15, 23, 42, 0.14) !important;
-        box-shadow: 0 20px 50px rgba(15, 23, 42, 0.18) !important;
-    }
-    [data-bs-theme="light"] .avd-cinema-dropdown-menu .dropdown-header {
-        color: #64748b !important;
-    }
-    [data-bs-theme="light"] .avd-cinema-dropdown-menu .dropdown-item {
-        color: #0f172a !important;
-    }
-    [data-bs-theme="light"] .avd-cinema-dropdown-menu .dropdown-item:hover {
-        background: rgba(15, 23, 42, 0.06) !important;
-        color: #0f172a !important;
-    }
-    [data-bs-theme="light"] .avd-cinema-dropdown-menu .btn-outline-secondary {
-        color: #334155 !important;
-        border-color: rgba(15, 23, 42, 0.22) !important;
-        background: rgba(15, 23, 42, 0.03) !important;
-    }
-    [data-bs-theme="light"] .avd-cinema-dropdown-menu .btn-outline-secondary:hover {
-        background: rgba(15, 23, 42, 0.08) !important;
-        color: #0f172a !important;
-    }
-    [data-bs-theme="light"] .avd-cinema-dropdown-menu .btn-primary,
-    [data-bs-theme="light"] .avd-cinema-dropdown-menu .avd-filter-chip.active,
-    [data-bs-theme="light"] .avd-cinema-dropdown-menu .avd-rotate-chip.active,
-    [data-bs-theme="light"] .avd-cinema-dropdown-menu .avd-bright-chip.active,
-    [data-bs-theme="light"] .avd-cinema-dropdown-menu .avd-ambi-chip.active {
-        background: var(--avd-primary, #ff3d61) !important;
-        color: #ffffff !important;
-        border-color: var(--avd-primary, #ff3d61) !important;
-    }
-
-    @keyframes avdPipSlide {
-        from { transform: translateY(30px) scale(0.92); opacity: 0; }
-        to { transform: translateY(0) scale(1); opacity: 1; }
-    }
-    @keyframes avdFadeSlideDown {
-        from { transform: translateY(-16px); opacity: 0; }
-        to { transform: translateY(0); opacity: 1; }
     }
 
     /* Cinema Color Grading Filters (100% works on Upload18 iframe & HTML5) */
@@ -2753,8 +2311,10 @@
             overscroll-behavior: contain;
         }
 
+        /* Chips never split a word: a filter column is as wide as its longest word at least, a chip row shares its
+           width down to each chip's longest word (else it wraps), a word breaks only when wider than the sheet. */
         .avd-mobile-filter-grid {
-            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+            grid-template-columns: repeat(3, minmax(min-content, 1fr)) !important;
         }
 
         .avd-mobile-sheet .btn {
@@ -2762,9 +2322,14 @@
             min-height: 44px;
             width: 100%;
             white-space: normal;
-            overflow-wrap: anywhere;
+            overflow-wrap: break-word;
             line-height: 1.2;
             text-align: center;
+        }
+
+        .avd-mobile-sheet .row.g-1 > [class*="col-"] {
+            flex: 1 1 0;
+            width: auto;
         }
 
         .avd-mobile-sheet .list-group-item {
@@ -2794,7 +2359,7 @@
 
     @media (max-width: 360px) {
         .avd-mobile-filter-grid {
-            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            grid-template-columns: repeat(2, minmax(min-content, 1fr)) !important;
         }
 
         .avd-mobile-sheet .offcanvas-header,
@@ -2849,1708 +2414,31 @@
         }
     }
 </style>
+{{-- watch-7: the tools' code is the cached module resources/js/layout/watchTools.ts (84 KB that every watch page
+     used to carry inline). It reads these settings; the page still declares the mini-player switch inline. The texts are
+     plain text (JSON_HEX_* flags: no value can end the <script> element); the module escapes the ones that go into the
+     toasts' markup. --}}
+
+{{-- The mini-player switch, and queue stubs for the names the page's onclick attributes call: a click before the
+     module has run is queued and replayed by it (window.__avdWatchQ), as the layout's head stubs do for core.ts. --}}
 <script>
-    (function(){
-        // CSS mini-player state. The provider component mounts asynchronously,
-        // so this state is bound to the media node after every DOM update.
-        var avdPipAllowed = @json($watchFloatingMiniPlayerEnabled);
-        var avdPipShell = null;
-        var avdPipWrapper = null;
-        var avdPipVideo = null;
-        var avdPipFrame = null;
-        var avdPipReady = false;
-        var avdPipPlaying = false;
-        var avdPipManualClosed = false;
-        var avdPipManualActive = false;
-        var avdPipOriginalMinHeight = '';
-        var avdPipTick = 0;
-        var avdPipObserver = null;
-        var avdPipMutationObserver = null;
-        var avdPipMediaSignature = '';
-
-        function avdPipResolveElements() {
-            if (!avdPipAllowed) return false;
-            avdPipShell = document.getElementById('avdMainPlayerShell');
-            avdPipWrapper = document.getElementById('avdPlayerWrapper');
-            return !!(avdPipShell && avdPipWrapper);
-        }
-
-        function avdPipClearPlaceholder() {
-            if (!avdPipWrapper || avdPipWrapper.dataset.pipPlaceholder !== 'true') return;
-            avdPipWrapper.style.minHeight = avdPipOriginalMinHeight;
-            delete avdPipWrapper.dataset.pipPlaceholder;
-        }
-
-        function avdPipSetActive(active, manual) {
-            if (!avdPipResolveElements()) return false;
-            var rect = avdPipWrapper.getBoundingClientRect();
-            if (active) {
-                if (!manual && (window.innerWidth < 992 || avdPipManualClosed || !avdPipReady || !avdPipPlaying || rect.bottom > 0)) {
-                    return false;
-                }
-                if (!avdPipShell.classList.contains('avd-pip-active')) {
-                    var shellHeight = avdPipWrapper.getBoundingClientRect().height;
-                    if (shellHeight > 0) {
-                        avdPipOriginalMinHeight = avdPipWrapper.style.minHeight;
-                        avdPipWrapper.style.minHeight = shellHeight + 'px';
-                        avdPipWrapper.dataset.pipPlaceholder = 'true';
-                    }
-                    avdPipShell.classList.add('avd-pip-active');
-                }
-                return true;
-            }
-            avdPipShell.classList.remove('avd-pip-active');
-            avdPipClearPlaceholder();
-            return false;
-        }
-
-        function avdPipEvaluate() {
-            avdPipTick = 0;
-            if (!avdPipResolveElements()) return;
-
-            var playerStage = avdPipShell.querySelector('.avd-player-stage');
-            if (playerStage && playerStage.dataset.playerState === 'ad') {
-                if (avdPipShell.classList.contains('avd-pip-active')) avdPipSetActive(false, false);
-                return;
-            }
-
-            // Do not read layout on every fast scroll while the async player
-            // is still mounting. PiP becomes eligible after media readiness.
-            if (!avdPipReady && !avdPipManualActive) return;
-
-            var rect = avdPipWrapper.getBoundingClientRect();
-            var inView = rect.top < window.innerHeight && rect.bottom > 0;
-            var outAbove = rect.bottom <= 0;
-            // A manual mini-player choice must survive scrolling on every
-            // breakpoint.  Previously the first scroll past the player reset
-            // this flag and the mobile-only guard below immediately closed the
-            // floating player, even though the UI still reported it as active.
-            if (avdPipManualActive) {
-                avdPipSetActive(true, true);
-                return;
-            }
-            if (inView) {
-                avdPipManualClosed = false;
-                if (avdPipShell.classList.contains('avd-pip-active')) avdPipSetActive(false, false);
-                return;
-            }
-            if (window.innerWidth < 992 || !outAbove || !avdPipReady || !avdPipPlaying || avdPipManualClosed) {
-                if (avdPipShell.classList.contains('avd-pip-active') && (window.innerWidth < 992 || !avdPipPlaying)) {
-                    avdPipSetActive(false, false);
-                }
-                return;
-            }
-            avdPipSetActive(true, false);
-        }
-
-        function avdPipRequestUpdate() {
-            if (!avdPipTick) avdPipTick = window.requestAnimationFrame(avdPipEvaluate);
-        }
-
-        function avdPipMarkReady() {
-            avdPipReady = true;
-            if (avdPipShell) avdPipShell.dataset.playerReady = 'true';
-            avdPipRequestUpdate();
-        }
-
-        function avdPipMarkPlaying() {
-            avdPipPlaying = true;
-            avdPipRequestUpdate();
-        }
-
-        function avdPipMarkPaused() {
-            avdPipPlaying = false;
-            avdPipRequestUpdate();
-        }
-
-        function avdPipFrameSource() {
-            var source = avdPipFrame && avdPipFrame.getAttribute('src');
-            if (!source || !source.trim()) return null;
-            try {
-                var url = new URL(source, window.location.href);
-                return /^(https?:)$/.test(url.protocol) ? url : null;
-            } catch (sourceError) { return null; }
-        }
-
-        function avdPipBindMedia(records) {
-            if (!avdPipResolveElements()) return;
-            // Preroll media is a separate layer. Its removal must not reset the
-            // retained provider frame or claim that the content is playing.
-            var mediaLayer = avdPipShell.querySelector('.avd-player-frame .avd-player-media-layer');
-            var nextVideo = mediaLayer && mediaLayer.querySelector('video');
-            var nextFrame = mediaLayer && mediaLayer.querySelector('iframe');
-            var nextSource = nextVideo && nextVideo.querySelector('source');
-            var nextSignature = nextVideo
-                ? 'video:' + (nextVideo.getAttribute('src') || nextVideo.querySelector('source')?.getAttribute('src') || '')
-                : nextFrame
-                    ? 'frame:' + (nextFrame.getAttribute('src') || '')
-                    : '';
-            var sourceChanged = (records || []).some(function(record) {
-                return record.type === 'attributes'
-                    && record.attributeName === 'src'
-                    && (record.target === nextVideo || record.target === nextFrame || record.target === nextSource);
-            });
-            if (nextVideo !== avdPipVideo || nextFrame !== avdPipFrame || sourceChanged || nextSignature !== avdPipMediaSignature) {
-                avdPipVideo = nextVideo;
-                avdPipFrame = nextFrame;
-                avdPipMediaSignature = nextSignature;
-                avdPipReady = false;
-                avdPipPlaying = false;
-                avdPipManualActive = false;
-                avdPipShell.dataset.playerReady = 'false';
-                avdPipSetActive(false, false);
-                avdSetPlaybackActive(false);
-                if (avdPipVideo && !sourceChanged) {
-                    avdPipReady = avdPipVideo.readyState >= 2;
-                    avdPipPlaying = !avdPipVideo.paused && !avdPipVideo.ended;
-                    avdPipShell.dataset.playerReady = avdPipReady ? 'true' : 'false';
-                }
-                avdPipRequestUpdate();
-            }
-        }
-
-        function avdPipInit() {
-            if (!avdPipAllowed) return;
-            if (!avdPipResolveElements()) return;
-            avdPipBindMedia();
-            if ('IntersectionObserver' in window) {
-                avdPipObserver = new IntersectionObserver(avdPipRequestUpdate, { threshold: [0, 0.1, 1] });
-                avdPipObserver.observe(avdPipWrapper);
-            }
-            if ('MutationObserver' in window) {
-                avdPipMutationObserver = new MutationObserver(avdPipBindMedia);
-                var observedPlayerFrame = avdPipShell.querySelector('.avd-player-frame');
-                if (observedPlayerFrame) {
-                    avdPipMutationObserver.observe(observedPlayerFrame, { childList: true, subtree: true, attributes: true, attributeFilter: ['src'] });
-                }
-            }
-            // Capture media events once on the stable shell, including nodes
-            // mounted or replaced later. Detached provider nodes are ignored.
-            avdPipShell.addEventListener('load', function(event) {
-                avdPipBindMedia();
-                if (event.target === avdPipFrame && avdPipFrameSource()) avdPipMarkReady();
-            }, true);
-            ['loadeddata', 'canplay', 'play', 'playing', 'timeupdate', 'pause', 'ended', 'emptied', 'error'].forEach(function(name) {
-                avdPipShell.addEventListener(name, function(event) {
-                    avdPipBindMedia();
-                    if (event.target !== avdPipVideo || !avdPipVideo) return;
-                    avdPipReady = name !== 'emptied' && !avdPipVideo.error && (avdPipReady || avdPipVideo.readyState >= 2);
-                    avdPipPlaying = !avdPipVideo.paused && !avdPipVideo.ended && !avdPipVideo.error;
-                    avdPipShell.dataset.playerReady = avdPipReady ? 'true' : 'false';
-                    avdSetPlaybackActive(avdPipPlaying);
-                    avdPipRequestUpdate();
-                }, true);
-            });
-            window.addEventListener('scroll', avdPipRequestUpdate, { passive: true });
-            window.addEventListener('resize', avdPipRequestUpdate, { passive: true });
-        }
-
-        // Ambilight Backlight Engine
-        var avdAmbientGlowAllowed = @json($watchPlayerAmbientGlowEnabled);
-        var avdAmbientGlowDisabledLabel = @json(__('Disabled'));
-        window.avdToggleAmbilight = function(force) {
-            var glow = document.getElementById('avdAmbilightGlow');
-            var btn = document.getElementById('avdAmbilightToggle');
-            if (!glow) return;
-            if (!avdAmbientGlowAllowed) {
-                glow.classList.remove('active');
-                if (btn) {
-                    btn.classList.remove('active');
-                    btn.setAttribute('aria-pressed', 'false');
-                }
-                var disabledTelemetry = document.getElementById('avdTelemAmbilight');
-                if (disabledTelemetry) disabledTelemetry.textContent = avdAmbientGlowDisabledLabel;
-                return;
-            }
-            var isActive = (force !== undefined) ? force : !glow.classList.contains('active');
-            glow.classList.toggle('active', isActive);
-            if (btn) {
-                btn.classList.toggle('active', isActive);
-                btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
-            }
-            var telemAmbi = document.getElementById('avdTelemAmbilight');
-            if (telemAmbi) telemAmbi.textContent = isActive ? 'Active' : 'Disabled';
-            if (window.AvdAudio) window.AvdAudio.playClick();
-            if (window.showCopyToast) {
-                window.showCopyToast(isActive ? '{{ __("Ambilight Ambient Glow ON (Press A)") }}' : '{{ __("Ambilight Glow OFF") }}');
-            }
-            try {
-                localStorage.setItem('avd_ambilight_enabled', isActive ? '1' : '0');
-            } catch(e) {}
-        };
-
-        // Cinema Snapshot Frame Capture Tool
-        window.avdCaptureFrame = function() {
-            var vid = document.querySelector('video');
-            if (!vid) {
-                if (window.showCopyToast) window.showCopyToast('ℹ️ {{ __("Snapshot is active for direct HTML5 video streams") }}');
-                if (window.AvdAudio) window.AvdAudio.playClick();
-                return;
-            }
-
-            var flash = document.getElementById('avdCameraFlash');
-            if (flash) {
-                flash.style.opacity = '0.9';
-                setTimeout(function(){ flash.style.opacity = '0'; }, 200);
-            }
-            if (window.AvdAudio) window.AvdAudio.playShutter();
-
-            var canvas = document.createElement('canvas');
-            var w = (vid && vid.videoWidth) ? vid.videoWidth : 1280;
-            var h = (vid && vid.videoHeight) ? vid.videoHeight : 720;
-            canvas.width = w;
-            canvas.height = h;
-            var ctx = canvas.getContext('2d');
-
-            var captured = false;
-            if (vid && vid.readyState >= 2) {
-                try {
-                    ctx.drawImage(vid, 0, 0, w, h);
-                    captured = true;
-                } catch(e) {}
-            }
-
-            if (!captured) {
-                var grad = ctx.createLinearGradient(0, 0, w, h);
-                grad.addColorStop(0, '#0a0d14');
-                grad.addColorStop(1, '#1b162b');
-                ctx.fillStyle = grad;
-                ctx.fillRect(0, 0, w, h);
-
-                ctx.fillStyle = '#ff3d61';
-                ctx.font = 'bold ' + Math.round(h * 0.08) + 'px sans-serif';
-                ctx.textAlign = 'center';
-                ctx.fillText('AVDBCMS Cinema Capture', w/2, h/2 - 20);
-                ctx.fillStyle = '#ffffff';
-                ctx.font = Math.round(h * 0.04) + 'px sans-serif';
-                ctx.fillText('{{ addslashes($video->title) }}', w/2, h/2 + 40);
-            }
-
-            var badgeH = Math.round(h * 0.12);
-            var pad = Math.round(w * 0.03);
-            var curTime = (vid && vid.currentTime) ? vid.currentTime : 0;
-            var mins = Math.floor(curTime / 60);
-            var secs = Math.floor(curTime % 60);
-            var hrs = Math.floor(mins / 60);
-            mins = mins % 60;
-            var timeStr = (hrs > 0 ? String(hrs).padStart(2, '0') + ':' : '') + String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
-
-            var barGrad = ctx.createLinearGradient(0, h - badgeH - pad, 0, h);
-            barGrad.addColorStop(0, 'rgba(0,0,0,0)');
-            barGrad.addColorStop(1, 'rgba(0,0,0,0.85)');
-            ctx.fillStyle = barGrad;
-            ctx.fillRect(0, h - badgeH - pad, w, badgeH + pad);
-
-            var pillX = pad;
-            var pillY = h - badgeH;
-            var pillW = Math.round(w * 0.45);
-            var pillH = Math.round(badgeH * 0.7);
-            ctx.fillStyle = 'rgba(15, 20, 32, 0.85)';
-            ctx.strokeStyle = 'rgba(255, 61, 97, 0.6)';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.roundRect(pillX, pillY, pillW, pillH, 8);
-            ctx.fill();
-            ctx.stroke();
-
-            ctx.fillStyle = '#ff3d61';
-            ctx.font = 'bold ' + Math.round(pillH * 0.38) + 'px sans-serif';
-            ctx.textAlign = 'left';
-            ctx.fillText('AVDBCMS 4K', pillX + 16, pillY + Math.round(pillH * 0.42));
-
-            ctx.fillStyle = '#ffffff';
-            ctx.font = '600 ' + Math.round(pillH * 0.32) + 'px sans-serif';
-            var shortTitle = '{{ addslashes($video->title) }}';
-            if (shortTitle.length > 28) shortTitle = shortTitle.substring(0, 28) + '...';
-            ctx.fillText(shortTitle + '  [' + timeStr + ']', pillX + 16, pillY + Math.round(pillH * 0.82));
-
-            var a = document.createElement('a');
-            a.download = 'avdbcms-snapshot-' + Date.now() + '.png';
-            a.href = canvas.toDataURL('image/png');
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-
-            if (window.showCopyToast) {
-                window.showCopyToast('{{ __("📸 Cinema Snapshot Saved!") }} [' + timeStr + ']');
-            }
-        };
-
-        // Direct Playback Rate Setter with Toast & Badge update
-        window.avdSetPlaybackRate = function(rate, btn) {
-            var vid = document.querySelector('video');
-            if (vid) {
-                vid.playbackRate = rate;
-                if (window.showCopyToast) window.showCopyToast('⏩ ' + rate + 'x ' + '{{ __("Playback Speed") }}');
-            } else {
-                if (window.showCopyToast) window.showCopyToast('ℹ️ {{ __("Upload18 iframe: speed is adjusted inside player frame") }}');
-            }
-
-            var speedBadge = document.getElementById('avdMenuCurrentSpeed');
-            if (speedBadge) speedBadge.textContent = rate + 'x';
-
-            document.querySelectorAll('.avd-speed-chip').forEach(function(b) {
-                var r = parseFloat(b.textContent);
-                if (Math.abs(r - rate) < 0.05) {
-                    b.classList.add('active', 'btn-primary');
-                    b.classList.remove('btn-outline-secondary');
-                } else {
-                    b.classList.remove('active', 'btn-primary');
-                    b.classList.add('btn-outline-secondary');
-                }
-            });
-
-            var hud = document.getElementById('avdSpeedHud');
-            var txt = document.getElementById('avdSpeedHudText');
-            if (hud && txt) {
-                txt.textContent = rate + 'x Speed';
-                hud.style.opacity = '1';
-                hud.style.transform = 'translate(-50%, -50%) scale(1)';
-                clearTimeout(window._avdSpeedTimeout);
-                window._avdSpeedTimeout = setTimeout(function(){
-                    hud.style.opacity = '0';
-                    hud.style.transform = 'translate(-50%, -50%) scale(0.9)';
-                }, 1200);
-            }
-            if (window.AvdAudio) window.AvdAudio.playClick();
-        };
-
-        // Playback Speed Controller with HUD Toast (Shortcut: [ and ])
-        window.avdChangeSpeed = function(delta) {
-            var vid = document.querySelector('video');
-            if (!vid) {
-                if (window.showCopyToast) window.showCopyToast('ℹ️ {{ __("Upload18 iframe: speed is adjusted via gear icon inside player") }}');
-                if (window.AvdAudio) window.AvdAudio.playClick();
-                return;
-            }
-            var speeds = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
-            var cur = (vid && vid.playbackRate) ? vid.playbackRate : 1.0;
-            var idx = speeds.indexOf(cur);
-            if (idx === -1) idx = 2;
-            var nextIdx = Math.max(0, Math.min(speeds.length - 1, idx + delta));
-            var newRate = speeds[nextIdx];
-            window.avdSetPlaybackRate(newRate);
-        };
-
-        // Picture-in-Picture Engine
-        window.avdTogglePip = function(force) {
-            if (!avdPipResolveElements()) return;
-            var isPip = (force !== undefined) ? !!force : !avdPipShell.classList.contains('avd-pip-active');
-            var playerStage = avdPipShell.querySelector('.avd-player-stage');
-            if (isPip && playerStage && playerStage.dataset.playerState === 'ad') return;
-            if (isPip && !avdPipReady) {
-                // Manual PiP before the media surface is ready would force a
-                // fixed-position flash over the loading placeholder.
-                avdPipRequestUpdate();
-                return;
-            }
-            avdPipManualClosed = !isPip;
-            avdPipManualActive = isPip;
-            avdPipSetActive(isPip, true);
-            if (window.AvdAudio) window.AvdAudio.playWhoosh();
-            if (window.showCopyToast) {
-                window.showCopyToast(isPip ? '{{ __("Mini Player Mode Active (Press P to Restore)") }}' : '{{ __("Restored to Standard Player") }}');
-            }
-        };
-
-        // Keyboard Shortcuts (Cinema Experience: C=Filter, M=Mirror, F=Fullscreen, Shift+F=Zen, I=Telemetry, W=Aspect, Z=Sleep)
-        document.addEventListener('keydown', function(e) {
-            var tag = e.target && e.target.tagName;
-            if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (e.target && e.target.isContentEditable)) return;
-            if ((e.key === 'p' || e.key === 'P') && !e.ctrlKey && !e.metaKey && !e.altKey) {
-                window.avdTogglePip && window.avdTogglePip();
-            } else if ((e.key === 'r' || e.key === 'R') && !e.ctrlKey && !e.metaKey && !e.altKey) {
-                e.preventDefault();
-                window.avdToggleLoop && window.avdToggleLoop();
-            } else if (e.key === '.' && !e.ctrlKey && !e.metaKey && !e.altKey) {
-                e.preventDefault();
-                window.avdStepFrame && window.avdStepFrame(1/30);
-            } else if (e.key === ',' && !e.ctrlKey && !e.metaKey && !e.altKey) {
-                e.preventDefault();
-                window.avdStepFrame && window.avdStepFrame(-1/30);
-            } else if ((e.key === 'z' || e.key === 'Z') && !e.ctrlKey && !e.metaKey && !e.altKey) {
-                e.preventDefault();
-                window.avdToggleSleepTimerModal && window.avdToggleSleepTimerModal();
-            } else if ((e.key === 'b' || e.key === 'B') && !e.ctrlKey && !e.metaKey && !e.altKey) {
-                e.preventDefault();
-                window.avdCycleAudioBoost && window.avdCycleAudioBoost();
-            } else if ((e.key === 'c' || e.key === 'C') && !e.ctrlKey && !e.metaKey && !e.altKey) {
-                e.preventDefault();
-                window.avdCycleVideoFilter && window.avdCycleVideoFilter();
-            } else if ((e.key === 'm' || e.key === 'M') && !e.ctrlKey && !e.metaKey && !e.altKey) {
-                e.preventDefault();
-                window.avdToggleMirror && window.avdToggleMirror();
-            } else if ((e.key === 'f' || e.key === 'F') && e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
-                e.preventDefault();
-                window.avdToggleZenMode && window.avdToggleZenMode();
-            } else if ((e.key === 'f' || e.key === 'F') && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
-                e.preventDefault();
-                window.avdToggleFullscreen && window.avdToggleFullscreen();
-            } else if ((e.key === 'i' || e.key === 'I') && !e.ctrlKey && !e.metaKey && !e.altKey) {
-                e.preventDefault();
-                window.avdToggleTelemetryModal && window.avdToggleTelemetryModal();
-            } else if ((e.key === 'o' || e.key === 'O') && !e.ctrlKey && !e.metaKey && !e.altKey) {
-                e.preventDefault();
-                window.avdCycleRotation && window.avdCycleRotation();
-            } else if ((e.key === 'a' || e.key === 'A') && !e.ctrlKey && !e.metaKey && !e.altKey) {
-                e.preventDefault();
-                window.avdToggleAmbilight && window.avdToggleAmbilight();
-            } else if ((e.key === 't' || e.key === 'T') && !e.ctrlKey && !e.metaKey && !e.altKey) {
-                e.preventDefault();
-                var tBtn = document.querySelector('[data-theater-toggle]');
-                if (tBtn) tBtn.click();
-            } else if ((e.key === 'l' || e.key === 'L') && !e.ctrlKey && !e.metaKey && !e.altKey) {
-                e.preventDefault();
-                window.avdToggleLightsOut && window.avdToggleLightsOut();
-            } else if ((e.key === 'n' || e.key === 'N') && e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
-                e.preventDefault();
-                window.avdSetVideoFilter && window.avdSetVideoFilter('night');
-            } else if (e.key === 'Escape') {
-                var mobileToolsSheet = document.getElementById('avdMobileToolsSheet');
-                if (mobileToolsSheet && (mobileToolsSheet.classList.contains('show') || mobileToolsSheet.classList.contains('avd-mobile-sheet-fallback-open'))) {
-                    e.preventDefault();
-                    window.avdCloseMobileTools && window.avdCloseMobileTools();
-                    return;
-                }
-                if (document.body.classList.contains('avd-zen-mode')) {
-                    window.avdToggleZenMode();
-                }
-            } else if ((e.key === 'w' || e.key === 'W') && !e.ctrlKey && !e.metaKey && !e.altKey) {
-                e.preventDefault();
-                window.avdCycleAspectRatio && window.avdCycleAspectRatio();
-            } else if ((e.key === 'v' || e.key === 'V') && !e.ctrlKey && !e.metaKey && !e.altKey) {
-                e.preventDefault();
-                window.avdToggleVisualizer && window.avdToggleVisualizer();
-            } else if ((e.key === 'n' || e.key === 'N') && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
-                e.preventDefault();
-                window.avdToggleNotes && window.avdToggleNotes();
-            } else if (e.key === 'ArrowUp') {
-                e.preventDefault();
-                window.avdAdjustVolume && window.avdAdjustVolume(0.05);
-            } else if (e.key === 'ArrowDown') {
-                e.preventDefault();
-                window.avdAdjustVolume && window.avdAdjustVolume(-0.05);
-            } else if (e.key === 'ArrowRight' && !e.shiftKey) {
-                e.preventDefault();
-                window.avdRelativeSeek && window.avdRelativeSeek(5);
-            } else if (e.key === 'ArrowLeft' && !e.shiftKey) {
-                e.preventDefault();
-                window.avdRelativeSeek && window.avdRelativeSeek(-5);
-            }
-        });
-
-        // Infinite Video Loop Controller
-        window.avdToggleLoop = function() {
-            var vid = document.querySelector('video');
-            if (!vid) {
-                if (window.showCopyToast) window.showCopyToast('ℹ️ {{ __("Upload18 iframe: loop is controlled inside player frame") }}');
-                if (window.AvdAudio) window.AvdAudio.playClick();
-                return;
-            }
-            vid.loop = !vid.loop;
-            var item = document.getElementById('avdMenuLoopItem');
-            if (item) item.classList.toggle('active', vid.loop);
-            if (window.AvdAudio) window.AvdAudio.playClick();
-            if (window.showCopyToast) {
-                window.showCopyToast(vid.loop ? '{{ __("🔁 Infinite Loop Enabled") }}' : '{{ __("Infinite Loop Disabled") }}');
-            }
-        };
-
-        // Frame-by-frame Precision Stepping
-        window.avdStepFrame = function(stepSeconds) {
-            var vid = document.querySelector('video');
-            if (!vid) return;
-            if (!vid.paused) vid.pause();
-            var dt = (typeof stepSeconds === 'number') ? stepSeconds : (1 / 30);
-            vid.currentTime = Math.max(0, Math.min(vid.duration || 999999, vid.currentTime + dt));
-            if (window.AvdAudio) window.AvdAudio.playClick();
-        };
-
-        // Cinema Sleep Timer Engine
-        window._avdSleepInterval = null;
-        window._avdSleepTarget = 0;
-        window._avdSleepFadeStarted = false;
-
-        window.avdToggleSleepTimerModal = function() {
-            var modalEl = document.getElementById('avdSleepTimerModal');
-            if (!modalEl || typeof bootstrap === 'undefined') return;
-            var modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
-            modal.show();
-            if (window.AvdAudio) window.AvdAudio.playClick();
-        };
-
-        window.avdSetSleepTimer = function(mins) {
-            var modalEl = document.getElementById('avdSleepTimerModal');
-            if (modalEl && typeof bootstrap !== 'undefined') {
-                var modal = bootstrap.Modal.getInstance(modalEl);
-                if (modal) modal.hide();
-            }
-
-            clearInterval(window._avdSleepInterval);
-            var label = document.getElementById('avdSleepTimerLabel');
-            var btn = document.getElementById('avdSleepTimerBtn');
-            var vid = document.querySelector('video');
-
-            if (mins === 0) {
-                if (label) label.textContent = '{{ __("Sleep") }}';
-                if (btn) btn.classList.remove('active', 'text-warning');
-                if (window.showCopyToast) window.showCopyToast('{{ __("Cinema Sleep Timer Disabled") }}');
-                if (window.AvdAudio) window.AvdAudio.playClick();
-                return;
-            }
-
-            if (mins === -1) {
-                if (label) label.textContent = '{{ __("Sleep: End") }}';
-                if (btn) btn.classList.add('active', 'text-warning');
-                if (window.showCopyToast) window.showCopyToast('{{ __("Sleep Timer: Pause at End of Video") }}');
-                if (vid) {
-                    vid.onended = function() {
-                        vid.pause();
-                        if (window.showCopyToast) window.showCopyToast('🌙 {{ __("Video Finished: Goodnight!") }}');
-                        if (window.AvdAudio) window.AvdAudio.playChime();
-                        if (label) label.textContent = '{{ __("Sleep") }}';
-                        if (btn) btn.classList.remove('active', 'text-warning');
-                    };
-                }
-                if (window.AvdAudio) window.AvdAudio.playClick();
-                return;
-            }
-
-            window._avdSleepTarget = Date.now() + mins * 60 * 1000;
-            if (btn) btn.classList.add('active', 'text-warning');
-            if (window.showCopyToast) window.showCopyToast('🌙 {{ __("Sleep Timer Set:") }} ' + mins + ' {{ __("Minutes") }}');
-            if (window.AvdAudio) window.AvdAudio.playChime();
-
-            function updateSleep() {
-                var diff = Math.max(0, Math.floor((window._avdSleepTarget - Date.now()) / 1000));
-                var m = Math.floor(diff / 60);
-                var s = diff % 60;
-                if (label) label.textContent = m + 'm ' + s + 's';
-
-                var vid = document.querySelector('video');
-                if (diff <= 15 && diff > 0 && vid && !window._avdSleepFadeStarted) {
-                    window._avdSleepFadeStarted = true;
-                }
-
-                if (diff <= 0) {
-                    clearInterval(window._avdSleepInterval);
-                    if (vid) {
-                        vid.pause();
-                    } else {
-                        var ifr = document.querySelector('.avd-player-frame iframe');
-                        if (ifr) {
-                            ifr.setAttribute('data-saved-src', ifr.src);
-                            ifr.src = 'about:blank';
-                        }
-                    }
-                    var overlay = document.getElementById('avdSleepFinishedOverlay');
-                    if (overlay) overlay.classList.remove('d-none');
-
-                    if (label) label.textContent = '{{ __("Sleep") }}';
-                    if (btn) btn.classList.remove('active', 'text-warning');
-                    if (window.showCopyToast) window.showCopyToast('🌙 {{ __("Goodnight! Video paused by Sleep Timer.") }}');
-                    if (window.AvdAudio) window.AvdAudio.playChime();
-                }
-            }
-
-            updateSleep();
-            window._avdSleepInterval = setInterval(updateSleep, 1000);
-        };
-
-        // Resume Stream After Sleep Timer
-        window.avdResumeFromSleep = function() {
-            var overlay = document.getElementById('avdSleepFinishedOverlay');
-            if (overlay) overlay.classList.add('d-none');
-            var vid = document.querySelector('video');
-            if (vid) {
-                vid.play().catch(function(){});
-            } else {
-                var ifr = document.querySelector('.avd-player-frame iframe');
-                if (ifr) {
-                    var savedSrc = ifr.getAttribute('data-saved-src');
-                    if (savedSrc && savedSrc !== 'about:blank') {
-                        ifr.src = savedSrc;
-                    } else {
-                        window.avdReloadPlayer();
-                    }
-                }
-            }
-            if (window.AvdAudio) window.AvdAudio.playWhoosh();
-            if (window.showCopyToast) window.showCopyToast('▶️ {{ __("Stream resumed!") }}');
-        };
-
-        // Spatial Audio Equalizer Simulator
-        var avdAudioModes = [
-            { id: 'standard', name: '{{ __("Standard Stereo") }}', tag: 'Audio' },
-            { id: 'bass', name: '{{ __("Cinema Bass Boost 🔊") }}', tag: 'Bass 🔊' },
-            { id: 'vocal', name: '{{ __("Vocal Clarity 🎙️") }}', tag: 'Vocal 🎙️' },
-            { id: 'night', name: '{{ __("Night Listening 🌙") }}', tag: 'Night 🌙' }
-        ];
-        var avdAudioModeIdx = 0;
-
-        window.avdCycleAudioBoost = function() {
-            var vid = document.querySelector('video');
-            if (!vid) {
-                if (window.showCopyToast) window.showCopyToast('ℹ️ {{ __("Audio equalizer is active for native video streams") }}');
-                if (window.AvdAudio) window.AvdAudio.playClick();
-                return;
-            }
-            avdAudioModeIdx = (avdAudioModeIdx + 1) % avdAudioModes.length;
-            var mode = avdAudioModes[avdAudioModeIdx];
-            var label = document.getElementById('avdMenuAudioLabel');
-            if (label) label.textContent = mode.name;
-            if (window.showCopyToast) window.showCopyToast('🎧 ' + mode.name);
-            if (window.AvdAudio) window.AvdAudio.playClick();
-        };
-
-        // Timestamp Quick-Bookmark Engine
-        var avdVideoUuid = '{{ $video->uuid }}';
-        var avdBookmarkStorageKey = 'avd_bkm_' + avdVideoUuid;
-        window.avdBookmarks = [];
-
-        try {
-            var rawBkm = localStorage.getItem(avdBookmarkStorageKey);
-            if (rawBkm) window.avdBookmarks = JSON.parse(rawBkm);
-        } catch(e) {}
-
-        function avdFormatTime(secs) {
-            var s = Math.floor(secs);
-            var m = Math.floor(s / 60);
-            var sec = s % 60;
-            return (m < 10 ? '0' : '') + m + ':' + (sec < 10 ? '0' : '') + sec;
-        }
-
-        window.renderBookmarks = function() {
-            var shelf = document.getElementById('avdBookmarkShelf');
-            var list = document.getElementById('avdBookmarkList');
-            if (!shelf || !list) return;
-
-            if (!window.avdBookmarks || window.avdBookmarks.length === 0) {
-                shelf.classList.add('d-none');
-                shelf.classList.remove('d-flex');
-                list.innerHTML = '';
-                return;
-            }
-
-            shelf.classList.remove('d-none');
-            shelf.classList.add('d-flex');
-            list.innerHTML = '';
-
-            window.avdBookmarks.forEach(function(bkm, idx) {
-                var pill = document.createElement('div');
-                pill.className = 'badge rounded-pill bg-dark border border-secondary text-white px-2.5 py-1.5 cursor-pointer d-inline-flex align-items-center gap-1.5 shadow-sm';
-                pill.style.cssText = 'font-size: 0.76rem; cursor: pointer; transition: transform 0.15s ease, background 0.15s ease;';
-                pill.innerHTML = '<i class="fa-solid fa-play text-warning" style="font-size:0.65rem;"></i> ' +
-                                 '<span>' + bkm.timeStr + '</span>' +
-                                 '<i class="fa-solid fa-xmark text-white-50 ms-1" style="cursor:pointer;" title="{{ __("Remove") }}"></i>';
-
-                pill.addEventListener('click', function(e) {
-                    if (e.target.classList.contains('fa-xmark')) {
-                        e.stopPropagation();
-                        window.avdDeleteBookmark(idx);
-                    } else {
-                        window.avdSeekTo(bkm.seconds);
-                    }
-                });
-                list.appendChild(pill);
-            });
-        };
-
-        window.avdAddBookmark = function() {
-            var vid = document.querySelector('video');
-            if (!vid) {
-                if (window.showCopyToast) window.showCopyToast('ℹ️ {{ __("Bookmarks require direct HTML5 video stream") }}');
-                if (window.AvdAudio) window.AvdAudio.playClick();
-                return;
-            }
-            var curTime = (vid && vid.currentTime) ? vid.currentTime : 0;
-            var timeStr = avdFormatTime(curTime);
-
-            window.avdBookmarks.push({
-                seconds: Math.floor(curTime),
-                timeStr: timeStr,
-                timestamp: Date.now()
-            });
-
-            // Keep max 10 bookmarks
-            if (window.avdBookmarks.length > 10) window.avdBookmarks.shift();
-
-            try {
-                localStorage.setItem(avdBookmarkStorageKey, JSON.stringify(window.avdBookmarks));
-            } catch(e) {}
-
-            window.renderBookmarks();
-            if (window.AvdAudio) window.AvdAudio.playChime();
-            if (window.showCopyToast) window.showCopyToast('📌 {{ __("Bookmark saved at") }} ' + timeStr);
-        };
-
-        window.avdSeekTo = function(secs) {
-            var vid = document.querySelector('video');
-            if (vid) {
-                vid.currentTime = secs;
-                if (vid.paused) vid.play();
-            }
-            if (window.AvdAudio) window.AvdAudio.playWhoosh();
-            if (window.showCopyToast) window.showCopyToast('⏩ {{ __("Jumped to") }} ' + avdFormatTime(secs));
-        };
-
-        window.avdDeleteBookmark = function(idx) {
-            window.avdBookmarks.splice(idx, 1);
-            try {
-                localStorage.setItem(avdBookmarkStorageKey, JSON.stringify(window.avdBookmarks));
-            } catch(e) {}
-            window.renderBookmarks();
-            if (window.AvdAudio) window.AvdAudio.playClick();
-        };
-
-        // Render any existing bookmarks on load
-        window.renderBookmarks();
-
-        // Cinema Zoom & Aspect Ratio Stretcher Controller (Shortcut: W)
-        var avdAspectModes = [
-            { id: 'fit', label: '16:9', hud: 'Fit (16:9)', fit: 'contain', transform: 'scale(1)' },
-            { id: 'cinemascope', label: '21:9', hud: 'Cinemascope (21:9)', fit: 'cover', transform: 'scale(1, 0.77)' },
-            { id: 'fill', label: 'Fill', hud: 'Fill Frame (Stretch)', fit: 'cover', transform: 'scale(1.15)' },
-            { id: 'zoom', label: '1.25x', hud: 'Cinema Zoom 1.25x', fit: 'cover', transform: 'scale(1.25)' }
-        ];
-        var avdCurrentAspectIndex = 0;
-        var avdAspectHudTimer = null;
-
-        window.avdCycleAspectRatio = function() {
-            avdCurrentAspectIndex = (avdCurrentAspectIndex + 1) % avdAspectModes.length;
-            var mode = avdAspectModes[avdCurrentAspectIndex];
-            var vid = document.querySelector('video');
-            var ifr = document.querySelector('.avd-player-frame iframe');
-            var target = vid || ifr;
-            if (target) {
-                target.style.transition = 'transform 0.35s cubic-bezier(0.16,1,0.3,1), object-fit 0.35s ease';
-                if (target.tagName === 'VIDEO') {
-                    target.style.objectFit = mode.fit;
-                }
-                target.style.transform = mode.transform;
-                target.style.transformOrigin = 'center center';
-            }
-
-            var btnLabel = document.getElementById('avdAspectLabel');
-            if (btnLabel) btnLabel.textContent = mode.label;
-            var telemAspect = document.getElementById('avdTelemAspect');
-            if (telemAspect) telemAspect.textContent = mode.hud;
-
-            var hud = document.getElementById('avdAspectHud');
-            var hudText = document.getElementById('avdAspectHudText');
-            if (hud && hudText) {
-                hudText.textContent = mode.hud;
-                hud.style.opacity = '1';
-                hud.style.transform = 'translate(-50%, -50%) scale(1)';
-                if (avdAspectHudTimer) clearTimeout(avdAspectHudTimer);
-                avdAspectHudTimer = setTimeout(function() {
-                    hud.style.opacity = '0';
-                    hud.style.transform = 'translate(-50%, -50%) scale(0.9)';
-                }, 1300);
-            }
-
-            if (window.AvdAudio) window.AvdAudio.playWhoosh();
-            if (window.showCopyToast) window.showCopyToast('📐 ' + mode.hud);
-        };
-
-        // Player Stream Reload Engine (Crucial for Upload18 iframes)
-        window.avdReloadPlayer = function() {
-            var ifr = document.querySelector('.avd-player-frame iframe');
-            if (ifr) {
-                var src = ifr.src;
-                ifr.src = '';
-                setTimeout(function() { ifr.src = src; }, 80);
-                if (window.showCopyToast) window.showCopyToast('🔄 {{ __("Player stream reloaded!") }}');
-                if (window.AvdAudio) window.AvdAudio.playWhoosh();
-                return;
-            }
-            var vid = document.querySelector('video');
-            if (vid) {
-                vid.load();
-                vid.play().catch(function(){});
-                if (window.showCopyToast) window.showCopyToast('🔄 {{ __("Video stream reloaded!") }}');
-                if (window.AvdAudio) window.AvdAudio.playWhoosh();
-            }
-        };
-
-        // Quick Share Video URL
-        window.avdQuickShare = function() {
-            var url = window.location.href;
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(url).then(function() {
-                    if (window.showCopyToast) window.showCopyToast('🔗 {{ __("Video link copied to clipboard!") }}');
-                }).catch(function() {
-                    prompt('Copy link:', url);
-                });
-            } else {
-                prompt('Copy link:', url);
-            }
-            if (window.AvdAudio) window.AvdAudio.playClick();
-        };
-
-        // Cinema Color Grading Engine (100% works on Upload18 iframe & HTML5!)
-        var avdFilters = ['normal', 'vivid', 'cinema', 'cyberpunk', 'oled', 'noir', 'night', 'anime'];
-        var avdFilterNames = {
-            'normal': 'Normal',
-            'vivid': 'Vivid HDR',
-            'cinema': '35mm Warm',
-            'cyberpunk': 'Cyberpunk',
-            'oled': 'OLED Dark',
-            'noir': 'Noir B&W',
-            'night': 'Night Shift',
-            'anime': 'Anime Pop'
-        };
-        var avdConfiguredFilter = {
-            'none': 'normal',
-            'hdr_vibrant': 'vivid',
-            'warm_35mm': 'cinema',
-            'cyber_glow': 'cyberpunk',
-            'cool_scifi': 'night',
-            'monochrome_noir': 'noir'
-        }[document.documentElement.getAttribute('data-avd-cinema-filter') || 'none'] || 'normal';
-        var avdCurrentFilterIdx = Math.max(0, avdFilters.indexOf(avdConfiguredFilter));
-
-        // Mobile Bottom Sheet Trigger (For iPhone, Android, and mobile viewports).
-        // Bootstrap is the primary implementation, with a small scoped fallback
-        // so a delayed/missing bundle cannot strand the mobile controls.
-        window.avdCloseMobileTools = function() {
-            var sheetEl = document.getElementById('avdMobileToolsSheet');
-            if (!sheetEl) return;
-
-            if (window.bootstrap && bootstrap.Offcanvas) {
-                var instance = bootstrap.Offcanvas.getInstance(sheetEl);
-                if (instance) {
-                    instance.hide();
-                    return;
-                }
-            }
-
-            sheetEl.classList.remove('show', 'avd-mobile-sheet-fallback-open');
-            sheetEl.removeAttribute('aria-modal');
-            sheetEl.removeAttribute('role');
-            sheetEl.style.visibility = '';
-            sheetEl.style.transform = '';
-            document.body.classList.remove('avd-mobile-tools-open');
-            var moreButton = document.getElementById('avdMoreToolsBtn');
-            if (moreButton) moreButton.setAttribute('aria-expanded', 'false');
-            var backdrop = document.getElementById('avdMobileToolsBackdrop');
-            if (backdrop) backdrop.remove();
-        };
-
-        window.avdOpenMobileTools = function() {
-            var sheetEl = document.getElementById('avdMobileToolsSheet');
-            if (!sheetEl) return;
-
-            if (window.bootstrap && bootstrap.Offcanvas) {
-                var sheet = bootstrap.Offcanvas.getInstance(sheetEl) || new bootstrap.Offcanvas(sheetEl);
-                document.body.classList.add('avd-mobile-tools-open');
-                sheet.show();
-            } else {
-                sheetEl.classList.add('show', 'avd-mobile-sheet-fallback-open');
-                sheetEl.setAttribute('aria-modal', 'true');
-                sheetEl.setAttribute('role', 'dialog');
-                sheetEl.style.visibility = 'visible';
-                sheetEl.style.transform = 'translateY(0)';
-                document.body.classList.add('avd-mobile-tools-open');
-                var moreButton = document.getElementById('avdMoreToolsBtn');
-                if (moreButton) moreButton.setAttribute('aria-expanded', 'true');
-
-                var backdrop = document.getElementById('avdMobileToolsBackdrop');
-                if (!backdrop) {
-                    backdrop = document.createElement('div');
-                    backdrop.id = 'avdMobileToolsBackdrop';
-                    backdrop.className = 'avd-mobile-sheet-fallback-backdrop';
-                    backdrop.addEventListener('click', window.avdCloseMobileTools);
-                    document.body.appendChild(backdrop);
-                }
-
-                var closeButton = sheetEl.querySelector('.btn-close');
-                if (closeButton) window.setTimeout(function() { closeButton.focus(); }, 0);
-            }
-
-            if (window.AvdAudio) window.AvdAudio.playClick();
-        };
-
-        // Prevent the desktop dropup's delegated Bootstrap handler from also
-        // running after the mobile trigger has opened the sheet.
-        (function bindMobileCinemaControls() {
-            var moreButton = document.getElementById('avdMoreToolsBtn');
-            var sheetEl = document.getElementById('avdMobileToolsSheet');
-            if (moreButton) {
-                moreButton.addEventListener('click', function(event) {
-                    if (window.innerWidth < 768) {
-                        event.preventDefault();
-                        event.stopImmediatePropagation();
-                        window.avdOpenMobileTools();
-                    }
-                }, true);
-            }
-            if (sheetEl) {
-                sheetEl.addEventListener('hidden.bs.offcanvas', function() {
-                    document.body.classList.remove('avd-mobile-tools-open');
-                });
-            }
-        }());
-
-        // Keep the desktop menu inside the visual viewport when the trigger is
-        // near an edge. The mobile path is always the bottom sheet above.
-        function avdClampCinemaDropdown(menu) {
-            if (!menu || window.innerWidth < 768 || !menu.classList.contains('show')) return;
-            menu.style.translate = '0 0';
-            var rect = menu.getBoundingClientRect();
-            var gutter = 8;
-            var dx = rect.left < gutter ? gutter - rect.left : (rect.right > window.innerWidth - gutter ? (window.innerWidth - gutter) - rect.right : 0);
-            var dy = rect.top < gutter ? gutter - rect.top : (rect.bottom > window.innerHeight - gutter ? (window.innerHeight - gutter) - rect.bottom : 0);
-            if (dx || dy) menu.style.translate = dx + 'px ' + dy + 'px';
-        }
-
-        document.addEventListener('shown.bs.dropdown', function(event) {
-            var menu = event.target && event.target.parentElement ? event.target.parentElement.querySelector('.avd-cinema-dropdown-menu') : null;
-            window.setTimeout(function() { avdClampCinemaDropdown(menu); }, 0);
-        });
-        window.addEventListener('resize', function() {
-            var openMenu = document.querySelector('.avd-cinema-dropdown-menu.show');
-            avdClampCinemaDropdown(openMenu);
-        }, { passive: true });
-
-        window.avdSetVideoFilter = function(preset, btn) {
-            var frame = document.querySelector('.avd-player-frame');
-            if (!frame) return;
-            avdFilters.forEach(function(f) {
-                frame.classList.remove('avd-filter-' + f);
-            });
-            if (preset !== 'normal') {
-                frame.classList.add('avd-filter-' + preset);
-            }
-            avdCurrentFilterIdx = avdFilters.indexOf(preset);
-            if (avdCurrentFilterIdx === -1) avdCurrentFilterIdx = 0;
-
-            // Update badge & chips in menu & mobile sheet
-            var badge = document.getElementById('avdCurrentFilterBadge');
-            if (badge) badge.textContent = avdFilterNames[preset] || preset;
-            var mobBadge = document.getElementById('avdMobileFilterBadge');
-            if (mobBadge) mobBadge.textContent = avdFilterNames[preset] || preset;
-            var dockLabel = document.getElementById('avdFilterLabel');
-            if (dockLabel) dockLabel.textContent = preset === 'normal' ? '{{ __("Filter") }}' : (avdFilterNames[preset] || preset);
-            var dockBtn = document.getElementById('avdFilterBtn');
-            if (dockBtn) {
-                dockBtn.classList.toggle('active', preset !== 'normal');
-                dockBtn.title = '{{ __("Cinema Color Grading") }}: ' + (avdFilterNames[preset] || preset) + ' (C)';
-            }
-
-            // Telemetry modal update
-            var telemFilter = document.getElementById('avdTelemFilter');
-            if (telemFilter) telemFilter.textContent = (avdFilterNames[preset] || preset) + ' (Active)';
-
-            document.querySelectorAll('.avd-filter-chip, .avd-mob-filter-chip').forEach(function(chip) {
-                chip.classList.remove('active', 'btn-primary');
-                chip.classList.add('btn-outline-secondary');
-            });
-            document.querySelectorAll('.avd-filter-chip[onclick*="' + preset + '"], .avd-mob-filter-chip[onclick*="' + preset + '"]').forEach(function(chip) {
-                chip.classList.add('active', 'btn-primary');
-                chip.classList.remove('btn-outline-secondary');
-            });
-
-            if (window.AvdAudio) window.AvdAudio.playWhoosh();
-            if (window.showCopyToast) window.showCopyToast('🎨 Filter: ' + (avdFilterNames[preset] || preset));
-        };
-
-        // Mirror the persisted appearance filter in both control surfaces on
-        // first paint; clicking a chip continues to use the interactive cycle.
-        (function() {
-            var preset = avdConfiguredFilter;
-            var label = avdFilterNames[preset] || preset;
-            ['avdCurrentFilterBadge', 'avdMobileFilterBadge'].forEach(function(id) {
-                var badge = document.getElementById(id);
-                if (badge) badge.textContent = label;
-            });
-            var telemetry = document.getElementById('avdTelemFilter');
-            if (telemetry) telemetry.textContent = label + ' (Active)';
-            document.querySelectorAll('.avd-filter-chip, .avd-mob-filter-chip').forEach(function(chip) {
-                var active = chip.getAttribute('onclick') && chip.getAttribute('onclick').indexOf("'" + preset + "'") !== -1;
-                chip.classList.toggle('active', active);
-                chip.classList.toggle('btn-primary', active);
-                chip.classList.toggle('btn-outline-secondary', !active);
-            });
-        }());
-
-        window.avdCycleVideoFilter = function() {
-            avdCurrentFilterIdx = (avdCurrentFilterIdx + 1) % avdFilters.length;
-            var nextPreset = avdFilters[avdCurrentFilterIdx];
-            var targetBtn = document.querySelector('.avd-filter-chip[onclick*="' + nextPreset + '"]');
-            window.avdSetVideoFilter(nextPreset, targetBtn);
-        };
-
-        // Frame Rotation Engine (Works 100% on Upload18 iframe & HTML5!)
-        var avdRotations = [0, 90, 180, 270];
-        var avdCurrentRotation = 0;
-        window.avdRotateVideo = function(deg, btn) {
-            var frame = document.querySelector('.avd-player-frame');
-            if (!frame) return;
-            avdRotations.forEach(function(r) {
-                if (r !== 0) frame.classList.remove('avd-rotate-' + r);
-            });
-            if (deg !== 0) {
-                frame.classList.add('avd-rotate-' + deg);
-            }
-            avdCurrentRotation = deg;
-            var badge = document.getElementById('avdCurrentRotationBadge');
-            if (badge) badge.textContent = deg + '°';
-            var mobRotateBadge = document.getElementById('avdMobileRotateBadge');
-            if (mobRotateBadge) mobRotateBadge.textContent = deg + '°';
-
-            document.querySelectorAll('.avd-rotate-chip, .avd-mob-rotate-chip').forEach(function(c) {
-                c.classList.remove('active', 'btn-primary');
-                c.classList.add('btn-outline-secondary');
-            });
-            document.querySelectorAll('.avd-rotate-chip[onclick*="' + deg + '"], .avd-mob-rotate-chip[onclick*="' + deg + '"]').forEach(function(c) {
-                c.classList.add('active', 'btn-primary');
-                c.classList.remove('btn-outline-secondary');
-            });
-
-            if (window.AvdAudio) window.AvdAudio.playWhoosh();
-            if (window.showCopyToast) window.showCopyToast('🔄 Frame Rotation: ' + deg + '°');
-        };
-
-        window.avdCycleRotation = function() {
-            var nextIdx = (avdRotations.indexOf(avdCurrentRotation) + 1) % avdRotations.length;
-            var nextDeg = avdRotations[nextIdx];
-            var targetBtn = document.querySelector('.avd-rotate-chip[onclick*="' + nextDeg + '"]');
-            window.avdRotateVideo(nextDeg, targetBtn);
-        };
-
-        // Screen Brightness Engine (Works 100% on Upload18 iframe & HTML5!)
-        window.avdSetBrightness = function(level, btn) {
-            var frame = document.querySelector('.avd-player-frame');
-            if (!frame) return;
-            frame.classList.remove('avd-bright-boost', 'avd-bright-dim');
-            if (level === 'boost') frame.classList.add('avd-bright-boost');
-            if (level === 'dim') frame.classList.add('avd-bright-dim');
-
-            var badge = document.getElementById('avdCurrentBrightBadge');
-            if (badge) badge.textContent = level === 'boost' ? '+15%' : (level === 'dim' ? '-15%' : 'Normal');
-            var mobBrightBadge = document.getElementById('avdMobileBrightBadge');
-            if (mobBrightBadge) mobBrightBadge.textContent = level === 'boost' ? '+15%' : (level === 'dim' ? '-15%' : 'Normal');
-
-            document.querySelectorAll('.avd-bright-chip, .avd-mob-bright-chip').forEach(function(c) {
-                c.classList.remove('active', 'btn-primary');
-                c.classList.add('btn-outline-secondary');
-            });
-            document.querySelectorAll('.avd-bright-chip[onclick*="' + level + '"], .avd-mob-bright-chip[onclick*="' + level + '"]').forEach(function(c) {
-                c.classList.add('active', 'btn-primary');
-                c.classList.remove('btn-outline-secondary');
-            });
-
-            if (window.AvdAudio) window.AvdAudio.playClick();
-            if (window.showCopyToast) window.showCopyToast('☀️ Brightness: ' + (level === 'boost' ? '+15%' : (level === 'dim' ? '-15%' : 'Normal')));
-        };
-
-        // Ambilight Multi-Glow Engine (Works 100% on Upload18 iframe & HTML5!)
-        var avdAmbiModes = ['theme', 'pulse', 'neon', 'warm'];
-        window.avdSetAmbiMode = function(mode, btn) {
-            if (!avdAmbientGlowAllowed) return;
-            var glow = document.getElementById('avdAmbilightGlow');
-            if (!glow) return;
-            glow.classList.remove('glow-pulse', 'glow-neon', 'glow-warm');
-            if (mode === 'pulse') glow.classList.add('glow-pulse');
-            if (mode === 'neon') glow.classList.add('glow-neon');
-            if (mode === 'warm') glow.classList.add('glow-warm');
-
-            var names = {'theme': 'Theme', 'pulse': 'Pulse', 'neon': 'Neon', 'warm': 'Warm'};
-            var badge = document.getElementById('avdCurrentAmbiBadge');
-            if (badge) badge.textContent = names[mode] || mode;
-            var mobAmbiBadge = document.getElementById('avdMobileAmbiBadge');
-            if (mobAmbiBadge) mobAmbiBadge.textContent = names[mode] || mode;
-
-            document.querySelectorAll('.avd-ambi-chip, .avd-mob-ambi-chip').forEach(function(c) {
-                c.classList.remove('active', 'btn-primary');
-                c.classList.add('btn-outline-secondary');
-            });
-            document.querySelectorAll('.avd-ambi-chip[onclick*="' + mode + '"], .avd-mob-ambi-chip[onclick*="' + mode + '"]').forEach(function(c) {
-                c.classList.add('active', 'btn-primary');
-                c.classList.remove('btn-outline-secondary');
-            });
-
-            window.avdToggleAmbilight(true);
-            if (window.AvdAudio) window.AvdAudio.playChime();
-            if (window.showCopyToast) window.showCopyToast('✨ Ambilight Glow: ' + (names[mode] || mode));
-        };
-
-        // Embed Code Generator (Opens modal & pre-populates iframe code)
-        window.avdOpenEmbedModal = function() {
-            var modalEl = document.getElementById('avdEmbedModal');
-            if (!modalEl || typeof bootstrap === 'undefined') return;
-            var ta = document.getElementById('avdEmbedCodeTextarea');
-            if (ta) {
-                var embedUrl = '{{ route("video.embed", ["video" => $video->uuid]) }}';
-                ta.value = '<iframe src="' + embedUrl + '" width="100%" height="480" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>';
-            }
-            var modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
-            modal.show();
-            if (window.AvdAudio) window.AvdAudio.playClick();
-        };
-
-        window.avdCopyEmbedCode = function() {
-            var ta = document.getElementById('avdEmbedCodeTextarea');
-            if (!ta) return;
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(ta.value).then(function() {
-                    if (window.showCopyToast) window.showCopyToast('📋 {{ __("Embed code copied to clipboard!") }}');
-                    if (window.AvdAudio) window.AvdAudio.playChime();
-                });
-            } else {
-                ta.select();
-                document.execCommand('copy');
-                if (window.showCopyToast) window.showCopyToast('📋 {{ __("Embed code copied!") }}');
-            }
-        };
-
-        // Sticky Mini Watch Bar. It shows once the page has scrolled past
-        // max(450px, player bottom - 50px): scrollY > 450 and the player's
-        // bottom edge above 50px from the viewport top. Two IntersectionObservers
-        // track both edges, so scrolling runs no script here and the class is only
-        // written on a transition. The 450px sentinel spans the document top, so it
-        // is in view at scrollY 0 on any viewport height and every crossing of 450
-        // flips it, jumps included (scroll restoration, End key, scrollbar drag);
-        // an edge-adjacent target still intersects, so it reproduces scrollY > 450
-        // exactly. overflow-anchor:none keeps it from becoming the scroll anchor (it
-        // never moves with the content). Zen mode hides the bar through CSS
-        // (body.avd-zen-mode #avdStickyWatchBar).
-        var avdStickyBar = document.getElementById('avdStickyWatchBar');
-        var avdStickyPlayerWrapper = document.getElementById('avdPlayerWrapper');
-        var avdStickyVisible = false;
-        var avdStickyPast450 = false;
-        var avdStickyPlayerAbove = !avdStickyPlayerWrapper;
-        function avdSetStickyWatchBar(shouldShow) {
-            if (shouldShow === avdStickyVisible) return;
-            avdStickyVisible = shouldShow;
-            avdStickyBar.classList.toggle('d-none', !shouldShow);
-        }
-        if (avdStickyBar && typeof window.IntersectionObserver === 'function') {
-            var avdStickySentinel = document.createElement('div');
-            avdStickySentinel.setAttribute('aria-hidden', 'true');
-            avdStickySentinel.style.cssText = 'position:absolute;top:0;left:0;width:1px;height:450px;pointer-events:none;overflow-anchor:none';
-            document.body.insertBefore(avdStickySentinel, document.body.firstChild);
-            new IntersectionObserver(function(entries) {
-                var entry = entries[entries.length - 1];
-                avdStickyPast450 = !entry.isIntersecting;
-                avdSetStickyWatchBar(avdStickyPast450 && avdStickyPlayerAbove);
-            }).observe(avdStickySentinel);
-            if (avdStickyPlayerWrapper) {
-                new IntersectionObserver(function(entries) {
-                    var entry = entries[entries.length - 1];
-                    avdStickyPlayerAbove = !entry.isIntersecting && entry.boundingClientRect.bottom < 50;
-                    avdSetStickyWatchBar(avdStickyPast450 && avdStickyPlayerAbove);
-                }, { rootMargin: '-50px 0px 0px 0px' }).observe(avdStickyPlayerWrapper);
-            }
-        } else if (avdStickyBar) {
-            // Without IntersectionObserver: one rAF-coalesced check per scroll, with
-            // the threshold measured at start and on resize (engines without
-            // IntersectionObserver have no ResizeObserver either).
-            var avdStickyFrame = 0;
-            var avdStickyThreshold = 450;
-            var avdStickyNeedsMeasure = true;
-            var avdUpdateStickyWatchBar = function() {
-                avdStickyFrame = 0;
-                if (avdStickyNeedsMeasure) {
-                    if (avdStickyPlayerWrapper) {
-                        avdStickyThreshold = Math.max(450, window.scrollY + avdStickyPlayerWrapper.getBoundingClientRect().bottom - 50);
-                    }
-                    avdStickyNeedsMeasure = false;
-                }
-                avdSetStickyWatchBar(window.scrollY > avdStickyThreshold);
-            };
-            var avdRequestStickyWatchBarUpdate = function(measure) {
-                if (measure) avdStickyNeedsMeasure = true;
-                if (avdStickyFrame) return;
-                avdStickyFrame = window.requestAnimationFrame(avdUpdateStickyWatchBar);
-            };
-            window.addEventListener('scroll', function() { avdRequestStickyWatchBarUpdate(false); }, { passive: true });
-            window.addEventListener('resize', function() { avdRequestStickyWatchBarUpdate(true); }, { passive: true });
-            avdRequestStickyWatchBarUpdate(true);
-        }
-
-        // Mirror Flip View (100% works on Upload18 iframe & HTML5)
-        window.avdToggleMirror = function() {
-            var frame = document.querySelector('.avd-player-frame');
-            var btn = document.getElementById('avdMirrorBtn');
-            var telemMirror = document.getElementById('avdTelemMirror');
-            if (!frame) return;
-            var isMirrored = frame.classList.toggle('avd-mirrored');
-            if (btn) btn.classList.toggle('active', isMirrored);
-            if (telemMirror) {
-                telemMirror.textContent = isMirrored ? 'Mirrored (Flipped)' : 'Standard';
-                telemMirror.className = 'badge ' + (isMirrored ? 'bg-warning text-dark' : 'bg-secondary-subtle text-secondary');
-            }
-            if (window.AvdAudio) window.AvdAudio.playClick();
-            if (window.showCopyToast) window.showCopyToast(isMirrored ? '🪞 {{ __("Mirror Flip: On") }}' : '🪞 {{ __("Mirror Flip: Off") }}');
-        };
-
-        // True Fullscreen Engine with iOS Safari pseudo-fullscreen fallback
-        window.avdToggleFullscreen = function() {
-            var shell = document.getElementById('avdMainPlayerShell') || document.querySelector('.avd-player-frame');
-            if (!shell) return;
-
-            // Check if native video element has webkitEnterFullscreen (iOS Safari native video)
-            var videoEl = document.querySelector('.avd-player-frame video, #player video');
-            if (videoEl && videoEl.webkitEnterFullscreen && !document.fullscreenElement) {
-                try {
-                    videoEl.webkitEnterFullscreen();
-                    return;
-                } catch(e){}
-            }
-
-            if (!document.fullscreenElement && !document.webkitFullscreenElement && !shell.classList.contains('avd-ios-fullscreen')) {
-                var enterFallback = function() {
-                    shell.classList.add('avd-ios-fullscreen');
-                    document.body.classList.add('avd-fullscreen-active');
+    var avdPipAllowed = @json((bool) $watchFloatingMiniPlayerEnabled);
+    (function (w) {
+        var names = ['avdAcceptResume', 'avdCaptureFrame', 'avdCloseMobileTools', 'avdCopyEmbedCode', 'avdCopyNotes', 'avdCycleAspectRatio', 'avdCycleAudioBoost', 'avdCycleVideoFilter', 'avdDismissResume', 'avdDownloadNotes', 'avdInsertNoteTimestamp', 'avdOpenEmbedModal', 'avdOpenMobileTools', 'avdReloadPlayer', 'avdResumeFromSleep', 'avdRotateVideo', 'avdSaveNotes', 'avdSetAmbiMode', 'avdSetBrightness', 'avdSetSleepTimer', 'avdSetVideoFilter', 'avdToggleAmbilight', 'avdToggleFullscreen', 'avdToggleLoop', 'avdToggleMirror', 'avdToggleNotes', 'avdTogglePip', 'avdToggleSleepTimerModal', 'avdToggleTelemetryModal', 'avdToggleVisualizer', 'avdToggleZenMode'];
+        for (var i = 0; i < names.length; i++) {
+            (function (name) {
+                if (typeof w[name] === 'function') return;
+                var stub = function () {
+                    (w.__avdWatchQ = w.__avdWatchQ || []).push([name, Array.prototype.slice.call(arguments)]);
                 };
-
-                if (shell.requestFullscreen) {
-                    shell.requestFullscreen().catch(enterFallback);
-                } else if (shell.webkitRequestFullscreen) {
-                    try {
-                        shell.webkitRequestFullscreen();
-                    } catch(e) {
-                        enterFallback();
-                    }
-                } else if (shell.msRequestFullscreen) {
-                    shell.msRequestFullscreen();
-                } else {
-                    enterFallback();
-                }
-                if (window.AvdAudio) window.AvdAudio.playWhoosh();
-                if (window.showCopyToast) window.showCopyToast('⛶ {{ __("Fullscreen Active") }}');
-            } else {
-                if (shell.classList.contains('avd-ios-fullscreen')) {
-                    shell.classList.remove('avd-ios-fullscreen');
-                    document.body.classList.remove('avd-fullscreen-active');
-                } else if (document.exitFullscreen) {
-                    document.exitFullscreen().catch(function(){});
-                } else if (document.webkitExitFullscreen) {
-                    document.webkitExitFullscreen();
-                }
-                if (window.AvdAudio) window.AvdAudio.playClick();
-                if (window.showCopyToast) window.showCopyToast('⛶ {{ __("Fullscreen Exited") }}');
-            }
-        };
-
-        // Zen Focus Immersion Engine (Shortcut: Shift+F or ESC)
-        window.avdToggleZenMode = function() {
-            var isZen = document.body.classList.toggle('avd-zen-mode');
-            var btn = document.getElementById('avdZenBtn');
-            if (btn) btn.classList.toggle('active', isZen);
-            if (window.AvdAudio) window.AvdAudio.playWhoosh();
-            if (window.showCopyToast) {
-                window.showCopyToast(isZen ? '🧘 {{ __("Zen Immersion Active (Shift+F or ESC to exit)") }}' : '🧘 {{ __("Zen Immersion Exited") }}');
-            }
-        };
-
-        // Video details modal (Shortcut: I)
-        window.avdToggleTelemetryModal = function() {
-            var modalEl = document.getElementById('avdTelemetryModal');
-            if (!modalEl || typeof bootstrap === 'undefined') return;
-            var modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
-            modal.show();
-            if (window.AvdAudio) window.AvdAudio.playClick();
-        };
-
-        // Smart Runtime Detection of Player Engine (Iframe vs Native HTML5)
-        function avdUpdatePlayerCapabilities() {
-            var vid = document.querySelector('video');
-            var ifr = document.querySelector('.avd-player-frame iframe') || document.querySelector('iframe');
-            var isIframe = !vid && !!ifr;
-            var badge = document.getElementById('avdPlayerTypeBadge');
-            var iframeNotice = document.getElementById('avdIframeHelperNotice');
-            var html5Tools = document.getElementById('avdHtml5OnlyTools');
-
-            if (badge) {
-                badge.textContent = isIframe ? 'Upload18 Stream' : (vid ? 'HTML5 Native' : 'Player Ready');
-                badge.className = 'badge rounded-pill ' + (isIframe ? 'bg-primary-subtle text-primary border border-primary-subtle' : 'bg-success-subtle text-success border border-success-subtle');
-            }
-            var mobBadge = document.getElementById('avdMobilePlayerTypeBadge');
-            if (mobBadge) {
-                mobBadge.textContent = isIframe ? 'Upload18 Stream' : (vid ? 'HTML5 Native' : 'Player Ready');
-                mobBadge.className = 'badge rounded-pill ' + (isIframe ? 'bg-primary-subtle text-primary border border-primary-subtle' : 'bg-success-subtle text-success border border-success-subtle');
-            }
-
-            if (iframeNotice) {
-                if (isIframe) {
-                    iframeNotice.classList.remove('d-none');
-                } else {
-                    iframeNotice.classList.add('d-none');
-                }
-            }
-
-            if (html5Tools) {
-                if (vid) {
-                    html5Tools.classList.remove('d-none');
-                } else {
-                    html5Tools.classList.add('d-none');
-                }
-            }
-
+                stub.avdQueued = true;
+                w[name] = stub;
+            })(names[i]);
         }
-
-        document.addEventListener('DOMContentLoaded', function() {
-            setTimeout(avdUpdatePlayerCapabilities, 1200);
-            setTimeout(avdUpdatePlayerCapabilities, 3500);
-        });
-
-        // Audio Spectrum Visualizer Controller (Shortcut: V)
-        var avdVisualizerActive = false;
-        var avdVisualizerAnimId = null;
-        var avdVisualizerBars = 48;
-
-        window.avdToggleVisualizer = function() {
-            avdVisualizerActive = !avdVisualizerActive;
-            var canvas = document.getElementById('avdVisualizerCanvas');
-            var btn = document.getElementById('avdVisualizerBtn');
-            if (!canvas) return;
-
-            if (btn) {
-                btn.classList.toggle('active', avdVisualizerActive);
-                btn.classList.toggle('text-info', avdVisualizerActive);
-            }
-
-            if (avdVisualizerActive) {
-                canvas.style.opacity = '0.85';
-                if (window.AvdAudio) window.AvdAudio.playChime();
-                if (window.showCopyToast) window.showCopyToast('📊 {{ __("Audio Spectrum Visualizer: Active") }}');
-                avdStartVisualizerAnimation();
-            } else {
-                canvas.style.opacity = '0';
-                if (avdVisualizerAnimId) {
-                    cancelAnimationFrame(avdVisualizerAnimId);
-                    avdVisualizerAnimId = null;
-                }
-                var ctx = canvas.getContext('2d');
-                if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
-                if (window.AvdAudio) window.AvdAudio.playClick();
-                if (window.showCopyToast) window.showCopyToast('📊 {{ __("Audio Spectrum Visualizer: Off") }}');
-            }
-        };
-
-        function avdStartVisualizerAnimation() {
-            var canvas = document.getElementById('avdVisualizerCanvas');
-            if (!canvas) return;
-            var ctx = canvas.getContext('2d');
-            var phase = 0;
-
-            function render() {
-                if (!avdVisualizerActive) return;
-                var vid = document.querySelector('video');
-                var isPlaying = vid && !vid.paused && vid.currentTime > 0;
-
-                if (canvas.width !== canvas.clientWidth) canvas.width = canvas.clientWidth || 800;
-                if (canvas.height !== 50) canvas.height = 50;
-
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-                var barWidth = canvas.width / avdVisualizerBars;
-                phase += isPlaying ? 0.08 : 0.02;
-
-                var grad = ctx.createLinearGradient(0, canvas.height, 0, 0);
-                grad.addColorStop(0, 'rgba(56, 189, 248, 0.2)');
-                grad.addColorStop(0.5, 'rgba(168, 85, 247, 0.7)');
-                grad.addColorStop(1, 'rgba(236, 72, 153, 0.95)');
-
-                for (var i = 0; i < avdVisualizerBars; i++) {
-                    var factor = Math.sin(i * 0.25 + phase) * 0.5 + 0.5;
-                    var harmonic = Math.cos(i * 0.4 - phase * 1.5) * 0.3;
-                    var rawHeight = (factor + harmonic) * (canvas.height - 8);
-                    if (!isPlaying) rawHeight = Math.max(3, rawHeight * 0.25);
-                    var barH = Math.max(2, rawHeight);
-
-                    var x = i * barWidth;
-                    var y = canvas.height - barH;
-
-                    ctx.fillStyle = grad;
-                    ctx.fillRect(x + 1, y, Math.max(1, barWidth - 2), barH);
-
-                    // Peak glowing cap dot
-                    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-                    ctx.fillRect(x + 1, Math.max(0, y - 2), Math.max(1, barWidth - 2), 2);
-                }
-
-                avdVisualizerAnimId = requestAnimationFrame(render);
-            }
-
-            if (avdVisualizerAnimId) cancelAnimationFrame(avdVisualizerAnimId);
-            render();
-        }
-
-        // Video Timestamp Notes & Scratchpad Controller (Shortcut: N)
-        var avdNotesStorageKey = 'avd_notes_' + avdVideoUuid;
-
-        window.avdToggleNotes = function() {
-            var modalEl = document.getElementById('avdNotesModal');
-            if (!modalEl) return;
-            var modal = bootstrap.Modal.getInstance(modalEl);
-            if (!modal) modal = new bootstrap.Modal(modalEl);
-
-            var isShown = modalEl.classList.contains('show');
-            if (isShown) {
-                modal.hide();
-            } else {
-                var ta = document.getElementById('avdNotesTextarea');
-                if (ta) {
-                    try {
-                        ta.value = localStorage.getItem(avdNotesStorageKey) || '';
-                    } catch(e) {}
-                }
-                modal.show();
-                if (window.AvdAudio) window.AvdAudio.playClick();
-                setTimeout(function() { if (ta) ta.focus(); }, 350);
-            }
-        };
-
-        window.avdInsertNoteTimestamp = function() {
-            var vid = document.querySelector('video');
-            var curTime = (vid && vid.currentTime) ? vid.currentTime : 0;
-            var timeStr = avdFormatTime(curTime);
-            var ta = document.getElementById('avdNotesTextarea');
-            if (!ta) return;
-
-            var insertText = (ta.value.length > 0 && !ta.value.endsWith('\n') ? '\n' : '') + '⏱️ [' + timeStr + '] ';
-            var startPos = ta.selectionStart !== undefined ? ta.selectionStart : ta.value.length;
-            var endPos = ta.selectionEnd !== undefined ? ta.selectionEnd : ta.value.length;
-
-            ta.value = ta.value.substring(0, startPos) + insertText + ta.value.substring(endPos);
-            ta.selectionStart = ta.selectionEnd = startPos + insertText.length;
-            ta.focus();
-            window.avdSaveNotes();
-            if (window.AvdAudio) window.AvdAudio.playChime();
-        };
-
-        window.avdSaveNotes = function() {
-            var ta = document.getElementById('avdNotesTextarea');
-            if (!ta) return;
-            try {
-                localStorage.setItem(avdNotesStorageKey, ta.value);
-            } catch(e) {}
-        };
-
-        window.avdCopyNotes = function() {
-            var ta = document.getElementById('avdNotesTextarea');
-            if (!ta || !ta.value.trim()) {
-                if (window.showCopyToast) window.showCopyToast('⚠️ {{ __("No notes to copy yet") }}');
-                return;
-            }
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(ta.value).then(function() {
-                    if (window.showCopyToast) window.showCopyToast('📋 {{ __("Notes copied to clipboard!") }}');
-                    if (window.AvdAudio) window.AvdAudio.playChime();
-                });
-            } else {
-                ta.select();
-                document.execCommand('copy');
-                if (window.showCopyToast) window.showCopyToast('📋 {{ __("Notes copied!") }}');
-                if (window.AvdAudio) window.AvdAudio.playChime();
-            }
-        };
-
-        window.avdDownloadNotes = function() {
-            var ta = document.getElementById('avdNotesTextarea');
-            var text = ta ? ta.value : '';
-            if (!text.trim()) {
-                if (window.showCopyToast) window.showCopyToast('⚠️ {{ __("No notes to export yet") }}');
-                return;
-            }
-            var blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
-            var url = URL.createObjectURL(blob);
-            var a = document.createElement('a');
-            a.href = url;
-            a.download = 'video_' + avdVideoUuid.substring(0, 8) + '_notes.txt';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-            if (window.showCopyToast) window.showCopyToast('💾 {{ __("Notes exported as .txt!") }}');
-            if (window.AvdAudio) window.AvdAudio.playChime();
-        };
-
-        function avdGetVideo() {
-            var v = document.querySelector('video');
-            if (v) return v;
-            var ifrs = document.querySelectorAll('iframe');
-            for (var i = 0; i < ifrs.length; i++) {
-                try {
-                    var iv = ifrs[i].contentDocument?.querySelector('video') || ifrs[i].contentWindow?.document?.querySelector('video');
-                    if (iv) return iv;
-                } catch(e) {}
-            }
-            return null;
-        }
-
-        // Floating Volume HUD & Arrow Key Controller
-        var avdVolumeHudTimer = null;
-        window._avdVirtualVolume = 1.0;
-        window.avdAdjustVolume = function(delta) {
-            var vid = avdGetVideo();
-            var curVol = vid ? vid.volume : (window._avdVirtualVolume !== undefined ? window._avdVirtualVolume : 1.0);
-            if (vid && vid.muted) vid.muted = false;
-            var newVol = Math.max(0, Math.min(1, Math.round((curVol + delta) * 100) / 100));
-            window._avdVirtualVolume = newVol;
-            if (vid) vid.volume = newVol;
-
-            var hud = document.getElementById('avdVolumeHud');
-            var text = document.getElementById('avdVolumeText');
-            var bar = document.getElementById('avdVolumeBar');
-            var icon = document.getElementById('avdVolumeIcon');
-            var pct = Math.round(newVol * 100);
-
-            if (text) text.textContent = pct + '%';
-            if (bar) bar.style.width = pct + '%';
-            if (icon) {
-                icon.className = pct === 0 ? 'fa-solid fa-volume-xmark text-danger' :
-                                 (pct < 50 ? 'fa-solid fa-volume-low text-info' : 'fa-solid fa-volume-high text-info');
-            }
-
-            if (hud) {
-                hud.style.opacity = '1';
-                hud.style.transform = 'translate(-50%, -50%) scale(1)';
-                if (avdVolumeHudTimer) clearTimeout(avdVolumeHudTimer);
-                avdVolumeHudTimer = setTimeout(function() {
-                    hud.style.opacity = '0';
-                    hud.style.transform = 'translate(-50%, -50%) scale(0.9)';
-                }, 1100);
-            }
-            if (window.AvdAudio) window.AvdAudio.playClick();
-        };
-
-        // Floating Seek HUD Controller
-        var avdSeekHudTimer = null;
-        window._avdVirtualTime = 0;
-        window.avdRelativeSeek = function(deltaSecs) {
-            var vid = avdGetVideo();
-            var curTime = vid ? vid.currentTime : (window._avdVirtualTime || 0);
-            var maxTime = (vid && vid.duration) ? vid.duration : 999999;
-            var targetTime = Math.max(0, Math.min(maxTime, curTime + deltaSecs));
-            window._avdVirtualTime = targetTime;
-            if (vid) vid.currentTime = targetTime;
-
-            var hud = document.getElementById('avdSeekHud');
-            var text = document.getElementById('avdSeekText');
-            var icon = document.getElementById('avdSeekIcon');
-
-            if (text) {
-                var sign = deltaSecs > 0 ? '+' : '';
-                text.textContent = sign + deltaSecs + 's (' + avdFormatTime(targetTime) + ')';
-            }
-            if (icon) {
-                icon.innerHTML = deltaSecs > 0 ? '<i class="fa-solid fa-forward text-warning"></i>' : '<i class="fa-solid fa-backward text-warning"></i>';
-            }
-
-            if (hud) {
-                hud.style.opacity = '1';
-                hud.style.transform = 'translate(-50%, -50%) scale(1)';
-                if (avdSeekHudTimer) clearTimeout(avdSeekHudTimer);
-                avdSeekHudTimer = setTimeout(function() {
-                    hud.style.opacity = '0';
-                    hud.style.transform = 'translate(-50%, -50%) scale(0.9)';
-                }, 1100);
-            }
-            if (window.AvdAudio) window.AvdAudio.playWhoosh();
-        };
-
-        // Smart Playback Resume Engine
-        var avdResumeStorageKey = 'avd_resume_' + avdVideoUuid;
-        var avdPendingResumeTime = 0;
-
-        try {
-            var savedPos = parseInt(localStorage.getItem(avdResumeStorageKey), 10);
-            if (!isNaN(savedPos) && savedPos > 10) {
-                avdPendingResumeTime = savedPos;
-                var banner = document.getElementById('avdResumeBanner');
-                var label = document.getElementById('avdResumeTimeLabel');
-                if (banner && label) {
-                    label.textContent = avdFormatTime(savedPos);
-                    banner.classList.remove('d-none');
-                    banner.classList.add('d-flex');
-                    setTimeout(function() {
-                        if (banner && !banner.classList.contains('d-none')) {
-                            banner.style.transition = 'opacity 0.4s ease, transform 0.4s ease';
-                            banner.style.opacity = '0';
-                            banner.style.transform = 'translateY(-16px)';
-                            setTimeout(function() { banner.classList.add('d-none'); }, 400);
-                        }
-                    }, 12000);
-                }
-            }
-        } catch(e) {}
-
-        window.avdAcceptResume = function() {
-            var banner = document.getElementById('avdResumeBanner');
-            if (banner) banner.classList.add('d-none');
-            var vid = document.querySelector('video');
-            if (vid && avdPendingResumeTime > 0) {
-                vid.currentTime = avdPendingResumeTime;
-                if (vid.paused) vid.play();
-                if (window.AvdAudio) window.AvdAudio.playWhoosh();
-                if (window.showCopyToast) window.showCopyToast('⏩ {{ __("Resumed playback from") }} ' + avdFormatTime(avdPendingResumeTime));
-            }
-        };
-
-        window.avdDismissResume = function() {
-            var banner = document.getElementById('avdResumeBanner');
-            if (banner) banner.classList.add('d-none');
-            if (window.AvdAudio) window.AvdAudio.playClick();
-        };
-
-        // Track playback position periodically for resume
-        setInterval(function() {
-            var vid = document.querySelector('video');
-            if (!vid || vid.paused || !vid.currentTime || !vid.duration) return;
-            if (vid.currentTime > 10 && vid.currentTime < vid.duration - 15) {
-                try {
-                    localStorage.setItem(avdResumeStorageKey, Math.floor(vid.currentTime));
-                } catch(e) {}
-            } else if (vid.currentTime >= vid.duration - 10) {
-                try {
-                    localStorage.removeItem(avdResumeStorageKey);
-                } catch(e) {}
-            }
-        }, 3000);
-
-        // Automatic PiP on scroll past the stable player slot. The provider's
-        // <video-player> mounts asynchronously, so bind it after each update.
-        avdPipInit();
-
-        // Active Playback Performance Engine: pause decorative animations when media plays
-        function avdSetPlaybackActive(active) {
-            document.body.classList.toggle('avd-playback-active', !!active);
-        }
-
-        window.addEventListener('message', function(e) {
-            if (!e.data || !avdPipFrame || e.source !== avdPipFrame.contentWindow) return;
-            avdPipBindMedia();
-            // A frame keeps its WindowProxy while navigating. Ignore queued
-            // messages from its old document until the current source loads.
-            if (!avdPipReady) return;
-            try {
-                var frameSource = avdPipFrameSource();
-                if (!frameSource) return;
-                var frameOrigin = frameSource.origin;
-                var approvedProviderOrigins = [
-                    'https://upload18.org', 'https://upload18.net', 'https://upload18.com',
-                    'https://upload18.cc', 'https://helvid.com', 'https://321watch.workers.dev'
-                ];
-                if (e.origin !== frameOrigin && approvedProviderOrigins.indexOf(e.origin) === -1) return;
-            } catch (originError) { return; }
-            try {
-                var data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
-                var evt = (data.event || data.type || (data.name ? data.name : '')).toString().toLowerCase();
-                if (/^(play|playing|timeupdate)$/.test(evt)) {
-                    avdPipMarkPlaying();
-                    avdSetPlaybackActive(true);
-                } else if (/^(pause|complete|ended|finish|stop)$/.test(evt)) {
-                    avdPipMarkPaused();
-                    avdSetPlaybackActive(false);
-                }
-            } catch(err) {}
-        });
-
-    })();
+    })(window);
 </script>
+<script type="application/json" id="avd-watch-tools">{!! json_encode($watchToolsSettings + ['ambientGlow' => (bool) $watchPlayerAmbientGlowEnabled], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) !!}</script>
+@if($watchToolsSrc)
+<script type="module" src="{{ $watchToolsSrc }}" data-avd-watch-tools></script>
+@endif
 @endpush

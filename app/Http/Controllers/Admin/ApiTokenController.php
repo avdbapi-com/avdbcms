@@ -27,13 +27,22 @@ class ApiTokenController
 
     public function destroy(int $id): RedirectResponse
     {
-        DB::table('personal_access_tokens')->where('id', $id)->delete();
-        return redirect()->route('admin.api-tokens.index')->withSuccess('Token revoked.');
+        if (DB::table('personal_access_tokens')->where('id', $id)->delete() > 0) {
+            AuditLogController::log('security.api_key.revoked', '#'.$id);
+        }
+
+        return redirect()->route('admin.api-tokens.index')->withSuccess(__('API key revoked'));
     }
 
     public function revokeAll(): RedirectResponse
     {
+        // no key to revoke: nothing written in Admin actions (judge R2CD-RV-03)
+        $revoked = DB::table('personal_access_tokens')->exists();
         DB::table('personal_access_tokens')->truncate();
-        return redirect()->route('admin.api-tokens.index')->withSuccess('All tokens revoked.');
+
+        if ($revoked) {
+            AuditLogController::log('security.api_keys.revoked');
+        }
+        return redirect()->route('admin.api-tokens.index')->withSuccess(__('All API keys revoked'));
     }
 }

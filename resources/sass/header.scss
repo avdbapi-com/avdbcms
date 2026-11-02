@@ -17,14 +17,8 @@
     gap: 0.6rem;
 }
 
-// Until Alpine starts, x-cloak hides the header's content (layout.blade.php: display none). Its box stays
-// instead, only hidden, so the header has its final height from the first paint and main and the sidebar
-// never move down when the content appears (load layout shift). The display is the one it gets afterwards
-// (grid below 992px, further down).
-.avd-header-inner[x-cloak] {
-    display: flex !important;
-    visibility: hidden;
-}
+// The header's content is never cloaked (perf-9: on weak phones it stayed invisible for 2-3 s after the page appeared,
+// until Alpine started). Only the mobile search panel, closed by default, waits for Alpine (x-cloak, layout.blade.php).
 
 .avd-header-brand-zone {
     min-width: 0;
@@ -74,8 +68,54 @@
     line-height: 1;
 }
 
+// Next to a pinned side menu the brand takes the menu's width, so the header lines up with it; with the Premium chip it
+// grows instead of cutting the name ("AVDBCM..." at 1366, account-25). The chip's room only where the chip shows (from
+// 660px, below): on phones the link holds only its mark, and the 240px floor centred that mark under the search button,
+// so a tap on the logo opened the search (R2A-002). Below 992px the header is the two-column grid (the brand zone, the
+// actions: see the end of this file), so the link grows into the room the actions leave, like the brand of the looks
+// without a pinned menu, and gives way with an ellipsis only when that is short. The cap is for the one-row bar from
+// 992px, where the search shares the row (below it, 40vw cut the name next to the chip at 640-759px while 65-140px of
+// the row stayed free: Space, Night City HUD).
 .navbar-brand.avd-brand.show_sidebar {
     width: 240px;
+}
+
+@media (min-width: 660px) {
+    .navbar-brand.avd-brand.show_sidebar.is-premium {
+        width: auto;
+        min-width: 240px;
+    }
+}
+
+@media (min-width: 992px) {
+    .navbar-brand.avd-brand.show_sidebar.is-premium {
+        max-width: min(26rem, 40vw);
+    }
+}
+
+// The header's Premium chip shows where the bar has room for the site's name and the chip together: from 660px, where
+// the name and the chip keep at least 12px to spare in every look and in the chip's every language (at 576-639px the
+// chip cut the name by 9-15px in most looks; at 640px, with the room the actions leave, Cinema Night in Japanese still
+// lacked 8px and Space in Russian 3px), and from 992px in Imperial Salon's crest bar, whose spaced capitals make the name
+// and the chip about 390px (the name was cut to "S..." at 576px and stayed cut up to 800px). Narrower, the account panel
+// still says "Premium account"; the side menu's own chip is not concerned.
+@media (max-width: 659.98px) {
+    .avd-header .avd-premium-chip {
+        display: none;
+    }
+}
+
+@media (max-width: 991.98px) {
+    html[data-avd-header-deco="crest"] .avd-header .avd-premium-chip {
+        display: none;
+    }
+}
+
+// On touch screens the brand link is a 44px tall target (its mark and one line of name left it 32-40px on tablets).
+@media (pointer: coarse) {
+    .navbar-brand.avd-brand {
+        min-height: 44px;
+    }
 }
 
 .avd-brand-mark {
@@ -97,20 +137,26 @@
     object-fit: contain;
 }
 
+// The brand's line is as tall as its font (line-height 1 on the link), so the clip of the ellipsis cut the descenders
+// of g, p and y ("Gypsy Playground"): the padding gives them room inside the clip, the margin keeps the box in place.
 .avd-brand-text {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    padding-block: 0.22em;
+    margin-block: -0.22em;
 }
 
+// The account type's pill, like the member kit's premium badge: the look's warning fill with its own label colour,
+// 4.5:1 in every look and mode (the warning ink on a 16% tint of itself read 3.9-4.4:1 in the light looks).
 .avd-premium-chip {
     display: inline-flex;
     align-items: center;
     gap: 0.35rem;
     padding: 0.25rem 0.55rem;
     border-radius: 999px;
-    background: rgba(var(--avd-warning-rgb), 0.16);
-    color: var(--avd-warning);
+    background: var(--avd-warning-fill, var(--avd-warning));
+    color: var(--avd-on-warning, #111);
     font-size: 0.72rem;
     font-weight: 900;
 }
@@ -146,9 +192,45 @@
     line-height: 1;
 }
 
+// The bell has the header's text colour like the other header icons (account-49: a grey bell read as disabled).
 .avd-notification-button .fa-bell {
-    color: var(--avd-muted);
+    color: inherit;
     font-size: 1rem;
+}
+
+// The bell (<site-notifications>, a component that renders after its chunk loads) keeps its box from the first paint
+// and shows its glyph meanwhile, so the header's actions never shift when it arrives and the member sees the bell at
+// once (account-20, watch-8, perf-12; it was missing for 6+ s on a slow server, 20-38 s on a weak phone).
+site-notifications {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-inline-size: 42px;
+    min-block-size: 42px;
+}
+
+site-notifications:not(:defined)::before {
+    content: "\f0f3";
+    font: var(--fa-font-solid, 900 1em "Font Awesome 6 Free");
+    font-size: 1rem;
+    color: inherit;
+    opacity: .85;
+}
+
+@media (max-width: 991.98px) {
+    site-notifications {
+        min-inline-size: 38px;
+        min-block-size: 38px;
+    }
+}
+
+// On touch screens the bell's button is a 44px target (responsive.scss), at every width: the box it keeps while it loads
+// is the same, so the header's actions no longer move 2-6px when it arrives.
+@media (hover: none), (pointer: coarse) {
+    site-notifications {
+        min-inline-size: 44px;
+        min-block-size: 44px;
+    }
 }
 
 .avd-notification-button:hover .fa-bell,
@@ -172,28 +254,6 @@
     box-shadow: 0 0 0 4px var(--avd-brand-soft);
 }
 
-.avd-notification-title-dot {
-    width: 0.55rem;
-    height: 0.55rem;
-    display: inline-block;
-    margin-inline-start: 0.42rem;
-    border-radius: 999px;
-    background: var(--avd-brand-fill);
-    box-shadow: 0 0 0 4px var(--avd-brand-soft);
-    vertical-align: middle;
-}
-
-.avd-notifications-panel {
-    width: min(380px, calc(100vw - 0.75rem)) !important;
-    border-inline-start: 1px solid var(--avd-border);
-    background: var(--avd-surface-solid);
-    color: var(--avd-text);
-}
-
-.avd-notifications-header {
-    background: var(--avd-surface);
-}
-
 .avd-upload-btn {
     max-width: 11rem;
     min-height: 42px;
@@ -203,16 +263,29 @@
     white-space: nowrap;
 }
 
-// Sign in / Register are the mockup's small header buttons (32px) whichever button style they use.
+// Sign in / Register are the mockup's small header buttons (32px) whichever button style they use. Long translations
+// keep their whole word ("Зарегистрироваться" was cut to "Зарегистриро..." at 10rem, auth-27), also in the looks
+// whose buttons are capitals with wide letter spacing ("GUMAWA NG ACCOUNT" in Imperial Salon needs about 17rem: it was
+// cut at 16rem). The cap only stops a very long label of the owner's own; the header row makes room (the search and
+// the brand zone give way first).
 .avd-auth-btn,
 .btn.avd-auth-btn {
-    max-width: 10rem;
+    max-width: 24rem;
     min-height: 32px;
     min-width: 0;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     white-space: nowrap;
+}
+
+// The two guest buttons share the look's button lettering (its case and letter spacing), as the member kit's secondary
+// buttons do: "Sign in" stood in small letters next to "CREATE ACCOUNT" in the looks with capital buttons (Imperial
+// Salon, Night City HUD). Languages without capitals keep theirs (the look's tokens are reset for them).
+.avd-header-actions .avd-auth-btn,
+:root .avd-header-actions .avd-auth-action > .mk-btn {
+    letter-spacing: var(--avd-btn-tracking, 0);
+    text-transform: var(--avd-btn-case, none);
 }
 
 .avd-upload-btn span,
@@ -246,8 +319,33 @@
     min-height: 56px;
 }
 
+// From 992px the header is one flex row: the brand zone, the header links of the looks whose side menu is hidden, the
+// inline search at a fixed share of the row (Bootstrap's col-6 / col-xl-5 / col-xxl-4) and the actions. In Cinema Night
+// and Swiss Bento at 992-1024px that is more than the screen: the actions ran off it (a member's avatar at 993-1035px of a
+// 992px screen) and the brand zone (min-width 0) was squeezed to nothing under the first link. The search gives way
+// first (at least 7.5rem, never wider than its column), the brand zone only after it; a row with room is unchanged.
+// The search's share is weighted far above the brand zone's: with factors 1 and 0.05 the brand zone still took its
+// 1.5% of every shortfall, so the site's name lost 2-6px ("Sandbox Sit…" in Cinema Night and Swiss Bento at 992-1366px)
+// while the search had room to spare. The header links give way after the search (the layout's header fit).
+@media (min-width: 992px) {
+    .avd-header-inner > search-bar {
+        flex-shrink: 1000;
+        min-inline-size: 7.5rem;
+    }
+
+    .avd-header-inner > .avd-header-brand-zone {
+        flex-shrink: 0.05;
+    }
+}
+
 search-bar {
     min-width: 0;
+}
+
+// Until the search component has loaded, <search-bar> holds a plain search form the server printed (watch-8): the same
+// field and button classes, so nothing moves when the component replaces it, and a search works before any script.
+search-bar:not(:defined) {
+    display: block;
 }
 
 .avd-search-wrap {
@@ -370,16 +468,64 @@ search-bar {
     border-bottom: 1px solid var(--avd-border);
 }
 
+// A section title and its link never touch (channel-32: "MEINE WIEDERGABELISTEN" ran into "ANSEHEN" and the count
+// dropped to a line of its own): the title truncates, the count keeps its line, the link keeps a gap. The link offers
+// a 44px target without moving its text (watch-46: it was 24 x 17px). Where the title and the link cannot share the
+// line ("ПОДПИСКИ (20)" next to "ПОСМОТРЕТЬ ВСЕ", "ABONNEMENTS (20)" next to "ALLE ANZEIGEN"), the link takes a
+// line of its own at the end instead of cutting the title to a few letters (R1-036); English keeps one line.
 .avd-sidebar-heading {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    justify-content: space-between;
+    // the title pushes the link to the end of their line (its auto margin); a link on a line of its own ends it too
+    justify-content: flex-end;
+    column-gap: 0.4rem;
+    row-gap: 2px;
     padding: 16px 12px 6px;
     color: var(--avd-sidebar-muted);
     font-size: 11px;
     font-weight: 700;
-    letter-spacing: 0.12em;
+    letter-spacing: 0.05em;
     text-transform: uppercase;
+}
+
+// The title and its count are two boxes of one line: the NAME takes the room left and ends with an ellipsis when it
+// must (alone on its line and still too long), the count never shrinks ("SUBSCRIPTIONS (..." cut the count itself in
+// English at 1024-1920px). A slightly tighter tracking fits "SUBSCRIPTIONS (20)" whole next to "See all" in the 232px
+// menu.
+.avd-sidebar-heading__title {
+    display: flex;
+    align-items: baseline;
+    gap: 0.3em;
+    min-width: 0;
+    margin-inline-end: auto;
+    white-space: nowrap;
+}
+
+.avd-sidebar-heading__name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.avd-sidebar-heading__count {
+    flex: none;
+    white-space: nowrap;
+}
+
+.avd-sidebar-heading__link {
+    flex: none;
+    display: inline-block;
+    margin: -14px -8px;
+    padding: 14px 8px;
+    color: var(--avd-brand-ink);
+    letter-spacing: 0.04em;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.avd-sidebar-heading__link:hover {
+    text-decoration: underline;
 }
 
 .avd-sidebar-link {
@@ -439,29 +585,25 @@ search-bar {
     padding: 0.75rem;
 }
 
+// The language picker takes the whole line and the light/dark switch sits under it, at the end. The side menu pinned on
+// wide screens (full, floating and start-menu styles: 232 px) was too narrow for the language name next to the switch
+// ("En..."), and since the switch shows its label ("Dark mode") the drawers (phones, the hidden style) were too: every
+// language's name was cut at 360-412px ("Deutsch" had 14px of its 54 next to "Dunkler Modus", "Filipino" 1px). The rail
+// style hides these controls.
 .avd-sidebar-controls {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 0.7rem;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.55rem;
     align-items: center;
 }
 
-// The side menu pinned on wide screens (full, floating and start-menu styles: 232 px) is too narrow for the
-// language name next to the light/dark switch: the name was cut to "En...". There the language picker takes the
-// whole line and the switch sits under it, at the end. Drawers (phones, the hidden style) and the account menu
-// are wide enough for one line; the rail style hides these controls.
+.avd-sidebar-controls theme-switch {
+    justify-self: end;
+}
+
 @media (min-width: 992px) {
-    html:not([data-avd-sidebar-style="hidden"]) #responsive-sidebar.show_sidebar .avd-sidebar-controls {
-        grid-template-columns: minmax(0, 1fr);
-        gap: 0.55rem;
-    }
-
-    html:not([data-avd-sidebar-style="hidden"]) #responsive-sidebar.show_sidebar .avd-sidebar-controls theme-switch {
-        justify-self: end;
-    }
-
-    // The open list of languages is as wide as the picker there: at its own 236 px it ran 29 px past the menu's
-    // edge, which cut it off.
+    // The open list of languages is as wide as the picker in the pinned menu: at its own 236 px it ran 29 px past the
+    // menu's edge, which cut it off.
     html:not([data-avd-sidebar-style="hidden"]) #responsive-sidebar.show_sidebar .avd-locale-menu {
         width: 100%;
         min-width: 0;
@@ -499,7 +641,7 @@ html[dir="rtl"] .input-switch input:checked + label .icon {
     border-radius: var(--avd-radius-field, var(--avd-radius-control));
     background: var(--avd-surface-2);
     color: var(--avd-text);
-    transition: border-color 160ms ease, background-color 160ms ease, box-shadow 180ms ease, transform 180ms var(--avd-ease-out);
+    transition: border-color 120ms ease, background-color 120ms ease, box-shadow 120ms ease;
 }
 
 .avd-locale-toggle:hover,
@@ -507,7 +649,6 @@ html[dir="rtl"] .input-switch input:checked + label .icon {
     border-color: rgba(var(--avd-brand-rgb), 0.42);
     background: var(--avd-surface-hover);
     box-shadow: 0 0 0 4px var(--avd-brand-soft);
-    transform: translateY(-1px);
 }
 
 .avd-locale-toggle i {
@@ -614,79 +755,6 @@ html[dir="rtl"] .input-switch input:checked + label .icon {
     font-size: 0.8rem;
 }
 
-#account {
-    overflow: hidden;
-    border-inline-start: 1px solid var(--avd-border);
-    background: var(--avd-surface-solid);
-    color: var(--avd-text);
-}
-
-#account .offcanvas-body {
-    min-height: 0;
-    overflow-x: hidden;
-}
-
-#account .list-group-flush.overflow-auto,
-#account .list-group-flush {
-    overflow-x: hidden !important;
-}
-
-#account .avd-account-footer,
-#account .avd-account-footer.list-group-flush {
-    flex-shrink: 0;
-    position: relative;
-    z-index: 3;
-    overflow: visible !important;
-    background: var(--avd-surface-solid);
-}
-
-.avd-account-controls-item {
-    overflow: visible;
-    padding: 0.75rem 0.95rem;
-    background: linear-gradient(135deg, var(--avd-surface), var(--avd-surface-soft)) !important;
-}
-
-.avd-account-controls {
-    width: 100%;
-}
-
-.avd-account-controls--single {
-    grid-template-columns: minmax(0, 1fr);
-}
-
-.avd-account-controls--single theme-switch {
-    justify-self: end;
-}
-
-.avd-account-locale-picker {
-    z-index: 4;
-}
-
-.avd-account-locale-menu {
-    width: min(260px, calc(100vw - 2rem));
-    max-height: min(286px, 44vh);
-    z-index: 1190;
-}
-
-#account .avd-locale-toggle {
-    min-height: 42px;
-    border-radius: 16px;
-}
-
-#account .avd-locale-option {
-    min-height: 40px;
-}
-
-@media (max-width: 420px) {
-    #account {
-        width: min(350px, calc(100vw - 0.75rem)) !important;
-    }
-
-    .avd-account-locale-menu {
-        max-height: min(246px, 38vh);
-    }
-}
-
 @media (max-width: 991.98px) {
     .avd-header,
     .navbar.header {
@@ -755,11 +823,15 @@ html[dir="rtl"] .input-switch input:checked + label .icon {
         padding-inline: 0.45rem;
     }
 
-    .navbar-brand.avd-brand {
+    // The brand link holds only its 32px mark here: a 44px target all the same (it was 32px wide), in every look
+    // (:root: Imperial Salon's crest gives the link a 24px floor for its 22px diamond, which kept it 24px wide, R2A-048).
+    :root .navbar-brand.avd-brand {
         max-width: 46vw;
         min-height: 44px;
+        min-width: 44px;
         display: inline-flex;
         align-items: center;
+        justify-content: center;
     }
 
     .navbar-brand.avd-brand.show_sidebar {
@@ -779,4 +851,89 @@ html[dir="rtl"] .input-switch input:checked + label .icon {
     .avd-premium-chip {
         display: none;
     }
+}
+
+// On the member studio and account pages (html[data-avd-member-back-office], printed by
+// components/layout.blade.php for type="user") the header is exactly --avd-header-h tall, the offset the member kit's
+// sticky parts read (--mk-sticky-top). Bootstrap's navbar padding (8px + 8px) made it 8-16px taller in every one-row
+// style (default 73px for 64, Daylight 65 for 56, Swiss Bento 71 for 60, Cinema 72 for 64), so the sticky strips slid
+// under it; the floating island docks to the top edge there, as on phones (it floated 8px down: 74px for 58).
+@media (min-width: 768px) {
+    :root[data-avd-member-back-office] .avd-header.navbar {
+        --bs-navbar-padding-y: 0;
+        box-sizing: border-box;
+        min-height: var(--avd-header-h);
+    }
+
+    :root[data-avd-member-back-office][data-avd-header-style="glass_island"] .avd-header.navbar {
+        max-width: none;
+        margin: 0;
+        border-radius: 0;
+    }
+}
+
+// watch-31 (and the studio header on phones): the phone header is the mockups' one 60px bar, the height the
+// sticky offsets read from --avd-header-h (layout-theme-b.css sets it to 60px below 768px). It was 73px: Bootstrap's
+// navbar padding (8px + 8px) around the 56px row, so the fixed layers took a third of an iPhone SE screen.
+@media (max-width: 767.98px) {
+    :root .avd-header.navbar {
+        --bs-navbar-padding-y: 0;
+        box-sizing: border-box;
+        min-height: var(--avd-header-h, 60px);
+    }
+}
+
+// watch-20: the drawer's title never runs into its close button ("AVDBCMS Demo" touched the X on phones): the name
+// takes the room left and ends with an ellipsis.
+:root .avd-sidebar .offcanvas-header {
+    gap: 0.75rem;
+}
+
+:root .avd-sidebar .offcanvas-title {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+:root .avd-drawer-brand-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+// R3-050: "Skip to content", the first stop of the keyboard on every page of the site's layout (components/layout.blade.php:
+// public pages, member pages, the studio, the old admin; the admin's own document has .ad-skip). Out of sight until it
+// has the focus, then a box at the top-start corner over the header, in the look's colours (both modes), mirrored in
+// Arabic, 44px tall. Its target, the page's content (#main-container), gets the focus without a ring of its own.
+.avd-skip-link:not(:focus) {
+    position: absolute !important;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}
+
+.avd-skip-link:focus {
+    position: fixed;
+    z-index: 1100;
+    inset-block-start: .5rem;
+    inset-inline-start: .5rem;
+    display: inline-flex;
+    align-items: center;
+    min-block-size: 44px;
+    padding: .5rem 1rem;
+    border: 1px solid var(--avd-border, currentColor);
+    border-radius: var(--avd-radius-field, .5rem);
+    background: var(--avd-surface-solid, var(--avd-bg, #fff));
+    color: var(--avd-text, inherit);
+    font-weight: 600;
+    text-decoration: none;
+    box-shadow: 0 6px 18px rgba(var(--avd-shade-rgb, 0, 0, 0), .25);
+    outline: 2px solid var(--avd-focus, currentColor);
+    outline-offset: 2px;
+}
+
+#main-container[tabindex="-1"]:focus {
+    outline: 0;
 }

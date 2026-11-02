@@ -147,7 +147,9 @@ class ReportTest extends TestCase
             'id' => $video->id
         ]);
 
-        $response->assertStatus(Response::HTTP_FORBIDDEN);
+        // Another member's private video is answered like an id that does not exist (no 403 that tells it exists).
+        $response->assertStatus(Response::HTTP_UNPROCESSABLE_ENTITY);
+        $response->assertJsonValidationErrorFor('id');
     }
 
     public function test_report_with_planned_video(): void
@@ -166,7 +168,9 @@ class ReportTest extends TestCase
             'id' => $video->id
         ]);
 
-        $response->assertStatus(Response::HTTP_FORBIDDEN);
+        // Not published yet: answered like an id that does not exist.
+        $response->assertStatus(Response::HTTP_UNPROCESSABLE_ENTITY);
+        $response->assertJsonValidationErrorFor('id');
     }
 
     public function test_report_with_banned_comment(): void
@@ -190,7 +194,11 @@ class ReportTest extends TestCase
             'id' => $comment->id
         ]);
 
-        $response->assertStatus(Response::HTTP_FORBIDDEN);
+        // A comment a moderator hid is shown to nobody: answered like an id that does not exist (no 403 that tells it
+        // exists; round 2 R2A-062).
+        $response->assertStatus(Response::HTTP_UNPROCESSABLE_ENTITY);
+        $response->assertJsonValidationErrorFor('id');
+        $this->assertSame(0, Report::query()->count());
     }
 
     public function test_report_with_banned_user(): void
@@ -205,7 +213,9 @@ class ReportTest extends TestCase
             'id' => $user->id
         ]);
 
-        $response->assertStatus(Response::HTTP_FORBIDDEN);
+        // round 3 R3-082: like a member who does not exist (it was 403 "You are not authorized to report this user")
+        $response->assertStatus(Response::HTTP_UNPROCESSABLE_ENTITY);
+        $response->assertJsonValidationErrors(['id' => __('This channel can no longer be reported.')]);
     }
 
     public function test_report_with_already_report_video(): void

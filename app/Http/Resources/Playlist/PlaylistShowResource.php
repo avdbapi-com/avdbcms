@@ -5,6 +5,7 @@ namespace App\Http\Resources\Playlist;
 use App\Http\Resources\User\UserListResource;
 use App\Http\Resources\Video\VideoListResource;
 use App\Models\Playlist;
+use App\Support\AdminIpLock;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Str;
@@ -26,7 +27,8 @@ class PlaylistShowResource extends JsonResource
     {
         $viewer = $request->user();
         $videosQuery = $this->videos()
-            ->when(! $viewer?->is_admin && $viewer?->id !== $this->user_id,
+            // an administrator outside the admin IP lock sees what any other member sees (R1-089)
+            ->when(! AdminIpLock::adminPowersHere($viewer) && $viewer?->id !== $this->user_id,
                 fn ($query) => $query->active()->forLocale());
         $videoCount = (clone $videosQuery)->count();
         $playlistVideos = $videosQuery

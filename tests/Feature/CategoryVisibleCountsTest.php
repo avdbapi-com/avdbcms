@@ -27,7 +27,9 @@ class CategoryVisibleCountsTest extends TestCase
 
         $this->get(route('pages.categories'))
             ->assertOk()
-            ->assertSee('0 Total Videos')
+            // R1-147: the directory counts in words ("0 videos", was "0 Total Videos"), in the reader's numbers
+            ->assertSee('0 videos')
+            ->assertDontSee('Total Videos')
             ->assertDontSee('154,200')
             ->assertDontSee('thousands');
     }

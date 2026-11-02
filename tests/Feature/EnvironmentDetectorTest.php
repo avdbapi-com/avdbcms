@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Support\Environment;
 use App\Support\SendFile;
+use App\Support\ServerChecks;
 use Tests\TestCase;
 
 class EnvironmentDetectorTest extends TestCase
@@ -70,6 +71,23 @@ class EnvironmentDetectorTest extends TestCase
         Environment::reset();
         config(['site.stream_accelerator' => 'nginx']);
 
-        $this->assertSame(SendFile::MODE_NGINX, SendFile::effectiveMode());
+        // A site that cannot check itself (an install in progress with the example's localhost; round 3 R3-040: an
+        // installed one checks first, tests/Feature/SendFileNginxTest): the setting counts as it is.
+        $installed = $_ENV['APP_INSTALLED'] ?? null;
+        $_ENV['APP_INSTALLED'] = 'false';
+        ServerChecks::$installLock = storage_path('framework/testing/no-installer-lock-'.bin2hex(random_bytes(4)).'.json');
+        config(['app.url' => 'http://localhost']);
+
+        try {
+            $this->assertSame(SendFile::MODE_NGINX, SendFile::effectiveMode());
+        } finally {
+            if ($installed === null) {
+                unset($_ENV['APP_INSTALLED']);
+            } else {
+                $_ENV['APP_INSTALLED'] = $installed;
+            }
+
+            ServerChecks::$installLock = null;
+        }
     }
 }

@@ -2,8 +2,13 @@
 
 namespace App\Notifications\Premium;
 
+use App\Notifications\Support\MemberMail;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Notifications\Support\BellNotification;
+use App\Notifications\Support\NotificationText;
+use App\Notifications\Support\Realtime;
+use App\Services\InvoiceService;
 use Illuminate\Mail\Attachment;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
@@ -11,6 +16,7 @@ use Illuminate\Support\Facades\Lang;
 
 class Invoice extends Notification
 {
+    use BellNotification;
 
     /**
      * The invoice transaction.
@@ -31,14 +37,14 @@ class Invoice extends Notification
     }
 
     /**
-     * Get the notification's channels.
+     * Get the notification's channels: an e-mail and the bell (pushed live when the site has a live broadcaster).
      *
      * @param User $notifiable
      * @return array|string
      */
     public function via(User $notifiable): array|string
     {
-        return ['mail', 'database', 'broadcast'];
+        return Realtime::channels(['mail', 'database']);
     }
 
     /**
@@ -60,31 +66,41 @@ class Invoice extends Notification
      */
     protected function buildMailMessage(User $notifiable) : MailMessage
     {
-        return (new MailMessage)
-            ->subject(Lang::get('Your ' .config('app.name'). ' invoice '))
-            ->markdown('mails.premium.invoice', [
+        $message = (new MailMessage)
+            ->subject(MemberMail::invoice($notifiable, $this->transaction)['subject'])
+            ->view(['mails.premium.invoice', 'mails.text.premium.invoice'], [
                 'notifiable' => $notifiable,
                 'transaction' => $this->transaction
-            ])
-            ->attach(Attachment::fromStorage($this->transaction->invoice_url), [
-                'as' => $this->transaction->invoice_name,
-                'mime' => 'application/pdf',
             ]);
+
+        // The receipt PDF of this payment, read by its path on the site's disk: the file's full path (invoice_url) was
+        // read as a path on the disk, so every receipt e-mail carried an empty PDF. A missing PDF, or one that is not this
+        // payment's current one, is made first (InvoiceService::ensurePdf(), R1-027); without a PDF the e-mail still
+        // links to the invoices and never carries an empty file. Named with the invoice number the PDF prints (R1-117).
+        if (app(InvoiceService::class)->ensurePdf($this->transaction)) {
+            // the name and type go on the attachment itself: MailMessage::attach() takes no options with an Attachment
+            $message->attach(Attachment::fromStorage($this->transaction->invoice_path)
+                ->as(InvoiceService::number($this->transaction).'.pdf')
+                ->withMime('application/pdf'));
+        }
+
+        return $message;
     }
 
     /**
-     * Get the array representation of the notification.
+     * The bell's data: "Your invoice from <site> is ready." (translated when shown) and the invoice's page.
      *
      * @param  User $notifiable
      * @return array
      */
     public function toArray(User $notifiable) : array
     {
-        return [
-            'message' => 'Your ' .config('app.name'). ' invoice is available',
+        return NotificationText::data('invoice_ready', [
+            'site' => config('app.name'),
+        ], [
             'url' => route('user.invoices.show', $this->transaction),
             'created_at' => now(),
-            'read_at' => false
-        ];
+            'is_read' => false,
+        ]);
     }
 }

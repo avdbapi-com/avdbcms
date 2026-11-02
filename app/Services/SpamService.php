@@ -24,9 +24,10 @@ class SpamService {
 
     public function getWords(): array
     {
+        // A site without the list file (null) has no words.
         $content =  $this->getWordsAsString();
 
-        $words = preg_split('/\r\n|\r|\n/', $content);
+        $words = preg_split('/\r\n|\r|\n/', (string) $content);
 
         return collect($words)
             ->map(fn (string $word) => trim($word))
@@ -36,9 +37,10 @@ class SpamService {
 
     public function getEmails(): array
     {
+        // A site without the list file (null) has no addresses.
         $content =  $this->getEmailsAsString();
 
-        $words = preg_split('/\r\n|\r|\n/', $content);
+        $words = preg_split('/\r\n|\r|\n/', (string) $content);
 
         return collect($words)
             ->map(fn (string $word) => trim($word))
@@ -50,8 +52,11 @@ class SpamService {
     {
         $words = $this->getWords();
 
+        // Any case, in any language (mb_: "Đ" matches "đ").
+        $haystack = mb_strtolower($string);
+
         foreach ($words as $word) {
-            if (str_contains(strtolower($string),strtolower($word))) {
+            if (str_contains($haystack, mb_strtolower($word))) {
                 return true;
             }
         }

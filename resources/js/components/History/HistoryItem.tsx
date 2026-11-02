@@ -3,7 +3,7 @@ import {useErrorMutation} from "@/hooks";
 import {removeFromHistory} from "@/api/avdbclip";
 import {useQueryClient} from "@tanstack/react-query";
 import {produce} from "immer";
-import {Video} from "@/components/Videos";
+import {Video} from "@/components/Videos/Video";
 import {useTranslation} from "react-i18next";
 
 type Props = {

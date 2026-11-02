@@ -26,7 +26,7 @@
                             {{$export->file}}
                         </td>
                         <td class="align-middle">
-                            @size($export->size)
+                            <span dir="ltr" class="text-nowrap">@size($export->size)</span>
                         </td>
                         <td class="align-middle">
                             <span class="badge bg-{{$export->status->color()}}">

@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Support\OutboundUrl;
 use App\Enums\ThumbnailStatus;
 use App\Enums\VideoStatus;
 use App\Models\Category;
@@ -14,6 +15,7 @@ use App\Models\Video;
 use App\Models\XvidImportRun;
 use App\Support\AvdbCreatorAvatarFactory;
 use App\Support\AvdbStarterViews;
+use App\Support\ContentSafety;
 use App\Support\DurationParser;
 use App\Support\RemoteVideoDuration;
 use Carbon\Carbon;
@@ -153,9 +155,13 @@ class ImportXvidVideos extends Command
     private string $dateSeed = '';
     private array $dateUsedTimestamps = [];
     private bool $dryRunActive = false;
+    /** 1.2.3: the blocked words of this run (App\Support\ContentSafety), and how many items they kept out. */
+    private ?ContentSafety $safety = null;
+    private int $blocked = 0;
 
     public function handle(): int
     {
+        $this->resetRunState();
         $this->raiseMemoryLimit();
         DB::disableQueryLog();
 
@@ -166,6 +172,8 @@ class ImportXvidVideos extends Command
 
         $settings = $this->loadRunSettings();
         $this->dryRunActive = (bool) ($settings['dry_run'] ?? false);
+        // The owner's blocked words as they are when the run starts (a change applies from the next run).
+        $this->safety = ContentSafety::forImports();
         $this->translateTags = (bool) ($settings['translate_tags'] ?? true);
         $this->apiBaseUrl = $this->normalizeApiBaseUrl((string) ($settings['api_base_url'] ?? self::DEFAULT_API_BASE));
         $this->starterViewSettings = $this->resolveStarterViewSettings($settings);
@@ -194,6 +202,8 @@ class ImportXvidVideos extends Command
         ]);
 
         $this->write("Starting XVIDAPI import (base: {$this->apiBaseUrl})");
+        $words = $this->safety->siteWordCount();
+        $this->write('Blocked words: '.$words.' '.($words === 1 ? 'word' : 'words').' of your list (Content > Import), and the words that are always blocked.');
 
         try {
             if ($ids !== []) {
@@ -292,6 +302,8 @@ class ImportXvidVideos extends Command
 
             $items = $data['list'];
             $this->write("Category {$catId} | Page {$page}: processing " . count($items) . " videos.");
+            // 1.2.3: items with blocked words are skipped before anything is written (tag translations included).
+            $items = $this->withoutBlockedItems($items, $catId);
 
             foreach ($items as $item) {
                 if ($this->shouldCancel()) {
@@ -352,7 +364,10 @@ class ImportXvidVideos extends Command
                 continue;
             }
 
-            foreach ($data['list'] as $item) {
+            // 1.2.3: items with blocked words are skipped before anything is written (tag translations included).
+            $items = $this->withoutBlockedItems($data['list'], null);
+
+            foreach ($items as $item) {
                 if ($this->shouldCancel()) {
                     return;
                 }
@@ -361,7 +376,7 @@ class ImportXvidVideos extends Command
                 $this->importItem($item, $catId, $delay, $skipThumbs, $skipTags, $dryRun);
             }
 
-            $this->translatePageTags($data['list'], $skipTags, $dryRun);
+            $this->translatePageTags($items, $skipTags, $dryRun);
 
             $this->completedPages++;
             $this->syncRunCounters("Completed IDs chunk ".($chunkIndex + 1));
@@ -386,6 +401,13 @@ class ImportXvidVideos extends Command
         $xvidId = (int) ($item['id'] ?? 0);
         if ($xvidId <= 0) {
             $this->failed++;
+            return false;
+        }
+
+        // 1.2.3: the pages and ID chunks leave these out before; every other way into this method is checked here too.
+        if ($this->itemIsBlocked($item, $catId)) {
+            $this->blocked++;
+            $this->skipped++;
             return false;
         }
 
@@ -557,6 +579,78 @@ class ImportXvidVideos extends Command
         }
     }
 
+    /**
+     * 1.2.3: every run starts from nothing. Artisan::call() runs the same object again in one process (a queue worker
+     * runs RunXvidImport after RunXvidImport), so the counters, the run and the per-run caches of the run before went on
+     * into the next one (its imported / skipped numbers, a run without --run-id writing into the run before).
+     */
+    private function resetRunState(): void
+    {
+        $this->run = null;
+        $this->imported = $this->skipped = $this->updated = $this->failed = 0;
+        $this->thumbsDownloaded = $this->tagsCreated = $this->tagTranslationsCreated = 0;
+        $this->tagTranslationLocales = null;
+        $this->plannedPages = $this->completedPages = 0;
+        $this->resolvedCategoryCache = [];
+        $this->xvidCreatorUserCache = [];
+        $this->fallbackImportUserId = null;
+        $this->safety = null;
+        $this->blocked = 0;
+    }
+
+    /**
+     * 1.2.3: whether an item uses a blocked word in its title, its tags or its categories (App\Support\ContentSafety: the
+     * words that are always blocked and the site's own list, Content > Import). Such an item is skipped before anything
+     * is written: no video, tag, tag translation, category, creator or thumbnail; an existing video of it is left as it is.
+     */
+    private function itemIsBlocked(array $item, ?int $catId = null): bool
+    {
+        $catId ??= $this->categoryIdFromItem($item);
+
+        return ($this->safety ??= ContentSafety::forImports())->check([
+            $this->cleanXvidText($item['name'] ?? ''),
+            $this->cleanXvidText($item['origin_name'] ?? ''),
+            array_map(fn ($tag): string => $this->cleanXvidText($tag), explode(',', (string) ($item['tag'] ?? ''))),
+            array_map(fn ($category): string => $this->cleanXvidText($category), (array) ($item['category'] ?? [])),
+            $this->cleanXvidText($item['type_name'] ?? ''),
+            self::CATEGORY_MAP[$catId] ?? '',
+        ]) !== null;
+    }
+
+    /**
+     * The items of a page or an ID chunk without those that use blocked words: counted (skipped, "Skipped 3 videos:
+     * blocked words." in the run log; the words are never repeated there).
+     */
+    private function withoutBlockedItems(array $items, ?int $catId): array
+    {
+        $allowed = [];
+        $blocked = 0;
+
+        foreach ($items as $item) {
+            if (is_array($item) && $this->itemIsBlocked($item, $catId)) {
+                $blocked++;
+
+                continue;
+            }
+
+            $allowed[] = $item;
+        }
+
+        if ($blocked > 0) {
+            $this->blocked += $blocked;
+            $this->skipped += $blocked;
+            $this->write($this->blockedLine($blocked));
+        }
+
+        return $allowed;
+    }
+
+    /** "Skipped 3 videos: blocked words." (the run log, in English like the rest of it) */
+    private function blockedLine(int $count): string
+    {
+        return 'Skipped '.$count.' '.($count === 1 ? 'video' : 'videos').': blocked words.';
+    }
+
     public function resolveLocalCategory(int $xvidCatId, ?string $typeName = null): int
     {
         if (isset($this->resolvedCategoryCache[$xvidCatId])) {
@@ -564,7 +658,9 @@ class ImportXvidVideos extends Command
         }
 
         $name = trim((string) ($typeName ?: (self::CATEGORY_MAP[$xvidCatId] ?? '')));
-        if ($name === '' || in_array(strtolower($name), ['xvidapi', 'unknown', 'updating'], true)) {
+        // 1.2.3: a category named with a blocked word is never created (an item that has one is skipped before)
+        if ($name === '' || in_array(strtolower($name), ['xvidapi', 'unknown', 'updating'], true)
+            || ($this->safety ??= ContentSafety::forImports())->blocks($name)) {
             $name = 'General';
         }
 
@@ -812,7 +908,6 @@ class ImportXvidVideos extends Command
                     $pool->as($locale)
                         ->timeout(25)
                         ->withHeaders(['Accept' => 'application/json'])
-                        ->withOptions(['verify' => false])
                         ->get($this->apiBaseUrl, ['ac' => 'detail', 'at' => 'json', 'ids' => $idsString, 'language' => $locale]);
                 }
             }, 4);
@@ -841,8 +936,10 @@ class ImportXvidVideos extends Command
                         // the API marks some localized adult terms with a trailing "18+"; the site is adult-only anyway
                         $name = trim((string) preg_replace('/\s*18\+$/u', '', $this->cleanXvidText($localized[$index])));
                         $name = Str::limit($name, 150, '');
+                        // 1.2.3: a tag name of another language that uses a word that is always blocked is never stored
+                        // (the tag keeps its own name in that language; App\Support\ContentSafety)
                         if (! $tagId || $name === '' || isset($have[$tagId.'|'.$locale])
-                            || mb_strtolower($name) === mb_strtolower($sourceClean)) {
+                            || mb_strtolower($name) === mb_strtolower($sourceClean) || ContentSafety::hardMatch($name) !== null) {
                             continue;
                         }
 
@@ -907,7 +1004,8 @@ class ImportXvidVideos extends Command
         foreach ($rawTags as $tagName) {
             $cleaned = $this->cleanXvidText($tagName);
             $slug = Str::slug($cleaned);
-            if (! $slug || strlen($slug) < 2) {
+            // 1.2.3: a tag named with a blocked word is never created (an item that has one is skipped before)
+            if (! $slug || strlen($slug) < 2 || ($this->safety ??= ContentSafety::forImports())->blocks($cleaned)) {
                 continue;
             }
 
@@ -1010,7 +1108,6 @@ class ImportXvidVideos extends Command
                         'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
                         'Accept' => 'application/json',
                     ])
-                    ->withOptions(['verify' => false])
                     ->get($url, $params);
 
                 if ($response->successful()) {
@@ -1180,7 +1277,8 @@ class ImportXvidVideos extends Command
     private function normalizeApiBaseUrl(string $url): string
     {
         $url = trim($url);
-        if ($url === '') {
+        // Empty, or a base saved before 1.2.3 that names this machine or a private address directly: the default base.
+        if ($url === '' || OutboundUrl::namesLocalHost($url)) {
             return self::DEFAULT_API_BASE;
         }
 
@@ -1333,6 +1431,11 @@ class ImportXvidVideos extends Command
             return;
         }
 
+        // 1.2.3: the run's message names what blocked words kept out ("Skipped 3 videos: blocked words.").
+        if ($this->blocked > 0) {
+            $message .= ' '.$this->blockedLine($this->blocked);
+        }
+
         $this->run->forceFill([
             'status' => $status,
             'progress' => $status === 'finished' ? 100 : $this->run->progress,
@@ -1369,7 +1472,8 @@ class ImportXvidVideos extends Command
         $this->table(['Metric', 'Count'], [
             ['Imported (New)', $this->imported],
             ['Updated', $this->updated],
-            ['Skipped (Duplicate)', $this->skipped],
+            ['Skipped (Duplicate)', $this->skipped - $this->blocked],
+            ['Skipped (Blocked words)', $this->blocked],
             ['Failed', $this->failed],
             ['Tags Created', $this->tagsCreated],
             ['Tag Translations Added', $this->tagTranslationsCreated],

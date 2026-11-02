@@ -6,7 +6,9 @@ use Illuminate\Http\Request;
 define('LARAVEL_START', microtime(true));
 
 if (! function_exists('avdbcms_bootstrap_failure')) {
-    function avdbcms_bootstrap_failure(string $title, string $message, array $details = [], int $status = 500): never
+    // $hint: what to do about it (R1B-008: "upload the package again" only where files are missing; a permission problem
+    // or the PHP version says what fixes those).
+    function avdbcms_bootstrap_failure(string $title, string $message, array $details = [], int $status = 500, ?string $hint = null): never
     {
         http_response_code($status);
 
@@ -24,11 +26,44 @@ if (! function_exists('avdbcms_bootstrap_failure')) {
             .'h1{margin:0 0 10px;font-size:25px;line-height:1.2}p{margin:0 0 18px;color:#b9c4d8}dl{display:grid;grid-template-columns:160px minmax(0,1fr);gap:10px 14px;margin:18px 0 0}dt{color:#94a3b8;font-weight:700}dd{margin:0;min-width:0}code{color:#dce7ff;word-break:break-all}.hint{padding:12px 14px;border:1px solid rgba(255,202,92,.38);border-radius:10px;background:rgba(255,202,92,.09);color:#ffe3a3}</style></head><body><main class="card">'
             .'<h1>'.htmlspecialchars($title, ENT_QUOTES, 'UTF-8').'</h1>'
             .'<p>'.htmlspecialchars($message, ENT_QUOTES, 'UTF-8').'</p>'
-            .'<div class="hint">Upload or extract the complete AVDBCMS package again. Make sure hidden files and the full vendor/ directory are included.</div>'
+            .'<div class="hint">'.htmlspecialchars($hint ?? 'Upload or extract the complete AVDBCMS package again. Make sure hidden files and the full vendor/ directory are included.', ENT_QUOTES, 'UTF-8').'</div>'
             .($detailItems !== '' ? '<dl>'.$detailItems.'</dl>' : '')
             .'</main></body></html>';
 
         exit;
+    }
+}
+
+if (! function_exists('avdbcms_runtime_owner')) {
+    /**
+     * Who PHP runs as and who owns the project folder, for the permission page (R1B-008). When they differ (a Docker bind
+     * mount, files unpacked as root or by a deploy user), write permission for the owner does not help PHP: the folder must
+     * belong to the PHP user. Empty where PHP cannot tell (Windows, no posix extension).
+     *
+     * @return array<string, string>
+     */
+    function avdbcms_runtime_owner(string $root): array
+    {
+        if (PHP_OS_FAMILY === 'Windows' || ! function_exists('posix_geteuid') || ! function_exists('posix_getpwuid')) {
+            return [];
+        }
+
+        $uid = posix_geteuid();
+        $gid = function_exists('posix_getegid') ? posix_getegid() : $uid;
+        $user = @posix_getpwuid($uid);
+        $ownerUid = @fileowner($root);
+        $owner = is_int($ownerUid) ? @posix_getpwuid($ownerUid) : false;
+        $details = ['PHP runs as' => (is_array($user) ? $user['name'] : 'user id '.$uid).' (user id '.$uid.')'];
+
+        if (is_int($ownerUid)) {
+            $details['Project folder owner'] = (is_array($owner) ? $owner['name'] : 'user id '.$ownerUid).' (user id '.$ownerUid.')';
+
+            if ($ownerUid !== $uid) {
+                $details['Example fix'] = 'chown -R '.$uid.':'.$gid.' '.escapeshellarg($root);
+            }
+        }
+
+        return $details;
     }
 }
 
@@ -40,7 +75,7 @@ if (! function_exists('avdbcms_prepare_runtime')) {
                 'Current PHP' => PHP_VERSION,
                 'Required PHP' => '8.3+',
                 'Fix' => 'Change the domain PHP version in your hosting panel, then reload this page.',
-            ]);
+            ], 500, 'The package itself is fine: only the PHP version of this site must change.');
         }
 
         $requiredDirs = [
@@ -82,7 +117,10 @@ if (! function_exists('avdbcms_prepare_runtime')) {
         $envExamplePath = $root.DIRECTORY_SEPARATOR.'.env.example';
         if (! is_file($envPath) && is_file($envExamplePath) && is_writable($root)) {
             @copy($envExamplePath, $envPath);
-            @chmod($envPath, 0664);
+            // Read and written by its owner (this PHP user) only, read by the group: .env holds every secret of the
+            // site; another account never reads it, and the web server's group (www-data in the site's group on many
+            // panels) never rewrites it (R1B-016).
+            @chmod($envPath, 0640);
         }
 
         if ($blocked !== []) {
@@ -91,7 +129,8 @@ if (! function_exists('avdbcms_prepare_runtime')) {
                 $details[$relative] = $reason;
             }
 
-            avdbcms_bootstrap_failure('Runtime Permissions Required', 'The installer cannot start until PHP can write Laravel runtime folders.', $details, 503);
+            avdbcms_bootstrap_failure('Runtime Permissions Required', 'The installer cannot start until PHP can write Laravel runtime folders.', $details + avdbcms_runtime_owner($root), 503,
+                'Uploading the package again does not fix this. Make the site\'s folder belong to the user PHP runs as (with its subfolders; in a panel\'s file manager: Permissions / Owner), or at least make storage/ and bootstrap/cache/ writable for that user, then reload this page. The installer\'s Filesystem step lists everything else PHP must write.');
         }
     }
 }
@@ -172,120 +211,32 @@ try {
 // LOCALE URL REWRITING — Pure PHP, server-agnostic
 // Works on Apache, Nginx, LiteSpeed, or any server without .htaccess changes.
 //
-// Handles three things before Laravel's router sees the request:
-//   1. Strip /public/ path prefix (OSPanel dev: domain root → project root,
-//      root .htaccess rewrites /vi → /public/vi. On Nginx/production this
-//      never fires since web root IS public/).
+// Before Laravel's router sees the request (App\Support\SiteAddress::prepare()):
+//   0. A site installed in a folder of its domain (https://example.com/site):
+//      everything below reads the address inside that folder, and Laravel gets
+//      the folder in front of the page, so its links start with it.
+//   1. Strip /index.php and /public/ path prefixes (servers without rewrite
+//      rules; OSPanel dev: domain root → project root, root .htaccess rewrites
+//      /vi → /public/vi. On Nginx/production with the web root at public/ the
+//      /public/ part never fires).
 //   2. Detect and strip /{locale} prefix → store in $_SERVER['DETECTED_LOCALE'].
 //   3. 301-redirect trailing slashes in PHP (so public/.htaccess needs no
 //      trailing-slash rule — works on Nginx/LiteSpeed without Apache rewrite).
 // ══════════════════════════════════════════════════════════════════════════════
 (function () {
-    $uri  = $_SERVER['REQUEST_URI'] ?? '/';
-    $path = parse_url($uri, PHP_URL_PATH) ?? '/';
-    $query = parse_url($uri, PHP_URL_QUERY);
-
-    // Normalize root/public front-controller fallbacks before Laravel captures
-    // the request. This prevents generated URLs like /public/index.php/... on
-    // Apache/LiteSpeed panels that rewrite project-root requests into public/.
-    $scriptName = (string) ($_SERVER['SCRIPT_NAME'] ?? '');
-    $phpSelf = (string) ($_SERVER['PHP_SELF'] ?? '');
-    if (str_contains($scriptName, '/public/index.php') || str_contains($phpSelf, '/public/index.php')) {
-        $_SERVER['DOCUMENT_ROOT'] = __DIR__;
-        $_SERVER['SCRIPT_FILENAME'] = __FILE__;
-        $_SERVER['SCRIPT_NAME'] = '/index.php';
-        $_SERVER['PHP_SELF'] = '/index.php';
-        $_SERVER['AVDBCLIP_ROOT_FALLBACK'] = true;
-    }
-
-    foreach (['/public/index.php', '/index.php'] as $prefix) {
-        if ($path === $prefix || str_starts_with($path, $prefix . '/')) {
-            if ($prefix === '/index.php') {
-                $_SERVER['AVDBCLIP_INDEX_PHP_PREFIX'] = true;
-            }
-
-            $path = (string) substr($path, strlen($prefix));
-            if ($path === '') $path = '/';
-            $uri = $path . ($query ? '?' . $query : '');
-            $_SERVER['REQUEST_URI'] = $uri;
-            $_SERVER['PATH_INFO'] = $path;
-            break;
-        }
-    }
-
-    // ── 1. Strip /public/ prefix ─────────────────────────────────────────────
-    // In OSPanel (and some shared hosts), the web root is the project's root dir
-    // instead of public/. The root .htaccess rewrites /vi → /public/vi.
-    // Production servers (Nginx, LiteSpeed, proper Apache vhost) point the
-    // web root DIRECTLY to public/, so this block never runs on production.
-    if (str_starts_with($path, '/public/') || $path === '/public') {
-        $path = (string) substr($path, strlen('/public'));
-        if ($path === '') $path = '/';
-        $uri = $path . ($query ? '?' . $query : '');
-        $_SERVER['REQUEST_URI'] = $uri;
-        $_SERVER['PATH_INFO'] = $path;
-    }
-
-    // ── 2. Detect & strip /{locale} prefix ───────────────────────────────────
-    $segments     = explode('/', ltrim($path, '/'));
-    $firstSegment = $segments[0] ?? '';
-
     // Load supported locales (raw file read — Laravel hasn't booted yet)
-    static $localeList = null;
-    if ($localeList === null) {
-        $cfg = @include __DIR__ . '/../config/languages.php';
-        $localeList = is_array($cfg) ? array_keys($cfg) : [];
+    $cfg = @include __DIR__ . '/../config/languages.php';
+    $localeList = is_array($cfg) ? array_keys($cfg) : [];
+
+    if (! class_exists(\App\Support\SiteAddress::class)) {
+        avdbcms_bootstrap_failure('Incomplete AVDBCMS Package', 'A file of the package is missing, so the site cannot start.', [
+            'Missing file' => dirname(__DIR__) . DIRECTORY_SEPARATOR . 'app' . DIRECTORY_SEPARATOR . 'Support' . DIRECTORY_SEPARATOR . 'SiteAddress.php',
+        ]);
     }
 
-    // These path roots are never locale codes
-    $reservedPaths = [
-        'api', 'admin', '_debugbar', 'logs', 'horizon',
-        'storage', 'update-locale', 'public', '',
-    ];
+    $slashRedirectTo = \App\Support\SiteAddress::prepare($_SERVER, $localeList, __DIR__, __FILE__);
 
-    $detectedLocale   = null;
-    $pathBeforeStrip  = $path;   // remember the path BEFORE locale is stripped
-
-    if (
-        $firstSegment !== '' &&
-        !in_array($firstSegment, $reservedPaths, true) &&
-        in_array($firstSegment, $localeList, true)
-    ) {
-        $detectedLocale = $firstSegment;
-        $_SERVER['DETECTED_LOCALE'] = $firstSegment;
-        $_SERVER['LOCALE_PREFIX']   = '/' . $firstSegment;
-
-        $stripped = (string) substr($path, strlen('/' . $firstSegment));
-        $path     = $stripped !== '' ? $stripped : '/';
-        $uri      = $path . ($query ? '?' . $query : '');
-
-        $_SERVER['REQUEST_URI'] = $uri;
-        $_SERVER['PATH_INFO']   = $path;
-    }
-
-    // ── 3. PHP trailing-slash redirect ────────────────────────────────────────
-    // Removes trailing slashes with a 301 redirect — no Apache RewriteRule needed.
-    // Works transparently on Nginx, LiteSpeed, Apache, IIS.
-    //
-    // Case A: /vi/trend/ → path after strip = /trend/  → redirect to /vi/trend
-    // Case B: /vi/       → path after strip = /         → redirect to /vi
-    // Case C: /trend/    → no locale, path = /trend/    → redirect to /trend
-    $needsSlashRedirect = false;
-    $slashRedirectTo    = '';
-
-    if ($path !== '/' && str_ends_with($path, '/')) {
-        // Case A / C: path still has trailing slash after locale strip
-        $localeSegment     = $detectedLocale ? '/' . $detectedLocale : '';
-        $slashRedirectTo   = $localeSegment . rtrim($path, '/') . ($query ? '?' . $query : '');
-        $needsSlashRedirect = true;
-    } elseif ($detectedLocale !== null && $pathBeforeStrip !== '/' && str_ends_with($pathBeforeStrip, '/') && $path === '/') {
-        // Case B: /vi/ → after stripping locale, path becomes '/'
-        // The trailing slash was on the locale root itself → redirect /vi/ → /vi
-        $slashRedirectTo    = '/' . $detectedLocale . ($query ? '?' . $query : '');
-        $needsSlashRedirect = true;
-    }
-
-    if ($needsSlashRedirect) {
+    if ($slashRedirectTo !== null) {
         header('Location: ' . $slashRedirectTo, true, 301);
         exit;
     }

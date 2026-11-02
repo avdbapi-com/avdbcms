@@ -11,17 +11,23 @@ use Illuminate\Support\Str;
 class AccountEventSubscriber
 {
     /**
-     * Handle user password updated events.
+     * A new password: saved together with a new "remember me" token (account-18). Before, the token was changed on the
+     * model and never saved, so a stolen "remember me" cookie kept working after the password was changed. The member's
+     * current device keeps its own "remember me": the controller queues its cookie again with the new token
+     * (ProfileController::keepThisDeviceSignedIn()). The model hashes the plain password once (its mutator).
      */
     public function sendUserPasswordUpdatedNotification(PasswordUpdated $event): void
     {
         $user = auth()->user();
 
-        $user->update([
-            'password' => $event->password
-        ]);
+        if ($user === null) {
+            return;
+        }
 
-        $user->setRememberToken(Str::random(60));
+        $user->forceFill([
+            'password' => $event->password,
+            'remember_token' => Str::random(60),
+        ])->save();
 
         $user->notify(new PasswordUpdate());
     }

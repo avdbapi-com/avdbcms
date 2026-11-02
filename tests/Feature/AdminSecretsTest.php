@@ -64,7 +64,7 @@ class AdminSecretsTest extends TestCase
         $admin = User::factory()->admin()->create();
 
         if (! \App\Support\AdminPreferences::available($admin)) {
-            $this->markTestSkipped('Developer mode needs the users.admin_preferences column (WP6 migration).');
+            $this->markTestSkipped('Developer mode needs the users.admin_preferences column (the admin preferences migration).');
         }
 
         \App\Support\AdminPreferences::set($admin, 'developer_mode', true);

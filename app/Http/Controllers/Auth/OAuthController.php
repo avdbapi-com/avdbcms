@@ -22,13 +22,16 @@ class OAuthController
 
     public function connect(string $service): RedirectResponse {
         $service = $this->normalizeService($service);
+        // A member linking an account from Account settings goes back there with the reason; a visitor to the sign-in
+        // page (the sign-in page sends a signed-in member away, so the message was lost: account-13).
+        $back = Auth::check() ? \App\Http\Controllers\User\ProfileController::sectionUrl('security') : locale_url(route('login'));
 
         if (! config('site.allow_social_login', true)) {
-            return redirect()->to(locale_url(route('login')))->with('error', __('Social login is currently disabled.'));
+            return redirect()->to($back)->with('error', __('Social login is currently disabled.'));
         }
 
         if (! OAuthProviders::isConfigured($service)) {
-            return redirect()->to(locale_url(route('login')))->with('error', __('This social login provider is not configured.'));
+            return redirect()->to($back)->with('error', __('This social login provider is not configured.'));
         }
 
         OAuthProviders::configureRedirect($service);
@@ -38,7 +41,7 @@ class OAuthController
                 ->with(['auth_type' => 'rerequest'])
                 ->redirect();
         } catch (Throwable) {
-            return redirect()->to(locale_url(route('login')))->with('error', __('This social login provider is currently unavailable.'));
+            return redirect()->to($back)->with('error', __('This social login provider is currently unavailable.'));
         }
     }
 
@@ -63,7 +66,7 @@ class OAuthController
         }
 
         if (!$user->getEmail()) {
-            return redirect()->to(locale_url(route($route)))->with(['error' => 'Please agree to give your email']);
+            return redirect()->to(locale_url(route($route)))->with(['error' => __('Allow access to your e-mail address to sign in with this account.')]);
         }
 
         return match (Auth::check()) {
@@ -81,7 +84,17 @@ class OAuthController
             $service_id => null
         ]);
 
-        return redirect()->to(locale_url(route('user.edit')))->with(['status' => 'Your account has been successfully unlinked from '.ucfirst($service)]);
+        return redirect()->to(\App\Http\Controllers\User\ProfileController::sectionUrl('security'))->with(['status' => __('Your :provider account is no longer linked.', ['provider' => self::providerName($service)])]);
+    }
+
+    /** The provider's name as people know it (a brand: never translated). */
+    private static function providerName(string $service): string
+    {
+        return match ($service) {
+            'google' => 'Google',
+            'facebook' => 'Facebook',
+            default => ucfirst($service),
+        };
     }
 
     private function normalizeService(string $service): string
@@ -96,14 +109,14 @@ class OAuthController
     public function link(string $service, SocialUser $user): RedirectResponse {
 
         if (User::where($service.'_id', $user->getId())->exists()) {
-            return redirect()->to(locale_url(route('user.edit')))->with(['error' => 'This '.ucfirst($service).' account is already linked to another user']);
+            return redirect()->to(\App\Http\Controllers\User\ProfileController::sectionUrl('security'))->with(['error' => __('This :provider account is already linked to another member.', ['provider' => self::providerName($service)])]);
         }
 
         Auth::user()->update([
             $service.'_id' => $user->getId()
         ]);
 
-        return redirect()->to(locale_url(route('user.edit')))->with(['status' => 'Your account has been successfully linked to '.ucfirst($service)]);
+        return redirect()->to(\App\Http\Controllers\User\ProfileController::sectionUrl('security'))->with(['status' => __('Your :provider account is linked. You can sign in with it now.', ['provider' => self::providerName($service)])]);
     }
 
     public function register (string $service, SocialUser $socialUser) : RedirectResponse {
@@ -147,6 +160,12 @@ class OAuthController
         }
 
         else {
+            if ($user->is_banned) {
+                return redirect()->to(locale_url(route('login')))
+                    ->with('error', __('This account is suspended.'))
+                    ->with('auth_banned', true);
+            }
+
             $user->update([
                 $service_id => $socialUser->getId(),
             ]);
@@ -157,6 +176,8 @@ class OAuthController
         // Build locale-aware redirect
         $locale = session('app_locale', $user->language ?: config('app.locale', 'en'));
         session()->put('app_locale', $locale);
+        // The page to come back to in the language of this visit, as after a password sign-in (review CA-RV-03).
+        \App\Http\Middleware\Authenticate::rememberedPageInLanguage(request(), (string) $locale);
         $defaultLocale = config('site.default_locale', config('app.locale', 'en'));
         $profilePath = '/profile';
         if ($locale !== $defaultLocale) {

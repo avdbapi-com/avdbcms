@@ -11,7 +11,7 @@
 @section('content')
     <x-admin.list-page>
     <x-admin.page-header page="content.stats"
-        :description="__(':likes likes and :dislikes dislikes from :members members, :today today.', ['likes' => number_format($summary['likes']), 'dislikes' => number_format($summary['dislikes']), 'members' => number_format($summary['members']), 'today' => number_format($summary['today'])])">
+        :description="__('Likes: :likes. Dislikes: :dislikes. Members who liked or disliked: :members. Today: :today.', ['likes' => number_format($summary['likes']), 'dislikes' => number_format($summary['dislikes']), 'members' => number_format($summary['members']), 'today' => number_format($summary['today'])])">
         <x-slot:actions>
             @if ($summary['total'] > 0)
                 <form method="POST" action="{{ route('admin.interactions.clear') }}"
@@ -85,7 +85,7 @@
                 <td class="c-main"><p><b id="ad-i-{{ $interaction->id }}">{{ \Illuminate\Support\Str::limit((string) $what, 90) }}</b><small class="ad-phone-only">{{ $interaction->username }}</small></p></td>
                 <td class="c-meta"><x-admin.status :type="(int) $interaction->status === 1 ? 'ok' : 'danger'">{{ (int) $interaction->status === 1 ? __('Like') : __('Dislike') }}</x-admin.status></td>
                 <td class="hide-tab"><p class="ad-cell-two"><b>{{ $interaction->username }}</b><small>{{ $interaction->email }}</small></p></td>
-                <td class="is-date" title="{{ $when->translatedFormat('j M Y, H:i') }}">{{ $when->diffForHumans(short: true) }}</td>
+                <td class="is-date" title="{{ $when->translatedFormat('j M Y, H:i') }}">{{ $when->diffForHumans(short: \App\Support\AdminText::shortTimes()) }}</td>
                 <td class="is-actions"><button type="button" class="ad-iconbtn is-more" aria-haspopup="true" aria-labelledby="ad-l-act ad-i-{{ $interaction->id }}" data-id="{{ $interaction->id }}" data-user="{{ $interaction->user_id }}" @if ($interaction->video_title !== null) data-video="{{ $interaction->likeable_id }}" @endif></button></td>
             </tr>
         @endforeach

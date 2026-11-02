@@ -1,0 +1,46 @@
+/* The bell (loaded with the panel's own script). The panel and its rows are drawn by the member kit (resources/sass/member/
+   _notify.scss: .mk-notify, .mk-notif, member design 6.14); this file keeps the header badge and the list's scrolling
+   behaviour. Theme colours only (light and dark follow the theme). */
+
+/* The badge: the unread count, 1 to 99, then "99+" (the dot of the header becomes a small pill). */
+.avd-notification-badge.has-count {
+    top: 0.16rem;
+    inset-inline-end: 0.1rem;
+    width: auto;
+    min-width: 1.15rem;
+    height: 1.15rem;
+    padding: 0 0.3rem;
+    box-shadow: none;
+    color: var(--avd-on-brand, #fff);
+    font-size: 0.64rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    letter-spacing: 0;
+    white-space: nowrap;
+    pointer-events: none;
+}
+
+/* The list scrolls by itself and keeps the place on screen when pages come and go: the browser's own scroll anchoring
+   where it has it, the panel's script where it has not (it measures after the browser, so it never moves twice). */
+.avd-bell-scroll {
+    overflow-y: auto;
+    overflow-anchor: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Rows off screen skip their style and layout work: loading a page re-styles the rows in view only, not the whole list
+   (10x less work on a slow phone). Only where the browser also keeps the reading place by itself (overflow-anchor):
+   a row taking its real height above the view never moves what is on screen there. Elsewhere every row is drawn. The
+   sheet's rows have no menu of their own (it is in the sheet's head), so nothing of a row is ever clipped by this. */
+@supports (overflow-anchor: auto) {
+    .avd-bell-row {
+        content-visibility: auto;
+        contain-intrinsic-size: auto 4.5rem;
+    }
+}
+
+.avd-bell-sentinel {
+    height: 1px;
+}

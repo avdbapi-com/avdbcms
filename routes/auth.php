@@ -12,7 +12,9 @@ use App\Support\OAuthProviders;
 Route::controller(LoginController::class)->group(function () {
     Route::get('/login', 'show')->name('login')->middleware('guest');
     Route::post('/login', 'login')->name('login.perform')->middleware(['guest', 'throttle:login']);
-    Route::get('/logout','logout')->name('logout');
+    // Signing out changes something, so it is a POST with the page's token (auth-22): a link or an image on another
+    // site cannot sign a member out. An old page's "Logout" link (a GET) only shows a small page with the same button.
+    Route::match(['GET', 'POST'], '/logout', 'logout')->name('logout');
 });
 
 // OAUTH
@@ -23,7 +25,8 @@ Route::controller(OAuthController::class)->name('oauth.')->prefix('oauth')->grou
     Route::get('/callback/{service}', 'callback')
         ->name('callback')
         ->whereIn('service', OAuthProviders::supported());
-    Route::get('/unlink/{service}', 'unlink')
+    // A POST with the CSRF token: a link on another site cannot unlink a member's social sign-in.
+    Route::post('/unlink/{service}', 'unlink')
         ->name('unlink')
         ->middleware('auth')
         ->whereIn('service', OAuthProviders::supported());
@@ -38,9 +41,9 @@ Route::controller(RegistrationController::class)->middleware('guest')->group(fun
 // PASSWORD RESET
 Route::controller(PasswordController::class)->middleware('guest')->group(function () {
     Route::get('/forgot-password', 'forgot')->name('password.forgot');
-    Route::post('/forgot-password', 'email')->name('password.email')->middleware('throttle:5,1');
+    Route::post('/forgot-password', 'email')->name('password.email')->middleware('throttle:password-email');
     Route::get('/reset-password/{token}', 'reset')->name('password.reset');
-    Route::post('/reset-password', 'update')->name('password.update');
+    Route::post('/reset-password', 'update')->name('password.update')->middleware('throttle:password-reset');
 });
 
 // EMAIL VERIFICATION
@@ -63,5 +66,7 @@ Route::controller(PhoneVerification::class)
     ->prefix('phone')
     ->group(function () {
         Route::post('/verification-notification', 'send')->name('send')->middleware('rate:1');
-        Route::post('/verify', 'verify')->name('verify');
+        // Its own named limit (RouteServiceProvider "phone-verify"): about 10 checks a minute per member, answered under the
+        // code field in the member's language (R2A-030). Each code allows 5 wrong tries in all (R1-164).
+        Route::post('/verify', 'verify')->name('verify')->middleware('throttle:phone-verify');
     });

@@ -2,6 +2,9 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Support\AuditDetails;
+use App\Support\ImportAudit;
+use App\Support\OutboundUrl;
 use App\Console\Commands\ImportXvidVideos;
 use App\Jobs\RunXvidImport;
 use App\Models\Category;
@@ -106,7 +109,6 @@ class XvidImportController
                     'User-Agent' => 'Mozilla/5.0',
                     'Accept' => 'application/json',
                 ])
-                ->withOptions(['verify' => false])
                 ->get(self::DEFAULT_API_BASE, [
                     'ac' => 'list',
                     'at' => 'json',
@@ -152,9 +154,33 @@ class XvidImportController
         }
     }
 
+    /**
+     * The API base an import uses: an http(s) address on the internet, without its trailing slash; anything else (empty,
+     * not an address, this server or a private network) is the default XVIDAPI address.
+     */
+    private function normalizeApiUrl(string $url): string
+    {
+        $url = rtrim(trim($url), '/');
+
+        if ($url === '' || ! filter_var($url, FILTER_VALIDATE_URL)
+            || ! in_array(strtolower((string) parse_url($url, PHP_URL_SCHEME)), ['http', 'https'], true)
+            || ! OutboundUrl::isPublic($url)) {
+            return self::DEFAULT_API_BASE;
+        }
+
+        return $url;
+    }
+
     public function testConnection(Request $request)
     {
-        $apiBase = rtrim((string) $request->input('api_base_url', self::DEFAULT_API_BASE), '/');
+        $raw = trim((string) $request->input('api_base_url', ''));
+
+        // An address that is not on the internet is never fetched (see AvdbImportController::testConnection()).
+        if ($raw !== '' && filter_var($raw, FILTER_VALIDATE_URL) && ! OutboundUrl::isPublic($raw)) {
+            return response()->json(['success' => false, 'message' => OutboundUrl::refusal()]);
+        }
+
+        $apiBase = $this->normalizeApiUrl($raw);
 
         $start = microtime(true);
         try {
@@ -163,7 +189,7 @@ class XvidImportController
                     'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
                     'Accept' => 'application/json',
                 ])
-                ->withOptions(['verify' => false])
+                ->withOptions(OutboundUrl::options($apiBase))
                 ->get($apiBase, ['ac' => 'detail', 'at' => 'json', 'pagesize' => 1]);
 
             $elapsedMs = (int) round((microtime(true) - $start) * 1000);
@@ -194,7 +220,8 @@ class XvidImportController
                 'formatted_total' => number_format($totalVideos),
                 'response_time_ms' => $elapsedMs,
                 'categories_count' => $classesCount,
-                'message' => __('Connection successful! Found :total videos across :cats categories.', [
+                // two numbers in one line: the label form reads right for every number in every language
+                'message' => __('Connected. Videos: :total. Categories: :cats.', [
                     'total' => number_format($totalVideos),
                     'cats' => $classesCount,
                 ]),
@@ -257,7 +284,7 @@ class XvidImportController
         }
 
         $settings = [
-            'api_base_url' => rtrim((string) (($data['api_base_url'] ?? null) ?: self::DEFAULT_API_BASE), '/'),
+            'api_base_url' => $this->normalizeApiUrl((string) ($data['api_base_url'] ?? '')),
             'categories' => $categories,
             'pages' => (int) ($data['pages'] ?? 1),
             'start_page' => (int) ($data['start_page'] ?? 1),
@@ -296,6 +323,9 @@ class XvidImportController
 
         $started = $this->startBackgroundImport($run);
 
+        // Tools > Logs > Admin actions (R3-019): the run's number (started now or queued), and whether it is a dry run.
+        AuditLogController::log('import.xvid.started', ImportAudit::run((int) $run->id, (bool) $settings['dry_run']));
+
         return response()->json([
             'success' => true,
             'run_id' => $run->id,
@@ -318,11 +348,17 @@ class XvidImportController
 
     public function stop(XvidImportRun $run)
     {
+        $active = in_array((string) $run->status, ['queued', 'starting', 'running'], true) && ! $run->cancel_requested;
         $run->forceFill([
             'cancel_requested' => true,
             'message' => __('Cancellation requested...'),
         ])->save();
         $run->appendLog(__('User requested cancellation.'));
+
+        // a run that was still going (a finished one, or a second click, changes nothing)
+        if ($active) {
+            AuditLogController::log('import.xvid.stopped', ImportAudit::run((int) $run->id));
+        }
 
         return response()->json([
             'success' => true,
@@ -332,11 +368,12 @@ class XvidImportController
 
     public function forceStop()
     {
-        XvidImportRun::whereIn('status', ['queued', 'starting', 'running'])->update([
-            'status' => 'cancelled',
-            'message' => __('Force stopped by admin.'),
-            'finished_at' => now(),
-        ]);
+        $stopped = $this->stopActiveRuns();
+
+        // the runs it stopped ("#12, #13"); none running: nothing written
+        if ($stopped !== []) {
+            AuditLogController::log('import.xvid.force_stopped', AuditDetails::ids($stopped));
+        }
 
         return response()->json([
             'success' => true,
@@ -349,9 +386,29 @@ class XvidImportController
         return response()->json($this->cachedLocalStats());
     }
 
+    /**
+     * Stops every XVIDAPI import that is queued or running.
+     *
+     * @return list<int> the runs it stopped
+     */
+    private function stopActiveRuns(): array
+    {
+        $ids = XvidImportRun::whereIn('status', ['queued', 'starting', 'running'])->orderBy('id')->pluck('id')->map(fn ($id): int => (int) $id)->all();
+
+        if ($ids !== []) {
+            XvidImportRun::whereIn('id', $ids)->whereIn('status', ['queued', 'starting', 'running'])->update([
+                'status' => 'cancelled',
+                'message' => __('Force stopped by admin.'),
+                'finished_at' => now(),
+            ]);
+        }
+
+        return $ids;
+    }
+
     public function clean()
     {
-        $this->forceStop();
+        $stopped = count($this->stopActiveRuns());
 
         $videoIds = Video::withTrashed()
             ->where(function ($q) {
@@ -365,6 +422,11 @@ class XvidImportController
 
         if ($count === 0) {
             Cache::forget('xvidapi_admin_stats');
+
+            // nothing deleted: a row only when it stopped an import
+            if ($stopped > 0) {
+                AuditLogController::log('import.xvid.cleaned', ImportAudit::cleaned(0, 0, $stopped));
+            }
 
             return response()->json([
                 'success' => true,
@@ -392,11 +454,12 @@ class XvidImportController
         });
 
         Cache::forget('xvidapi_admin_stats');
+        AuditLogController::log('import.xvid.cleaned', ImportAudit::cleaned($count, 0, $stopped));
 
         return response()->json([
             'success' => true,
             'deleted' => $count,
-            'message' => __('Deleted :count XVIDAPI video(s) and their metadata.', ['count' => number_format($count)]),
+            'message' => trans_choice('Deleted 1 XVIDAPI video and its details.|Deleted :count XVIDAPI videos and their details.', $count, ['count' => number_format($count)]),
         ]);
     }
 
@@ -449,6 +512,7 @@ class XvidImportController
             'next_run_at' => now()->addMinutes(5),
         ]));
         $schedule->save();
+        AuditLogController::log('import.xvid.schedule.created', AuditDetails::titled($schedule, 'name'));
 
         return response()->json([
             'success' => true,
@@ -467,6 +531,7 @@ class XvidImportController
             'is_active' => $active,
             'next_run_at' => $active ? $schedule->calculateNextRunAt() : null,
         ]);
+        AuditLogController::log($active ? 'import.xvid.schedule.on' : 'import.xvid.schedule.off', AuditDetails::titled($schedule, 'name'));
 
         return back()->with('success', $active ? __('Schedule enabled.') : __('Schedule paused.'));
     }
@@ -474,27 +539,38 @@ class XvidImportController
     public function runScheduleNow(XvidImportSchedule $schedule)
     {
         Artisan::call('xvid:schedules:run', ['--id' => $schedule->id]);
+        AuditLogController::log('import.xvid.schedule.run', AuditDetails::titled($schedule, 'name'));
 
         return back()->with('success', __('Schedule triggered successfully.'));
     }
 
     public function destroySchedule(XvidImportSchedule $schedule)
     {
+        $name = AuditDetails::titled($schedule, 'name');
         $schedule->delete();
+        AuditLogController::log('import.xvid.schedule.deleted', $name);
 
         return back()->with('success', __('Schedule deleted.'));
     }
 
     public function destroyRun(XvidImportRun $run)
     {
+        $id = (int) $run->id;
         $run->delete();
+        AuditLogController::log('import.xvid.run_deleted', ImportAudit::run($id));
 
         return back()->with('success', __('Run history deleted.'));
     }
 
     public function cleanFinishedRuns()
     {
-        XvidImportRun::whereIn('status', ['finished', 'cancelled', 'failed'])->delete();
+        $finished = XvidImportRun::whereIn('status', ['finished', 'cancelled', 'failed']);
+        $ids = (clone $finished)->orderBy('id')->limit(AuditDetails::LIST_MAX)->pluck('id')->map(fn ($id): int => (int) $id)->all();
+        $deleted = $finished->delete();
+
+        if ($deleted > 0) {
+            AuditLogController::log('import.xvid.runs_deleted', AuditDetails::ids($ids, $deleted));
+        }
 
         return back()->with('success', __('Finished run history cleared.'));
     }

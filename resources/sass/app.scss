@@ -1,6 +1,49 @@
 @import "normalize";
-@import "bootstrap/scss/bootstrap";
-@import "@fortawesome/fontawesome-free/css/all.css";
+// Bootstrap 5.3: the import stack of bootstrap/scss/bootstrap.scss, written out (perf-7, 1.2.3) so that
+// (1) the utility groups whose breakpoint classes no source names print their base classes only (_bootstrap-utilities,
+// generated, between the utilities map and the API) and (2) the carousel, which no view or script uses, is left out.
+@import "bootstrap/scss/mixins/banner";
+@include bsBanner("");
+@import "bootstrap/scss/functions";
+@import "bootstrap/scss/variables";
+@import "bootstrap/scss/variables-dark";
+@import "bootstrap/scss/maps";
+@import "bootstrap/scss/mixins";
+@import "bootstrap/scss/utilities";
+@import "bootstrap-utilities";
+@import "bootstrap/scss/root";
+@import "bootstrap/scss/reboot";
+@import "bootstrap/scss/type";
+@import "bootstrap/scss/images";
+@import "bootstrap/scss/containers";
+@import "bootstrap/scss/grid";
+@import "bootstrap/scss/tables";
+@import "bootstrap/scss/forms";
+@import "bootstrap/scss/buttons";
+@import "bootstrap/scss/transitions";
+@import "bootstrap/scss/dropdown";
+@import "bootstrap/scss/button-group";
+@import "bootstrap/scss/nav";
+@import "bootstrap/scss/navbar";
+@import "bootstrap/scss/card";
+@import "bootstrap/scss/accordion";
+@import "bootstrap/scss/breadcrumb";
+@import "bootstrap/scss/pagination";
+@import "bootstrap/scss/badge";
+@import "bootstrap/scss/alert";
+@import "bootstrap/scss/progress";
+@import "bootstrap/scss/list-group";
+@import "bootstrap/scss/close";
+@import "bootstrap/scss/toasts";
+@import "bootstrap/scss/modal";
+@import "bootstrap/scss/tooltip";
+@import "bootstrap/scss/popover";
+@import "bootstrap/scss/spinners";
+@import "bootstrap/scss/offcanvas";
+@import "bootstrap/scss/placeholders";
+@import "bootstrap/scss/helpers";
+@import "bootstrap/scss/utilities/api";
+@import "fontawesome";
 @import "helpers";
 @import "header";
 @import "video";
@@ -424,13 +467,12 @@ body.has-sidebar #main-container {
     cursor: pointer;
     font-weight: 700;
     text-align: center;
-    transition: border-color 180ms ease, background-color 180ms ease, transform 180ms ease;
+    transition: border-color 120ms ease, background-color 120ms ease;
 }
 
 .input-file label:hover {
     border-color: var(--avd-brand) !important;
     background: var(--avd-brand-soft);
-    transform: translateY(-1px);
 }
 
 .input-file input {
@@ -590,14 +632,16 @@ body.has-sidebar #main-container {
     letter-spacing: 0;
 }
 
-.modal-dialog {
-    pointer-events: auto;
-}
+// R1-094: no `.modal-dialog { pointer-events: auto }` any more. Bootstrap leaves the dialog's box click-through and only
+// its .modal-content takes clicks, so a tap on the dimmed area around a centred dialog closes it on phones too, where the
+// dialog's box fills the screen's height (the upload window and other centred dialogs closed only with X or Escape).
 
+// R1-026: by class only. The old `body.modal-open [id^="phpdebugbar"]` made every element of the page that has an id
+// restyle each time a dialog opened or closed (about 100 on the watch page: 21-46 ms at CPU 4x right after the dialog
+// appeared); no element of the debug bar has an id of its own.
 body.modal-open .phpdebugbar,
 body.modal-open .phpdebugbar-openhandler,
-body.modal-open .phpdebugbar-closedhandler,
-body.modal-open [id^="phpdebugbar"] {
+body.modal-open .phpdebugbar-closedhandler {
     display: none !important;
 }
 
@@ -607,12 +651,26 @@ body.modal-open [id^="phpdebugbar"] {
 
 .modal .btn-close {
     opacity: 0.72;
-    transition: opacity 160ms ease, transform 160ms ease;
+    transition: opacity 120ms ease;
 }
 
 .modal .btn-close:hover {
     opacity: 1;
-    transform: scale(1.06);
+}
+
+// 1.2.3 round 1b (R1R-11): the close X of a dialog or a side panel sits at the end of its header in both directions.
+// Bootstrap's own rule sets the X's margins left to right (margin-left: auto and a negative right margin into the header's
+// padding), so in Arabic the X stayed right next to the title and its negative margin pulled it 8 px over the title's
+// last word (Save to playlist, Report). The same margins written as start and end: nothing changes left to right. The
+// upload panel (#video_create, hands-off) keeps its header as it is.
+.modal:not([id="video_create"]) .modal-header .btn-close {
+    margin-block: calc(-.5 * var(--bs-modal-header-padding-y));
+    margin-inline: auto calc(-.5 * var(--bs-modal-header-padding-x));
+}
+
+.offcanvas-header .btn-close {
+    margin-block: calc(-.5 * var(--bs-offcanvas-padding-y));
+    margin-inline: auto calc(-.5 * var(--bs-offcanvas-padding-x));
 }
 
 .modal .img-thumbnail {
@@ -622,32 +680,32 @@ body.modal-open [id^="phpdebugbar"] {
 
 .modal .fa-stack {
     border-radius: 50%;
-    transition: transform 180ms ease, filter 180ms ease;
 }
 
-.modal .fa-stack:hover {
-    transform: translateY(-2px) scale(1.04);
-    filter: saturate(1.1);
+// The share dialog's Embed control is a <button> (it opens the embed code; an <a> without an address could not be
+// reached with the keyboard). A button centres its content box, so Font Awesome's stacked icons (absolute, no top)
+// started half its height lower than in the links beside it: they start at its top, like there.
+.modal .avd-share-embed {
+    vertical-align: middle;
+    color: inherit;
 }
 
+.modal .avd-share-embed > .fa-stack-1x,
+.modal .avd-share-embed > .fa-stack-2x {
+    inset-block-start: 0;
+}
+
+// One hover rule for every button (member design 4.2, OD-M16): colour, background, border colour, shadow and opacity
+// only, in 140 ms; no lift on hover and no scale on press (motion.scss, layout-theme-b.css "One hover rule").
 .btn {
     border-radius: var(--avd-radius-button, 12px);
     font-weight: 700;
     letter-spacing: 0;
-    transition: transform 160ms ease, box-shadow 160ms ease, background-color 160ms ease, border-color 160ms ease, color 160ms ease;
-}
-
-.btn:hover {
-    transform: translateY(-1px);
-}
-
-.btn:active {
-    transform: translateY(0) scale(0.98);
+    transition: box-shadow 120ms ease, background-color 120ms ease, border-color 120ms ease, color 120ms ease, opacity 120ms ease;
 }
 
 .btn:disabled,
 .btn.disabled {
-    transform: none;
     box-shadow: none !important;
 }
 
@@ -1531,8 +1589,7 @@ textarea.form-control:focus {
 }
 
 .ts-wrapper.form-control,
-.ts-wrapper.form-select,
-.ts-wrapper.avd-footer-select {
+.ts-wrapper.form-select {
     width: 100%;
     min-width: 0;
     padding: 0;
@@ -1606,29 +1663,6 @@ textarea.form-control:focus {
     border-radius: 999px;
     padding: 0.35rem 0.75rem;
     font-size: 0.84rem;
-}
-
-.ts-wrapper.avd-footer-select .ts-control {
-    min-height: 38px;
-    border-color: var(--avd-footer-border);
-    border-radius: 12px;
-    background: var(--avd-footer-control-bg);
-    color: var(--avd-footer-heading);
-    font-size: 0.9rem;
-    padding: 0.4rem 0.65rem;
-}
-
-// TomSelect's Bootstrap 5 stylesheet (loaded after this file) draws its own chevron as a background picture on a
-// single select that is neither .form-control nor .form-select (.ts-wrapper:not(.form-control, .form-select).single
-// .ts-control, 0-4-0). The footer language select is the only such select: it showed that faded chevron next to the
-// site's own (::after above), two arrows. Only the site's chevron stays, and it takes the place of the removed one
-// at the end of the field (TomSelect keeps --ts-pr-caret, 2.25rem, free at the end for its own chevron).
-html[data-bs-theme] .ts-wrapper.avd-footer-select.single {
-    --ts-pr-caret: 0px;
-}
-
-html[data-bs-theme] .ts-wrapper.avd-footer-select.single .ts-control {
-    background-image: none;
 }
 
 .ts-wrapper.single .ts-control:hover,
@@ -1772,8 +1806,11 @@ html[data-bs-theme] .ts-wrapper.avd-footer-select.single .ts-control {
     background: rgba(9, 12, 20, 0.72);
 }
 
+// Reserved boxes (member design 4.3, 6.20: CLS <= 0.05 with the ads): the header slot keeps 90px while its code
+// fills in, the footer slot 88px (70px on phones), so nothing below them moves when an ad network writes its banner.
 .ad-slot-header {
     border-bottom: 1px solid var(--avd-border);
+    min-block-size: 90px;
     max-height: 112px;
 }
 
@@ -1841,17 +1878,31 @@ html[data-bs-theme] .ts-wrapper.avd-footer-select.single .ts-control {
     margin-top: 0;
 }
 
+// The phone ad strip (member design 4.4, watch-20, watch-31): z 1028, under the bottom bar (1030) and under every
+// sheet backdrop (1040), which dims it; on the look's own solid surface (it was a dark box in the light looks,
+// channel-36). Its real height is measured into --avd-ad-strip-h (resources/js/layout/core.ts).
 .ad-slot-mobile {
     position: fixed;
     inset-inline: clamp(0.5rem, 3vw, 1rem);
     bottom: calc(0.5rem + env(safe-area-inset-bottom));
-    z-index: 1080;
+    z-index: 1028;
     padding-block: 0.35rem;
     padding-inline: 0.35rem 2.7rem;
-    border: 1px solid rgba(255, 255, 255, 0.16);
+    border: 1px solid var(--avd-border, rgba(255, 255, 255, 0.16));
     border-radius: 18px;
-    background: rgba(10, 13, 22, 0.96);
-    box-shadow: 0 18px 38px rgba(0, 0, 0, 0.34);
+    background: var(--avd-surface-solid, rgba(10, 13, 22, 0.96));
+    color: var(--avd-text, #fff);
+    box-shadow: 0 18px 38px rgba(var(--avd-shade-rgb, 0, 0, 0), 0.34);
+    transition: opacity 120ms ease, visibility 0s linear 0s;
+}
+
+// watch-31: the strip steps aside while the watch page's action or channel row is under it, and on a short phone until
+// the visitor scrolls past half a screen (resources/js/layout/core.ts). It fades; nothing moves.
+.ad-slot-mobile.is-yielding {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 120ms ease, visibility 0s linear 120ms;
 }
 
 .ad-slot-close {
@@ -1864,17 +1915,27 @@ html[data-bs-theme] .ts-wrapper.avd-footer-select.single .ts-control {
     align-items: center;
     justify-content: center;
     transform: translateY(-50%);
-    border: 1px solid rgba(255, 255, 255, 0.16);
+    border: 1px solid var(--avd-border, rgba(255, 255, 255, 0.16));
     border-radius: 50%;
-    background: rgba(255, 255, 255, 0.08);
-    color: var(--avd-hero-title, #fff);
+    background: var(--avd-surface-2, rgba(255, 255, 255, 0.08));
+    color: var(--avd-text, #fff);
     line-height: 1;
 }
 
 .ad-slot-close:hover,
 .ad-slot-close:focus-visible {
     background: rgba(var(--avd-brand-rgb), 0.22);
-    color: var(--avd-hero-title, #fff);
+    color: var(--avd-text, #fff);
+}
+
+// On touch screens the 32px button takes taps from a 44px square around it (member design 4.3; its padding box is 30px
+// inside the 1px border, so 7px each side); the strip is 66px tall.
+@media (pointer: coarse) {
+    .ad-slot-close::after {
+        content: "";
+        position: absolute;
+        inset: -7px;
+    }
 }
 
 .avd-ad-preview-toast {
@@ -1940,7 +2001,6 @@ body.has-mobile-ad {
 .avd-test-ad:focus-visible {
     color: var(--avd-text);
     border-color: rgba(var(--avd-brand-rgb), 0.42);
-    transform: translateY(-1px);
 }
 
 .avd-demo-ad__label,
@@ -2431,3 +2491,9 @@ body.has-mobile-ad {
 
 @import "responsive";
 @import "feed-skeleton";
+
+// The member kit's SHARED part (member design 5.13): what a guest meets on a public page (the .avd-mk scope,
+// buttons, the dialog and sheet parts, the guest prompt, toasts, Subscribe). The only member import of the main CSS and
+// its last import (the member entry, resources/sass/member.scss, does not repeat it). Its rules style kit markup only
+// (mk-*, .avd-mk) or wait for html[data-avd-member]; the few on :root / body only set the kit's own variables.
+@import "member/shared";

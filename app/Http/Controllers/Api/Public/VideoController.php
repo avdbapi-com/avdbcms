@@ -11,6 +11,7 @@ use App\Services\ViewService;
 use App\Support\AppearanceSettings;
 use App\Support\AvdbDurationBackfill;
 use App\Support\RuntimeEnv;
+use App\Support\SafeCursor;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\ResourceCollection;
@@ -22,14 +23,16 @@ class VideoController
 {
     public function index(Request $request, PublicVideoFeedService $feeds): JsonResponse|ResourceCollection
     {
-        $source = (string) $request->query('source', 'newest');
-        $source = array_key_exists($source, AppearanceSettings::homeFeedSources()) ? $source : 'newest';
+        // A hand-made ?source[]= is no source (the newest feed), not an "Array to string conversion" error.
+        $source = $request->query('source', 'newest');
+        $source = is_string($source) && array_key_exists($source, AppearanceSettings::homeFeedSources()) ? $source : 'newest';
         $categoryId = max(0, (int) $request->query('category', 0));
         $perPage = max(1, min(
             AppearanceSettings::HOME_FEED_MAX_ITEMS,
             (int) $request->query('per_page', config('site.per_page_videos', 24))
         ));
-        $cursor = (string) $request->query('cursor', '');
+        // The page and the guest cache key both come from the query string's cursor (SafeCursor::fromQuery).
+        $cursor = SafeCursor::fromQuery($request);
         $locale = app()->getLocale();
 
         $isGuest = ! Auth::check();
@@ -43,10 +46,7 @@ class VideoController
             }
         }
 
-        $videos = $feeds
-            ->home($source, $categoryId)
-            ->with('user')
-            ->cursorPaginate($perPage);
+        $videos = $feeds->page($feeds->home($source, $categoryId)->with('user'), $perPage, $cursor);
 
         $this->prioritizeMissingDurations($videos->getCollection());
 
@@ -63,7 +63,7 @@ class VideoController
 
     public function trend(Request $request, PublicVideoFeedService $feeds): JsonResponse|ResourceCollection
     {
-        $cursor = (string) $request->query('cursor', '');
+        $cursor = SafeCursor::fromQuery($request);
         $locale = app()->getLocale();
         $perPage = (int) config('site.per_page_videos', 24);
         $isGuest = ! Auth::check();
@@ -77,10 +77,7 @@ class VideoController
             }
         }
 
-        $videos = $feeds
-            ->trending()
-            ->with('user')
-            ->cursorPaginate($perPage);
+        $videos = $feeds->page($feeds->trending()->with('user'), $perPage, $cursor);
 
         $this->prioritizeMissingDurations($videos->getCollection());
 

@@ -50,11 +50,11 @@ html[data-bs-theme="dark"][data-avd-flavor="solarized"] {
   --avd-chip-active-bg: #073642;
   --avd-chip-active-text: #eee8d5;
   --avd-chip-active-shadow: inset 0 2px 0 #4eadf6;
-  --avd-btn-bg: #3093da;
+  --avd-btn-bg: #3295dc;
   --avd-btn-text: #002b36;
   --avd-btn2-bg: #0b4250;
   --avd-btn2-text: #eee8d5;
-  --avd-play-bg: #3093da;
+  --avd-play-bg: #3295dc;
   --avd-play-text: #002b36;
   --avd-badge-bg: #3093da;
   --avd-badge-text: #002b36;

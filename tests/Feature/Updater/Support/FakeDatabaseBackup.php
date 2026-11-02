@@ -37,7 +37,8 @@ final class FakeDatabaseBackup extends DatabaseBackup
             throw new RuntimeException('Cannot create '.$this->folder);
         }
 
-        $name = $prefix.date('Y-m-d_His').'.sql';
+        // Named as the real one names it (a random part after the time, security plan S03).
+        $name = $prefix.date('Y-m-d_His').'_'.DatabaseBackup::randomPart().'.sql';
         file_put_contents($this->folder.'/'.$name, "-- AVDBCMS test dump\nSET FOREIGN_KEY_CHECKS=0;\n");
 
         return ['file' => $this->folder.'/'.$name, 'name' => $name, 'gzip' => false, 'tables' => [['users', ['id']], ['videos', ['id']], ['settings', ['id']]],

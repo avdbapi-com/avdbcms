@@ -1,0 +1,578 @@
+/* =====================================================================================================================
+   Member chrome (member design 4.1a, 6.13, 6.20). Reference for resources/sass/member/_chrome.scss: it goes with
+   headers/actions.blade.php and layouts/menus/account.blade.php; it ships in the member CSS entry
+   (resources/sass/member.scss).
+
+   The member entry is printed on every page of a SIGNED-IN visitor (the account
+   panel and the notifications sheet are on every page), and on the member routes for guests. So two kinds of rules:
+   - rules on member markup (.avd-mk roots: the account panel, the notifications sheet, page roots) are never gated:
+   they style that markup wherever it appears;
+   - rules that change the SITE chrome (header actions, avatar, bell, studio menu, background atmosphere, footer
+   loops) are gated by html[data-avd-member], so the public pages of a signed-in member keep their look.
+
+   html[data-avd-member] is printed by components/layout.blade.php on every member page (route names listed in
+   config/member_pages.php): the studio and account (layouts/user), the library pages, the channel page, /premium,
+   sign-in/up/forgot/reset/verify and the notifications page. html[data-avd-back-office] stays as it is (studio and
+   account only).
+
+   Specificity floor (5.13): every selector starts with html or :root.
+
+   Rules (the calm rule of 4.1, applied to the chrome that sits on every member page):
+   - header actions (Upload, search, random, bell), the avatar button and the account panel: hover / focus / press
+   change colour, background-colour, border-colour or box-shadow only; no sweep (::before), no glow (::after), no
+   lift (translateY), no icon scale, no magnet (the inline transform pointerFx writes is overridden with !important,
+   whatever the admin's effect settings and the device tier are; pointerFx also takes .btn out of MAGNET_TARGETS and skips
+   html[data-avd-member] in pointerFx: belt and braces).
+   - budget: 0 repaint frames after 150 ms while the pointer rests on any of them (the hover sweep of 11.1).
+   Same token-only, logical-property rules as member-kit.css.
+   ===================================================================================================================== */
+
+/* ---------------------------------------------------------------------------------------------------------------------
+   1. Header actions, avatar, bell: calm on member pages
+   (keyed on the list's own .avd-mk, which headers/actions.blade.php prints on member routes and on the error
+   pages; the account panel rules stay on html[data-avd-member])
+   ------------------------------------------------------------------------------------------------------------------ */
+:root .avd-header-actions.avd-mk :is(.btn, .mk-btn, .mk-icon-btn, .avd-icon-button, .avd-upload-btn, .avd-auth-btn, .avd-avatar-button, .avd-notification-button),
+html[data-avd-member] #account :is(.btn, .mk-btn, .mk-icon-btn, .mk-account__link) {
+    transform: none !important;
+    translate: none !important;
+    scale: none !important;
+    animation: none !important;
+    transition-property: color, background-color, border-color, box-shadow, opacity !important;
+    transition-duration: 140ms !important;
+}
+
+/* The sweep (motion.scss .btn::before / .avd-icon-button::before, layout-theme-b liquid shimmer) and the blurred glow
+   (motion.scss .btn-primary::after) never draw in the member chrome. */
+:root .avd-header-actions.avd-mk :is(.btn, .avd-icon-button, .avd-upload-btn)::before,
+:root .avd-header-actions.avd-mk :is(.btn, .avd-upload-btn)::after {
+    content: none !important;
+    animation: none !important;
+}
+
+:root .avd-header-actions.avd-mk :is(.btn, .avd-icon-button, .avd-upload-btn) i {
+    transform: none !important;
+    transition: color 140ms ease !important;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    :root .avd-header-actions.avd-mk .avd-icon-button:hover,
+    :root .avd-header-actions.avd-mk .avd-notification-button:hover {
+        background: var(--avd-surface-2);
+        color: var(--avd-text);
+    }
+
+    :root .avd-header-actions.avd-mk .avd-notification-button:hover .fa-bell {
+        color: var(--avd-text);
+    }
+
+    :root .avd-header-actions.avd-mk .avd-avatar-button:hover {
+        border-color: var(--avd-border-strong, var(--avd-border));
+    }
+}
+
+/* The bell is not a disabled grey (account-49): text colour at rest on member pages. Its 42px box is reserved by
+   the header CSS (site-notifications { min-inline-size: 42px }: account-20, perf-12). */
+:root .avd-header-actions.avd-mk .avd-notification-button .fa-bell {
+    color: var(--avd-text);
+}
+
+/* Header Upload on member pages is a quiet secondary button (one primary per view: the page owns the primary);
+   one button at every width (revision 2: no duplicated phone/desktop markup): below 1200px it shows its icon only
+   (the label stays as its accessible name: watch-25; the rule is in section 6, with the guest buttons); on studio
+   phones the tab bar has Upload, so the header button is not repeated. */
+
+/* Keyed on the layout's marker of the studio tab bar (body.has-studio-tabbar, printed by
+   components/layout.blade.php when the tab bar is printed), not on every back-office page: with the admin's
+   "Mobile Bottom Nav Bar" switched off there is no tab bar, and studio phones keep this Upload. */
+@media (max-width: 767.98px) {
+    html[data-avd-member] body.has-studio-tabbar .avd-header-actions .avd-upload-action {
+        display: none !important;
+    }
+}
+
+/* ---------------------------------------------------------------------------------------------------------------------
+   2. Bottom chrome height (one variable for toasts, the view-only banner, back-to-top and fixed member bars)
+   ------------------------------------------------------------------------------------------------------------------ */
+/* Revision 2: the variable and the toast position moved to _shared.scss (main CSS), because the kit toast also shows
+   on PUBLIC pages (a signed-in member's "Saved to Watch later" on the watch page sat on the bottom bar: the variable
+   was gated by html[data-avd-member]). */
+
+/* ---------------------------------------------------------------------------------------------------------------------
+   3. The view-only demo note (ViewOnlyDemo::note(), unchanged): on member pages a slim banner in the page flow above
+   the header, so it never covers the save bar, the bulk bar, the tab bar, the ad strip or a sheet footer.
+   ------------------------------------------------------------------------------------------------------------------ */
+html[data-avd-member] .avd-view-only-note {
+    position: static;
+    left: auto;
+    bottom: auto;
+    display: block;
+    inline-size: 100%;
+    max-inline-size: none;
+    margin: 0;
+    border-radius: 0;
+    transform: none;
+    box-shadow: none;
+    background: var(--avd-info-fill);
+    color: var(--avd-on-info);
+    opacity: 1;
+}
+
+/* ---------------------------------------------------------------------------------------------------------------------
+   4. Account panel (layouts/menus/account.blade.php): a side panel at --mk-panel-w (revision 3: 420px, one width for
+   every side panel; was 360px), full height on phones
+   ------------------------------------------------------------------------------------------------------------------ */
+:root .mk-account {
+    --bs-offcanvas-width: var(--mk-panel-w, min(420px, 100vw));
+    display: flex;
+    flex-direction: column;
+    background: var(--avd-surface-solid);
+    color: var(--avd-text);
+}
+
+:root .mk-account__head {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: .25rem .85rem;
+    align-items: center;
+    padding: 1rem 1rem 1rem 1.25rem;
+    border-block-end: 1px solid var(--avd-divider, var(--avd-border));
+}
+
+:root .mk-account__who {
+    min-inline-size: 0;
+}
+
+:root .mk-account__name {
+    overflow: hidden;
+    color: var(--avd-text);
+    font-family: var(--avd-font-title, var(--avd-font-body));
+    font-size: 1.05rem;
+    font-weight: var(--avd-title-weight, 650);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+:root .mk-account__handle {
+    color: var(--avd-muted);
+    font-size: .8125rem;
+}
+
+:root .mk-account__body {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: .5rem .5rem 1rem;
+}
+
+:root .mk-account__group {
+    margin: .9rem .75rem .35rem;
+    color: var(--avd-muted);
+    font-size: .72rem;
+    font-weight: 800;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+}
+
+:root .mk-account__link {
+    display: flex;
+    align-items: center;
+    gap: .85rem;
+    min-block-size: 44px;
+    padding: 0 .75rem;
+    border-radius: var(--mk-r-field, 10px);
+    color: var(--avd-text);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+:root .mk-account__link i {
+    inline-size: 1.15rem;
+    color: var(--avd-muted);
+    text-align: center;
+}
+
+:root .mk-account__link .mk-count {
+    margin-inline-start: auto;
+}
+
+:root .mk-account__link[aria-current="page"] {
+    background: var(--mk-selected, rgba(var(--avd-brand-rgb), .1));
+}
+
+:root .mk-account__link[aria-current="page"] i {
+    color: var(--avd-brand-ink);
+}
+
+@media (hover: hover) and (pointer: fine) {
+    :root .mk-account__link:hover {
+        background: var(--mk-hover, rgba(var(--avd-glint-rgb, 255, 255, 255), .055));
+    }
+}
+
+:root .mk-account__link:focus-visible {
+    outline: 2px solid var(--avd-focus);
+    outline-offset: -2px;
+}
+
+:root .mk-account__foot {
+    display: grid;
+    gap: .75rem;
+    padding: .9rem 1.25rem max(.9rem, env(safe-area-inset-bottom));
+    border-block-start: 1px solid var(--avd-divider, var(--avd-border));
+}
+
+/* "Upload video" is a button (the upload window's trigger, 5.14) that reads like the links around it. */
+:root button.mk-account__link {
+    inline-size: 100%;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-weight: 600;
+    text-align: start;
+    cursor: pointer;
+}
+
+/* The account badge (x-account-badge) in the kit's quiet badge form: a small neutral label, never a coloured
+   pill (principle 4); premium keeps its star, the view-only demo its eye. */
+:root .mk-account__handle .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    padding: .15rem .5rem;
+    border: 1px solid var(--avd-border);
+    border-radius: var(--avd-r-badge, 999px);
+    background: var(--avd-surface-2) !important;
+    color: var(--avd-text) !important;
+    font-size: .72rem;
+    font-weight: 700;
+    line-height: 1.35;
+    white-space: nowrap;
+}
+
+:root .mk-account__handle .badge i {
+    color: var(--avd-brand-ink);
+    font-size: .7rem;
+}
+
+:root .mk-account__signout {
+    margin: 0;
+}
+
+/* Phones: the account panel (account-53) and the notifications sheet (6.14) are full-screen sheets that use the space,
+   not the kit's 88dvh bottom sheet (one rule for both: the member entry's budget). */
+@media (max-width: 575.98px) {
+    :root .mk-drawer:is(.mk-account, .mk-notify).offcanvas-end {
+        inset: 0;
+        inline-size: 100%;
+        block-size: 100dvh;
+        max-block-size: none;
+        border-radius: 0;
+        transform: translateX(100%);
+    }
+
+    :root .mk-drawer:is(.mk-account, .mk-notify).offcanvas-end.show:not(.hiding),
+    :root .mk-drawer:is(.mk-account, .mk-notify).offcanvas-end.showing {
+        transform: none;
+    }
+
+    :root[dir="rtl"] .mk-drawer:is(.mk-account, .mk-notify).offcanvas-end:not(.show):not(.showing) {
+        transform: translateX(-100%);
+    }
+
+    /* header.scss still sizes the old #account panel with !important below 420px (350px): the full-height panel takes
+       the whole screen (those old header.scss rules can go). */
+    :root #account.mk-account.mk-drawer.offcanvas-end {
+        inline-size: 100% !important;
+        max-inline-size: 100% !important;
+    }
+}
+
+/* ---------------------------------------------------------------------------------------------------------------------
+   5. The background atmosphere and the footer loops are still on member pages.
+   The owner's background_atmosphere_effect is printed on every page (html[data-avd-atmosphere], back office
+   included) and runs an endless loop on body.avd-app::before (layout-theme-b.css: drift, aurora, nebula, solar
+   flare, matrix rain) on the rich tier. On member pages the layer stays (the owner chose it) but rests on its first
+   frame, like the balanced tier already does; the footer accent and the border beam rest too (account-41).
+   ------------------------------------------------------------------------------------------------------------------ */
+html[data-avd-member] body.avd-app::before,
+html[data-avd-member] body.avd-app::after,
+html[data-avd-member] .avd-footer::before,
+html[data-avd-member] .avd-footer-accent,
+html[data-avd-member] .avd-footer-accent::before,
+html[data-avd-member] .avd-border-beam::before,
+html[data-avd-member] .avd-border-beam::after {
+    animation: none !important;
+}
+
+/* ---------------------------------------------------------------------------------------------------------------------
+   6. One primary per view, the guest header included.
+   - auth routes (login, registration, password.*, verification.*): headers/actions.blade.php prints no guest
+   buttons at all (server side): the card has its own primary and its own switch link ("New here? Create an
+   account" / "Already have an account? Sign in"), and the phone bottom bar keeps Sign in / Create account;
+   - other member pages for guests (channel, playlist pages, /premium): Sign in is quiet and Create account is a
+   secondary (the page owns the primary, e.g. Subscribe);
+   - phones with the bottom bar (body.has-bottom-nav, < 768px): the bottom bar carries Sign in and Create account,
+   so the header shows neither; without the bottom bar the header keeps Sign in as a quiet icon button.
+   headers/actions.blade.php prints .avd-auth-action on both list items and mk-btn classes on the links (no .btn).
+   ------------------------------------------------------------------------------------------------------------------ */
+/* One rule for the header Upload (section 1) and the two guest buttons: below 1200px each is a square icon button
+   (40px, 44px on touch screens), its label visually hidden (it stays the accessible name) and its title kept. Revision
+   3 hid the guest labels from 768 to 991px only (at the admin's largest "Text size" they did not fit next to the brand
+   and the search); 1.2.3 takes them to 1199px, like the Upload: from 992px the row also holds the inline
+   search and, in the looks whose side menu is hidden (Cinema Night, Swiss Bento), the header links, and "Create
+   account" ran off the screen (1010-1165px of a 992px screen in Cinema Night, still 1114-1269px at 1199px). From
+   1200px the search takes 5/12 of the row and the words fit in the 12 looks. Below 768px the rule also gives the guest
+   Sign in its icon form when there is no bottom bar (6.13; with the bottom bar the header shows neither, below).
+   Keyed on the list's own .avd-mk (headers/actions.blade.php prints it with the member actions: member routes and the
+   error pages, which declare themselves member pages), not on html[data-avd-member] that only member routes carry. */
+@media (max-width: 1199.98px) {
+    :root .avd-header-actions .avd-upload-action,
+    :root .avd-header-actions.avd-mk .avd-auth-action > .mk-btn {
+        min-inline-size: var(--mk-ctl-h, 40px);
+        inline-size: var(--mk-ctl-h, 40px);
+        min-block-size: var(--mk-ctl-h, 40px);
+        padding-inline: 0;
+    }
+
+    :root .avd-header-actions .avd-upload-action__label,
+    :root .avd-header-actions.avd-mk .avd-auth-action > .mk-btn > span:not([aria-hidden]) {
+        position: absolute !important;
+        inline-size: 1px;
+        block-size: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+    }
+}
+
+/* The header row of a member page never pushes its actions off the screen.
+   From 992px the bar is one flex row: the brand zone, the header links (looks whose side menu is hidden), the
+   inline search at a FIXED half of the row (Bootstrap's col-6 / col-xl-5 / col-xxl-4: it never shrank) and the
+   actions. In Cinema Night and Swiss Bento at 992-1024px that is more than the screen: even icon-only, the guest
+   buttons ended 3-21px past the edge, and the brand zone (min-width 0) was squeezed to nothing, its logo drawn over the
+   first link. On member pages the search gives way first (it keeps at least 7.5rem and never grows past its column),
+   the brand zone shrinks only after it (a small share), so the actions always fit. A row with room is unchanged. The
+   same rule would suit every page (header.scss), where a member's avatar ran off the screen on the home
+   page in Swiss Bento at 992-1024px; error pages carry it inline until the layout prints their member marker
+   (errors/minimal.blade.php). The search's factor is header.scss's 1000 against the brand zone's .05: with 1 against
+   .05 the brand zone still took its share of every shortfall, so the site's name lost 1-9px while the search still had
+   room above its 7.5rem ("Sandbox ..." on the Library in Cinema Night at 992-1366px and Swiss Bento at 992-1199px; for a
+   Premium member in Space, Imperial Salon and Night City HUD on the studio and account pages at 992-1080px). */
+@media (min-width: 992px) {
+    html[data-avd-member] .avd-header-inner > search-bar {
+        flex-shrink: 1000;
+        min-inline-size: 7.5rem;
+    }
+
+    html[data-avd-member] .avd-header-inner > .avd-header-brand-zone {
+        flex-shrink: .05;
+    }
+}
+
+@media (max-width: 767.98px) {
+    :root body.has-bottom-nav .avd-header-actions.avd-mk .avd-auth-action {
+        display: none !important;
+    }
+
+    /* without the bottom bar: only Sign in, as the icon button of the rule above */
+    :root body:not(.has-bottom-nav) .avd-header-actions.avd-mk .avd-auth-action--register {
+        display: none !important;
+    }
+}
+
+/* ---------------------------------------------------------------------------------------------------------------------
+   7. Account panel footer: Language and Theme on two full-width rows. Side by side
+   in a 360px sheet the three-way Theme control was cut ("Light | Dark | De...") in 11 of 12 looks.
+   ------------------------------------------------------------------------------------------------------------------ */
+:root .mk-account__prefs {
+    display: grid;
+    gap: .65rem;
+}
+
+/* The label sits above its control, so the three Theme segments share the panel's whole width: beside a 5.5rem label
+   column they were 55-72px wide on phones and cut their words (ru "Устройство" -> "стройств", es/pt "Dispositivo",
+   tl "Maliwanag"), and 80px at the desktop panel's 420px. A word still longer than its segment (the admin's largest
+   "Text size") wraps inside the segment instead of being cut. */
+:root .mk-account__pref {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: center;
+    gap: .35rem;
+}
+
+:root .mk-account__pref .mk-seg--block > .mk-seg__item,
+:root .mk-account__pref .mk-seg--block .mk-seg__label {
+    padding-inline: .25rem;
+}
+
+/* "anywhere" (not "break-word"): the label is an inline flex box, and only "anywhere" lets its text shrink below the
+   longest word; at the normal text sizes every word fits (one line), only the largest sizes break a word. */
+:root .mk-account__pref .mk-seg--block > .mk-seg__item > .mk-seg__label {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    hyphens: auto;
+    text-overflow: clip;
+    line-height: 1.15;
+    text-align: center;
+}
+
+:root .mk-account__pref > .mk-label {
+    color: var(--avd-muted);
+    font-size: .8125rem;
+    font-weight: 600;
+}
+
+/* revision 3: "View your channel" under the name (a 44px target on touch screens, its text unmoved). With a mouse it is a
+   24px target too (R2A-047: 16px tall at 1024-1920px, under the minimum the sign-in links have since R1-054): the padding
+   is given back by the margin, so the head keeps its height and the text its place. */
+:root .mk-account__channel {
+    display: inline-block;
+    padding-block: .3rem;
+    margin-block: -.3rem;
+    font-size: .8125rem;
+    font-weight: 600;
+}
+
+@media (pointer: coarse) {
+    :root .mk-account__channel {
+        display: inline-block;
+        padding-block: .9rem;
+        margin-block: -.9rem;
+    }
+}
+
+/* the handle line: no literal separators, the badge wraps as a whole */
+:root .mk-account__handle {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .25rem .5rem;
+}
+
+/* ---------------------------------------------------------------------------------------------------------------------
+   8. Revision 2 (real-CSS check): the FRONT side menu on member pages (library, history, channel, /premium: the
+      default layout) is calm too. motion.scss moves its links 4px on hover, scales their icons and makes the selected
+      item's icon breathe forever on the rich tier (found live on /history: avd-icon-breathe on the History icon).
+      The studio menu has the same rule in _studio.scss (with its rail); this one covers the front menu.
+   ------------------------------------------------------------------------------------------------------------------ */
+html[data-avd-member] #responsive-sidebar:not(.avd-back-sidebar) :is(.avd-sidebar-link, .avd-sidebar-group-toggle, .btn) {
+    transform: none !important;
+    translate: none !important;
+    scale: none !important;
+    animation: none !important;
+    transition-property: color, background-color, border-color, box-shadow, opacity !important;
+    transition-duration: 140ms !important;
+}
+
+html[data-avd-member] #responsive-sidebar:not(.avd-back-sidebar) .avd-sidebar-link::before {
+    content: none !important;
+}
+
+html[data-avd-member] #responsive-sidebar:not(.avd-back-sidebar) .avd-sidebar-link :is(i, svg, img) {
+    transform: none !important;
+    animation: none !important;
+    transition: color 140ms ease, opacity 140ms ease !important;
+}
+
+/* ---------------------------------------------------------------------------------------------------------------------
+   9. The site's own FIXED controls on member pages.
+   - "Back to top" (back_to_top_enabled, on by default; .back-to-top, a floating pill at the bottom-end, z 1030): kept
+     on member pages (the admin's setting), but it floats ABOVE every bottom layer: the phone bottom bar or the studio
+     tab bar and the ad strip (--avd-bottom-chrome) and, while they show, the save bar and the phone bulk bar
+     (--mk-bars-h, _shared.scss). Before, it covered the primary Save of Video details at 1366x768 and 1024x768 and the
+     studio tab bar's Comments and More at 390 (back-office pages carry no body.has-bottom-nav, so the site's own lift
+     never applied). Calm: no lift, no icon scale, no 620ms sweep, no blurred glow; colour and shadow only. The
+     floating pill shows its "Top" label as plain text (its ::after is the label, not motion.scss' glow layer).
+   - "Today's design" labels (daily_design_show_badge, while "Change the design every day" is on): the site prints TWO,
+     a bottom-end dock (.avd-daily-design-pill-dock, under "Back to top") and a bottom-start pill (z 1040; the layout adds the
+     class .avd-daily-pill to it in components/layout.blade.php). On member pages only the bottom-start pill is kept,
+     and not on member BACK-OFFICE pages (studio, account: that corner is the studio menu's account card and the save
+     bar's start) nor on the sign-in pages (the layout does not print it there: $isAuthRoute); on library, channel and
+     /premium it sits above --avd-bottom-chrome, calm.
+   - The daily particles canvas (#avdSeasonalAtmosphere, a requestAnimationFrame loop that getAnimations() cannot see):
+     never on member pages (resources/js/layout/decor.ts skips html[data-avd-member] too).
+   ------------------------------------------------------------------------------------------------------------------ */
+html[data-avd-member] .back-to-top {
+    inset-block-end: calc(var(--avd-bottom-chrome, 0px) + var(--mk-bars-h, 0px) + 12px + env(safe-area-inset-bottom, 0px)) !important;
+    /* always at the inline end, 1rem from the edge (mirrored in Arabic): the room the slim footer leaves at its end
+       is measured from here, so the button never covers the footer's links or language */
+    right: auto !important;
+    left: auto !important;
+    inset-inline-end: calc(1rem + env(safe-area-inset-right, 0px)) !important;
+    z-index: 1030;
+    transform: none !important;
+    translate: none !important;
+    scale: none !important;
+    animation: none !important;
+    transition-property: opacity, color, background-color, box-shadow !important;
+    transition-duration: 140ms !important;
+}
+
+html[data-avd-member] .back-to-top::before {
+    content: none !important;
+}
+
+html[data-avd-member] .back-to-top i {
+    transform: none !important;
+    transition: none !important;
+}
+
+html[data-avd-member]:not([data-avd-back-to-top-style="floating_pill"]) .back-to-top::after {
+    content: none !important;
+}
+
+html[data-avd-member][data-avd-back-to-top-style="floating_pill"] .back-to-top::after {
+    position: static !important;
+    inset: auto !important;
+    z-index: auto !important;
+    background: none !important;
+    filter: none !important;
+    opacity: 1 !important;
+    animation: none !important;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    html[data-avd-member] .back-to-top:hover {
+        box-shadow: 0 0 0 2px rgba(var(--avd-glint-rgb, 255, 255, 255), .22), 0 10px 24px -8px rgba(var(--avd-shade-rgb, 0, 0, 0), .5);
+    }
+}
+
+html[data-avd-member][data-avd-back-office] .avd-daily-pill,
+html[data-avd-member] #avdSeasonalAtmosphere {
+    display: none !important;
+}
+
+html[data-avd-member] .avd-daily-pill {
+    bottom: calc(var(--avd-bottom-chrome, 0px) + var(--mk-bars-h, 0px) + 24px) !important;
+    /* The pill sits at the inline START (its markup's inline style says left: 24px, a physical
+       side): in Arabic it moves to the right, away from the toasts and "Back to top" at the inline end */
+    right: auto !important;
+    left: auto !important;
+    inset-inline-start: 24px !important;
+    transform: none !important;
+    transition: box-shadow 140ms ease, background-color 140ms ease !important;
+}
+
+/* A toast or the save bar never sits under the pill: while a toast shows on a narrow screen (bottom centre), the pill
+   steps aside like "Back to top" (opacity only). */
+@media (max-width: 991.98px) {
+    html[data-avd-member][data-mk-toast] .avd-daily-pill {
+        opacity: 0 !important;
+        pointer-events: none !important;
+    }
+}
+
+html[data-avd-member][data-mk-bar] .avd-daily-pill {
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+
+/* ---------------------------------------------------------------------------------------------------------------------
+   10. Small shared parts of the member chrome.
+   ------------------------------------------------------------------------------------------------------------------ */
+/* An arrow that points "forward" or "back" (sign in / out, back to sign in) mirrors in Arabic. */
+:root[dir="rtl"] .mk-flip-rtl {
+    transform: scaleX(-1);
+}
+

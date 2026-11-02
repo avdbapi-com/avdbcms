@@ -6,10 +6,12 @@ use App\Enums\VideoStatus;
 use App\Models\Category;
 use App\Models\User;
 use App\Models\Video;
-use App\Models\VideoTranslation;
 use App\Services\SeoService;
+use App\Support\ContentSafety;
+use App\Support\RobotsTxt;
 use App\Support\SafeCache;
 use App\Support\SeoSitemapCache;
+use App\Support\VideoLanguages;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Response;
@@ -23,38 +25,11 @@ class SeoController extends Controller
     private const SITEMAP_MAX_URLS = 50000;
     private const VIDEO_SITEMAP_MAX_URLS = 1000;
 
-    public function robots(SeoService $seo): Response
+    public function robots(): Response
     {
-        $custom = trim((string) config('site.robots_txt_custom', ''));
-
-        if ($custom !== '') {
-            return response($custom, 200)->withHeaders($this->textHeaders());
-        }
-
-        $lines = [
-            'User-agent: *',
-            config('site.robots_noindex') ? 'Disallow: /' : 'Allow: /',
-        ];
-
-        if (! config('site.robots_noindex')) {
-            $lines = array_merge($lines, [
-                'Disallow: /admin/',
-                'Disallow: /api/',
-                'Disallow: /login',
-                'Disallow: /register',
-                'Disallow: /update-locale',
-                'Disallow: /search',
-                'Disallow: /*/search',
-                'Disallow: /*/update-locale',
-                'Crawl-delay: 2',
-            ]);
-        }
-
-        if (config('site.sitemap_enabled', true)) {
-            $lines[] = 'Sitemap: ' . url('/sitemap.xml');
-        }
-
-        return response(implode("\n", $lines) . "\n", 200)->withHeaders($this->textHeaders());
+        // The text the site also writes into public/robots.txt (App\Support\RobotsTxt, round 4 R3M-02), which web servers
+        // serve before this route: the route answers only where that file is missing and the server hands /robots.txt on.
+        return response(RobotsTxt::text(), 200)->withHeaders($this->textHeaders());
     }
 
     public function sitemap(): Response
@@ -62,7 +37,9 @@ class SeoController extends Controller
         $this->abortIfSitemapDisabled();
 
         $version = SeoSitemapCache::version();
-        $cacheKey = 'seo.sitemap.index.' . $version;
+        // Per address form (clean or /index.php/...): a site that switches keeps no sitemap of the other form for the
+        // cache's half hour (round 1b review BWR-01).
+        $cacheKey = 'seo.sitemap.index.' . $version . '.' . (index_php_links() ? 'i' : 'c');
         $locales = $this->activeLocales();
         $videoPageCounts = [];
 
@@ -142,7 +119,7 @@ class SeoController extends Controller
 
         $locale = $this->requestedLocale();
         $version = SeoSitemapCache::version();
-        $cacheKey = 'seo.sitemap.pages.' . ($locale ?: 'all') . '.' . $version;
+        $cacheKey = 'seo.sitemap.pages.' . ($locale ?: 'all') . '.' . $version . '.' . (index_php_links() ? 'i' : 'c');
 
         $xml = SafeCache::remember($cacheKey, SeoSitemapCache::ttl(), function () use ($locale) {
             $locales = $locale ? [$locale] : $this->activeLocales();
@@ -186,6 +163,8 @@ class SeoController extends Controller
         $activeLocales = $this->activeLocales();
 
         $videos = $this->videosVisibleInLocaleQuery($locale)
+            // the translations this sitemap reads are its own (videoSitemapRelations()), whatever the request's language
+            ->withoutGlobalScope('currentTranslation')
             ->select([
                 'id',
                 'uuid',
@@ -216,9 +195,11 @@ class SeoController extends Controller
 
         $xml = $this->xmlDeclaration();
         $xml .= '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml" xmlns:video="http://www.google.com/schemas/sitemap-video/1.1">' . "\n";
+        // 1.2.3 round 3 (R3-017): the languages of the AVDBAPI videos' translations, one query for the page
+        $translatedIn = VideoLanguages::translatedIn($videos);
 
         foreach ($videos as $video) {
-            $locales = $this->videoLocales($video, $activeLocales);
+            $locales = $this->videoLocales($video, $activeLocales, $translatedIn[(int) $video->id] ?? null);
             $alternates = $this->videoAlternateUrls($seo, $video, $locales);
 
             if ($locale) {
@@ -265,7 +246,7 @@ class SeoController extends Controller
                 continue;
             }
 
-            $path = route('user.show', $user, false);
+            $path = site_path(route('user.show', $user, false));
             $xml .= $this->urlNode(
                 $this->localizedAbsoluteUrl($path, $locale),
                 $user->updated_at,
@@ -427,7 +408,7 @@ class SeoController extends Controller
     {
         // Keep the zero check uncached. Importers and other write paths are not
         // all guaranteed to rotate the sitemap cache version immediately.
-        if ($locale !== null && ! $this->videosVisibleInLocaleQuery($locale)->exists()) {
+        if ($locale !== null && ! $this->videosIndexableInLocale($locale)) {
             return 0;
         }
 
@@ -532,17 +513,19 @@ class SeoController extends Controller
         $latestVideoUpdate = $this->latestActiveVideoUpdatedAt();
         $entries = [
             ['path' => '/', 'lastmod' => $latestVideoUpdate],
-            ['path' => route('pages.trend', [], false), 'lastmod' => $latestVideoUpdate],
-            ['path' => route('pages.terms', [], false), 'lastmod' => null],
-            ['path' => route('contact.show', [], false), 'lastmod' => null],
+            // paths inside the site (without the folder of a site installed in one: url() puts it in front)
+            ['path' => site_path(route('pages.trend', [], false)), 'lastmod' => $latestVideoUpdate],
+            ['path' => site_path(route('pages.terms', [], false)), 'lastmod' => null],
+            ['path' => site_path(route('contact.show', [], false)), 'lastmod' => null],
         ];
 
-        Category::query()
+        // 1.2.3: no category named with a word that is always blocked (App\Support\ContentSafety)
+        \App\Support\ContentSafety::visibleCategories(Category::query()
             ->orderBy('id')
-            ->get(['slug', 'updated_at'])
+            ->get(['slug', 'title', 'updated_at']))
             ->each(function (Category $category) use (&$entries) {
                 $entries[] = [
-                    'path' => route('pages.category', $category->slug, false),
+                    'path' => site_path(route('pages.category', $category->slug, false)),
                     'lastmod' => $category->updated_at,
                 ];
             });
@@ -576,12 +559,16 @@ class SeoController extends Controller
     }
 
     /**
+     * @param  list<string>|null  $translatedIn  the languages of the video's stored translations (VideoLanguages::translatedIn())
      * @return array<int, string>
      */
-    private function videoLocales(Video $video, array $activeLocales): array
+    private function videoLocales(Video $video, array $activeLocales, ?array $translatedIn = null): array
     {
         if ($video->avdb_id) {
-            return $activeLocales;
+            // 1.2.3 round 3 (R3-017, the decision of 29 Oct): only the languages its page is indexable in (English, the
+            // default language, its translations: App\Support\VideoLanguages, the rule of the watch page's hreflang links
+            // and noindex header): a sitemap and its language alternates never offer a page that is not to be indexed
+            return VideoLanguages::indexableIn($video, $activeLocales, $translatedIn);
         }
 
         if ($video->language && in_array($video->language, $activeLocales, true)) {
@@ -602,11 +589,11 @@ class SeoController extends Controller
             'category:id,title',
         ];
 
-        if ($locale !== 'en' && $locale !== config('app.fallback_locale', 'en')) {
-            $relations['translations'] = fn ($query) => $query
-                ->select(['id', 'video_id', 'locale', 'title', 'description', 'country', 'type_name'])
-                ->where('locale', $locale);
-        }
+        // The stored translation of the sitemap's language and the English one, which the watch page falls back on for the
+        // type (Video::titleIn(), descriptionIn(), typeNameIn() read these, no query per video).
+        $relations['translations'] = fn ($query) => $query
+            ->select(['id', 'video_id', 'locale', 'title', 'description', 'country', 'type_name'])
+            ->whereIn('locale', array_values(array_unique([$locale, 'en'])));
 
         return $relations;
     }
@@ -616,18 +603,58 @@ class SeoController extends Controller
         return $this->applyVideoLocaleVisibility($this->fastActiveVideoEloquentQuery(), $locale);
     }
 
+    /**
+     * Whether videosVisibleInLocaleQuery($locale) has a video: the index's per-language check, on every request (see
+     * videoSitemapPageCount()). The same videos, read as two EXISTS that each stop at the first one (1.2.3 round 3,
+     * R3-017): the videos without an AVDBAPI number (avdb_id, its unique index) and the AVDBAPI imports with their
+     * translation of the language (the translations' (locale, video_id) index). One EXISTS with the translation lookup
+     * per video read every imported video of the site for a language none of them is translated into, on each request.
+     */
+    private function videosIndexableInLocale(string $locale): bool
+    {
+        if ($locale === 'en' || $locale === config('app.fallback_locale', 'en')) {
+            return $this->fastActiveVideoTableQuery()->exists();
+        }
+
+        $own = $this->fastActiveVideoTableQuery()
+            ->where(function (\Illuminate\Database\Query\Builder $query): void {
+                $query->whereNull('videos.avdb_id')->orWhere('videos.avdb_id', 0);
+            })
+            ->where(function (\Illuminate\Database\Query\Builder $query) use ($locale): void {
+                $query->where('videos.language', $locale)->orWhereNull('videos.language');
+            })
+            ->exists();
+
+        if ($own) {
+            return true;
+        }
+
+        return $this->applyFastActiveVideoFilters(
+            DB::table('video_translations')->join('videos', 'videos.id', '=', 'video_translations.video_id')
+        )
+            ->where('video_translations.locale', $locale)
+            ->where('videos.avdb_id', '>', 0)
+            ->exists();
+    }
+
     private function applyVideoLocaleVisibility(Builder $query, ?string $locale = null): Builder
     {
         if (!$locale || $locale === 'en' || $locale === config('app.fallback_locale', 'en')) {
             return $query;
         }
 
+        // 1.2.3 round 3 (R3-017, the decision of 29 Oct): an AVDBAPI video only where its page is indexable, with its
+        // translation of the language (App\Support\VideoLanguages): the index lists no sitemap of a language where no
+        // page is, and a sitemap no page that answers noindex
+        VideoLanguages::constrainIndexable($query, $locale);
+
+        // the AVDBAPI number 0 is no import (the watch page, videoLocales()): its own language, as a member's upload
         return $query->where(function (Builder $outer) use ($locale) {
             $outer->where(function (Builder $avdb) {
-                $avdb->whereNotNull('avdb_id');
+                $avdb->where('avdb_id', '>', 0);
             })
                 ->orWhere(function (Builder $native) use ($locale) {
-                    $native->whereNull('avdb_id')
+                    $native->where(fn (Builder $none) => $none->whereNull('avdb_id')->orWhere('avdb_id', 0))
                         ->where(function (Builder $language) use ($locale) {
                             $language->where('language', $locale)
                                 ->orWhereNull('language');
@@ -690,23 +717,31 @@ class SeoController extends Controller
         return $this->alternateUrlsForPath($seo->videoPath($video), $locales);
     }
 
+    /** The site root of this request's sitemap links, worked out once per controller (that is, per request). */
+    private ?string $baseUrl = null;
+
     private function baseUrl(): string
     {
-        static $base = null;
-        if ($base === null) {
-            $base = rtrim(url('/'), '/');
-        }
-
-        return $base;
+        // Kept on the controller, not in a function-level static: a static outlives the request in a long-running
+        // worker (and in the test suite), so the first request's site address would end up in every later sitemap.
+        return $this->baseUrl ??= rtrim(url('/'), '/');
     }
 
     private function localizedAbsoluteUrl(string $path, string $locale): string
     {
         $path = '/' . ltrim($path, '/');
         $path = $path === '//' ? '/' : $path;
+        // route(..., false) already carries /index.php on a site whose links keep it, and url() adds it again in front
+        // of the language: /index.php/fr/index.php/trend (R1B-007). The path goes in without it.
+        if ($path === '/index.php' || str_starts_with($path, '/index.php/')) {
+            $path = substr($path, strlen('/index.php')) ?: '/';
+        }
 
         if ($locale === $this->defaultLocale()) {
-            return url($path);
+            $url = url($path);
+
+            // the home page of a site installed in a folder: the folder with its slash, as the page's canonical (R2R-05)
+            return $path === '/' && site_folder() !== '' && str_ends_with($url, site_folder()) ? $url.'/' : $url;
         }
 
         return url('/' . $locale . ($path === '/' ? '' : $path));
@@ -733,10 +768,12 @@ class SeoController extends Controller
     private function videoUrlNode(SeoService $seo, Video $video, string $locale, array $alternates): string
     {
         $loc = $this->localizedAbsoluteUrl($seo->videoPath($video), $locale);
-        $translation = $this->videoTranslation($video, $locale);
-        $title = $translation?->title ?: $video->getRawOriginal('title');
-        $description = trim(strip_tags((string) ($translation?->description ?: $video->getRawOriginal('description'))));
-        $description = $description !== '' ? Str::limit($description, 512, '') : $title;
+        // 1.2.3 round 3 (R3-003): the title, description and type the watch page shows in this language (Video::titleIn()
+        // and the others: never a stored translation that uses a word that is always blocked, App\Support\ContentSafety,
+        // the video's own text instead); a description that still uses such a word is left out (the title stands in)
+        $title = $video->titleIn($locale);
+        $description = trim(strip_tags((string) $video->descriptionIn($locale)));
+        $description = $description !== '' && ContentSafety::hardMatch($description) === null ? Str::limit($description, 512, '') : $title;
 
         $xml = '  <url>' . "\n";
         $xml .= '    <loc>' . $this->e($loc) . '</loc>' . "\n";
@@ -767,7 +804,9 @@ class SeoController extends Controller
             $xml .= '      <video:publication_date>' . $this->e($this->date($publicationDate)) . '</video:publication_date>' . "\n";
         }
 
-        $category = $translation?->type_name ?: ($video->category?->title ? decode_html_entities($video->category->title) : null);
+        // never a category visitors never see (its name uses a word that is always blocked): the video is listed without it
+        $category = $video->typeNameIn($locale)
+            ?: ($video->category?->title && ! ContentSafety::hides((string) $video->category->title) ? decode_html_entities($video->category->title) : null);
         if ($category) {
             $xml .= '      <video:category>' . $this->cdata($category) . '</video:category>' . "\n";
         }
@@ -781,15 +820,6 @@ class SeoController extends Controller
         $xml .= '  </url>' . "\n";
 
         return $xml;
-    }
-
-    private function videoTranslation(Video $video, string $locale): ?VideoTranslation
-    {
-        if ($locale === 'en' || $locale === config('app.fallback_locale', 'en')) {
-            return null;
-        }
-
-        return $video->translations->firstWhere('locale', $locale);
     }
 
     private function videoPublicationDate(Video $video): mixed

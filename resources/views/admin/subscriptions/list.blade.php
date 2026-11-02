@@ -4,6 +4,7 @@
     activate, asked first; delete with Undo), the pager.
 --}}
 @use('App\Support\AdminTheme')
+@use('App\Support\PaymentProviders')
 @extends('layouts.admin')
 
 @section('title', __('Subscribers'))
@@ -66,8 +67,8 @@
             <tr>
                 <td class="c-main"><p><b id="ad-sub-{{ $subscription->id }}">{{ $subscription->user?->username ?? __('Deleted member') }}</b><small>{{ $subscription->user?->email }}</small></p></td>
                 <td class="c-meta"><x-admin.status :type="$tones[$subscription->stripe_status] ?? 'off'">{{ $label($subscription->stripe_status) }}</x-admin.status><small class="ad-phone-only">{{ $subscription->plan?->name ?? __('No plan') }}</small></td>
-                <td class="hide-tab"><p class="ad-cell-two"><b>{{ $subscription->plan?->name ?? __('No plan') }}</b><small>{{ \Illuminate\Support\Str::headline($subscription->payment_provider ?? 'stripe') }}</small></p></td>
-                <td class="hide-tab">{{ $subscription->card_last4 ? '•••• '.$subscription->card_last4 : '-' }}</td>
+                <td class="hide-tab"><p class="ad-cell-two"><b>{{ $subscription->plan?->name ?? __('No plan') }}</b><small>{{ PaymentProviders::label($subscription->payment_provider) }}</small></p></td>
+                <td class="hide-tab">{{ PaymentProviders::card($subscription->card_last4) ?? '-' }}</td>
                 <td class="is-date">{{ $next }}</td>
                 <td class="is-actions"><button type="button" class="ad-iconbtn is-more" aria-haspopup="true" aria-labelledby="ad-l-act ad-sub-{{ $subscription->id }}" data-id="{{ $subscription->id }}" data-state="{{ $subscription->stripe_status }}" @if ($subscription->user) data-user="{{ $subscription->user->id }}" @endif></button></td>
             </tr>

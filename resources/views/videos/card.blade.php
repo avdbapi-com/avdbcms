@@ -16,9 +16,11 @@
     $qualityText = $is4K ? '4K UHD' : ($is2K ? '1440p 2K' : ($is1080 ? '1080p' : ($is720 ? '720p' : ($video->xvid_quality ?: 'HD'))));
     $qualityBadgeClass = $is4K ? 'bg-gradient-warning' : ($is2K ? 'bg-primary' : 'bg-danger');
 
-    $creatorVerified = config('site.creator_verified_badge_enabled', true);
+    // The check mark only for a channel the site has verified (watch-24: App\Support\VerifiedCreator).
+    $creatorVerified = \App\Support\VerifiedCreator::is($video->user);
     $titleScriptClass = \App\Support\TitleScript::cssClass($video->title);
-    $category = $video->category;
+    // 1.2.3: a category named with a word that is always blocked is never shown (App\Support\ContentSafety)
+    $category = $video->category && ! \App\Support\ContentSafety::hides($video->category->title) ? $video->category : null;
 @endphp
 @once
 <style>
@@ -162,22 +164,22 @@
                     <img :src="thumbs[thumbIndex]" alt="{{$video->title}}" class="position-absolute top-0 start-0 w-100 h-100 object-fit-cover" style="z-index:1;" loading="lazy">
                 </template>
                 <div class="position-absolute top-0 start-0 w-100 h-100">
-                    <image-loaded source="{{$video->thumbnail_url}}" title="{{$video->title}}" :hover="hover"></image-loaded>
+                    @include('videos.partials.thumb', ['src' => $video->thumbnail_url, 'alt' => $video->title, 'eager' => $eagerThumb ?? false, 'hoverBinding' => true])
                 </div>
 
                 <span class="avd-duration" style="z-index: 3;">{{$video->duration}}</span>
                 @if($hdBadgeEnabled && $hasQuality)
-                    <span class="badge {{ $qualityBadgeClass }} position-absolute top-0 start-0 m-2 px-2 py-1 text-uppercase shadow-sm" style="font-size:10px; z-index:3; letter-spacing:0.5px;">{{$qualityText}}</span>
+                    <span class="badge {{ $qualityBadgeClass }} position-absolute top-0 avd-at-start m-2 px-2 py-1 text-uppercase shadow-sm" style="font-size:10px; z-index:3; letter-spacing:0.5px;">{{$qualityText}}</span>
                 @endif
                 @if($isNew)
-                    <span class="badge bg-primary position-absolute top-0 end-0 m-2 px-2 py-1 text-uppercase fw-bold shadow-sm" style="font-size:10px; z-index:3; letter-spacing:0.5px;">{{ __('NEW') }}</span>
+                    <span class="badge bg-primary position-absolute top-0 avd-at-end m-2 px-2 py-1 text-uppercase fw-bold shadow-sm" style="font-size:10px; z-index:3; letter-spacing:0.5px;">{{ __('NEW') }}</span>
                 @endif
 
             </a>
 
             <!-- Quick Action Toolbar: sibling of the thumbnail link so buttons remain valid controls. -->
-            <div class="avd-thumb-actions avd-card-quick-actions position-absolute top-0 end-0 m-2 d-flex flex-column gap-1.5 opacity-0" style="z-index: 10;" :class="{ 'opacity-100': hover }">
-                <button type="button" class="btn btn-sm rounded-circle p-0 d-flex align-items-center justify-content-center bg-black bg-opacity-75 text-white avd-action-btn" title="{{ __('Watch Later') }}" aria-label="{{ __('Watch Later') }}" data-watch-later-id="{{ $video->id }}" onclick="event.stopPropagation(); window.avdQuickSave && window.avdQuickSave('{{ $video->id }}');">
+            <div class="avd-thumb-actions avd-card-quick-actions position-absolute top-0 avd-at-end m-2 d-flex flex-column gap-1.5 opacity-0" style="z-index: 10;" :class="{ 'opacity-100': hover }">
+                <button type="button" class="btn btn-sm rounded-circle p-0 d-flex align-items-center justify-content-center bg-black bg-opacity-75 text-white avd-action-btn" title="{{ __('Save to Watch later') }}" aria-label="{{ __('Save to Watch later') }}" data-watch-later-id="{{ $video->id }}" onclick="event.stopPropagation(); window.avdQuickSave && window.avdQuickSave('{{ $video->id }}');">
                     <i class="fa-regular fa-clock" aria-hidden="true"></i>
                 </button>
                 <button type="button" class="btn btn-sm rounded-circle p-0 d-flex align-items-center justify-content-center bg-black bg-opacity-75 text-white avd-action-btn" title="{{ __('Share') }}" aria-label="{{ __('Share') }}" onclick="event.stopPropagation(); window.avdQuickShare && window.avdQuickShare('{{ $video->route }}', '{{ addslashes($video->title) }}');">
@@ -213,19 +215,19 @@
                 <template x-if="thumbs && thumbs.length > 1 && hover">
                     <img :src="thumbs[thumbIndex]" alt="{{$video->title}}" class="position-absolute top-0 start-0 w-100 h-100 object-fit-cover" style="z-index:1;" loading="lazy">
                 </template>
-                <image-loaded source="{{$video->thumbnail_url}}" title="{{$video->title}}" :hover="hover"></image-loaded>
+                @include('videos.partials.thumb', ['src' => $video->thumbnail_url, 'alt' => $video->title, 'eager' => $eagerThumb ?? false, 'hoverBinding' => true])
                 <span class="avd-duration">{{$video->duration}}</span>
                 @if($hdBadgeEnabled && $hasQuality)
-                    <span class="badge {{ $qualityBadgeClass }} position-absolute top-0 start-0 m-2 px-2 py-1 text-uppercase shadow-sm" style="font-size:10px; z-index:2; letter-spacing:0.5px;">{{$qualityText}}</span>
+                    <span class="badge {{ $qualityBadgeClass }} position-absolute top-0 avd-at-start m-2 px-2 py-1 text-uppercase shadow-sm" style="font-size:10px; z-index:2; letter-spacing:0.5px;">{{$qualityText}}</span>
                 @endif
                 @if($isNew)
-                    <span class="badge bg-primary position-absolute top-0 end-0 m-2 px-2 py-1 text-uppercase fw-bold shadow-sm" style="font-size:10px; z-index:2; letter-spacing:0.5px;">{{ __('NEW') }}</span>
+                    <span class="badge bg-primary position-absolute top-0 avd-at-end m-2 px-2 py-1 text-uppercase fw-bold shadow-sm" style="font-size:10px; z-index:2; letter-spacing:0.5px;">{{ __('NEW') }}</span>
                 @endif
 
             </a>
             <!-- Quick Action Toolbar: sibling of the thumbnail link so buttons remain valid controls. -->
-            <div class="avd-thumb-actions avd-card-quick-actions position-absolute top-0 end-0 m-2 d-flex flex-column gap-1.5 opacity-0" style="z-index: 10;" :class="{ 'opacity-100': hover }">
-                <button type="button" class="btn btn-sm rounded-circle p-0 d-flex align-items-center justify-content-center bg-black bg-opacity-75 text-white avd-action-btn" title="{{ __('Watch Later') }}" aria-label="{{ __('Watch Later') }}" data-watch-later-id="{{ $video->id }}" onclick="event.stopPropagation(); window.avdQuickSave && window.avdQuickSave('{{ $video->id }}');">
+            <div class="avd-thumb-actions avd-card-quick-actions position-absolute top-0 avd-at-end m-2 d-flex flex-column gap-1.5 opacity-0" style="z-index: 10;" :class="{ 'opacity-100': hover }">
+                <button type="button" class="btn btn-sm rounded-circle p-0 d-flex align-items-center justify-content-center bg-black bg-opacity-75 text-white avd-action-btn" title="{{ __('Save to Watch later') }}" aria-label="{{ __('Save to Watch later') }}" data-watch-later-id="{{ $video->id }}" onclick="event.stopPropagation(); window.avdQuickSave && window.avdQuickSave('{{ $video->id }}');">
                     <i class="fa-regular fa-clock" aria-hidden="true"></i>
                 </button>
                 <button type="button" class="btn btn-sm rounded-circle p-0 d-flex align-items-center justify-content-center bg-black bg-opacity-75 text-white avd-action-btn" title="{{ __('Share') }}" aria-label="{{ __('Share') }}" onclick="event.stopPropagation(); window.avdQuickShare && window.avdQuickShare('{{ $video->route }}', '{{ addslashes($video->title) }}');">
@@ -252,7 +254,7 @@
                             <img class="avd-channel-avatar" src="{{$video->user->avatar_url}}" alt="{{$video->user->username}}" loading="lazy">
                             <span class="text-truncate" style="font-size: 11px;">{{$video->user->username}}</span>
                             @if($creatorVerified)
-                                <i class="fa-solid fa-circle-check text-primary" style="font-size:9px;"></i>
+                                <i class="fa-solid fa-circle-check text-primary" style="font-size:9px;" title="{{ __('Verified creator') }}" aria-label="{{ __('Verified creator') }}" role="img"></i>
                             @endif
                         </a>
                     @endif
@@ -272,10 +274,10 @@
                 <template x-if="thumbs && thumbs.length > 1 && hover">
                     <img :src="thumbs[thumbIndex]" alt="{{$video->title}}" class="position-absolute top-0 start-0 w-100 h-100 object-fit-cover" style="z-index:1;" loading="lazy">
                 </template>
-                <image-loaded source="{{$video->thumbnail_url}}" title="{{$video->title}}" :hover="hover"></image-loaded>
+                @include('videos.partials.thumb', ['src' => $video->thumbnail_url, 'alt' => $video->title, 'eager' => $eagerThumb ?? false, 'hoverBinding' => true])
                 <span class="avd-duration" style="font-size: 9px; padding: 1px 4px;">{{$video->duration}}</span>
                 @if($hdBadgeEnabled && $hasQuality)
-                    <span class="badge {{ $qualityBadgeClass }} position-absolute top-0 start-0 m-1 px-1 py-0.5 text-uppercase" style="font-size:9px; z-index:2;">{{$qualityText}}</span>
+                    <span class="badge {{ $qualityBadgeClass }} position-absolute top-0 avd-at-start m-1 px-1 py-0.5 text-uppercase" style="font-size:9px; z-index:2;">{{$qualityText}}</span>
                 @endif
             </a>
             <div class="avd-card-body min-w-0 flex-grow-1 p-0 d-flex flex-column justify-content-center">
@@ -286,14 +288,14 @@
                     <a href="{{$video->user->route}}" class="avd-channel-name small text-muted text-truncate d-inline-flex align-items-center mb-0.5" title="{{$video->user->username}}">
                         <span>{{$video->user->username}}</span>
                         @if($creatorVerified)
-                            <i class="fa-solid fa-circle-check text-primary ms-1" style="font-size:9px;"></i>
+                            <i class="fa-solid fa-circle-check text-primary ms-1" style="font-size:9px;" title="{{ __('Verified creator') }}" aria-label="{{ __('Verified creator') }}" role="img"></i>
                         @endif
                     </a>
                 @endif
                 <div class="d-flex flex-wrap gap-1 align-items-center justify-content-between mt-1">
                     <span class="avd-video-meta" style="font-size: 11px;">{{trans_choice('views', $video->views, ['count' => \App\Helpers\Number::humanize($video->views)])}} <span aria-hidden="true">&middot;</span> {{$video->published_at?->diffForHumans() ?? $video->created_at?->diffForHumans() ?? __('Recently')}}</span>
                     <div class="avd-card-inline-actions d-flex align-items-center gap-1">
-                        <button type="button" class="btn btn-link text-body-secondary p-0" title="{{ __('Watch Later') }}" aria-label="{{ __('Watch Later') }}" data-watch-later-id="{{ $video->id }}" onclick="event.preventDefault(); event.stopPropagation(); window.avdQuickSave && window.avdQuickSave('{{ $video->id }}');">
+                        <button type="button" class="btn btn-link text-body-secondary p-0" title="{{ __('Save to Watch later') }}" aria-label="{{ __('Save to Watch later') }}" data-watch-later-id="{{ $video->id }}" onclick="event.preventDefault(); event.stopPropagation(); window.avdQuickSave && window.avdQuickSave('{{ $video->id }}');">
                             <i class="fa-regular fa-clock" style="font-size: 12px;"></i>
                         </button>
                         <button type="button" class="btn btn-link text-body-secondary p-0 ms-1" title="{{ __('Share') }}" aria-label="{{ __('Share') }}" onclick="event.preventDefault(); event.stopPropagation(); window.avdQuickShare && window.avdQuickShare('{{ $video->route }}', '{{ addslashes($video->title) }}');">
@@ -313,19 +315,19 @@
                 <template x-if="thumbs && thumbs.length > 1 && hover">
                     <img :src="thumbs[thumbIndex]" alt="{{$video->title}}" class="position-absolute top-0 start-0 w-100 h-100 object-fit-cover" style="z-index:1;" loading="lazy">
                 </template>
-                <image-loaded source="{{$video->thumbnail_url}}" title="{{$video->title}}" :hover="hover"></image-loaded>
+                @include('videos.partials.thumb', ['src' => $video->thumbnail_url, 'alt' => $video->title, 'eager' => $eagerThumb ?? false, 'hoverBinding' => true])
                 <span class="avd-duration">{{$video->duration}}</span>
                 @if($hdBadgeEnabled && $hasQuality)
-                    <span class="badge {{ $qualityBadgeClass }} position-absolute top-0 start-0 m-2 px-2 py-1 text-uppercase shadow-sm" style="font-size:10px; z-index:2; letter-spacing:0.5px;">{{$qualityText}}</span>
+                    <span class="badge {{ $qualityBadgeClass }} position-absolute top-0 avd-at-start m-2 px-2 py-1 text-uppercase shadow-sm" style="font-size:10px; z-index:2; letter-spacing:0.5px;">{{$qualityText}}</span>
                 @endif
                 @if($isNew)
-                    <span class="badge bg-primary position-absolute top-0 end-0 m-2 px-2 py-1 text-uppercase fw-bold shadow-sm" style="font-size:10px; z-index:2; letter-spacing:0.5px;">{{ __('NEW') }}</span>
+                    <span class="badge bg-primary position-absolute top-0 avd-at-end m-2 px-2 py-1 text-uppercase fw-bold shadow-sm" style="font-size:10px; z-index:2; letter-spacing:0.5px;">{{ __('NEW') }}</span>
                 @endif
 
             </a>
             <!-- Quick Action Toolbar: sibling of the thumbnail link so buttons remain valid controls. -->
-            <div class="avd-thumb-actions avd-card-quick-actions position-absolute top-0 end-0 m-2 d-flex flex-column gap-1.5 opacity-0" style="z-index: 10;" :class="{ 'opacity-100': hover }">
-                <button type="button" class="btn btn-sm rounded-circle p-0 d-flex align-items-center justify-content-center bg-black bg-opacity-75 text-white avd-action-btn" title="{{ __('Watch Later') }}" aria-label="{{ __('Watch Later') }}" data-watch-later-id="{{ $video->id }}" onclick="event.stopPropagation(); window.avdQuickSave && window.avdQuickSave('{{ $video->id }}');">
+            <div class="avd-thumb-actions avd-card-quick-actions position-absolute top-0 avd-at-end m-2 d-flex flex-column gap-1.5 opacity-0" style="z-index: 10;" :class="{ 'opacity-100': hover }">
+                <button type="button" class="btn btn-sm rounded-circle p-0 d-flex align-items-center justify-content-center bg-black bg-opacity-75 text-white avd-action-btn" title="{{ __('Save to Watch later') }}" aria-label="{{ __('Save to Watch later') }}" data-watch-later-id="{{ $video->id }}" onclick="event.stopPropagation(); window.avdQuickSave && window.avdQuickSave('{{ $video->id }}');">
                     <i class="fa-regular fa-clock" aria-hidden="true"></i>
                 </button>
                 <button type="button" class="btn btn-sm rounded-circle p-0 d-flex align-items-center justify-content-center bg-black bg-opacity-75 text-white avd-action-btn" title="{{ __('Share') }}" aria-label="{{ __('Share') }}" onclick="event.stopPropagation(); window.avdQuickShare && window.avdQuickShare('{{ $video->route }}', '{{ addslashes($video->title) }}');">
@@ -350,7 +352,7 @@
                         <a href="{{$video->user->route}}" class="avd-channel-name d-inline-flex align-items-center" title="{{$video->user->username}}">
                             <span>{{$video->user->username}}</span>
                             @if($creatorVerified)
-                                <i class="fa-solid fa-circle-check text-primary ms-1" style="font-size:10px;" title="{{ __('Verified Creator') }}"></i>
+                                <i class="fa-solid fa-circle-check text-primary ms-1" style="font-size:10px;" title="{{ __('Verified creator') }}" aria-label="{{ __('Verified creator') }}" role="img"></i>
                             @endif
                         </a>
                     @else

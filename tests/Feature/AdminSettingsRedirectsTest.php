@@ -98,13 +98,14 @@ class AdminSettingsRedirectsTest extends TestCase
             ->assertSee('Sender name')
             ->assertSee('/admin/settings/email#mail_from_name', false);
 
-        // "Mailer Engine" is the old label of "How emails are sent"; "smtp" is a search synonym.
+        // "Mailer Engine" is the old label of "How emails are sent"; "smtp" is a search synonym. The results carry the
+        // full address of the setting (1.2.3: the same as the Ctrl+K search, right on /index.php sites too).
         $this->actingAs($admin)->getJson('/admin/settings?q=mailer%20engine')
             ->assertOk()
-            ->assertJsonPath('results.0.url', '/admin/settings/email#mail_mailer');
+            ->assertJsonPath('results.0.url', url('/admin/settings/email').'#mail_mailer');
         $this->actingAs($admin)->getJson('/admin/settings?q=smtp')
             ->assertOk()
-            ->assertJsonFragment(['url' => '/admin/settings/email#smtp_host']);
+            ->assertJsonFragment(['url' => url('/admin/settings/email').'#smtp_host']);
 
         $this->actingAs($admin)->get('/admin/settings?q=sender&partial=1')
             ->assertOk()
@@ -134,8 +135,14 @@ class AdminSettingsRedirectsTest extends TestCase
                 if (in_array($setting['level'], ['basic', 'advanced'], true)) {
                     $response->assertSee('id="'.$key.'-row"', false);
                     $response->assertSee(e($setting['label']), false);
+                } elseif ($setting['level'] === 'expert') {
+                    // 1.2.3: an expert setting can be changed only in Developer mode; without it, its row says so (a
+                    // search link to it lands there) and has no control.
+                    $response->assertSee('id="'.$key.'-row"', false);
+                    $response->assertDontSee('name="groups['.$setting['group'].']['.$key.']"', false);
+                    $response->assertSee('This setting appears in Developer mode (account menu).');
                 } else {
-                    // Expert settings appear only in Developer mode; hidden ones never.
+                    // Hidden ones never.
                     $response->assertDontSee('id="'.$key.'-row"', false);
                 }
             }
@@ -276,7 +283,7 @@ class AdminSettingsRedirectsTest extends TestCase
         return User::factory()->admin()->create();
     }
 
-    /** The Appearance pages belong to WP8; until they are installed, stand-in routes answer their addresses. */
+    /** Until the Appearance pages are installed, stand-in routes answer their addresses. */
     private function standInForTheAppearancePages(): void
     {
         if (! RouteFacade::has('admin.appearance.index')) {

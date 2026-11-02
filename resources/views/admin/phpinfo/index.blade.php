@@ -46,8 +46,9 @@
     <div class="card-header"><h5 class="mb-0">{{__('Full phpinfo() Output')}}</h5></div>
     <div class="card-body p-0">
         <div style="max-height:60vh; overflow:auto; padding:15px;">
-            {{-- Admin colours, so the table reads in light and dark mode (the old admin keeps its light colours). --}}
-            <style>.phpinfo-wrapper table { width:100%; border-collapse:collapse; font-size:13px; } .phpinfo-wrapper td, .phpinfo-wrapper th { padding:4px 8px; border:1px solid var(--border, #ddd); color:var(--text); } .phpinfo-wrapper .e { background:var(--surface-2, #f0f0f0); font-weight:bold; } .phpinfo-wrapper .h, .phpinfo-wrapper .v { background:var(--surface, transparent); } .phpinfo-wrapper .v { word-break:break-all; } .phpinfo-wrapper font { color:inherit !important; }</style>
+            {{-- The admin's colours, so the table reads in light and dark mode: the new admin's own, the old admin's Bootstrap
+                 ones (the old admin in dark mode showed light text on #f0f0f0 labels, 1.04:1: R3-020). --}}
+            <style>.phpinfo-wrapper table { width:100%; border-collapse:collapse; font-size:13px; } .phpinfo-wrapper td, .phpinfo-wrapper th { padding:4px 8px; border:1px solid var(--border, var(--bs-border-color, #ddd)); color:var(--text, var(--bs-body-color)); } .phpinfo-wrapper .e { background:var(--surface-2, var(--bs-tertiary-bg, #f0f0f0)); font-weight:bold; } .phpinfo-wrapper .h, .phpinfo-wrapper .v { background:var(--surface, transparent); } .phpinfo-wrapper .v { word-break:break-all; } .phpinfo-wrapper font { color:inherit !important; }</style>
             <div class="phpinfo-wrapper">{!! str_replace(['<h1', '</h1>'], ['<h2', '</h2>'], $body) !!}</div>
         </div>
     </div>

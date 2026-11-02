@@ -22,6 +22,6 @@ class ViewPolicy
     {
         return $view->user()->is($user)
             ? Response::allow()
-            : Response::denyWithStatus(403, 'You are not authorized to clear this view');
+            : Response::denyWithStatus(403, __('You are not authorized to clear this view'));
     }
 }

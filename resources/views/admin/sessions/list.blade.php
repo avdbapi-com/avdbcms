@@ -96,7 +96,7 @@
                     <td class="c-main"><p><b id="{{ $key }}">{{ $session->username ?? __('Visitor') }}</b><small>{{ $mine ? __('You, on this device') : ($session->user_email ?? __('Not signed in')) }}</small></p></td>
                     <td class="c-meta" title="{{ $session->user_agent }}">{{ $device($session->user_agent) }}@if ($mine) <x-admin.status type="ok">{{ __('This device') }}</x-admin.status>@endif</td>
                     <td class="hide-tab"><code>{{ $session->ip_address ?? '-' }}</code></td>
-                    <td class="is-date" title="{{ $seen->translatedFormat('j M Y, H:i') }}">{{ $seen->diffForHumans(short: true) }}</td>
+                    <td class="is-date" title="{{ $seen->translatedFormat('j M Y, H:i') }}">{{ $seen->diffForHumans(short: \App\Support\AdminText::shortTimes()) }}</td>
                     <td class="is-actions">@unless ($mine)<button type="button" class="ad-iconbtn is-more" aria-haspopup="true" aria-labelledby="ad-l-act {{ $key }}" data-id="{{ $key }}" data-url="{{ route('admin.sessions.destroy', $session->id, false) }}" @if ($session->user_id) data-user="{{ $session->user_id }}" @endif></button>@endunless</td>
                 </tr>
             @endforeach

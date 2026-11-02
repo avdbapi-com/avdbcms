@@ -11,7 +11,7 @@
             <h2 id="ad-confirm-title" data-ad-confirm-title>{{ __('Are you sure you want to continue?') }}</h2>
             <p id="ad-confirm-body" data-ad-confirm-body hidden></p>
             <div class="ad-dialog-type" data-ad-confirm-typebox hidden>
-                <label for="ad-confirm-input">{{ __('To confirm, type this word:') }} <b data-ad-confirm-word></b></label>
+                <label for="ad-confirm-input">{{ __('To confirm, type this word:') }}{{ \App\Support\LabelGap::admin() }}<b data-ad-confirm-word></b></label>
                 <input id="ad-confirm-input" class="ad-input" type="text" autocomplete="off" spellcheck="false" data-ad-confirm-input>
             </div>
         </div>

@@ -28,7 +28,7 @@
     <template id="ad-category-menu">
         <a href="{{ route('admin.categories.edit', ['category' => '__ID__'], false) }}">{{ AdminTheme::icon('pencil') }}{{ __('Edit') }}</a>
         <a href="{{ route('admin.videos.index', ['category' => '__ID__'], false) }}" data-ad-if="videos">{{ AdminTheme::icon('film') }}{{ __('Its videos') }}</a>
-        <a href="__URL__" target="_blank" rel="noopener">{{ AdminTheme::icon('external') }}{{ __('Open on site') }}</a>
+        <a href="__URL__" target="_blank" rel="noopener" data-ad-if="url">{{ AdminTheme::icon('external') }}{{ __('Open on site') }}</a>
         <hr>
         <button type="submit" form="ad-category-delete" formaction="{{ route('admin.categories.destroy', ['category' => '__ID__'], false) }}" class="is-danger" data-ad-when="empty">{{ AdminTheme::icon('trash') }}{{ __('Delete category...') }}</button>
     </template>
@@ -66,12 +66,15 @@
 
         @foreach ($categories as $category)
             @php($videos = (int) $category->videos_count)
+            {{-- 1.2.3: named with a word that is always blocked (App\Support\ContentSafety): visitors never see it, so it has
+                 no place in the menu and no page (round 3, R3-072) --}}
+            @php($hiddenName = \App\Support\ContentSafety::hides($category->title))
             <tr>
-                <td class="c-main"><div class="ad-vid"><span class="ad-sym" aria-hidden="true"><i class="fa-solid fa-{{ $category->icon_name }}"></i></span><p><a id="ad-c-{{ $category->id }}" href="{{ route('admin.categories.edit', $category, false) }}">{{ $category->title }}</a><small class="ad-phone-only">{{ trans_choice('1 video|:count videos', $videos, ['count' => number_format($videos)]) }}</small></p></div></td>
-                <td class="c-meta"><x-admin.status :type="$category->in_menu ? 'ok' : 'off'">{{ $category->in_menu && isset($places[$category->id]) ? __('Shown, place :place', ['place' => $places[$category->id] + 1]) : __('Not shown') }}</x-admin.status></td>
-                <td class="hide-tab ad-muted is-date">/categories/{{ $category->slug }}</td>
+                <td class="c-main"><div class="ad-vid"><span class="ad-sym" aria-hidden="true"><i class="fa-solid fa-{{ $category->icon_name }}"></i></span><p><a id="ad-c-{{ $category->id }}" href="{{ route('admin.categories.edit', $category, false) }}">{{ $category->title }}</a><small class="ad-phone-only">{{ trans_choice('1 video|:count videos', $videos, ['count' => number_format($videos)]) }}</small></p></div>@if ($hiddenName)<p class="ad-small ad-muted">{{ __('Hidden from visitors: its name uses a word that is always blocked.') }}</p>@endif</td>
+                <td class="c-meta">@if ($hiddenName)<x-admin.status type="warn">{{ __('Hidden from visitors') }}</x-admin.status>@else<x-admin.status :type="$category->in_menu ? 'ok' : 'off'">{{ $category->in_menu && isset($places[$category->id]) ? __('Shown, place :place', ['place' => $places[$category->id] + 1]) : __('Not shown') }}</x-admin.status>@endif</td>
+                <td class="hide-tab ad-muted is-date">@if ($hiddenName)-@else/categories/{{ $category->slug }}@endif</td>
                 <td class="is-num">@if ($videos > 0)<a href="{{ route('admin.videos.index', ['category' => $category->id], false) }}">{{ number_format($videos) }}</a>@else 0 @endif</td>
-                <td class="is-actions"><button type="button" class="ad-iconbtn is-more" aria-haspopup="true" aria-labelledby="ad-l-act ad-c-{{ $category->id }}" data-id="{{ $category->id }}" data-state="{{ $videos > 0 ? 'used' : 'empty' }}" data-url="{{ preg_replace('#^https?://[^/]+#', '', $category->route) }}"@if ($videos > 0) data-videos="1"@endif></button></td>
+                <td class="is-actions"><button type="button" class="ad-iconbtn is-more" aria-haspopup="true" aria-labelledby="ad-l-act ad-c-{{ $category->id }}" data-id="{{ $category->id }}" data-state="{{ $videos > 0 ? 'used' : 'empty' }}"@unless ($hiddenName) data-url="{{ preg_replace('#^https?://[^/]+#', '', $category->route) }}"@endunless @if ($videos > 0) data-videos="1"@endif></button></td>
             </tr>
         @endforeach
     </x-admin.table>

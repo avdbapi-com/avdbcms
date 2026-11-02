@@ -145,7 +145,7 @@
                     <li class="list-group-item d-flex justify-content-between"><span class="text-muted">UUID</span><span><code class="small">{{ $video->uuid }}</code></span></li>
                     <li class="list-group-item d-flex justify-content-between"><span class="text-muted">{{__('Views')}}</span><span class="fw-bold">{{ number_format($video->views) }}</span></li>
                     <li class="list-group-item d-flex justify-content-between"><span class="text-muted">{{__('Duration')}}</span><span>{{ $video->duration ?? __('N/A') }}</span></li>
-                    <li class="list-group-item d-flex justify-content-between"><span class="text-muted">{{__('File Size')}}</span><span>{{ $video->size ? round($video->size / 1048576, 1) . ' MB' : 'N/A' }}</span></li>
+                    <li class="list-group-item d-flex justify-content-between"><span class="text-muted">{{__('File Size')}}</span><span dir="ltr" class="text-nowrap">{{ $video->size ? round($video->size / 1048576, 1) . ' MB' : __('N/A') }}</span></li>
                     <li class="list-group-item d-flex justify-content-between"><span class="text-muted">{{__('Slug')}}</span><span><small>{{ $video->slug }}</small></span></li>
                     <li class="list-group-item d-flex justify-content-between"><span class="text-muted">{{__('Language')}}</span><span>{{ strtoupper($video->language ?? 'en') }}</span></li>
                     <li class="list-group-item d-flex justify-content-between"><span class="text-muted">{{__('Created')}}</span><span><small>{{ $video->created_at->translatedFormat('M d, Y H:i') }}</small></span></li>

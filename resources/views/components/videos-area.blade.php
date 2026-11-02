@@ -1,7 +1,7 @@
 {{--
     <x-videos-area>: server wrapper for the <videos-area> custom element (VideosList.tsx).
 
-    1. Reserved space (perf plan step 20). The light DOM holds the same skeleton grid VideosList renders
+    1. Reserved space. The light DOM holds the same skeleton grid VideosList renders
        while it loads, so every feed has its final size from the first paint instead of growing from a
        0 px inline element when the chunk arrives. preact-custom-element (shadow:false) clears the light
        DOM and renders synchronously on upgrade, so the swap to Preact's own skeletons happens in one task.
@@ -13,7 +13,7 @@
        feed size, e.g. the category's video count) caps the count so a small feed does not collapse on load.
        `phone-strip-screen` (the home main feed only): below 768px horizontal strip cards reserve a phone screen
        of them (PHONE_STRIP_SKELETON_ITEMS) instead of 4.
-    2. Load path (step 21). Only the first feed of a request gets `early` (fetched at once; the <head>
+    2. Load path. Only the first feed of a request gets `early` (fetched at once; the <head>
        early fetch keys off request()->attributes 'avd.early_feeds') and `priority-row` (its first row
        of thumbnails loads eagerly). Every other feed is fetched when it comes within 800 px of the viewport or at
        the first idle moment after load, whichever comes first (VideosList). Two feeds can share the role by width:
@@ -23,7 +23,7 @@
        `early-media` (the media query the <head> script and VideosList check) and its skeleton pictures load lazily;
        the <head> preloads, gated by the same query, fetch them where it is early.
        The VideosList chunk and its static imports are pushed once to the 'preload' stack as modulepreload.
-       For guests, a home feed's first page ships with the page when the API holds it in its guest cache
+       A home feed's first page ships with the page when the API holds it in its guest cache (for guests and members)
        (the early feed's 'page', the layout prints it as #avdFeedEarlyPage): the skeleton's first four cards show its
        thumbnails (img in .avd-placeholder-thumb) and VideosList takes the page as its initial data, so no request
        is made and the cards replace the skeleton when the app boots. On a cold API cache the page carries only the
@@ -33,7 +33,8 @@
     KEEP IN SYNC: the card markup below copies resources/js/components/Skeletons/VideoSkeleton.tsx, the grid
     wrapper copies the grid in VideosList.tsx, and the count logic mirrors VideosList.tsx (positiveInteger,
     effectiveMaxRows, visibleColumnCount, skeletonCount). The wide grid ad box (data-avd-ad-reserve) mirrors
-    skeletonAdAfter / wideAdVideoIndexes in VideosList.tsx.
+    skeletonAdAfter / wideAdVideoIndexes in VideosList.tsx; the ad code and shape of the feed's ad-context come from
+    App\Support\ListAdContexts, like window.AD_CONFIG's.
 --}}
 @props([
     'url',
@@ -78,17 +79,22 @@
     if ($avdFeedIsEarly) {
         $avdEarlyFeed = ['url' => (string) $url, 'width' => $avdEarlyWidth, 'media' => $avdEarlyMedia, 'page' => null, 'thumbs' => []];
 
-        // Guests: a home feed's first page ships with the page (its 'page'; the layout prints it as #avdFeedEarlyPage
-        // and the <head> script hands it to VideosList), so its first row renders as soon as the app boots instead of
-        // after a second request (Gate A: under the ranked lists the largest picture of the first screen is a feed
-        // thumbnail that waited for the API). It is the API's own guest cache entry, read only (a warm render adds no
-        // query): on a miss the page ships without it, the <head> script's early request loads it (and warms the entry
-        // for the next guests for feed_cache_ttl seconds) and the page carries only the first row's pictures (two
-        // queries). KEEP IN SYNC with App\Http\Controllers\Api\Public\VideoController::index (inputs, key, payload).
+        // A home feed's first page ships with the page (its 'page'; the layout prints it as #avdFeedEarlyPage and the
+        // <head> script hands it to VideosList), so its first row renders as soon as the app boots instead of after a
+        // second request (Gate A: under the ranked lists the largest picture of the first screen is a feed thumbnail
+        // that waited for the API). It is the API's own guest cache entry, read only (a warm render adds no query): on a
+        // miss the page ships without it, the <head> script's early request loads it (and a guest's warms the entry for
+        // the next guests for feed_cache_ttl seconds) and the page carries only the first row's pictures (two queries).
+        // Members get the same (round 1 R1-072: their home showed a skeleton until main.js, /api/videos and the pictures
+        // had come, LCP 7-12 s against 4 s for guests): the feed is public and a member's API answer is the same list
+        // (VideoListResource; only an empty subscribed_by_auth_user, which no card reads, is added for members), the
+        // entry is only read for them, never written, and their page is private (no-store), so nothing of a member
+        // reaches a shared cache. KEEP IN SYNC with App\Http\Controllers\Api\Public\VideoController::index (inputs, key,
+        // payload).
         $avdFeedParts = parse_url((string) $url);
         $avdFeedTtl = (int) config('site.feed_cache_ttl', 30);
 
-        if ($avdFeedTtl > 0 && ! auth()->check() && ! $avdFeedRequest->has('cursor')
+        if ($avdFeedTtl > 0 && ! $avdFeedRequest->has('cursor')
             && str_ends_with(rtrim((string) ($avdFeedParts['path'] ?? ''), '/'), '/api/videos')) {
             parse_str((string) ($avdFeedParts['query'] ?? ''), $avdFeedQuery);
             $avdFeedSource = (string) ($avdFeedQuery['source'] ?? 'newest');
@@ -215,25 +221,18 @@
     // render the ad there: window.AD_CONFIG shows ads on this page (the layout's $showAds: ads on, not hidden for a
     // premium member, not an auth page; <x-videos-area> only renders in the public layout), the feed's ad context
     // has a grid ad code and resolves to wide_row, and the skeleton reaches the ad position. A grid-card ad takes
-    // one card cell, which a skeleton card already holds.
+    // one card cell, which a skeleton card already holds. The code and shape of a context come from
+    // App\Support\ListAdContexts, as window.AD_CONFIG's.
     // KEEP IN SYNC with window.AD_CONFIG in components/layout.blade.php and skeletonAdAfter in VideosList.tsx.
     $avdAdReserveClasses = [];
-    $avdAdContextKey = is_string($adContext) && $adContext !== '' ? $adContext : 'default';
-    $avdGridAdContexts = ['smart_discovery', 'creator_spotlight', 'trending_actors', 'new_videos', 'trend_page', 'category_page', 'subscriptions', 'channel_videos', 'search_results', 'playlist_videos', 'watch_related', 'channel_home_featured', 'channel_home_latest'];
     $avdAdsOn = config('site.ads_enabled', false);
     $avdAdRoute = $avdFeedRequest->route()?->getName();
     $avdAdsShown = $avdAdsOn
         && ! ($avdAdsOn && config('site.ads_hide_for_premium', true) && auth()->user()?->is_premium)
         && ! ($avdAdRoute && (in_array($avdAdRoute, ['login', 'registration'], true) || \Illuminate\Support\Str::startsWith($avdAdRoute, ['password.', 'verification.', 'phone.', 'oauth.'])));
-    $avdGridAdCode = $avdAdsShown && in_array($avdAdContextKey, $avdGridAdContexts, true)
-        ? trim((string) config('site.ad_code_grid_' . $avdAdContextKey, ''))
-        : '';
+    $avdGridAdCode = $avdAdsShown ? trim(\App\Support\ListAdContexts::code($adContext)) : '';
     $avdGridAdPosition = \App\Support\FeedAdSlots::adEvery(config('site.ad_grid_position', 6));
-    $avdGridAdLayout = config('site.ad_grid_layout_' . $avdAdContextKey, 'inherit');
-
-    if ($avdGridAdLayout !== 'grid_card' && $avdGridAdLayout !== 'wide_row') {
-        $avdGridAdLayout = config('site.ad_grid_layout', 'grid_card') === 'wide_row' ? 'wide_row' : 'grid_card';
-    }
+    $avdGridAdLayout = \App\Support\ListAdContexts::shape($adContext);
 
     if ($avdGridAdCode !== '' && $avdGridAdPosition > 0 && $avdGridAdLayout === 'wide_row') {
         $avdMaxAds = \App\Support\FeedAdSlots::maxAds(config('site.ad_grid_max_per_feed', 1));

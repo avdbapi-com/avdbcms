@@ -35,8 +35,8 @@
                         @endif
                     </td>
                     <td>
-                        @if($f->starts_at)<small>{{ __('From') }}: {{ \Carbon\Carbon::parse($f->starts_at)->translatedFormat('M d') }}</small><br>@endif
-                        @if($f->expires_at)<small>{{ __('Until') }}: {{ \Carbon\Carbon::parse($f->expires_at)->translatedFormat('M d') }}</small>@endif
+                        @if($f->starts_at)<small>{{ \App\Support\AdminText::labelled(__('From'), \Carbon\Carbon::parse($f->starts_at)->translatedFormat('M d')) }}</small><br>@endif
+                        @if($f->expires_at)<small>{{ \App\Support\AdminText::labelled(__('Until'), \Carbon\Carbon::parse($f->expires_at)->translatedFormat('M d')) }}</small>@endif
                     </td>
                     <td>
                         <div class="d-flex gap-1">

@@ -36,7 +36,10 @@ class StripEmptyParams
 
         $queryString = http_build_query($cleanQuery, '', '&', PHP_QUERY_RFC3986);
 
-        return redirect()->to($request->url().($queryString !== '' ? '?'.$queryString : ''));
+        // The same page in a form that reaches the site: public/index.php took /index.php off the request's address, so
+        // on a server without rewrite rules a search or a list filter with an empty field went to the web server's 404
+        // page (round 1b, R1B-007's "nothing 404s under /index.php/...").
+        return redirect()->to(\App\Support\CleanUrls::requestForm($request->url()).($queryString !== '' ? '?'.$queryString : ''));
     }
 
     /**

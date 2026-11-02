@@ -33,6 +33,10 @@ class ViewServiceProvider extends ServiceProvider
 
         View::composer(['layouts.menus.sidebars.front', 'layouts.menus.footer', 'pages.home', 'pages.trend'], SidebarComposer::class);
 
+        // The side menu's category counts are kept until a write can change them, in every process (web, queue,
+        // scheduler, the update's steps): App\Support\CategoryVideoCounts.
+        \App\Support\CategoryVideoCounts::listen();
+
         View::composer('layouts.menus.header', HeaderComposer::class);
 
         View::composer('modals.report', ReportComposer::class);

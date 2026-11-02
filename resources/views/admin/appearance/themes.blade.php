@@ -1,5 +1,5 @@
 {{--
-    Appearance > Themes (spec/admin/mockups/05-appearance-themes.html): what the site shows now, the 12 Complete
+    Appearance > Themes: what the site shows now, the 12 Complete
     looks, the 32 themes with their colour styles (family filter, Dark/Light, search that finds old names too), dark
     or light for first visits, and the daily designs. Picking anything is a draft shown in the preview on the right
     until Publish.
@@ -96,6 +96,14 @@
                         </li>
                     @endforeach
                 </ul>
+
+                {{-- A demo site lets each visitor try these looks in their own browser (App\Support\VisitorChoices). --}}
+                @foreach ($visitorFields ?? [] as $f)
+                    <section class="ad-sec" id="card-visitors" aria-labelledby="card-visitors-title">
+                        <div class="ad-sec-intro"><h2 id="card-visitors-title">{{ __($visitorCard['title'] ?? 'Visitors try the looks') }}</h2>@if (($visitorCard['description'] ?? '') !== '')<p>{{ __($visitorCard['description']) }}</p>@endif</div>
+                        <div class="ad-sec-body">@include('admin.appearance.partials.field', ['f' => $f])</div>
+                    </section>
+                @endforeach
             </div>
 
             {{-- Themes and colour styles --}}
@@ -125,7 +133,7 @@
                     @endforeach
                 </ul>
                 <p class="ad-gallery-more">
-                    <a class="ad-btn" href="{{ route('admin.appearance.gallery', ['tab' => 'themes']) }}" data-ad-themes-more>{{ __('Show all :count themes', ['count' => $themeCount]) }}</a>
+                    <a class="ad-btn" href="{{ route('admin.appearance.gallery', ['tab' => 'themes']) }}" data-ad-themes-more>{{ trans_choice('Show the 1 theme|Show all :count themes', (int) $themeCount, ['count' => number_format((int) $themeCount)]) }}</a>
                 </p>
 
                 <section class="ad-panel ad-flavors" aria-labelledby="ad-flavors-title" data-ad-flavors data-theme="{{ $shownTheme['id'] ?? '' }}">
@@ -185,7 +193,7 @@
             </div>
 
             @php($manifest = [])
-            @foreach (array_merge($modeFields, $autofixFields, $daily) as $f)
+            @foreach (array_merge($modeFields, $autofixFields, $daily, $visitorFields ?? []) as $f)
                 @php($manifest[$f['group']][] = $f['key'])
             @endforeach
             @foreach ($manifest as $group => $keys)

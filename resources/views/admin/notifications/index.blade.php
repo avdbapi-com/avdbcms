@@ -1,3 +1,6 @@
+{{-- The old admin's notification list (the new admin uses list.blade.php): the same quick list, newest first, page by
+     page by key, with the counts capped at "100,000+" and each row's text translated. --}}
+@use('App\Notifications\Support\NotificationText')
 @extends('layouts.admin')
 @section('title', __('Notifications'))
 @section('content')
@@ -66,13 +69,13 @@
 <div class="row mb-4">
     <div class="col-md-3 col-6 mb-3">
         <div class="card shadow-sm border-primary"><div class="card-body text-center py-3">
-            <h3>{{ number_format($stats['total']) }}</h3>
+            <h3>{{ number_format($stats['total']) }}{{ $stats['total_capped'] ? '+' : '' }}</h3>
             <small class="text-muted">{{__('Total')}}</small>
         </div></div>
     </div>
     <div class="col-md-3 col-6 mb-3">
         <div class="card shadow-sm border-warning"><div class="card-body text-center py-3">
-            <h3>{{ number_format($stats['unread']) }}</h3>
+            <h3>{{ number_format($stats['unread']) }}{{ $stats['unread_capped'] ? '+' : '' }}</h3>
             <small class="text-muted">{{__('Unread')}}</small>
         </div></div>
     </div>
@@ -102,7 +105,7 @@
                     <input type="checkbox" class="form-check-input bulk-check" aria-label="{{ __('Select') }}" value="{{ $notif->id }}" x-model="selected">
                 </td>
                 <td class="align-middle"><span class="badge bg-info">{{ class_basename($notif->type) }}</span></td>
-                <td class="align-middle"><small>{{ Str::limit($notif->data, 120) }}</small></td>
+                <td class="align-middle"><small>@php($notifTitle = NotificationText::title($notif->type, $notif->data))@if($notifTitle !== null)<b>{{ Str::limit($notifTitle, 80) }}</b> @endif{{ Str::limit(NotificationText::message($notif->type, $notif->data), 120) }}</small></td>
                 <td class="align-middle">#{{ $notif->notifiable_id }}</td>
                 <td class="align-middle">
                     @if($notif->read_at)
@@ -128,6 +131,28 @@
         </tbody>
     </table>
 </div>
-<x-admin.pagination :paginator="$notifications" />
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3">
+<form method="GET" action="{{ url()->current() }}" class="d-flex align-items-center gap-2 small text-muted mb-0">
+    @if(request()->query('show') === 'unread')<input type="hidden" name="show" value="unread">@endif
+    <label for="adminNotificationsPerPage" class="mb-0">{{ __('Per page') }}</label>
+    <select id="adminNotificationsPerPage" name="per_page" class="form-select form-select-sm w-auto" aria-label="{{ __('Results per page') }}" data-native-select onchange="this.form.submit()">
+        @foreach(collect(\App\Support\AdminPagination::perPageOptions())->push($perPage)->map(fn ($n) => (int) $n)->unique()->sort() as $option)
+            <option value="{{ $option }}" @selected($option === $perPage)>{{ number_format($option) }}</option>
+        @endforeach
+    </select>
+    <noscript><button type="submit" class="btn btn-sm btn-outline-primary">{{ __('Apply') }}</button></noscript>
+</form>
+@if($notifications->hasPages())
+    <nav class="d-flex justify-content-end gap-2" aria-label="{{ __('Pages') }}">
+        @unless($notifications->onFirstPage())
+            <a class="btn btn-sm btn-outline-secondary" href="{{ \App\Support\CleanUrls::requestForm(request()->fullUrlWithoutQuery([$notifications->getCursorName()])) }}">{{ __('Newest') }}</a>
+            <a class="btn btn-sm btn-outline-secondary" href="{{ $notifications->previousPageUrl() }}" rel="prev">{{ __('Previous page') }}</a>
+        @endunless
+        @if($notifications->hasMorePages())
+            <a class="btn btn-sm btn-outline-secondary" href="{{ $notifications->nextPageUrl() }}" rel="next">{{ __('Next page') }}</a>
+        @endif
+    </nav>
+@endif
+</div>
 </div>
 @endsection

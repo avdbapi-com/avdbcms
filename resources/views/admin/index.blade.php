@@ -24,14 +24,31 @@
             </div>
         @endif
 
-        {{-- Quick Actions --}}
-        <div class="d-flex justify-content-between align-items-center mb-3">
+        {{-- 1.2.3: the videos the update hid for words that are always blocked (App\Support\BlockedWordsPass), as on the new
+             admin's Home, until the administrator hides the notice or none is left to review. --}}
+        @if (($blockedWordsHidden ?? 0) > 0)
+            <div class="alert alert-warning d-flex flex-wrap align-items-center gap-2" role="status" id="blocked-words-notice">
+                <div class="flex-grow-1">
+                    <strong>{{ trans_choice('1 video was hidden because its title, tags or category use blocked words|:count videos were hidden because their titles, tags or categories use blocked words', $blockedWordsHidden, ['count' => number_format($blockedWordsHidden)]) }}</strong>
+                    {{ __('They are banned, so visitors no longer see them. Review them and unban any video that was hidden by mistake.') }}
+                </div>
+                <a href="{{ route('admin.videos.index', ['status' => \App\Enums\VideoStatus::BANNED->value, 'reason' => \App\Support\BlockedWordsPass::FILTER]) }}" class="btn btn-sm btn-warning">{{ __('Review') }}</a>
+                <form method="POST" action="{{ route('admin.home.dismiss') }}" class="m-0">
+                    @csrf
+                    <input type="hidden" name="notice" value="{{ \App\Support\BlockedWordsPass::NOTICE }}">
+                    <button type="submit" class="btn btn-sm btn-outline-secondary">{{ __('Hide this notice') }}</button>
+                </form>
+            </div>
+        @endif
+
+        {{-- Quick Actions: on a phone the buttons go to the next line whole (they broke inside their words, R2A-056). --}}
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
             <h3 class="mb-0"><i class="fa-solid fa-chart-line me-2"></i>{{__('Dashboard')}}</h3>
-            <div class="d-flex gap-2">
-                <a href="{{ route('admin.settings.index') }}" class="btn btn-sm btn-outline-primary"><i class="fa-solid fa-gear me-1"></i>{{__('Settings')}}</a>
-                <a href="{{ route('admin.users.index') }}" class="btn btn-sm btn-outline-info"><i class="fa-solid fa-users me-1"></i>{{__('Users')}}</a>
-                <a href="{{ route('admin.videos.index') }}" class="btn btn-sm btn-outline-success"><i class="fa-solid fa-video me-1"></i>{{__('Videos')}}</a>
-                <a href="{{ route('admin.categories.index') }}" class="btn btn-sm btn-outline-warning"><i class="fa-solid fa-folder me-1"></i>{{__('Categories')}}</a>
+            <div class="d-flex flex-wrap gap-2">
+                <a href="{{ route('admin.settings.index') }}" class="btn btn-sm btn-outline-primary text-nowrap"><i class="fa-solid fa-gear me-1"></i>{{__('Settings')}}</a>
+                <a href="{{ route('admin.users.index') }}" class="btn btn-sm btn-outline-info text-nowrap"><i class="fa-solid fa-users me-1"></i>{{__('Users')}}</a>
+                <a href="{{ route('admin.videos.index') }}" class="btn btn-sm btn-outline-success text-nowrap"><i class="fa-solid fa-video me-1"></i>{{__('Videos')}}</a>
+                <a href="{{ route('admin.categories.index') }}" class="btn btn-sm btn-outline-warning text-nowrap"><i class="fa-solid fa-folder me-1"></i>{{__('Categories')}}</a>
             </div>
         </div>
 
@@ -73,8 +90,9 @@
                 [__('IP Bans'), $ipBansCount, 'fa-shield-halved', 'secondary'],
                 [__('Searches'), $searchesCount, 'fa-search', 'dark'],
             ] as $s)
+            {{-- Outlined like the row above: the looks' dark modes painted bg-* in full, under grey labels (1.05:1, R2A-056). --}}
             <div class="col-md-3 col-6 mb-3">
-                <div class="card shadow-sm border-0 bg-{{ $s[3] }} bg-opacity-10 h-100">
+                <div class="card shadow-sm border-{{ $s[3] }} h-100">
                     <div class="card-body text-center py-2">
                         <i class="fa-solid {{ $s[2] }} text-{{ $s[3] }}"></i>
                         <div class="fw-bold fs-5">{{ number_format($s[1]) }}</div>
@@ -100,7 +118,7 @@
             <div class="col-md-3 col-6 mb-2">
                 <div class="d-flex justify-content-between align-items-center border rounded px-3 py-1">
                     <small class="text-muted">{{ $s[0] }}</small>
-                    <span class="badge bg-{{ $s[2] }}">{{ $s[1] }}</span>
+                    <span class="badge bg-{{ $s[2] }}" dir="ltr">{{ $s[1] }}</span>
                 </div>
             </div>
             @endforeach
@@ -116,7 +134,9 @@
                         <h6 class="mb-0"><i class="fa-solid fa-user-plus me-1"></i>{{__('Recent Users')}}</h6>
                         <a href="{{ route('admin.users.index') }}" class="btn btn-sm btn-outline-primary">{{__('View All')}}</a>
                     </div>
+                    {{-- scrolls on a phone instead of cutting the last column (R2A-056), as Recent Videos does --}}
                     <div class="card-body p-0">
+                        <div class="table-responsive" tabindex="0">
                         <table class="table table-sm mb-0">
                             <tbody>
                             @foreach($recentUsers as $u)
@@ -126,7 +146,7 @@
                                 <td><small class="text-muted">{{ $u->email }}</small></td>
                                 <td><small>{{ $u->created_at->diffForHumans() }}</small></td>
                                 <td>
-                                    @if($u->is_admin) <span class="badge bg-danger">{{__('Admin')}}</span>
+                                    @if($u->is_admin) <span class="badge bg-danger">{{__('Administrator')}}</span>
                                     @else <span class="badge bg-secondary">{{__('User')}}</span>
                                     @endif
                                 </td>
@@ -134,6 +154,7 @@
                             @endforeach
                             </tbody>
                         </table>
+                        </div>
                     </div>
                 </div>
             </div>

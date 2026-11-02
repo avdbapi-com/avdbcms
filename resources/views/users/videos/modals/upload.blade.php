@@ -48,12 +48,12 @@
                                 @endif
                                     <span>
                                         <small>{{ __('Max file size') }}</small>
-                                        <strong>@size($uploadMaxSize)</strong>
+                                        <strong dir="ltr" class="text-nowrap">@size($uploadMaxSize)</strong>
                                     </span>
                                 @if(Auth::user()->plan !== 'premium')
                                     <span>
                                         <small>{{ __('Available space')}}</small>
-                                        <strong>@size(($available_space > 0) ? $available_space : 0)</strong>
+                                        <strong dir="ltr" class="text-nowrap">@size(($available_space > 0) ? $available_space : 0)</strong>
                                     </span>
                                 @else
                                     <span>

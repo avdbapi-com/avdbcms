@@ -23,7 +23,7 @@ $data = 'data-key="'.e($id).'" data-group="'.e($f['group']).'"'.($f['type'] === 
 @endphp
 @if ($f['control'] === 'toggle')
 <label class="ad-toggle-row ad-field{{ $error ? ' is-error' : '' }}" id="{{ $id }}-row" for="{{ $id }}" {!! $data !!}>
-<span class="ad-toggle-text"><b>{{ __($f['label']) }}</b><span class="ad-help" id="{{ $id }}-help">{{ __($f['help']) }}</span>@if ($error)<span class="ad-error" role="alert" data-error>{{ $error }}</span>@endif</span>
+<span class="ad-toggle-text"><b>{{ __($f['label']) }}</b><span class="ad-help" id="{{ $id }}-help">{{ \App\Support\AdminText::html(__($f['help'])) }}</span>@if ($error)<span class="ad-error" role="alert" data-error>{{ $error }}</span>@endif</span>
 <input type="checkbox" class="ad-sr" id="{{ $id }}" name="{{ $f['name'] }}" value="1" role="switch" aria-describedby="{{ $id }}-help" @checked($value === '1')>
 <span class="ad-switch{{ $value === '1' ? ' is-on' : '' }}" aria-hidden="true"></span>
 </label>
@@ -34,7 +34,7 @@ $data = 'data-key="'.e($id).'" data-group="'.e($f['group']).'"'.($f['type'] === 
 @else
 <label class="ad-label{{ ($soleField ?? false) ? ' ad-sr' : '' }}" for="{{ $id }}">{{ __($f['label']) }}</label>
 @endif
-<div class="ad-help" id="{{ $id }}-help">{{ __($f['help']) }}</div>
+<div class="ad-help" id="{{ $id }}-help">{{ \App\Support\AdminText::html(__($f['help'])) }}</div>
 <div class="ad-control">
 @switch($f['control'])
 @case('secret')
@@ -48,7 +48,7 @@ $data = 'data-key="'.e($id).'" data-group="'.e($f['group']).'"'.($f['type'] === 
 @case('link_list')
 @case('code')
 @case('code_editor')
-<textarea class="ad-textarea{{ $f['control'] !== 'textarea' ? ' ad-mono' : '' }}" id="{{ $id }}" name="{{ $f['name'] }}" rows="{{ $f['control'] === 'textarea' ? 3 : 5 }}" spellcheck="{{ $f['control'] === 'textarea' ? 'true' : 'false' }}" aria-describedby="{{ $id }}-help"@if ($lazy) readonly placeholder="{{ __('Loading...') }}"@endif>{{ $lazy ? '' : $value }}</textarea>
+<textarea class="ad-textarea{{ $f['control'] !== 'textarea' ? ' ad-mono' : '' }}" id="{{ $id }}" name="{{ $f['name'] }}" rows="{{ $f['control'] === 'textarea' ? max(3, min(12, (is_string($value) ? substr_count($value, "\n") : 0) + 1)) : 5 }}" spellcheck="{{ $f['control'] === 'textarea' ? 'true' : 'false' }}" aria-describedby="{{ $id }}-help"@if ($lazy) readonly placeholder="{{ __('Loading...') }}"@endif>{{ $lazy ? '' : $value }}</textarea>
 @break
 @case('select')
 <select class="ad-select" id="{{ $id }}" name="{{ $f['name'] }}" aria-describedby="{{ $id }}-help">
@@ -100,7 +100,10 @@ $data = 'data-key="'.e($id).'" data-group="'.e($f['group']).'"'.($f['type'] === 
 <input type="{{ in_array($f['control'], ['email', 'url'], true) ? $f['control'] : 'text' }}" class="ad-input" id="{{ $id }}" name="{{ $f['name'] }}" value="{{ $f['reveal'] ? '' : $value }}" aria-describedby="{{ $id }}-help" @required($f['required'] && ! $f['reveal']) @if ($f['max'] !== null) maxlength="{{ $f['max'] }}" @endif @if ($f['reveal']) autocomplete="off" spellcheck="false" placeholder="{{ __('Type a new secret word to replace the link') }}" @endif>
 @endswitch
 </div>
-@if ($f['reveal'])
+@if ($f['reveal'] && \App\Http\Middleware\ViewOnlyDemo::hides('admin.settings.maintenance.reveal'))
+{{-- Showing the secret link is a closed page for a view-only demo account: only the state is said. --}}
+<div class="ad-field-meta"><span>{{ $f['saved'] ? __('A secret link is saved. It is hidden until you type your password.') : __('No secret link yet.') }}</span></div>
+@elseif ($f['reveal'])
 <div class="ad-field-meta"><span data-reveal-text>{{ $f['saved'] ? __('A secret link is saved. It is hidden until you type your password.') : __('No secret link yet.') }}</span> <button type="button" class="ad-link" data-reveal-open @unless ($f['saved']) hidden @endunless>{{ __('Show and copy the link') }}</button></div>
 <div class="ad-row" data-reveal-form hidden><input type="password" class="ad-input" autocomplete="current-password" aria-label="{{ __('Your admin password') }}" placeholder="{{ __('Your admin password') }}" style="max-width:260px"> <button type="button" class="ad-btn sm" data-reveal-submit>{{ __('Show link') }}</button></div>
 <div class="ad-row" data-reveal-result hidden><input type="text" class="ad-input ad-mono" readonly aria-label="{{ __('Secret preview link') }}"> <button type="button" class="ad-btn sm" data-copy>{{ __('Copy bypass link') }}</button></div>
@@ -113,7 +116,9 @@ $data = 'data-key="'.e($id).'" data-group="'.e($f['group']).'"'.($f['type'] === 
 @elseif ($f['key'] === 'mail_mailer')
 <div class="ad-field-meta"><span data-saved-now data-labels="{{ json_encode(array_map(fn (string $label): string => __($label), $f['options'] + $f['more_options'])) }}">{{ __('Saved now: :value', ['value' => __($f['options'][$value] ?? $f['more_options'][$value] ?? $value)]) }}</span></div>
 @elseif ($meta && (string) $f['default'] !== (string) $value)
-<div class="ad-field-meta" data-default-line><span>{{ __('Default: :value', ['value' => __($f['options'][$f['default']] ?? \Illuminate\Support\Str::limit($f['default'], 60))]) }}</span> <button type="button" class="ad-link" data-reset>{{ __('Reset') }}</button></div>
+{{-- A choice's label is translated; any other default is shown as it is (never through __(): "*" would be read as
+     "every translation" and break the page). --}}
+<div class="ad-field-meta" data-default-line><span>{{ __('Default: :value', ['value' => isset($f['options'][$f['default']]) ? __($f['options'][$f['default']]) : \Illuminate\Support\Str::limit((string) $f['default'], 60)]) }}</span> <button type="button" class="ad-link" data-reset>{{ __('Reset') }}</button></div>
 @endif
 @if ($error)<div class="ad-error" role="alert" data-error>{{ $error }}</div>@endif
 </div>

@@ -1,0 +1,780 @@
+/* =====================================================================================================================
+   The channel page's own rules (member design 6.10, 6.19): its header (identity, the creator's band and its variants,
+   the creator's button, Subscribe's row), the tabs and the creator's accent, the featured video, the creator's card
+   layouts and their list ads, the skeleton cards and the About tab's address row. 1.2.3 round 3 (R1-070 = R2R-10):
+   moved out of member/_channel.scss into their own stylesheet (resources/sass/channel-page.scss), which the channel page
+   (users/show.blade.php) links after the member entry, so no other page downloads them: the member entry is
+   render-blocking on every page of a signed-in visitor (MEMBER_DESIGN 4.3: <= 130 KB / 22 KB gzip). The rules are the
+   same and in the same order; they come after the rest of the member entry now, and none of the later rules there
+   (library, notifications, chrome) sets the same property on the same element with the same specificity (checked with
+   the lane's move_overlap.py), so nothing changes on screen. Every selector starts with :root or html (5.13).
+   ===================================================================================================================== */
+
+/* ---------------------------------------------------------------------------------------------------------------------
+   Channel page header (_channel.scss; the creator's accent overrides
+   --mk-accent only when the creator picked one, else the look's brand ink is used)
+   ------------------------------------------------------------------------------------------------------------------ */
+
+:root .mk-channel {
+    --mk-accent: var(--avd-brand-ink);
+    display: grid;
+    gap: 1rem;
+}
+
+:root .mk-channel__banner {
+    position: relative;
+    overflow: hidden;
+    aspect-ratio: 16 / 5;
+    max-block-size: 260px;
+    inline-size: 100%;
+    border-radius: var(--mk-r-panel);
+    background: var(--avd-brand-gradient, var(--avd-surface-3));
+}
+
+:root .mk-channel__banner img {
+    inline-size: 100%;
+    block-size: 100%;
+    object-fit: cover;
+}
+
+@media (max-width: 575.98px) {
+    :root .mk-channel__banner {
+        aspect-ratio: 3 / 1;
+        border-radius: var(--mk-r-inner);
+    }
+}
+
+:root .mk-channel__id {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: .5rem 1rem;
+    align-items: center;
+}
+
+:root .mk-channel__name {
+    color: var(--avd-text);
+    font-family: var(--avd-font-display);
+    font-size: clamp(1.35rem, 1.05rem + 1.2vw, 2.1rem);
+    font-weight: var(--avd-display-weight, 700);
+    line-height: 1.15;
+    text-transform: var(--avd-display-case, none);
+    /* a word breaks only when it cannot fit a whole line (QA: "NIGHTDRIV/E_TV" with room left in the band) */
+    overflow-wrap: break-word;
+}
+
+:root .mk-channel__facts {
+    display: flex;
+    flex-wrap: wrap;
+    row-gap: .15rem;
+    /* revision 2: every item leads with its dot and the first 1.2em of the box is clipped, so the item that starts a
+       line (the first one, or one that wrapped) never shows its dot: no line starts or ends with a stray separator */
+    margin-inline-start: -1.2em;
+    clip-path: inset(0 0 0 1.2em);
+    color: var(--avd-muted);
+    font-size: .875rem;
+}
+
+:root[dir="rtl"] .mk-channel__facts {
+    clip-path: inset(0 1.2em 0 0);
+}
+
+:root .mk-channel__facts > * {
+    white-space: nowrap;
+}
+
+:root .mk-channel__facts > *::before {
+    content: "\00B7";
+    display: inline-block;
+    inline-size: 1.2em;
+    color: var(--avd-faint);
+    text-align: center;
+}
+
+:root .mk-channel__actions {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+}
+
+@media (min-width: 768px) {
+    /* The identity and the actions share a row that wraps. The identity needs at least 14rem and its name's longest
+       word (its own min-content: the facts and the tagline never widen it); the actions sit at the end of the row while
+       they fit next to that, else they move to a row of their own under it. So the buttons never run over the name and
+       the facts (the mockup's auto column did at 768-1279 with a creator button), and the name never breaks inside a
+       word to make room for them (QA: the max-content action column squeezed it to 224px in the wide display fonts). */
+    :root .mk-channel__id {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+
+    :root .mk-channel__who {
+        flex: 1 1 14rem;
+        /* its minimum is its content's: the name's whole word (the tagline and the facts never widen it), so the row
+           wraps the actions instead of squeezing the name */
+        min-inline-size: auto;
+        max-inline-size: calc(100% - 96px - 1rem);
+    }
+
+    :root .mk-channel__actions {
+        flex: 0 1 auto;
+        margin-inline-start: auto;
+        justify-content: flex-end;
+    }
+}
+
+/* Tabs stick under the header at every size (page overflow is clip, never hidden: hidden breaks sticky); revision 3:
+   at the top of the screen when the admin's "Header stays visible" is off (--mk-sticky-top, member-kit.css). */
+
+:root .mk-channel__tabs {
+    position: sticky;
+    /* the page measures the printed header (users/show.blade.php stick(): the header token said 64px or 60px while
+       the header was 69px or 73px, so the strip slid under it: QA channel-5); 0 when the header scrolls away */
+    inset-block-start: var(--mk-channel-stick, var(--mk-sticky-top, 64px));
+    z-index: 4;
+    background: var(--avd-bg);
+}
+
+/* ---------------------------------------------------------------------------------------------------------------------
+   Channel header band (_channel.scss): the creator's theme paints ONLY this band (banner, identity,
+   actions); everything below follows the look. Default = the admin's channel_default_theme (midnight), "look" =
+   no band colour. Band colours are the creator's content (6 fixed dark bands from ChannelCustomizationSettings), so
+   text on them uses the band's own light inks (>= 7:1), and buttons on the band use band-safe colours (channel-10).
+   ------------------------------------------------------------------------------------------------------------------ */
+
+:root .mk-channel__band {
+    --band-a: var(--avd-surface-2);
+    --band-b: var(--avd-surface-1);
+    --band-text: var(--avd-text);
+    --band-muted: var(--avd-muted);
+    --band-line: var(--avd-border);
+    --band-chip: var(--avd-surface-2);
+    position: relative;
+    display: grid;
+    gap: 0;
+    /* no overflow clip: the band's menu opens out of it (QA: its last item was cut off and the tab strip took its
+       clicks). The rounded corners clip the band's own layers instead: the banner (overflow hidden, the band's top
+       radii) and the texture (border-radius: inherit). While its menu is open the band rises over the tab strip. */
+    border-radius: var(--mk-r-panel);
+    background: linear-gradient(115deg, var(--band-a), var(--band-b));
+    color: var(--band-text);
+}
+
+:root .mk-channel__band.is-menu-open { z-index: 5; }
+
+:root .mk-channel__band:not([data-channel-theme="look"]) {
+    --band-text: #f8fafc;
+    --band-muted: rgba(248, 250, 252, .82);
+    --band-line: rgba(255, 255, 255, .24);
+    --band-chip: rgba(255, 255, 255, .1);
+}
+
+:root .mk-channel__band[data-channel-theme="midnight"] { --band-a: #121826; --band-b: #0e242d; }
+
+:root .mk-channel__band[data-channel-theme="sunrise"] { --band-a: #461c26; --band-b: #4a3214; }
+
+:root .mk-channel__band[data-channel-theme="ocean"] { --band-a: #0a2137; --band-b: #064452; }
+
+:root .mk-channel__band[data-channel-theme="forest"] { --band-a: #0b2c24; --band-b: #27361c; }
+
+:root .mk-channel__band[data-channel-theme="candy"] { --band-a: #371e3d; --band-b: #1a3746; }
+
+:root .mk-channel__band[data-channel-theme="graphite"] { --band-a: #13161d; --band-b: #252a34; }
+
+/* Pattern: a static texture on the band only (no animation). */
+
+:root .mk-channel__band[data-channel-pattern="signal"]::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background: repeating-linear-gradient(135deg, rgba(255, 255, 255, .045) 0 1px, transparent 1px 16px);
+}
+
+:root .mk-channel__band > * { position: relative; z-index: 1; }
+
+:root .mk-channel__band .mk-channel__banner {
+    border-start-start-radius: inherit;
+    border-start-end-radius: inherit;
+    border-end-start-radius: 0;
+    border-end-end-radius: 0;
+    max-block-size: 240px;
+}
+
+:root .mk-channel__band[data-channel-shape="soft-arc"] .mk-channel__banner { border-end-start-radius: 50% 18px; border-end-end-radius: 50% 18px; }
+
+:root .mk-channel__band[data-channel-shape="angled"] .mk-channel__banner { clip-path: polygon(0 0, 100% 0, 100% 86%, 0 100%); }
+
+:root .mk-channel__band .mk-channel__id {
+    padding: 1rem clamp(14px, 2vw, 24px) 1.1rem;
+}
+
+:root .mk-channel__avatar { position: relative; flex: none; }
+
+:root .mk-channel__avatar .mk-avatar { box-shadow: 0 0 0 3px var(--band-a); }
+
+:root .mk-channel__band[data-channel-avatar="ring"] .mk-channel__avatar .mk-avatar { box-shadow: 0 0 0 3px var(--band-a), 0 0 0 5px var(--mk-accent, var(--avd-brand-ink)); }
+
+:root .mk-channel__band[data-channel-avatar="square"] .mk-channel__avatar .mk-avatar { border-radius: 22%; }
+
+/* a column: the name, the facts and the tagline take the block's width (a grid's auto column grew to the name's word
+   and ran out of the block in the widest display fonts), so a word that cannot fit a whole line breaks there; no
+   minimum of 0 here: from 768px the row needs the name's word as the block's minimum (the rule above) */
+:root .mk-channel__who { display: flex; flex-direction: column; gap: .3rem; }
+
+:root .mk-channel__band .mk-channel__name { color: var(--band-text); }
+
+:root .mk-channel__band .mk-channel__facts { color: var(--band-muted); }
+
+:root .mk-channel__band .mk-channel__facts > *::before { color: var(--band-muted); }
+
+:root .mk-channel__tagline { color: var(--band-muted); max-inline-size: min(100%, 62ch); }
+
+/* Buttons on the band: Subscribe stays the look's primary (the one primary); the others use band colours. */
+
+:root .mk-channel__band .mk-btn--secondary {
+    background: var(--band-chip);
+    color: var(--band-text);
+    box-shadow: inset 0 0 0 1px var(--band-line);
+}
+
+:root .mk-channel__band .mk-icon-btn {
+    color: var(--band-text);
+}
+
+:root .mk-channel__band .mk-icon-btn--outlined { box-shadow: inset 0 0 0 1px var(--band-line); }
+
+:root .mk-channel__band :focus-visible { outline-color: var(--band-text) !important; }
+
+/* The creator's button (cta_label, 42 characters at most): next to Subscribe and Share, never primary, never wider
+   than 24ch (the full label stays in title + accessible name). */
+
+:root .mk-channel__cta { max-inline-size: 24ch; }
+
+@media (max-width: 575.98px) {
+    /* R2R-03: Subscribe fills the first row beside Share and More, but never gets narrower than its label (its widest
+       face, in every language and look; as a grid column, minmax(0, 1fr) squeezed it to its 9.5rem minimum and
+       "Berlangganan" ran 14px past each side of it in Imperial Salon at 320px). Where the three do not fit, Share and
+       More move TOGETHER to a row of their own under it, at its end. So the row is filled from its end (row-reverse:
+       More, then Share, then Subscribe) and its rows from the bottom (wrap-reverse): the creator's button fills the
+       bottom row (order -2), More and Share the row above it, and Subscribe joins them or takes the top row alone. On
+       screen they stay Subscribe, Share, More and the creator's button under them, as before. Alone, Subscribe is as
+       wide as the row; where even that is narrower than its widest face ("SUDAH BERLANGGANAN" with the bell and the
+       chevron in Imperial Salon at 320-375px), its label wraps between its words (both faces: one height in both
+       states), never inside a word. */
+    :root .mk-channel__actions {
+        flex-direction: row-reverse;
+        flex-wrap: wrap-reverse;
+    }
+
+    :root .mk-channel__actions .mk-subscribe {
+        order: 1;
+        flex: 1 0 auto;
+        white-space: normal;
+        overflow-wrap: break-word;
+    }
+
+    /* The face it shows is laid over the whole button (R1-125; room in the padding for the look's web font, a few px
+       wider than the local face the button is measured in: R2A-027), but keeps .5rem from its edges: where the label has
+       to wrap, the bell and the chevron stayed on the button's edge line (Imperial Salon, Indonesian "Sudah
+       berlangganan", 320-340px). A face that fits is centred as before; one that would come closer to the edge wraps
+       between its words, as the invisible faces that size the button already do. */
+    :root .mk-channel__actions .mk-subscribe__face:not([aria-hidden]) {
+        padding-inline: .5rem;
+    }
+
+    :root .mk-channel__actions > .mk-channel__more { order: -1; }
+
+    /* the creator's button: a row of its own, its label cut with "..." inside it (min-inline-size: 0; a flex item is at
+       least as wide as its one-line label otherwise) */
+    :root .mk-channel__actions > .mk-channel__cta { order: -2; flex: 1 1 100%; min-inline-size: 0; max-inline-size: none; justify-content: flex-start; }
+
+    /* The OWNER's row (Customize channel, Manage videos, Share) has no primary:
+       Customize channel + Share on the first row, Manage videos on its own full row (in Imperial Salon at 360 the auto
+       column of "Manage videos" squeezed "Customize channel" to one letter per line) */
+    :root .mk-channel__actions--owner { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
+
+    :root .mk-channel__actions--owner > .mk-btn:not(.mk-channel__secondary) { grid-column: 1 / -1; grid-row: 2; }
+}
+
+/* Glass cards: frosted only on the rich tier with a mouse and no reduced transparency/motion; solid everywhere else
+   (lite tier, phones, reduced motion). Hover never changes it (calm rule).
+   The panel is the band's own colour: the dark glass of the six colour themes (their light inks), the look's own surface
+   on "Follow the look" (its text and muted colours; the dark glass made them dark on dark in every light look: R1-005).
+   It lies over the banner, so its opacity keeps the band's text 4.5:1 and its icons 3:1 also over a pure white or black
+   picture (a blur does not lighten a flat area): the dark glass from .78 (muted facts 6.4:1 over white; .62 gave 3.9),
+   the look's surface from .9 (4.58:1 in the worst of the 348 colour blocks). */
+
+:root .mk-channel__band {
+    --band-glass: 18, 22, 30;
+    --band-glass-a: .92;
+    --band-glass-rich: .78;
+}
+
+:root .mk-channel__band[data-channel-theme="look"] {
+    --band-glass: var(--avd-surface-rgb);
+    --band-glass-a: .96;
+    --band-glass-rich: .9;
+}
+
+:root .mk-channel__band[data-channel-surface="glass"] .mk-channel__glass {
+    margin: -2.5rem clamp(10px, 1.5vw, 16px) clamp(10px, 1.5vw, 16px);
+    border: 1px solid var(--band-line);
+    border-radius: var(--mk-r-inner);
+    background: rgba(var(--band-glass), var(--band-glass-a));
+}
+
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+    html[data-avd-tier="rich"]:not([data-avd-perf="lite"]) .mk-channel__band[data-channel-surface="glass"] .mk-channel__glass {
+        background: rgba(var(--band-glass), var(--band-glass-rich));
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+    }
+}
+
+/* reduced transparency: no frost on any tier (the rich-tier rule above is the stronger selector, so it is named too) */
+@media (prefers-reduced-transparency: reduce) {
+    :root .mk-channel__band[data-channel-surface="glass"] .mk-channel__glass,
+    html[data-avd-tier="rich"]:not([data-avd-perf="lite"]) .mk-channel__band[data-channel-surface="glass"] .mk-channel__glass {
+        background: rgba(var(--band-glass), .96);
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+    }
+}
+
+/* Motion: "gentle" = sections fade in once (480ms) on the rich and balanced tiers; float, pulse and sweep play ONE
+   cycle on the rich tier only. Never on lite, never with reduced motion, never on hover, never in the studio preview. */
+
+@media (prefers-reduced-motion: no-preference) {
+    html:not([data-avd-perf="lite"]) .mk-channel[data-channel-motion="gentle"] .mk-section-head,
+    html:not([data-avd-perf="lite"]) .mk-channel[data-channel-motion="gentle"] .mk-cards {
+        animation: mk-rise 480ms ease both;
+        animation-iteration-count: 1;
+    }
+}
+
+@keyframes mk-rise {
+    from { opacity: 0; transform: translateY(8px); }
+}
+
+/* The first section's cards hold the first screen's largest picture (loaded at once, R1-067): they rise without
+   fading, so the picture shows with the page's first paint. A picture first painted at opacity 0 waited the fade, and
+   the browser's "largest contentful paint" skipped it for a later picture lower on the page. */
+@media (prefers-reduced-motion: no-preference) {
+    html:not([data-avd-perf="lite"]) .mk-channel[data-channel-motion="gentle"] .mk-channel__pane > .mk-channel__section:first-child .mk-cards {
+        animation-name: mk-rise-in-place;
+    }
+}
+
+@keyframes mk-rise-in-place {
+    from { transform: translateY(8px); }
+}
+
+:root .mk-channel__featured .mk-feature {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: .75rem 1.25rem;
+    color: var(--avd-text);
+    text-decoration: none;
+}
+
+@media (min-width: 768px) {
+    :root .mk-channel__featured .mk-feature { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); align-items: center; }
+}
+
+:root .mk-feature__text { display: grid; gap: .4rem; }
+
+:root .mk-feature__desc { color: var(--avd-muted); }
+
+:root .mk-channel-page { overflow-x: clip; }
+
+/* the About tab while it loads (it comes with ?part=about when first opened) */
+:root .mk-channel__wait { display: grid; place-items: center; min-block-size: 12rem; }
+
+/* the count next to a section title or a sort control */
+:root .mk-channel__count { font-size: .8125rem; }
+
+/* ---------------------------------------------------------------------------------------------------------------------
+   The creator's accent (6.19, QA channel-11): marks only (the active tab's underline, the avatar ring, the band's
+   outline). "look" keeps the look's brand ink; a preset or custom colour comes as two inks adjusted to 4.5:1 per mode
+   (App\Support\ChannelAccent), and the mode in use picks one.
+   ------------------------------------------------------------------------------------------------------------------ */
+
+html[data-bs-theme="dark"] .mk-channel:not([data-channel-accent="look"]) { --mk-accent: var(--mk-accent-dark, var(--avd-brand-ink)); }
+
+html[data-bs-theme="light"] .mk-channel:not([data-channel-accent="look"]) { --mk-accent: var(--mk-accent-light, var(--avd-brand-ink)); }
+
+:root .mk-channel__tabs .mk-tab.is-active,
+:root .mk-channel__tabs .mk-tab[aria-current="page"] {
+    box-shadow: inset 0 -2px 0 var(--mk-accent, var(--avd-brand-ink));
+}
+
+/* the inactive tabs answer the mouse (QA channel-35): colour and a quiet underline, nothing moves */
+@media (hover: hover) and (pointer: fine) {
+    :root .mk-channel__tabs .mk-tab:not(.is-active):hover {
+        color: var(--avd-text);
+        box-shadow: inset 0 -2px 0 var(--avd-border-strong, var(--avd-border));
+    }
+}
+
+/* ---------------------------------------------------------------------------------------------------------------------
+   The header band, inside the look (6.19). The band's own variants: patterns, the framed shape, avatar frames, the
+   identity panel's surface, banner treatments, the layout's banner height, the density of the page and the one-cycle
+   motions. All static unless stated; every motion plays once, only where 4.1 allows it.
+   ------------------------------------------------------------------------------------------------------------------ */
+
+:root .mk-channel__band:not([data-channel-theme="look"]):not([data-channel-accent="look"]) {
+    /* the band outline is one of the accent's places (6.19): drawn for an accent the creator picked; the look's own
+       colour (the default) draws none, as the mockup */
+    box-shadow: inset 0 0 0 1px var(--band-line);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mk-accent, var(--avd-brand-ink)) 28%, transparent);
+}
+
+:root .mk-channel__band[data-channel-theme="look"] {
+    border: var(--mk-panel-border, 1px solid var(--avd-border));
+}
+
+/* Patterns (static textures on the band only) */
+:root .mk-channel__band[data-channel-pattern="grid"]::before,
+:root .mk-channel__band[data-channel-pattern="diagonal"]::before,
+:root .mk-channel__band[data-channel-pattern="waves"]::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    border-radius: inherit;
+    pointer-events: none;
+}
+
+:root .mk-channel__band[data-channel-pattern="grid"]::before {
+    background:
+        repeating-linear-gradient(0deg, rgba(255, 255, 255, .04) 0 1px, transparent 1px 22px),
+        repeating-linear-gradient(90deg, rgba(255, 255, 255, .04) 0 1px, transparent 1px 22px);
+}
+
+:root .mk-channel__band[data-channel-pattern="diagonal"]::before {
+    background: repeating-linear-gradient(45deg, rgba(255, 255, 255, .05) 0 2px, transparent 2px 26px);
+}
+
+:root .mk-channel__band[data-channel-pattern="waves"]::before {
+    background:
+        radial-gradient(circle at 20% 120%, rgba(255, 255, 255, .07) 0 22%, transparent 23%),
+        radial-gradient(circle at 80% 130%, rgba(255, 255, 255, .05) 0 28%, transparent 29%);
+}
+
+/* on a band that follows the look, the texture is a shade of the look's own text colour */
+:root .mk-channel__band[data-channel-theme="look"]::before { opacity: .6; }
+
+html[data-bs-theme="light"] .mk-channel__band[data-channel-theme="look"]::before { filter: invert(1); }
+
+/* The framed shape: an inset frame around the banner */
+:root .mk-channel__band[data-channel-shape="framed"] .mk-channel__banner {
+    margin: clamp(6px, 1vw, 10px) clamp(6px, 1vw, 10px) 0;
+    inline-size: auto;
+    border-radius: var(--mk-r-inner);
+}
+
+/* Banner treatments: the crop and a soft shade; "minimal" shows no picture */
+:root .mk-channel__band[data-channel-banner="poster"] .mk-channel__banner img { object-position: center top; }
+
+:root .mk-channel__band[data-channel-banner="split"] .mk-channel__banner img { object-position: center 35%; }
+
+:root .mk-channel__band[data-channel-banner="mosaic"] .mk-channel__banner::after,
+:root .mk-channel__band[data-channel-banner="split"] .mk-channel__banner::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+:root .mk-channel__band[data-channel-banner="mosaic"] .mk-channel__banner::after {
+    background: repeating-linear-gradient(90deg, rgba(0, 0, 0, .12) 0 1px, transparent 1px 48px);
+}
+
+:root .mk-channel__band[data-channel-banner="split"] .mk-channel__banner::after {
+    background: linear-gradient(90deg, rgba(0, 0, 0, .35), transparent 55%);
+}
+
+:root[dir="rtl"] .mk-channel__band[data-channel-banner="split"] .mk-channel__banner::after {
+    background: linear-gradient(270deg, rgba(0, 0, 0, .35), transparent 55%);
+}
+
+:root .mk-channel__band[data-channel-banner="minimal"] .mk-channel__banner { display: none; }
+
+/* A creator without a banner of their own: the look's brand gradient fills the banner, no stock picture (account-35) */
+:root .mk-channel__banner--token { background: var(--avd-brand-gradient, linear-gradient(115deg, var(--band-a), var(--band-b))); }
+
+/* The layout picks the banner's height */
+:root .mk-channel[data-channel-layout="compact"] .mk-channel__banner { aspect-ratio: 8 / 1; max-block-size: 160px; }
+
+:root .mk-channel[data-channel-layout="poster"] .mk-channel__banner { aspect-ratio: 3 / 1; max-block-size: 300px; }
+
+/* Avatar frames */
+:root .mk-channel__avatar .mk-avatar { vertical-align: top; }
+
+:root .mk-channel__band[data-channel-avatar="glow"] .mk-channel__avatar .mk-avatar {
+    box-shadow: 0 0 0 3px var(--band-a), 0 0 0 5px var(--mk-accent, var(--avd-brand-ink)), 0 8px 24px rgba(0, 0, 0, .35);
+    box-shadow: 0 0 0 3px var(--band-a), 0 0 0 5px color-mix(in srgb, var(--mk-accent, var(--avd-brand-ink)) 70%, transparent), 0 8px 24px rgba(0, 0, 0, .35);
+}
+
+:root .mk-channel__band[data-channel-avatar="none"] .mk-channel__avatar .mk-avatar { box-shadow: none; }
+
+:root .mk-channel__badge {
+    position: absolute;
+    inset-block-end: 2px;
+    inset-inline-end: 2px;
+    display: grid;
+    place-items: center;
+    inline-size: 1.6rem;
+    block-size: 1.6rem;
+    border-radius: 50%;
+    background: var(--band-a);
+    color: var(--mk-accent, var(--avd-brand-ink));
+    font-size: 1rem;
+    box-shadow: 0 0 0 2px var(--band-a);
+}
+
+/* On the six dark bands the badge's icon takes the accent's ink made for dark surfaces, in light looks too (the light
+   mode's ink is a dark colour: under 3:1 on the band), and the band's own text colour for the look's colour */
+:root .mk-channel__band:not([data-channel-theme="look"]) .mk-channel__badge { color: var(--mk-accent-dark, var(--band-text)); }
+
+/* "Follow the look": the band's colour is the look's raised surface, which can be see-through (Glass Lounge: white at .5
+   in light mode, .1 in dark), so the avatar showed through the badge's circle and its icon fell to 2.5:1 (R1-005). The
+   circle and its ring lay that surface over the look's own opaque one: unchanged where the surface is opaque. */
+:root .mk-channel__band[data-channel-theme="look"] .mk-channel__badge {
+    background: linear-gradient(var(--band-a), var(--band-a)), rgb(var(--avd-surface-rgb));
+    box-shadow: 0 0 0 2px var(--band-a), 0 0 0 2px rgb(var(--avd-surface-rgb));
+}
+
+/* The identity panel's surface ("Cards" in the creator's settings): solid = the band itself */
+:root .mk-channel__band[data-channel-surface="outlined"] .mk-channel__id {
+    margin: .5rem clamp(10px, 1.5vw, 16px) clamp(10px, 1.5vw, 16px);
+    border: 1px solid var(--band-line);
+    border-radius: var(--mk-r-inner);
+}
+
+:root .mk-channel__band[data-channel-surface="soft"] .mk-channel__id {
+    margin: .5rem clamp(10px, 1.5vw, 16px) clamp(10px, 1.5vw, 16px);
+    border-radius: var(--mk-r-inner);
+    background: var(--band-chip);
+}
+
+/* "Follow the look" with the soft panel: the look's own surface over the band. Its surfaces can be see-through (Glass
+   Lounge): a second layer of them over the band lightened the panel under the muted facts to 4.1:1 (R1-005) */
+:root .mk-channel__band[data-channel-theme="look"][data-channel-surface="soft"] .mk-channel__id { background: rgba(var(--avd-surface-rgb), .6); }
+
+:root .mk-channel__band[data-channel-banner="minimal"][data-channel-surface="glass"] .mk-channel__glass { margin-block-start: clamp(10px, 1.5vw, 16px); }
+
+/* The facts line: the subscriber count follows Subscribe at once (it is replaced in place, no shift) */
+:root .mk-channel__facts [data-subscriber-count] { font-variant-numeric: tabular-nums; }
+
+/* The tagline keeps the height of its lines from the first paint (QA channel-20: the band reflowed when the web font
+   arrived) */
+:root .mk-channel__tagline { margin: 0; line-height: 1.5; }
+
+:root .mk-channel__tagline--two { min-block-size: 3em; }
+
+/* The ⋯ menu next to Share */
+:root .mk-channel__more { position: relative; }
+
+:root .mk-channel__more .mk-menu .mk-menu__item { inline-size: 100%; }
+
+:root .mk-channel__more .mk-menu__note { display: flex; gap: .4rem; align-items: baseline; }
+
+/* Phones: a compact band, so the tabs and the start of the content are on the first screen (QA channel-5) */
+@media (max-width: 575.98px) {
+    :root .mk-channel__avatar .mk-avatar { inline-size: 64px; block-size: 64px; }
+
+    :root .mk-channel__band .mk-channel__id { padding-block: .75rem .85rem; gap: .5rem .75rem; }
+
+    /* the name follows its column on phones: a handle of 13 characters in the widest display fonts (Orbitron,
+       Unbounded, Cinzel: about 11 em) fits at 360 instead of breaking. 8.8% of the column, written from the screen's
+       width (the column is the screen less 154px beside a glass, outlined or soft panel and less 132px beside a solid
+       one: the avatar, the gaps and the paddings, measured in the 12 looks): R1-066, a size container on the column
+       (8.8cqi) made every relayout of the page 5 to 8 times slower on phones */
+    :root .mk-channel__name { font-size: clamp(1.1rem, calc((100vw - 154px) * .088), 1.45rem); }
+
+    :root .mk-channel__band[data-channel-surface="solid"] .mk-channel__name { font-size: clamp(1.1rem, calc((100vw - 132px) * .088), 1.45rem); }
+
+    :root .mk-channel__facts { font-size: .8125rem; }
+
+    :root .mk-channel__band[data-channel-surface="glass"] .mk-channel__glass { margin-block-start: -1.25rem; }
+}
+
+/* Motion: "float", "pulse" and "sweep" play ONE cycle on the rich tier only (6.19, 4.1): never on lite or balanced,
+   never with reduced motion, never on hover, never looping. */
+@media (prefers-reduced-motion: no-preference) {
+    html[data-avd-tier="rich"]:not([data-avd-perf="lite"]) .mk-channel[data-channel-motion="float"] .mk-channel__avatar {
+        animation: mk-band-float 900ms ease-out 1 both;
+    }
+
+    html[data-avd-tier="rich"]:not([data-avd-perf="lite"]) .mk-channel[data-channel-motion="pulse"] .mk-channel__avatar .mk-avatar {
+        animation: mk-band-pulse 1100ms ease-out 1;
+    }
+
+    html[data-avd-tier="rich"]:not([data-avd-perf="lite"]) .mk-channel[data-channel-motion="sweep"] .mk-channel__banner::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        z-index: 1;
+        background: linear-gradient(100deg, transparent 30%, rgba(255, 255, 255, .16) 50%, transparent 70%);
+        pointer-events: none;
+        animation: mk-band-sweep 1200ms ease-out 1 both;
+    }
+}
+
+@keyframes mk-band-float {
+    from { opacity: 0; transform: translateY(10px); }
+}
+
+@keyframes mk-band-pulse {
+    40% { box-shadow: 0 0 0 3px var(--band-a), 0 0 0 9px color-mix(in srgb, var(--mk-accent, #fff) 40%, transparent); }
+}
+
+@keyframes mk-band-sweep {
+    from { transform: translateX(-100%); }
+    to { transform: translateX(100%); opacity: 0; }
+}
+
+/* Density: the space between the page's sections */
+:root .mk-channel[data-channel-density="compact"] { --mk-gap: 12px; }
+
+:root .mk-channel[data-channel-density="spacious"] { --mk-gap: 28px; }
+
+/* ---------------------------------------------------------------------------------------------------------------------
+   Card grids. The creator's columns are a maximum: a grid never shows more than --mk-cols columns and drops one when a
+   card would get narrower than 13.75rem (6.19: "columns clamp to what fits"); phones keep the admin's "Videos per row
+   on phones". Layout variants: rail (one swipe row), compact (smaller cards), showcase (the first card twice as
+   wide) and list (one card per row, the picture beside the text).
+   ------------------------------------------------------------------------------------------------------------------ */
+
+:root .mk-cards--cols {
+    grid-template-columns: repeat(auto-fill, minmax(max(13.75rem, calc((100% - (var(--mk-cols, 4) - 1) * var(--mk-gap)) / var(--mk-cols, 4))), 1fr));
+    /* a full-width list ad (wide_row) printed after video N spans the next row; the videos after it fill the rest of
+       the row that holds video N first, so the ad sits after that row with no empty cells before it (the rule of the
+       site's feeds, FeedAdSlots::wideAdAfter), at every column count */
+    grid-auto-flow: row dense;
+}
+
+:root .mk-cards--compact {
+    grid-template-columns: repeat(auto-fill, minmax(max(10.5rem, calc((100% - var(--mk-cols, 4) * var(--mk-gap)) / (var(--mk-cols, 4) + 1))), 1fr));
+}
+
+:root .mk-cards--compact .mk-card__title { font-size: .875rem; }
+
+@media (min-width: 768px) {
+    :root .mk-cards--showcase > .mk-card:first-child { grid-column: span 2; grid-row: span 2; }
+
+    :root .mk-cards--showcase > .mk-card:first-child .mk-card__title { font-size: 1.125rem; }
+}
+
+:root .mk-cards--rail {
+    grid-auto-flow: column;
+    grid-template-columns: none;
+    grid-auto-columns: minmax(13.75rem, calc((100% - (var(--mk-cols, 4) - 1) * var(--mk-gap)) / var(--mk-cols, 4)));
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x mandatory;
+    padding-block-end: .25rem;
+}
+
+:root .mk-cards--rail > * { scroll-snap-align: start; }
+
+/* A Featured section of one row (the creator's "Featured: rows" is 1) stays one row at every width from 576px: its cards
+   share the row down to 11rem (the compact cards' size), so 5 per row still fit at 1366, and below that the row scrolls
+   sideways like the rail instead of wrapping one or two cards under it (R1-129: 5 x 1 showed 4 + 1 at 1366 and 3 + 2 at
+   768). Phones keep the two-column grid that starts with a lead card. */
+@media (min-width: 576px) {
+    :root .mk-cards--cols.mk-cards--one-row {
+        grid-auto-flow: column;
+        grid-template-columns: none;
+        grid-auto-columns: minmax(11rem, calc((100% - (var(--mk-cols, 4) - 1) * var(--mk-gap)) / var(--mk-cols, 4)));
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        scroll-snap-type: x mandatory;
+        padding-block-end: .25rem;
+    }
+
+    :root .mk-cards--compact.mk-cards--one-row {
+        grid-auto-columns: minmax(10.5rem, calc((100% - var(--mk-cols, 4) * var(--mk-gap)) / (var(--mk-cols, 4) + 1)));
+    }
+
+    :root .mk-cards--one-row > * { scroll-snap-align: start; }
+}
+
+@media (min-width: 576px) {
+    :root .mk-cards--list { grid-template-columns: minmax(0, 1fr); }
+
+    :root .mk-cards--list > .mk-card {
+        grid-template-columns: minmax(10rem, 16rem) minmax(0, 1fr);
+        column-gap: 1rem;
+        align-content: start;
+    }
+
+    :root .mk-cards--list > .mk-card > .mk-thumb { grid-row: span 3; }
+}
+
+@media (max-width: 575.98px) {
+    :root .mk-cards--cols:not(.mk-cards--rail) { grid-template-columns: minmax(0, 1fr); }
+
+    html[data-avd-mobile-video-columns="2"] .mk-cards--cols:not(.mk-cards--rail):not(.mk-cards--list) {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 1rem .75rem;
+    }
+
+    /* a Home section with an odd number of cards starts with a lead card across both columns (as the mockup), so no
+       card is left alone at the end of a two-column grid */
+    html[data-avd-mobile-video-columns="2"] .mk-channel__section .mk-cards--cols:not(.mk-cards--rail):not(.mk-cards--list) > .mk-card:first-child:nth-last-child(odd) {
+        grid-column: 1 / -1;
+    }
+
+    :root .mk-cards--rail { grid-auto-columns: 72%; }
+}
+
+/* A list ad takes exactly one card's box (grid_card) or a full row (wide_row), so nothing moves when it fills (6.20) */
+:root .mk-cards > .mk-cards__ad {
+    display: grid;
+    place-items: center;
+    min-inline-size: 0;
+    min-block-size: 11rem;
+    overflow: hidden;
+    border-radius: var(--mk-r-thumb, var(--mk-r-inner));
+}
+
+:root .mk-cards > .mk-cards__ad.ad-slot-grid--wide { grid-column: 1 / -1; min-block-size: 6rem; }
+
+/* Skeleton cards while a tab's first page loads (the box of a card: no shift) */
+:root .mk-card--skel { pointer-events: none; }
+
+:root .mk-card--skel .mk-skel--title { inline-size: 85%; }
+
+:root .mk-card--skel .mk-skel--line { inline-size: 55%; }
+
+html[data-avd-title-lines] .mk-cards--list > .mk-card > .mk-card__title { min-block-size: 0; }
+
+/* The About tab's address row: the address and its copy button side by side, the
+   "Address copied" status on a line of its own right under them while it shows (QA channel-8) */
+:root .mk-channel__details dd.mk-channel__address {
+    display: grid;
+    grid-template-columns: minmax(0, max-content) auto;
+    justify-content: start;
+    align-items: center;
+    column-gap: .35rem;
+}
+
+:root .mk-channel__address > .mk-copy__done { grid-column: 1 / -1; }
+
+/* The About tab: the description panel is as tall as its text (QA channel-22) */
+:root .mk-channel__about { align-items: start; }
+
+/* The creator's button keeps one line and ends in an ellipsis (its full label is its title and accessible name), on
+   phones too, where long labels of other buttons wrap */
+:root .mk-channel__actions > .mk-btn.mk-channel__cta,
+:root .mk-channel__actions > .mk-btn.mk-channel__cta > span {
+    white-space: nowrap;
+}
+
+:root .mk-channel__actions > .mk-btn.mk-channel__cta > span { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; }

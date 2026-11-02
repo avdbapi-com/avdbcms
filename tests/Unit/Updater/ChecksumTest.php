@@ -7,7 +7,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Feature\Updater\Support\UpdaterSandbox;
 use Tests\TestCase;
 
-/** The .sha256 asset and the API digest (F8 7, 18): one sha256sum line for the update zip, nothing else. */
+/** The .sha256 asset and the API digest: one sha256sum line for the update zip, nothing else. */
 class ChecksumTest extends TestCase
 {
     private const NAME = 'avdbcms-update-1.0.1.zip';

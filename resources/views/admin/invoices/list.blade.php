@@ -11,11 +11,15 @@
 @section('content')
     <x-admin.list-page>
     <x-admin.page-header page="money.payments"
-        :description="trans_choice('1 invoice.|:count invoices.', $stats['count'], ['count' => number_format($stats['count'])]).' '.__('Total :amount, of which tax :tax and fees :fee.', ['amount' => '$'.number_format($stats['amount'], 2), 'tax' => '$'.number_format($stats['tax'], 2), 'fee' => '$'.number_format($stats['fee'], 2)])" />
+        :description="trans_choice('1 invoice.|:count invoices.', $stats['count'], ['count' => number_format($stats['count'])]).' '.__('Total :amount, of which tax :tax and fees :fee.', ['amount' => \App\Support\PremiumAvailability::money($stats['amount'], 2), 'tax' => \App\Support\PremiumAvailability::money($stats['tax'], 2), 'fee' => \App\Support\PremiumAvailability::money($stats['fee'], 2)])" />
 
+    {{-- A member's invoice PDF is a closed page for a view-only demo account: not offered (ViewOnlyDemo::hides()). --}}
+    @php($hidesInvoice = \App\Http\Middleware\ViewOnlyDemo::hides('user.invoices.show'))
     <span hidden id="ad-l-act">{{ __('Actions for') }}</span>
     <template id="ad-invoice-menu">
+        @unless ($hidesInvoice)
         <a href="__URL__" target="_blank" rel="noopener">{{ AdminTheme::icon('download') }}{{ __('Download invoice') }}</a>
+        @endunless
         <a href="{{ route('admin.users.edit', ['user' => '__USER__'], false) }}" data-ad-if="user">{{ AdminTheme::icon('user') }}{{ __('Open member') }}</a>
     </template>
 
@@ -50,11 +54,11 @@
         @foreach ($invoices as $invoice)
             <tr>
                 <td class="c-main"><p><b id="ad-inv-{{ $invoice->id }}">{{ $invoice->user?->username ?? __('Deleted member') }}</b><small>{{ $invoice->user?->email }}</small></p></td>
-                <td class="c-meta is-num"><b>{{ $invoice->amount }}</b></td>
-                <td class="is-num hide-tab">{{ $invoice->tax }}</td>
+                <td class="c-meta is-num"><b>{{ \App\Support\PremiumAvailability::money((int) $invoice->getRawOriginal('amount'), 2) }}</b></td>
+                <td class="is-num hide-tab">{{ \App\Support\PremiumAvailability::money((int) $invoice->getRawOriginal('tax'), 2) }}</td>
                 <td class="hide-tab">{{ strtoupper($invoice->country ?? '-') }}</td>
                 <td class="is-date" title="{{ $invoice->date?->translatedFormat('j M Y, H:i') }}">{{ $invoice->date?->translatedFormat($invoice->date->isCurrentYear() ? 'j M' : 'j M Y') }}</td>
-                <td class="is-actions"><button type="button" class="ad-iconbtn is-more" aria-haspopup="true" aria-labelledby="ad-l-act ad-inv-{{ $invoice->id }}" data-id="{{ $invoice->id }}" data-url="{{ $invoice->route }}" @if ($invoice->user) data-user="{{ $invoice->user->id }}" @endif></button></td>
+                <td class="is-actions">@if (! $hidesInvoice || $invoice->user)<button type="button" class="ad-iconbtn is-more" aria-haspopup="true" aria-labelledby="ad-l-act ad-inv-{{ $invoice->id }}" data-id="{{ $invoice->id }}" @unless ($hidesInvoice) data-url="{{ $invoice->route }}" @endunless @if ($invoice->user) data-user="{{ $invoice->user->id }}" @endif></button>@endif</td>
             </tr>
         @endforeach
     </x-admin.table>

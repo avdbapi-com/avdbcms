@@ -1,52 +1,54 @@
-// Ctrl+K search (<x-admin.palette>): pages, tabs and settings from the index (App\Support\AdminSearchIndex,
-// fetched once on first open), members and videos from the server as you type. Old names and synonyms work
-// ("Preflight", "Mass Broadcast", "smtp", "logo"). Loaded on first use by modules/shell.ts.
+// Ctrl+K search (<x-admin.palette>): pages, tabs and every setting from the index (App\Support\AdminSearchIndex,
+// fetched once on first open, scored by lib/search.ts), members and videos from the server as you type. Old names,
+// setting keys and synonyms work ("Preflight", "Mass Broadcast", "smtp", "api key", "upload18_api_key"). A developer
+// page or setting found while Developer mode is off carries a "Developer mode" badge (its page says how to see it); when
+// more settings match than the list shows, a last row opens Settings with the same search. Loaded on first use by
+// modules/shell.ts. Both requests are background GETs (backgroundGet): searching never uses up a message or becomes
+// "the page you came from".
 
-import {$, escapeHtml, icon, t} from './lib/dom';
+import {$, backgroundGet, escapeHtml, icon, t} from './lib/dom';
+import {plural} from './lib/plural';
+import {type Result, type SearchIndex, visibleResults} from './lib/search';
 
-type PageEntry = {id: string; t: string; s: string; d: string; u: string; k: string[]; i: string; p?: string};
-type SettingEntry = {k: string; t: string; h: string; p: string; c: string; o?: string[]; a?: 1};
-type Index = {
-    v: string;
-    sections: Record<string, string>;
-    pageUrls: Record<string, string>;
-    pages: PageEntry[];
-    settings: SettingEntry[];
-    synonyms: Record<string, string[]>;
-};
 type RemoteItem = {t: string; d: string; u: string; i?: string};
-type Result = {group: string; title: string; sub: string; url: string; icon?: string; avatar?: string; score: number};
-
-const MAX_PER_GROUP = 6;
 
 let dialog: HTMLDialogElement | null = null;
 let input: HTMLInputElement | null = null;
 let list: HTMLElement | null = null;
-let indexPromise: Promise<Index | null> | null = null;
-let index: Index | null = null;
-let pageById = new Map<string, PageEntry>();
+let indexPromise: Promise<SearchIndex | null> | null = null;
+let index: SearchIndex | null = null;
+// Where the index is: until it has arrived the list never says "Nothing found" (on first use, after an update or a
+// change of language or Developer mode it takes a few seconds); when it could not be loaded the list says so, and the
+// next key press (or opening the search again) asks once more.
+let indexState: 'idle' | 'loading' | 'ready' | 'failed' = 'idle';
 let results: Result[] = [];
 let remote: {members: RemoteItem[]; videos: RemoteItem[]} = {members: [], videos: []};
 let active = 0;
 let remoteTimer = 0;
 let remoteAbort: AbortController | null = null;
 
-const fold = (value: string): string =>
-    value.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[_\-]+/g, ' ');
-
-const loadIndex = (): Promise<Index | null> => {
+const loadIndex = (): Promise<SearchIndex | null> => {
     if (!indexPromise) {
         const url = dialog?.dataset.indexUrl ?? '';
-        indexPromise = fetch(url, {credentials: 'same-origin', headers: {Accept: 'application/json'}})
-            .then((response) => (response.ok ? (response.json() as Promise<Index>) : null))
+        indexState = 'loading';
+        indexPromise = backgroundGet(url, {Accept: 'application/json'})
+            .then((response) => {
+                if (!response.ok) throw new Error(`search index: ${response.status}`);
+
+                return response.json() as Promise<SearchIndex>;
+            })
             .then((data) => {
+                if (!data || !Array.isArray(data.pages) || !Array.isArray(data.settings)) throw new Error('search index: no index');
+
                 index = data;
-                pageById = new Map((data?.pages ?? []).filter((p) => !p.id.includes('#')).map((p) => [p.id, p]));
+                indexState = 'ready';
 
                 return data;
             })
             .catch(() => {
+                // An answer that is no index (a server error, a sign-in page, no connection) is never kept.
                 indexPromise = null;
+                indexState = 'failed';
 
                 return null;
             });
@@ -55,93 +57,18 @@ const loadIndex = (): Promise<Index | null> => {
     return indexPromise;
 };
 
-const scoreText = (haystack: string, query: string, tokens: string[], weight: number): number => {
-    const value = fold(haystack);
+/** Ask for the index (again, after a failure) and draw the list when it has arrived. */
+const ensureIndex = (): void => {
+    if (index || indexPromise) return;
 
-    if (!value) return 0;
-    if (value === query) return weight * 1.25;
-    if (value.startsWith(query)) return weight;
-    if (value.includes(' ' + query)) return weight * 0.8;
-    if (value.includes(query)) return weight * 0.6;
-    if (tokens.length > 1 && tokens.every((token) => value.includes(token))) return weight * 0.5;
-
-    return 0;
+    void loadIndex().then(() => {
+        if (dialog?.open) render();
+    });
 };
 
-const synonymTargets = (query: string): Set<string> => {
-    const targets = new Set<string>();
-
-    if (!index || query.length < 2) return targets;
-
-    for (const [term, items] of Object.entries(index.synonyms)) {
-        const folded = fold(term);
-        if (folded === query || folded.startsWith(query) || (query.length >= 4 && query.startsWith(folded))) {
-            items.forEach((item) => targets.add(item));
-        }
-    }
-
-    return targets;
-};
-
-const searchIndex = (raw: string): Result[] => {
-    if (!index) return [];
-
-    const query = fold(raw.trim());
-    const tokens = query.split(/\s+/).filter(Boolean);
-
-    if (!query) return [];
-
-    const boosted = synonymTargets(query);
-    const out: Result[] = [];
-
-    for (const page of index.pages) {
-        const base = page.id.split('#')[0];
-        let score = Math.max(
-            scoreText(page.t, query, tokens, 100),
-            page.p ? scoreText(`${page.p} ${page.t}`, query, tokens, 70) : 0,
-            ...page.k.map((k) => scoreText(k, query, tokens, 75)),
-            scoreText(page.d, query, tokens, 25),
-        );
-        if (boosted.has(base)) score = Math.max(score, 90);
-        if (score > 0) {
-            const section = index.sections[page.s] ?? '';
-            out.push({
-                group: 'pages',
-                title: page.p ? `${page.p}: ${page.t}` : page.t,
-                sub: `${section}${page.d ? ': ' + page.d : ''}`,
-                url: page.u,
-                icon: page.i,
-                score: score + (page.p ? 0 : 2),
-            });
-        }
-    }
-
-    for (const setting of index.settings) {
-        let score = Math.max(
-            scoreText(setting.t, query, tokens, 95),
-            ...(setting.o ?? []).map((o) => scoreText(o, query, tokens, 70)),
-            scoreText(setting.k, query, tokens, 60),
-            scoreText(setting.h, query, tokens, 20),
-        );
-        if (boosted.has(setting.k)) score = Math.max(score, 88);
-        if (score > 0) {
-            const page = pageById.get(setting.p);
-            const url = index.pageUrls[setting.p];
-            if (!url) continue;
-            const path = [index.sections[page?.s ?? ''] ?? '', page?.t ?? '', setting.c].filter(Boolean).join(' > ');
-            out.push({
-                group: 'settings',
-                title: setting.t,
-                sub: path + (setting.a ? ' > ' + t('moreOptions', 'More options') : ''),
-                url: url.includes('?') ? url : `${url}#${setting.k}`,
-                icon: 'sliders',
-                score: score - (setting.a ? 3 : 0),
-            });
-        }
-    }
-
-    return out.sort((a, b) => b.score - a.score);
-};
+// The search's folding, one character for one, so the match marks the same letters of the title.
+const foldInPlace = (value: string): string =>
+    value.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[_\-]/g, ' ');
 
 const highlight = (text: string, raw: string): string => {
     const query = raw.trim();
@@ -149,7 +76,7 @@ const highlight = (text: string, raw: string): string => {
 
     if (query.length < 2) return safe;
 
-    const at = fold(text).indexOf(fold(query));
+    const at = foldInPlace(text).indexOf(foldInPlace(query));
 
     if (at < 0) return safe;
 
@@ -160,21 +87,23 @@ const render = (): void => {
     if (!list || !input) return;
 
     const query = input.value;
-    const local = searchIndex(query);
-    const pages = local.filter((r) => r.group === 'pages').slice(0, MAX_PER_GROUP);
-    const settings = local.filter((r) => r.group === 'settings').slice(0, MAX_PER_GROUP);
+    const seeAll = (count: number): string => plural(index?.texts?.seeAll ?? 'See the 1 setting|See all :count settings', count, index?.locale);
+    const {pages, settings, more, order} = visibleResults(index, query, t('moreOptions', 'More options'), seeAll);
     const members: Result[] = remote.members.map((m) => ({group: 'members', title: m.t, sub: m.d, url: m.u, avatar: m.i ?? '', score: 0}));
     const videos: Result[] = remote.videos.map((v) => ({group: 'videos', title: v.t, sub: v.d, url: v.u, icon: 'video', score: 0}));
-
-    results = [...pages, ...settings, ...members, ...videos];
-    active = Math.min(active, Math.max(0, results.length - 1));
-
+    const settingRows = more ? [...settings, more] : settings;
+    // The group with the best match comes first, so its first row (selected, opened by Enter) is the best match.
+    const local: [string, string, Result[]][] = order.map((group) => group === 'settings'
+        ? ['settings', t('settings', 'Settings'), settingRows]
+        : ['pages', t('pages', 'Pages'), pages]);
     const groups: [string, string, Result[]][] = [
-        ['pages', t('pages', 'Pages'), pages],
-        ['settings', t('settings', 'Settings'), settings],
+        ...local,
         ['members', t('members', 'Members'), members],
         ['videos', t('videos', 'Videos'), videos],
     ];
+
+    results = groups.flatMap(([, , items]) => items);
+    active = Math.min(active, Math.max(0, results.length - 1));
 
     let html = '';
     let n = 0;
@@ -189,8 +118,10 @@ const render = (): void => {
             const lead = item.avatar !== undefined
                 ? `<span class="ad-avatar" aria-hidden="true">${escapeHtml(item.avatar)}</span>`
                 : icon(item.icon ?? 'file');
-            html += `<a class="ad-palette-item${n === active ? ' is-active' : ''}" id="ad-pal-${n}" role="option" aria-selected="${n === active}" href="${escapeHtml(item.url)}" data-index="${n}">`
-                + `${lead}<span class="ad-palette-t"><span>${highlight(item.title, query)}</span><small>${escapeHtml(item.sub)}</small></span>`
+            const badge = item.badge ? ` <em class="ad-badge ad-palette-badge">${escapeHtml(item.badge)}</em>` : '';
+            const sub = item.sub ? `<small>${escapeHtml(item.sub)}</small>` : '';
+            html += `<a class="ad-palette-item${n === active ? ' is-active' : ''}${item.group === 'more' ? ' is-more' : ''}" id="ad-pal-${n}" role="option" aria-selected="${n === active}" href="${escapeHtml(item.url)}" data-index="${n}">`
+                + `${lead}<span class="ad-palette-t"><span>${item.group === 'more' ? escapeHtml(item.title) : highlight(item.title, query)}${badge}</span>${sub}</span>`
                 + `<span class="ad-kbd" aria-hidden="true">Enter</span></a>`;
             n++;
         }
@@ -198,7 +129,17 @@ const render = (): void => {
         html += '</div>';
     }
 
-    if (!html) {
+    // Pages and settings not there yet: say so above what the server found already (members, videos), never
+    // "Nothing found" (the 1.2.2 window claimed that for 3-5 s on first use, and for good when the index failed).
+    const waiting = !index && query.trim().length > 0 && indexState !== 'ready'
+        ? (indexState === 'failed'
+            ? t('searchFailed', 'Pages and settings could not be loaded. Type again to try once more.')
+            : t('searchLoading', 'Searching pages and settings...'))
+        : '';
+
+    if (waiting) {
+        html = `<div class="ad-palette-empty" role="option" aria-disabled="true" aria-selected="false" data-palette-state="${indexState === 'failed' ? 'failed' : 'loading'}">${escapeHtml(waiting)}</div>` + html;
+    } else if (!html) {
         // A disabled option: a listbox holds options only.
         const message = query.trim().length
             ? t('noResults', 'Nothing found for ":query". Try another word.').replace(':query', query.trim())
@@ -211,6 +152,47 @@ const render = (): void => {
 
     if (results.length) input.setAttribute('aria-activedescendant', `ad-pal-${active}`);
     else input.removeAttribute('aria-activedescendant');
+
+    // The live region says what the list shows (R2A-021): the waiting or failed state, nothing found, or how many
+    // results; nothing before the first letter.
+    announce(waiting
+        || (!query.trim().length ? ''
+            : results.length
+                ? plural(status?.dataset.results || '1 result|:count results', results.length)
+                : t('noResults', 'Nothing found for ":query". Try another word.').replace(':query', query.trim())));
+};
+
+let status: HTMLElement | null = null;
+let announceTimer = 0;
+let announced = '';
+
+/**
+ * Put a text into the search's live region once typing pauses (each key press would make a screen reader start over),
+ * and only when it changed. The region is emptied first, so the same words said again after a pause are announced.
+ */
+const announce = (text: string): void => {
+    window.clearTimeout(announceTimer);
+
+    if (!status) return;
+
+    if (text === '') {
+        announced = '';
+        status.textContent = '';
+
+        return;
+    }
+
+    if (text === announced) return;
+
+    announceTimer = window.setTimeout(() => {
+        if (!status || !dialog?.open) return;
+
+        announced = text;
+        status.textContent = '';
+        window.setTimeout(() => {
+            if (status && announced === text) status.textContent = text;
+        }, 60);
+    }, 450);
 };
 
 const fetchRemote = (raw: string): void => {
@@ -229,7 +211,7 @@ const fetchRemote = (raw: string): void => {
         const url = new URL(dialog?.dataset.searchUrl ?? '', window.location.href);
         url.searchParams.set('q', query);
 
-        fetch(url, {credentials: 'same-origin', headers: {Accept: 'application/json'}, signal: remoteAbort.signal})
+        backgroundGet(url, {Accept: 'application/json'}, remoteAbort.signal)
             .then((response) => (response.ok ? response.json() : {members: [], videos: []}))
             .then((data: {members: RemoteItem[]; videos: RemoteItem[]}) => {
                 if (input?.value.trim() === query) {
@@ -259,12 +241,15 @@ const setup = (): boolean => {
     dialog = $<HTMLDialogElement>('#ad-palette');
     input = dialog ? $<HTMLInputElement>('input', dialog) : null;
     list = dialog ? $('#ad-palette-list', dialog) : null;
+    status = dialog ? $('#ad-palette-status', dialog) : null;
 
     if (!dialog || !input || !list) return false;
 
     input.addEventListener('input', () => {
         active = 0;
         remote = {members: [], videos: []};
+        // After a failed load, typing asks for the index once more.
+        ensureIndex();
         render();
         fetchRemote(input!.value);
     });
@@ -310,11 +295,8 @@ export const openPalette = (query = ''): void => {
     input.value = query;
     input.focus();
     active = 0;
+    ensureIndex();
     render();
-
-    void loadIndex().then(() => {
-        if (dialog?.open) render();
-    });
 
     if (query) fetchRemote(query);
 };

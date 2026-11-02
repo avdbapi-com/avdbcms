@@ -35,7 +35,7 @@ class BuildThemeTokens extends Command
         $unknown = array_diff($only, array_keys($themes));
 
         if ($unknown !== []) {
-            $this->error('Unknown theme id(s): '.implode(', ', $unknown));
+            $this->error('Unknown theme '.\Illuminate\Support\Str::plural('id', count($unknown)).': '.implode(', ', $unknown));
 
             return self::FAILURE;
         }

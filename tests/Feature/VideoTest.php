@@ -406,6 +406,9 @@ class VideoTest extends TestCase
 
     public function test_updated_planned_video_to_planned_video() :void
     {
+        // the request and the assertions below each read "now + 40 minutes": a slow run crossed a second between them
+        $this->freezeTime();
+
         $scheduled_at = Carbon::now()->addMinutes(30);
 
         $video = Video::factory()->create([

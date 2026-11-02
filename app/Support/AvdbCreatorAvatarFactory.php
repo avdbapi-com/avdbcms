@@ -10,7 +10,17 @@ use Illuminate\Support\Str;
 final class AvdbCreatorAvatarFactory
 {
     private const STYLE_VERSION = 'adult-brand-badge-v2';
+    /**
+     * Members' own avatars (sources "user" and "admin": accounts that never had a picture) are a calm square with their
+     * initials on a muted tone, without the colourful badge and its English "CREATOR" / "ADMIN" label (account-35,
+     * watch-43): the same in every look and both modes, readable in any language. Imported creators keep their badge.
+     * A member whose stored avatar is an older generated badge gets the new one the next time it is shown.
+     */
+    private const MEMBER_STYLE_VERSION = 'member-neutral-v1';
+    private const MEMBER_SOURCES = ['user', 'admin'];
     private const PACK_FOLDER = 'avdb-avatar-pack';
+    // The user columns candidateFromUser() reads; a model that has them all loaded needs no second look at its row.
+    private const CANDIDATE_COLUMNS = ['username', 'avdb_creator_key', 'avdb_creator_source', 'avdb_creator_name', 'avatar', 'is_admin'];
 
     public static function ensure(array $candidate): ?string
     {
@@ -27,12 +37,12 @@ final class AvdbCreatorAvatarFactory
                 return $packAvatar;
             }
 
-            $filename = 'avdb-creator-'.substr(hash('sha256', self::STYLE_VERSION.'|'.$source.'|'.$key), 0, 24).'.svg';
+            $filename = self::generatedFilename($key, $source);
             $path = User::AVATAR_FOLDER.'/'.$filename;
 
             if (! Storage::exists($path)) {
                 Storage::makeDirectory(User::AVATAR_FOLDER);
-                Storage::put($path, self::svg($key, $source, $name));
+                Storage::put($path, self::isMemberSource($source) ? self::memberSvg($key, $name) : self::svg($key, $source, $name));
             }
 
             return $filename;
@@ -95,7 +105,7 @@ final class AvdbCreatorAvatarFactory
         }
 
         $avatar = trim((string) ($user->avatar ?? ''));
-        if ($avatar !== '' && ! self::needsRepair($user)) {
+        if ($avatar !== '' && ! self::needsRepair($user) && ! self::isOutdatedMemberAvatar($avatar, $candidate)) {
             return $avatar;
         }
 
@@ -104,9 +114,37 @@ final class AvdbCreatorAvatarFactory
             return $avatar !== '' ? $avatar : null;
         }
 
-        self::persistAvatar($user, $filename);
+        $stored = self::persistAvatar($user, $filename);
 
-        return $filename;
+        if ($stored === $filename) {
+            self::forgetReplacedAvatar($avatar, $filename);
+        }
+
+        return $stored;
+    }
+
+    /**
+     * The file of a generated avatar that a new one replaced (an older style, another name or role): removed once no
+     * account points to it any more (R1-096: every member with an older badge kept one unused SVG on the disk). Only
+     * generated avdb-creator-*.svg files of the avatars folder: never a picture a member uploaded, never a pack picture.
+     * An older release that is put back by Undo makes its badge again when it is shown (its needsRepair()).
+     */
+    private static function forgetReplacedAvatar(string $old, string $new): void
+    {
+        if ($old === '' || $old === $new || ! str_starts_with($old, 'avdb-creator-') || ! str_ends_with($old, '.svg')
+            || preg_match('/^avdb-creator-[0-9a-f]+\.svg$/', $old) !== 1) {
+            return;
+        }
+
+        try {
+            if (DB::table((new User())->getTable())->where('avatar', $old)->exists()) {
+                return;
+            }
+
+            Storage::delete(User::AVATAR_FOLDER.'/'.$old);
+        } catch (\Throwable) {
+            // A file that stays costs a few hundred bytes; the avatar itself is already the new one.
+        }
     }
 
     public static function svgForUser(User $user): ?string
@@ -124,15 +162,88 @@ final class AvdbCreatorAvatarFactory
         $source = trim((string) ($candidate['source'] ?? 'creator')) ?: 'creator';
         $name = trim((string) ($candidate['name'] ?? 'AVDB Creator')) ?: 'AVDB Creator';
 
-        return self::svg($key, $source, $name);
+        return self::isMemberSource($source) ? self::memberSvg($key, $name) : self::svg($key, $source, $name);
     }
 
-    private static function persistAvatar(User $user, string $filename): void
+    private static function isMemberSource(string $source): bool
+    {
+        return in_array($source, self::MEMBER_SOURCES, true);
+    }
+
+    /** The file name of a generated avatar: one per style, source and key, so a new style gives a new file. */
+    private static function generatedFilename(string $key, string $source): string
+    {
+        $style = self::isMemberSource($source) ? self::MEMBER_STYLE_VERSION : self::STYLE_VERSION;
+
+        return 'avdb-creator-'.substr(hash('sha256', $style.'|'.$source.'|'.$key), 0, 24).'.svg';
+    }
+
+    /**
+     * A member's stored avatar is a generated badge of an older style (never an uploaded picture or a pack picture):
+     * it is replaced by the current member avatar.
+     */
+    private static function isOutdatedMemberAvatar(string $avatar, array $candidate): bool
+    {
+        $source = trim((string) ($candidate['source'] ?? ''));
+        $key = trim((string) ($candidate['key'] ?? ''));
+
+        return $key !== ''
+            && self::isMemberSource($source)
+            && str_starts_with($avatar, 'avdb-creator-')
+            && str_ends_with($avatar, '.svg')
+            && $avatar !== self::generatedFilename($key, $source);
+    }
+
+    /**
+     * A member's avatar: their initials (any alphabet) in white on one of eight muted tones (each >= 7:1 with white),
+     * a full square so square looks show it square and round looks crop it round. No label, no animation.
+     */
+    private static function memberSvg(string $key, string $name): string
+    {
+        $tones = ['#475569', '#57534e', '#52525b', '#4b5563', '#44546a', '#5b5470', '#4a5a52', '#6b5650'];
+        $tone = self::option($tones, self::MEMBER_STYLE_VERSION.'|'.$key.'|tone');
+        $initials = htmlspecialchars(self::memberInitials($name), ENT_QUOTES, 'UTF-8');
+        $title = htmlspecialchars($name, ENT_QUOTES, 'UTF-8');
+        $size = mb_strlen(self::memberInitials($name)) > 1 ? 100 : 118;
+
+        return <<<SVG
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="{$title}" data-avdb-avatar="user" data-avdb-avatar-style="member-neutral">
+  <title>{$title}</title>
+  <rect width="256" height="256" fill="{$tone}"/>
+  <text x="128" y="128" text-anchor="middle" dominant-baseline="central" font-family="Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', Arial, sans-serif" font-size="{$size}" font-weight="700" fill="#ffffff">{$initials}</text>
+</svg>
+SVG;
+    }
+
+    /** "ND" for "nightdrive_tv" style names of two words, "N" for one word; letters of any alphabet. */
+    private static function memberInitials(string $name): string
+    {
+        $words = preg_split('/[^\pL\pN]+/u', $name, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+
+        if ($words === []) {
+            return '?';
+        }
+
+        $first = mb_strtoupper(mb_substr($words[0], 0, 1));
+
+        if (count($words) >= 2) {
+            return $first.mb_strtoupper(mb_substr($words[1], 0, 1));
+        }
+
+        return $first;
+    }
+
+    /**
+     * Stores the generated avatar over the value this decision was based on, never over a newer one: a member model
+     * kept in a cache (home rails, hero) can be minutes old, and an avatar the member uploaded since stays. Returns
+     * the avatar the member has now.
+     */
+    private static function persistAvatar(User $user, string $filename): string
     {
         if (! $user->exists) {
             $user->forceFill(['avatar' => $filename]);
 
-            return;
+            return $filename;
         }
 
         $updates = ['avatar' => $filename];
@@ -145,17 +256,38 @@ final class AvdbCreatorAvatarFactory
             $updates[$updatedAtColumn] = $updatedAtValue;
         }
 
-        DB::table($user->getTable())
+        $seen = $user->getAttribute('avatar');
+        $updated = DB::table($user->getTable())
             ->where($user->getKeyName(), $user->getKey())
+            ->where(function ($query) use ($seen): void {
+                if ($seen === null || $seen === '') {
+                    $query->whereNull('avatar')->orWhere('avatar', '');
+                } else {
+                    $query->where('avatar', $seen);
+                }
+            })
             ->update($updates);
+
+        if ($updated === 0) {
+            // The row changed since this model was read (or is gone): keep what it holds now.
+            $stored = trim((string) (DB::table($user->getTable())->where($user->getKeyName(), $user->getKey())->value('avatar') ?? ''));
+            if ($stored !== '' && $stored !== $filename) {
+                $user->setAttribute('avatar', $stored);
+                $user->syncOriginalAttribute('avatar');
+
+                return $stored;
+            }
+        }
 
         $user->setAttribute('avatar', $filename);
         $user->syncOriginalAttribute('avatar');
 
-        if ($updatedAtColumn !== null) {
+        if ($updated > 0 && $updatedAtColumn !== null) {
             $user->setAttribute($updatedAtColumn, $updatedAtValue);
             $user->syncOriginalAttribute($updatedAtColumn);
         }
+
+        return $filename;
     }
 
     private static function candidateFromUser(User $user): ?array
@@ -164,10 +296,15 @@ final class AvdbCreatorAvatarFactory
         $source = trim((string) ($user->getAttribute('avdb_creator_source') ?? ''));
         $name = trim((string) ($user->getAttribute('avdb_creator_name') ?? ''));
 
-        if ($key === '' && $user->exists) {
+        // An ordinary member has no creator key (NULL). Read the row again only when the model lacks one of the
+        // columns (a narrow select, a model just created): a fully loaded member, as every list and the signed-in
+        // member's own header give it, costs no query per avatar.
+        $freshIsAdmin = null;
+        $freshUsername = '';
+        if ($key === '' && $user->exists && array_diff(self::CANDIDATE_COLUMNS, array_keys($user->getAttributes())) !== []) {
             $fresh = User::query()
                 ->withoutGlobalScopes()
-                ->select(['id', 'username', 'avdb_creator_key', 'avdb_creator_source', 'avdb_creator_name', 'avatar', 'is_admin'])
+                ->select(['id', ...self::CANDIDATE_COLUMNS])
                 ->find($user->getKey());
 
             if ($fresh) {
@@ -175,6 +312,11 @@ final class AvdbCreatorAvatarFactory
                 $source = trim((string) ($fresh->avdb_creator_source ?? ''));
                 $name = trim((string) ($fresh->avdb_creator_name ?? ''));
 
+                // a narrow model of an admin gets the same avatar as the full one
+                if (! array_key_exists('is_admin', $user->getAttributes())) {
+                    $freshIsAdmin = (bool) $fresh->is_admin;
+                }
+                $freshUsername = trim((string) ($fresh->username ?? ''));
                 if (trim((string) ($user->avatar ?? '')) === '' && trim((string) ($fresh->avatar ?? '')) !== '') {
                     $user->forceFill(['avatar' => $fresh->avatar]);
                 }
@@ -183,6 +325,9 @@ final class AvdbCreatorAvatarFactory
 
         if ($key === '') {
             $username = trim((string) ($user->username ?? ''));
+            if ($username === '') {
+                $username = $freshUsername;
+            }
             if ($username === '' && $user->exists) {
                 $username = 'user-'.$user->getKey();
             }
@@ -190,7 +335,7 @@ final class AvdbCreatorAvatarFactory
                 return null;
             }
 
-            $isAdmin = (bool) ($user->is_admin ?? false);
+            $isAdmin = $freshIsAdmin ?? (bool) ($user->is_admin ?? false);
             $key = 'user:' . strtolower($username);
             $source = $isAdmin ? 'admin' : 'user';
             $name = $username;

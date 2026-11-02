@@ -121,8 +121,33 @@ const initLinkDrag = (): void => {
     });
 };
 
+// A list filter's popover (<details class="ad-filter-more">, e.g. All videos > Published) hangs from its button; where
+// the button sits near a side of the screen (a tablet's toolbar, a right-to-left page) the box is moved back inside the
+// screen, 8 px from its edge, so the page never scrolls sideways. Phones open it under the whole filter row (CSS).
+const keepFilterPopInside = (details: HTMLDetailsElement): void => {
+    const pop = $<HTMLElement>('.ad-filter-pop', details);
+
+    if (!pop) return;
+    pop.style.transform = '';
+    if (!details.open) return;
+
+    const box = pop.getBoundingClientRect();
+    const edge = document.documentElement.clientWidth - 8;
+    const shift = box.right > edge ? edge - box.right : box.left < 8 ? 8 - box.left : 0;
+
+    if (shift !== 0) pop.style.transform = `translateX(${Math.round(shift)}px)`;
+};
+
 export const initControls = (): void => {
     initLinkDrag();
+
+    // "toggle" does not bubble: one listener in the capture phase serves every filter popover.
+    document.addEventListener('toggle', (event) => {
+        const details = event.target as HTMLElement;
+
+        if (details instanceof HTMLDetailsElement && details.classList.contains('ad-filter-more')) keepFilterPopInside(details);
+    }, true);
+    $$<HTMLDetailsElement>('details.ad-filter-more[open]').forEach(keepFilterPopInside);
 
     document.addEventListener('input', (event) => {
         const el = event.target as HTMLElement;

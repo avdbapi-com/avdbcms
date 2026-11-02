@@ -141,6 +141,9 @@ class AdminStatusProbeTest extends TestCase
         foreach (['disk', 'health', 'updates'] as $probe) {
             StatusProbeController::result($probe);
         }
+        // The storage/ check (security plan S03) from its kept daily answer: no request to the site.
+        Cache::put(\App\Support\StorageExposureProbe::CACHE_KEY, \App\Support\StorageExposureProbe::SAFE, 3600);
+        StatusProbeController::result('storage');
         Cache::put('admin.status.schedule.en', [
             'ok' => true, 'probe' => 'schedule', 'status' => 'warn', 'label' => 'Scheduled tasks are not running',
             'detail' => 'Daily imports and clean-ups will not start until this is fixed.', 'data' => ['tasks' => [], 'count' => 0],

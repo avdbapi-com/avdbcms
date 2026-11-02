@@ -75,9 +75,12 @@ class ThemeCssContractTest extends TestCase
         ['main', ['avd-main', 'position-relative'], ['class'], ''],
         ['div', ['avd-shell', 'd-flex'], ['class'], ''],
         ['div', ['container-fluid', 'my-3', 'avd-feed-shell', 'px-0', 'px-sm-3', 'mt-0', 'mt-3', 'mt-sm-3'], ['id', 'class', 'style', 'data-avd-main'], 'main-container'],
-        ['section', ['avd-home-feed', 'px-2', 'px-sm-0'], ['class', 'aria-labelledby'], ''],
+        // R1-151: the home feed keeps the phone mockups' 16px page gutter (px-3; it was px-2)
+        ['section', ['avd-home-feed', 'px-3', 'px-sm-0'], ['class', 'aria-labelledby'], ''],
         ['div', ['avd-widget-video-feed', 'px-3', 'px-sm-0', 'mb-4'], ['class', 'data-avd-widget-feed'], ''],
         ['div', ['container-fluid', 'px-0', 'px-sm-3', 'mt-4'], ['class'], ''],
+        // R1-151: the trending and category pages' phone gutter around their feed (16px below 576px, as the home feed)
+        ['div', ['px-3', 'px-sm-0'], ['class'], ''],
         ['videos-area', [], ['url', 'columns', 'load-mode', 'max-items', 'max-rows', 'ad-context', 'early', 'priority-row', 'early-media', 'skeleton-items', 'phone-strip-screen'], ''],
         ['div', ['row', 'row-cols-*', 'avd-video-grid', 'avd-feed-grid'], ['class', 'style', 'data-avd-feed-columns', 'data-avd-card-layout', 'data-avd-visible-columns', 'data-avd-feed-waiting', 'data-avd-feed-deferred'], ''],
     ];
@@ -92,7 +95,7 @@ class ThemeCssContractTest extends TestCase
     /**
      * Positional rules on the feed's items that stay: they count from the first item and a page of cards is appended
      * after the cards already there. Taking them out changed nothing measurable in the style work of an appended
-     * page on demo1's ~300-card feed (weak phone, live server, 23 Oct 2026).
+     * page on the demo site's ~300-card feed (weak phone, live server, 23 Oct 2026).
      */
     private const FEED_POSITIONAL_ALLOWED = [
         'html[data-avd-card-frame="hard"] .avd-video-grid > .col:nth-child(4n+1) .avd-video-card',
@@ -210,7 +213,7 @@ class ThemeCssContractTest extends TestCase
     {
         // The browser re-checks a :has() rule, and everything it styles, whenever something is inserted under its
         // subject. With the subject on html or body (v7's transparent bar over the hero, the back-office menu width, the
-        // phone ad strip) every feed page restyled the whole page: demo1's weak-phone scroll fell to ~5 frames a second.
+        // phone ad strip) every feed page restyled the whole page: the demo site's weak-phone scroll fell to ~5 frames a second.
         // The layout prints markers instead (body.has-hero-zone, html[data-avd-back-office]); the feed marks its first
         // cards (article[data-avd-first-page]) instead of counting them. A :has() on a card that looks only at the
         // card's own children (the glass caption's focus ring) is re-checked for that card alone and may stay.

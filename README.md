@@ -53,10 +53,10 @@ In your hosting control panel (cPanel, aaPanel, CloudPanel, HestiaCP, CyberPanel
    *(Or `https://yourdomain.com/index.php/install` if your host does not have URL rewrite enabled).*
 2. The installation wizard will guide you through:
    - **System Check**: Automatically checks your PHP version and extensions (all green checkmarks).
-   - **Filesystem Permissions**: Automatically verifies writable directories.
+   - **Filesystem Permissions**: Verifies that PHP can write the site's folder (its `.env` file), `storage`, `bootstrap/cache` and `public`, and names the user PHP runs as when it cannot.
    - **Database Details**: Enter your Database Host (`127.0.0.1` or `localhost`), Database Name, Username, and Password. Under **Import Mode**, keep **Import SQL backup** (`example.sql`): it fills the database with the starting settings, languages, categories and plans. The new site has no videos, channels, backups or import jobs; the database adds two sample members that are not admins (`pbergstrom`, `blackbox_creator`), which you can delete in **Members › All members**.
    - **Admin Account**: Enter your desired administrator email, username, and password.
-   - **Finish**: Click **"Install Now"** — the installer sets up the selected database, creates your admin account, and locks the installer safely. AVDB and XVIDAPI imports stay idle until an admin starts an import or enables a schedule.
+   - **Finish**: Click **"Install Now"** — the installer sets up the selected database, creates your admin account, writes `.env` and locks the installer safely. A progress page shows each step: it works in short steps, so a host that stops long requests cannot cut it off, and it goes on by itself; keep the page open until the result appears. AVDB and XVIDAPI imports stay idle until an admin starts an import or enables a schedule.
 
 🎉 **That's it! Your video streaming site is live!**
 
@@ -95,8 +95,14 @@ AVDBCMS works seamlessly across all major hosting panels:
 ### 🔹 aaPanel
 - Create a website with PHP 8.3 or newer.
 - Upload and unzip into `/www/wwwroot/yourdomain.com/`.
-- In **Site Settings -> URL Rewrite**, select `laravel5` (or leave default).
-- Set permissions on `storage` and `bootstrap/cache` to `775` (owner `www:www`).
+- **First:** in **Website -> your site -> Conf -> Site directory**, set **Running directory** to `/public` and save. This
+  keeps everything outside `public/` (logs, backups, settings) away from the web.
+- In **URL Rewrite**, select `laravel5`.
+- If you keep the Running directory at `/` (project root), the rules of `docs/server-configs/nginx-project-root.conf`
+  are **required** (the file says where to put them). Without them nginx hands out the files under `storage/`. AVDBCMS
+  writes these rules itself when it can, and the installer and **Tools -> Health check** warn when `storage/` can be
+  downloaded.
+- PHP runs as `www`: give it the whole site folder (in **Files**, select `/www/wwwroot/yourdomain.com` > **Permission**: owner `www`, apply to subdirectories; or `chown -R www:www /www/wwwroot/yourdomain.com`). The installer writes `.env` into that folder, so `storage` and `bootstrap/cache` alone are not enough; its **Filesystem** step names the user and shows the command when something is not writable.
 
 ### 🔹 CloudPanel
 - Create a **PHP Site** (PHP 8.3 or newer).
@@ -138,20 +144,25 @@ Once your site is running:
      ```
 
 3. **Background Tasks & Scheduler (Optional, Recommended)**:
-   - To enable automated video imports and daily metric calculations, add this single Cron Job in your panel:
+   - To enable automated video imports and daily metric calculations, the site needs one scheduler cron job. The
+     installer adds it itself where PHP may start programs (its last screen then says there is nothing to add);
+     otherwise its last screen shows this site's exact command. In your panel's cron menu choose "every minute" and
+     enter only the command (without `* * * * *`), for example:
      ```bash
-     * * * * * cd /path-to-your-site && php artisan schedule:run >> /dev/null 2>&1
+     cd /path-to-your-site && php artisan schedule:run >> /dev/null 2>&1
      ```
+     In a crontab (`crontab -e`) the line is `* * * * *` followed by that command.
 
 ---
 
 ## ❓ Frequently Asked Questions (Troubleshooting)
 
 ### Q: I get a 500 Server Error after uploading. What should I check?
-**A:** Check folder permissions! The `storage/` and `bootstrap/cache/` directories must be writable by your web server:
+**A:** Check folder permissions! PHP must be able to write the site's folder (the installer writes `.env` into it), `storage/`, `bootstrap/cache/` and `public/`. Simplest: the files belong to the user PHP runs as. When a "Runtime Permissions Required" page names another owner than the PHP user, give the files to the PHP user (the page shows the command), for example:
 ```bash
-chmod -R 775 storage bootstrap/cache
+chown -R www-data:www-data /path-to-your-site
 ```
+Details per panel: [COMMUNITY_SETUP_GUIDE.md](COMMUNITY_SETUP_GUIDE.md#5-permissions--security-hardening).
 
 ### Q: Why does `/index.php` appear in my URLs?
 **A:** AVDBCMS includes an automatic **Zero-Config Bridge** so your site works even if your host doesn't support Apache `.htaccess` or Nginx rewrites. To use clean URLs (without `index.php`), simply ensure `.htaccess` is enabled on Apache/LiteSpeed, or add standard Laravel rewrites on Nginx:

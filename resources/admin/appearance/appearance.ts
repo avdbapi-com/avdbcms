@@ -3,7 +3,8 @@
 // Publish makes it live (POST /admin/appearance/publish) with Undo in the toast and in History.
 // Loaded by admin.ts only on pages with [data-ad-appearance]; one delegated listener per event type.
 
-import {$, $$, csrfToken, escapeHtml} from '../lib/dom';
+import {$, $$, BACKGROUND_HEADER, csrfToken, escapeHtml} from '../lib/dom';
+import {plural} from '../lib/plural';
 import './appearance.scss';
 
 type Change = {key: string; label: string; page: string | null; page_label: string; value: string | null};
@@ -35,6 +36,10 @@ const TOAST_KEY = 'ad-appearance-toast';
 if (root && form && bootEl) {
     const boot = JSON.parse(bootEl.textContent || '{}') as Boot;
     const text = (key: string, fallback = ''): string => boot.texts[key] ?? fallback;
+    // A list joined the way the admin's language joins one (the server's AdminText::list(): "a, b", Arabic "a، b").
+    const joinList = (items: string[]): string => items.join(text('listSeparator', ', '));
+    // a label and its value as the admin's language writes them ("10月31日：..." in Chinese, "31 oct. : ..." in French)
+    const labelled = (label: string, value: string): string => label + text('labelSeparator', ': ') + value;
     let state: DraftState = boot.draft;
     const published: Record<string, string> = {...boot.published};
     let pending: Edits = {set: {}, unset: [], reset: []};
@@ -44,16 +49,22 @@ if (root && form && bootEl) {
 
     // ---------- requests
 
+    // A GET here only reads (history, gallery, calendar, long values): it is a background request that leaves the
+    // session as it is (lib/dom.ts BACKGROUND_HEADER). Drafts, publish and restore are writes and stay unmarked.
     const send = async (url: string, method: string, body?: object): Promise<{status: number; data: any}> => {
+        const headers: Record<string, string> = {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': csrfToken(),
+            'X-Requested-With': 'XMLHttpRequest',
+        };
+
+        if (method.toUpperCase() === 'GET') headers[BACKGROUND_HEADER] = '1';
+
         const response = await fetch(url, {
             method,
             credentials: 'same-origin',
-            headers: {
-                'Accept': 'application/json',
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': csrfToken(),
-                'X-Requested-With': 'XMLHttpRequest',
-            },
+            headers,
             body: body ? JSON.stringify(body) : undefined,
         });
         let data: any = {};
@@ -164,7 +175,7 @@ if (root && form && bootEl) {
                 ? text('previewing', 'Previewing :name').replace(':name', state.action_label)
                 : count === 0
                     ? text('noChanges', 'No changes')
-                    : (count === 1 ? text('oneChange', '1 change not published') : text('manyChanges', ':count changes not published').replace(':count', String(count)));
+                    : plural(text('changes', '1 change not published|:count changes not published'), count);
         }
 
         if (detail) {
@@ -174,7 +185,7 @@ if (root && form && bootEl) {
                 ? text('allPublished', 'Everything is published.')
                 : action
                     ? text(action.type === 'look' ? 'lookNote' : (action.layouts ? 'themeLayoutsNote' : 'themeNote'))
-                    : (labels.length ? labels.join(', ') : text('notPublished'));
+                    : (labels.length ? joinList(labels) : text('notPublished'));
         }
 
         if (discard) discard.hidden = count === 0;
@@ -687,7 +698,7 @@ if (root && form && bootEl) {
 
     const themeCard = (item: any): string => {
         const on = item.id === selectedTheme();
-        const styles = text('colourStyles', ':count colour styles').replace(':count', String(item.flavors.length));
+        const styles = plural(text('colourStyles', '1 colour style|:count colour styles'), item.flavors.length);
         const note = item.match || item.formerly || '';
 
         return `<li class="ad-theme${on ? ' is-on' : ''}" data-theme-id="${escapeHtml(item.id)}"><button type="button" class="ad-theme-pick" data-ad-theme="${escapeHtml(item.id)}" aria-pressed="${on}" data-flavors="${escapeHtml(JSON.stringify(item.flavors))}">`
@@ -836,7 +847,7 @@ if (root && form && bootEl) {
 
             const blanks = Math.max(0, (data.first_weekday ?? 1) - 1);
             grid.innerHTML = '<li class="ad-cal-blank" aria-hidden="true"></li>'.repeat(blanks) + (data.days ?? []).map((day: any) =>
-                `<li class="ad-cal-day${day.today ? ' is-today' : ''}"><button type="button" data-ad-cal-day="${escapeHtml(day.preview)}" aria-label="${escapeHtml(`${day.date}: ${day.label}${day.holiday ? ' (' + day.holiday + ')' : ''}`)}"><span class="ad-cal-n">${day.day_of_month}</span>${swatch(day.colours)}${day.holiday ? `<small>${escapeHtml(day.holiday)}</small>` : ''}</button></li>`,
+                `<li class="ad-cal-day${day.today ? ' is-today' : ''}"><button type="button" data-ad-cal-day="${escapeHtml(day.preview)}" aria-label="${escapeHtml(labelled(String(day.date ?? ''), String(day.label ?? '')) + (day.holiday ? ' (' + day.holiday + ')' : ''))}"><span class="ad-cal-n">${day.day_of_month}</span>${swatch(day.colours)}${day.holiday ? `<small>${escapeHtml(day.holiday)}</small>` : ''}</button></li>`,
             ).join('');
         } catch {
             grid.innerHTML = `<li class="ad-muted">${escapeHtml(text('loadFailed'))}</li>`;

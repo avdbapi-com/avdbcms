@@ -9,6 +9,7 @@ use App\Helpers\VideoMetadata;
 use App\Models\Video;
 use App\Services\FileMerger;
 use App\Services\Upload18Service;
+use App\Support\Upload18\UploadClaims;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -120,6 +121,9 @@ class UploadToUpload18 implements ShouldQueue
                 'upload18_vid' => $did,
                 'uploaded_at' => now(),
             ]);
+
+            // This server uploaded the file itself: the did is this member's for good (no other member can claim it).
+            UploadClaims::recordExisting($this->video, (string) $did);
 
             // 4. Poll for the embed code (vid) — wait for transcoding to complete
             Log::info("UploadToUpload18: Polling for embed code (did={$did})...");

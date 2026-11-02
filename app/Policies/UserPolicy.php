@@ -3,6 +3,7 @@
 namespace App\Policies;
 
 use App\Models\User;
+use App\Support\AdminIpLock;
 use Illuminate\Auth\Access\HandlesAuthorization;
 use Illuminate\Auth\Access\Response;
 
@@ -14,7 +15,7 @@ class UserPolicy
 
     public function before(?User $user, string $ability): bool|null
     {
-        if (in_array($ability, self::ADMIN_ABILITIES) && $user?->is_admin) {
+        if (in_array($ability, self::ADMIN_ABILITIES) && AdminIpLock::adminPowersHere($user)) {
             return true;
         }
 
@@ -31,12 +32,12 @@ class UserPolicy
     public function show(?User $user, User $model): Response|bool
     {
         if ($model->is_banned) {
-            return Response::denyWithStatus(410, 'This account has been suspended');
+            return Response::denyWithStatus(410, __('This account has been suspended'));
         }
 
         return $model->is_active || $user?->is($model)
             ? Response::allow()
-            : Response::denyWithStatus(404, 'This user doesn\'t exist');
+            : Response::denyWithStatus(404, __('This user doesn\'t exist'));
     }
 
     /**
@@ -50,7 +51,7 @@ class UserPolicy
     {
         return $user->isNot($model) && $model->is_active
             ? Response::allow()
-            : Response::denyWithStatus(403, 'You can\'t subscribe to this user');
+            : Response::denyWithStatus(403, __('You can\'t subscribe to this user'));
     }
 
     /**
@@ -64,7 +65,7 @@ class UserPolicy
     {
         return $user->isNot($model) && $model->is_active && !$model->isReportedByUser($user)
             ? Response::allow()
-            : Response::denyWithStatus(403, 'You are not authorized to report this user');
+            : Response::denyWithStatus(403, __('You are not authorized to report this user'));
     }
 
     /**
@@ -88,7 +89,7 @@ class UserPolicy
     public function premiumSubscribe (User $user): Response|bool
     {
         return $user->has_current_subscription
-            ? Response::denyWithStatus(403, "You already have an active subscription.")
+            ? Response::denyWithStatus(403, __('You already have an active subscription.'))
             : Response::allow();
     }
 

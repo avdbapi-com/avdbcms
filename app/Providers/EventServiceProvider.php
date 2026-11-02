@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Listeners\AccountEventSubscriber;
 use App\Listeners\ActivityEventSubscriber;
+use App\Listeners\AuditImpersonation;
 use App\Listeners\ExportEventSubscriber;
 use App\Listeners\BackgroundEventSubscriber;
 use App\Listeners\SearchEventSubscriber;
@@ -22,6 +23,7 @@ use Illuminate\Auth\Events\Login;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Auth\Listeners\SendEmailVerificationNotification;
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
+use Lab404\Impersonate\Events\TakeImpersonation;
 
 
 class EventServiceProvider extends ServiceProvider
@@ -37,6 +39,14 @@ class EventServiceProvider extends ServiceProvider
         ],
         Login::class => [
             SuccessfulLogin::class,
+        ],
+        // Tools > Logs > Admin actions: "Log in as" a member (R2A-020).
+        TakeImpersonation::class => [
+            AuditImpersonation::class,
+        ],
+        // ... and the log files deleted on Tools > Logs' file viewer (R3-019).
+        \Opcodes\LogViewer\Events\LogFileDeleted::class => [
+            \App\Listeners\AuditLogFileDeleted::class,
         ],
     ];
 

@@ -71,7 +71,7 @@
                 <td class="c-main"><p><a id="ad-m-{{ $message->id }}" href="{{ route('admin.contacts.show', $message->id, false) }}" @class(['is-unread' => ! $message->is_read])>{{ $message->subject ?: \Illuminate\Support\Str::limit((string) $message->message, 60) }}</a><small>{{ \Illuminate\Support\Str::limit((string) $message->message, 120) }}</small></p></td>
                 <td class="c-meta"><x-admin.status :type="$message->is_read ? 'off' : 'info'">{{ $message->is_read ? __('Read') : __('New') }}</x-admin.status><small class="ad-phone-only">{{ $message->name }}</small></td>
                 <td class="hide-tab"><p class="ad-cell-two"><b>{{ $message->name }}</b><small>{{ $message->email }}</small></p></td>
-                <td class="is-date" title="{{ $received->translatedFormat('j M Y, H:i') }}">{{ $received->diffForHumans(short: true) }}</td>
+                <td class="is-date" title="{{ $received->translatedFormat('j M Y, H:i') }}">{{ $received->diffForHumans(short: \App\Support\AdminText::shortTimes()) }}</td>
                 <td class="is-actions"><button type="button" class="ad-iconbtn is-more" aria-haspopup="true" aria-labelledby="ad-l-act ad-m-{{ $message->id }}" data-id="{{ $message->id }}" data-state="{{ $message->is_read ? 'read' : 'unread' }}" data-email="{{ $message->email }}"></button></td>
             </tr>
         @endforeach

@@ -173,9 +173,12 @@ class AppearanceSettingsCompatTest extends TestCase
         $old = json_decode((new ReflectionClassConstant($migration, 'FACTORY_SOURCES'))->getValue(), true)['old_defaults'];
         $legacy = AppearanceSettings::legacyDefaults();
 
+        // Two v1 defaults are not frozen: the footer line names AVDBCMS (the 1.2.0 rename) and the Support links name
+        // the AVDBAPI Telegram group of 1.2.3 and personal support (the public group of the v1 list is gone,
+        // App\Support\TelegramLinks).
+        $this->assertStringContainsString('Telegram Support|https://t.me/avdb_api', $old['footer_support_links']);
+
         foreach ($old as $key => $value) {
-            // Deliberate changes of a v1 factory value: the AVDBCMS footer line, and the footer "Support" links, whose
-            // old group link became the new Telegram group + the support account (2026_10_26_000000).
             $expected = match ($key) {
                 'footer_text' => '(c) ' . date('Y') . ' AVDBCMS. All rights reserved.',
                 'footer_support_links' => FooterSettings::defaults()['footer_support_links'],

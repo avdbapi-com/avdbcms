@@ -1,0 +1,376 @@
+/* resources/sass/member/_auth.scss. First copied from the design kit's pages; this file is the production source
+   now (member design 9.2). */
+/* ---------------------------------------------------------------------------------------------------------------------
+   Auth (sign in, sign up, forgot, reset, verify, error pages)
+   ------------------------------------------------------------------------------------------------------------------ */
+
+/* Below 1200px the card is alone: at most 460px (28.75rem, so it follows the admin's "Text size" like the fields in it)
+   and centred, as 6.12 says (auth-26: the kit's 1040px frame let the card fill the content column on
+   tablets, fields and buttons 664-898px wide at 1024px). From 1200px the brand panel joins it in the 1040px frame. */
+:root .mk-auth {
+    display: grid;
+    gap: 0;
+    inline-size: min(100%, 28.75rem);
+    margin: clamp(0px, 3vw, 2.5rem) auto;
+}
+
+:root .mk-auth__brand {
+    display: none;
+}
+
+@media (min-width: 1200px) {
+    :root .mk-auth {
+        inline-size: min(100%, 1040px);
+        grid-template-columns: minmax(0, 1fr) minmax(0, 460px);
+        border: var(--mk-panel-border);
+        border-radius: var(--mk-r-panel);
+        background: var(--avd-surface-1);
+        box-shadow: var(--avd-card-shadow, none);
+        overflow: hidden;
+    }
+
+    :root .mk-auth__brand {
+        position: relative;
+        display: grid;
+        align-content: space-between;
+        gap: 2rem;
+        padding: 2.5rem;
+        background: var(--avd-brand-gradient, var(--avd-brand-fill));
+        color: var(--avd-on-brand);
+    }
+
+    :root .mk-auth__card {
+        border: 0 !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+    }
+}
+
+:root .mk-auth__brand-name {
+    display: flex;
+    align-items: center;
+    gap: .65rem;
+    font-family: var(--avd-font-display);
+    font-size: 1.35rem;
+    font-weight: var(--avd-display-weight, 700);
+    text-transform: var(--avd-display-case, none);
+}
+
+:root .mk-auth__brand-mark {
+    display: grid;
+    place-items: center;
+    inline-size: 2.4rem;
+    block-size: 2.4rem;
+    border-radius: var(--mk-r-field);
+    background: rgba(var(--avd-shade-rgb, 0, 0, 0), .22);
+}
+
+:root .mk-auth__claim {
+    font-family: var(--avd-font-display);
+    font-size: 2rem;
+    font-weight: var(--avd-display-weight, 700);
+    line-height: 1.15;
+    text-transform: var(--avd-display-case, none);
+}
+
+:root .mk-auth__perks {
+    display: grid;
+    gap: .9rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-weight: 600;
+}
+
+:root .mk-auth__perks li {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+}
+
+:root .mk-auth__perks i {
+    display: grid;
+    place-items: center;
+    inline-size: 2rem;
+    block-size: 2rem;
+    border-radius: 50%;
+    background: rgba(var(--avd-shade-rgb, 0, 0, 0), .2);
+}
+
+:root .mk-auth__card {
+    display: grid;
+    /* the card's rows keep their own height: next to a taller brand panel (from 1200px) a short card (Sign out, Verify)
+       starts at the top instead of stretching its rows (an 88px "Sign out" button) */
+    align-content: start;
+    gap: 1.1rem;
+    padding: clamp(1.25rem, 4vw, 2.5rem);
+    border: var(--mk-panel-border);
+    border-radius: var(--mk-r-panel);
+    background: var(--avd-surface-1);
+    box-shadow: var(--avd-card-shadow, none);
+}
+
+@media (max-width: 575.98px) {
+    :root .mk-auth { margin: 0; }
+
+    :root .mk-auth__card { padding: 1.25rem 1rem; }
+}
+
+:root .mk-auth__title {
+    color: var(--avd-text);
+    font-family: var(--avd-font-display);
+    font-size: 1.6rem;
+    font-weight: var(--avd-display-weight, 700);
+    letter-spacing: var(--avd-display-tracking, 0);
+    line-height: 1.2;
+    text-transform: var(--avd-display-case, none);
+}
+
+:root .mk-auth__lead {
+    color: var(--avd-muted);
+}
+
+:root .mk-divider-text {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    color: var(--avd-muted);
+    font-size: .8125rem;
+}
+
+:root .mk-divider-text::before,
+:root .mk-divider-text::after {
+    content: "";
+    flex: 1 1 auto;
+    block-size: 1px;
+    background: var(--avd-divider, var(--avd-border));
+}
+
+:root .mk-auth__switch {
+    color: var(--avd-muted);
+    text-align: center;
+}
+
+:root .mk-social {
+    display: grid;
+    gap: .5rem;
+}
+
+:root .mk-social .mk-btn svg {
+    inline-size: 1.15rem;
+    block-size: 1.15rem;
+}
+
+/* Error pages and the guest prompt: the same card, an icon tile instead of a picture. */
+
+:root .mk-status-page {
+    display: grid;
+    justify-items: center;
+    gap: .75rem;
+    inline-size: min(100%, 560px);
+    margin: clamp(1rem, 6vw, 4rem) auto;
+    padding: clamp(1.5rem, 5vw, 2.75rem);
+    border: var(--mk-panel-border);
+    border-radius: var(--mk-r-panel);
+    background: var(--avd-surface-1);
+    text-align: center;
+}
+
+:root .mk-status-page__code {
+    color: var(--avd-muted);
+    font-family: var(--avd-font-meta, var(--avd-font-body));
+    font-size: .8125rem;
+    font-weight: 700;
+    letter-spacing: .08em;
+}
+
+/* ---------------------------------------------------------------------------------------------------------------------
+   The parts the real sign-in pages add to the kit's card.
+   ------------------------------------------------------------------------------------------------------------------ */
+
+/* The card's heading block: title + one line (the mockups' inline grid). */
+:root .mk-auth__intro {
+    display: grid;
+    gap: .35rem;
+}
+
+/* The brand panel's site name never pushes the panel wider than its column. */
+:root .mk-auth__brand-text {
+    min-inline-size: 0;
+    overflow-wrap: anywhere;
+}
+
+/* "Forgot password?" at the end of the Password label row (the kit floats it). */
+:root .mk-auth .mk-label > .mk-auth__forgot {
+    position: relative;
+    font-weight: 600;
+}
+
+/* On touch screens "Forgot password?" offers a 44px target. The label line
+   is 24px tall: the target grows 14px up into the 1.1rem gap between fields and 6px down into the .4rem gap above the
+   field, so it never covers the password input or the field above. */
+@media (pointer: coarse) {
+    :root .mk-auth .mk-label > .mk-auth__forgot::after {
+        content: "";
+        position: absolute;
+        inset: -14px -6px -6px;
+    }
+}
+
+/* The switch links under the card ("Create an account", "Sign in", "Back to sign in") are bold; the kit underlines
+   links in running text. */
+:root .mk-auth__switch a {
+    font-weight: 700;
+}
+
+/* The links and the link-like button under the card stand alone ("Back to sign in", "Stay signed in and go home", the
+   verify card's "Change it in Account settings" and "Sign out"): a target of at least 24px everywhere and 44px on touch
+   screens (they were 19-23px tall). A link stays inline: vertical padding grows its target without moving the line (it
+   reaches about 10px into the card's 1.1rem gap, never the next row). "Sign out" has a line of its own (verify card), an
+   inline block whose line grows to hold it: no negative margin, so its target never reaches up over the link's text.
+   An inline box is as tall as its font's own height plus the padding, and that height differs from font to font: 19px
+   for the default look's 15px text, only 15px (1em) for Magazine's Newsreader, which stayed at 23px / 40.6px (judge
+   R1-054). The padding makes up the difference from 1em: every font at least 1em tall reaches 25px, 45px on touch
+   screens, at any text size, and no padding is ever smaller than before. */
+:root .mk-auth__switch a {
+    padding-block: .25rem;
+    padding-block: max(.25rem, calc(12.5px - .5em));
+}
+
+:root .mk-auth__switch .mk-auth__link-btn {
+    display: inline-block;
+    padding-block: .25rem;
+}
+
+@media (pointer: coarse) {
+    :root .mk-auth__switch a {
+        padding-block: .8rem;
+        padding-block: max(.8rem, calc(22.5px - .5em));
+    }
+
+    :root .mk-auth__switch .mk-auth__link-btn {
+        padding-block: .8rem;
+    }
+}
+
+/* R3-061: "Not you?" under the reset form's e-mail field (the only way off a reset link for another address; 54 x 16px,
+   13px in Magazine) is a standalone link too: at least 24px, 44px on touch screens. It stays inline (its line does not
+   move) and grows mostly downward: the read-only field is only 6-9px above it, the next row 20px below. On touch
+   screens that line keeps .75rem more room under it, so the target never reaches the next row's label either. */
+:root .mk-auth .mk-help--link > a {
+    padding-block: 5px calc(20px - 1em);
+}
+
+@media (pointer: coarse) {
+    :root .mk-auth .mk-help--link {
+        margin-block-end: .75rem;
+    }
+
+    :root .mk-auth .mk-help--link > a {
+        padding-block: 4px calc(40px - 1em);
+    }
+}
+
+/* Hover (a mouse only, calm: colour and underline, nothing moves): the underlined links and the link-like button
+   underline thicker; "Forgot password?" (not underlined at rest) gets its underline; the show / hide password eye and
+   the other buttons inside a field take the kit's hover veil and the text colour. They did not change at all. */
+@media (hover: hover) and (pointer: fine) {
+    :root .mk-auth__switch a:hover,
+    :root .mk-auth__link-btn:hover {
+        text-decoration-thickness: 2px;
+    }
+
+    :root .mk-auth .mk-label > .mk-auth__forgot:hover {
+        text-decoration: underline;
+        text-decoration-thickness: 1px;
+    }
+
+    /* not the brand-coloured text buttons of a field ("Verify" of the phone number): they keep their brand ink */
+    :root .avd-mk .mk-group button.mk-group__addon:not(.mk-group__btn):hover {
+        background: var(--mk-hover);
+        color: var(--avd-text);
+    }
+}
+
+/* A sign-out button that reads like the links around it (a POST form, auth-22). */
+:root .mk-auth__link-btn {
+    display: inline;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--avd-brand-ink);
+    font: inherit;
+    font-weight: 700;
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    cursor: pointer;
+}
+
+:root .mk-auth__link-btn:focus-visible {
+    outline: 2px solid var(--avd-focus);
+    outline-offset: 2px;
+    border-radius: 2px;
+}
+
+/* The robot check's answer is a short number: the field is short too. */
+:root .mk-captcha .mk-input {
+    max-inline-size: 10rem;
+}
+
+/* auth-7, auth-12: the "Terms of service" link inside the check-box label is underlined and in the
+   link colour in every look and mode (the kit's running-text rule covers paragraphs, not a check box's label; in dark
+   looks dark.scss gives every link the text colour). */
+:root .avd-mk .mk-option__text a,
+:root .avd-mk .mk-auth__terms a {
+    color: var(--avd-brand-ink);
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: .15em;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    :root .avd-mk .mk-option__text a:hover,
+    :root .avd-mk .mk-auth__terms a:hover {
+        text-decoration-thickness: 2px;
+    }
+}
+
+/* The provider marks keep their own colour (a brand mark, section 1.1). */
+:root .mk-social__mark--facebook {
+    color: #1877f2;
+    font-size: 1.15rem;
+}
+
+/* "Confirm your e-mail": the envelope tile and its sentence sit in the card without the empty state's padding. */
+:root .mk-auth__verify {
+    padding: .5rem 0;
+}
+
+/* The verify card's "Sign out" keeps its words on one line. */
+:root .mk-auth__switch .mk-auth__link-btn {
+    white-space: nowrap;
+}
+
+/* The status card's code line ("Error 404", "Back soon") in capitals in every language (the words stay translated). */
+:root .mk-status-page__code {
+    text-transform: uppercase;
+}
+
+/* The contact page's form (the page keeps its public "Info pages" look around it): the kit's form in the
+   panel, its messages above it. */
+:root .mk-contact {
+    display: grid;
+    gap: 1rem;
+}
+
+:root .mk-contact__message {
+    min-block-size: 10rem;
+    resize: vertical;
+}
+
+:root .mk-contact .mk-help {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: .25rem 1rem;
+}

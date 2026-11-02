@@ -5,11 +5,17 @@
 @section('title', __('Videos'))
 
 @section('content')
+    {{-- 1.2.3: the stored reasons of the bans on this page (one query; App\Support\BlockedWordsPass) --}}
+    @php($banReasons = \App\Support\BlockedWordsPass::reasons($videos->getCollection()))
     <div x-data="{video: {}}">
         <div class="d-flex justify-content-between align-items-center my-3">
             <h2>{{__('Videos')}}</h2>
         </div>
         <hr>
+        {{-- 1.2.3 round 3 (R3-073): the review list of the update's content-safety pass (the dashboard's Review) names its filter --}}
+        @if(request()->query('reason') === \App\Support\BlockedWordsPass::FILTER)
+            <div class="alert alert-warning py-2">{{ __('Reason: :reason', ['reason' => \App\Support\BlockedWordsPass::label(\App\Support\BlockedWordsPass::REASON)]) }} &middot; <a href="{{ route('admin.videos.index', ['status' => \App\Enums\VideoStatus::BANNED->value]) }}">{{ __('Show all banned videos') }}</a></div>
+        @endif
         {!! form(FormBuilder::create(VideoFiltersForm::class)) !!}
 
         {{-- Bulk Actions Bar --}}
@@ -98,6 +104,10 @@
                         </td>
                         <td class="align-middle">
                             @include('videos.status')
+                            {{-- 1.2.3: why a video is banned, when the ban has a stored reason (App\Support\BlockedWordsPass) --}}
+                            @if ($video->is_banned && isset($banReasons[$video->id]))
+                                <div class="text-sm text-muted mt-1">{{ $banReasons[$video->id] }}</div>
+                            @endif
                         </td>
                         <td class="align-middle">
                             @if($video->is_private || $video->is_unlisted || $video->is_draft || $video->is_failed)

@@ -1,16 +1,10 @@
-@if($playlist->is_public)
-    <span class="badge bg-success">
-        <i class="fa-solid fa-eye"></i>&nbsp;
-        Public
-    </span>
-@elseif($playlist->is_unlisted)
-    <span class="badge bg-info">
-        <i class="fa-solid fa-eye-slash"></i>&nbsp;
-        Unlisted
-    </span>
-@else
-    <span class="badge bg-danger">
-        <i class="fa-solid fa-eye-slash"></i>&nbsp;
-        Private
-    </span>
-@endif
+{{-- A playlist's visibility as the kit's dot + label (member design 5.8; QA channel-26: green, cyan and red badges in
+     every look). @include('playlists.status', ['playlist' => $playlist]) --}}
+@php
+    [$playlistStatusKind, $playlistStatusLabel] = match ($playlist->status) {
+        \App\Enums\PlaylistStatus::PUBLIC => ['public', __('Public')],
+        \App\Enums\PlaylistStatus::UNLISTED => ['unlisted', __('Unlisted')],
+        default => ['private', __('Private')],
+    };
+@endphp
+<x-mk.status :kind="$playlistStatusKind" :label="$playlistStatusLabel" />

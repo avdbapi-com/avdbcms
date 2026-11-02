@@ -6,6 +6,7 @@ use App\Http\Resources\Playlist\PlaylistListResource;
 use App\Http\Resources\User\UserShowResource;
 use App\Http\Resources\Video\VideoListResource;
 use App\Models\User;
+use App\Support\SafeCursor;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\ResourceCollection;
 use Illuminate\Support\Facades\Auth;
@@ -71,23 +72,28 @@ class UserController
             ->with('user')
             ->when($sort === 'latest', fn($query) => $query->latest('published_at')->orderByDesc('id'))
             ->when($sort === 'popular', fn($query) => $query->orderByDesc('views')->orderByDesc('id'))
-            ->when($sort === 'oldest', fn($query) => $query->oldest('published_at')->orderBy('id'))
-            ->cursorPaginate(config('site.per_page_videos', 24));
+            ->when($sort === 'oldest', fn($query) => $query->oldest('published_at')->orderBy('id'));
 
-        return VideoListResource::collection($videos);
+        // A cursor of another sort (or a hand-made one) gives the first page instead of HTTP 500.
+        return VideoListResource::collection(
+            SafeCursor::paginate($videos, (int) config('site.per_page_videos', 24), $request->input('cursor'))
+        );
     }
 
-    public function playlists(User $user): ResourceCollection
+    public function playlists(User $user, Request $request): ResourceCollection
     {
+        $playlists = $user->playlists()
+            ->active()
+            ->withCount([
+                'videos' => fn ($query) => $query->active()->forLocale(),
+            ])
+            ->whereHas('videos', fn ($query) => $query->active()->forLocale())
+            ->latest('updated_at')
+            // playlists changed in the same second keep a fixed order: none is skipped or shown twice at a page edge
+            ->orderByDesc('playlists.id');
+
         return PlaylistListResource::collection(
-            $user->playlists()
-                ->active()
-                ->withCount([
-                    'videos' => fn ($query) => $query->active()->forLocale(),
-                ])
-                ->whereHas('videos', fn ($query) => $query->active()->forLocale())
-                ->latest('updated_at')
-                ->cursorPaginate(config('site.per_page_users', 15))
+            SafeCursor::paginate($playlists, (int) config('site.per_page_users', 15), $request->input('cursor'))
         );
     }
 }

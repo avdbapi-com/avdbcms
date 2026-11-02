@@ -10,7 +10,7 @@ use Tests\Feature\Updater\Support\UpdaterSandbox;
 use Tests\TestCase;
 
 /**
- * The maintenance hook file (F8 11): self-contained plain PHP (the embedded SwapEngine and MaintenanceHook, no
+ * The maintenance hook file: self-contained plain PHP (the embedded SwapEngine and MaintenanceHook, no
  * Laravel, no vendor/), written with Laravel's "down" file, safe to load twice in one process, and it takes itself
  * away when its swap is over. An owner's own `artisan down` is never touched.
  */

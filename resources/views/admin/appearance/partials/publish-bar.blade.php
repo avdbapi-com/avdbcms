@@ -14,7 +14,7 @@
         ($action['type'] ?? null) === 'theme' => ! empty($action['layouts'])
             ? __('Not published. Changes colours, fonts, shapes and the page layouts. Your logo, texts, menus and ads stay.')
             : __('Not published. Changes colours, fonts and shapes. Your homepage layout, logo, texts, menus and ads stay.'),
-        default => implode(', ', array_slice(array_unique(array_column($draftState['changes'] ?? [], 'label')), 0, 4)),
+        default => \App\Support\AdminText::list(array_slice(array_unique(array_column($draftState['changes'] ?? [], 'label')), 0, 4)),
     };
 @endphp
 <span class="ad-pub-text" aria-live="polite">

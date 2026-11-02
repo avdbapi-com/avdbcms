@@ -1,7 +1,7 @@
 <?php
 return [
-    'confirmation' => 'A message with a confirmation link has been sent to your e-mail : <strong>:email</strong> Please follow this link to activate your account.',
-    'link_invalid' => 'Sorry this link is invalid',
-    'link_expired' => 'Sorry this link is expired',
-    'terms' => 'I agree all statements in <a href=\':link\' class=\'text-decoration-none\'>Terms of service</a>',
+    'confirmation' => 'Isang mensahe na may confirmation link ay ipinadala sa iyong email: <strong>:email</strong> Pakisundan ang link na ito para i-activate ang iyong account.',
+    'link_invalid' => 'Paumanhin, hindi na valid ang link na ito',
+    'link_expired' => 'Paumanhin, nag-expire na ang link na ito',
+    'terms' => 'Sumasang-ayon ako sa <a href=":link" class="text-decoration-none">Mga Tuntunin ng Serbisyo</a>',
 ];

@@ -33,7 +33,9 @@ li+li{margin-top:10px}
 code{display:inline-block;padding:1px 6px;border-radius:6px;background:var(--code);color:var(--text);font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;direction:ltr;unicode-bidi:isolate}
 .address{margin:16px 0 0;color:var(--text)}
 .actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:24px}
-.actions a{color:var(--accent);font-weight:600}
+.actions a,.actions button{color:var(--accent);font-weight:600}
+.actions form{margin:0}
+.actions button{background:none;border:0;padding:0;font:inherit;cursor:pointer;text-decoration:underline}
 a:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:4px}
 @media (forced-colors:active){.card,.kicker,code{border:1px solid CanvasText}}
 </style>
@@ -45,19 +47,19 @@ a:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:
 <h1>{{ __('This address cannot open the admin') }}</h1>
 <p>{{ __('The admin of this site opens only from the internet addresses on its list (Settings > Security > Admin access lock). This request came from an address that is not on it.') }}</p>
 @if ($ip !== '')
-<p class="address">{{ __('Your address, as this site sees it:') }} <code>{{ $ip }}</code></p>
+<p class="address">{{ __('Your address, as this site sees it:') }}{{ \App\Support\LabelGap::admin() }}<code>{{ $ip }}</code></p>
 @endif
 <h2>{{ __('Is this your site? Get back in') }}</h2>
 <ol>
 <li>{{ __('Open the admin from an address on the list. Home internet addresses can change, and a VPN or a phone hotspot uses another one.') }}</li>
-<li>{{ __('Or, on your server, in the folder of the site, run:') }} <code>php artisan avd:admin-ip-lock off</code><br>{{ __('It empties the list, so the admin opens from anywhere again. To lock it again, turn on Developer mode in the account menu, then add your address in Settings > Security > Admin access lock.') }}</li>
-<li>{{ __('To see how many addresses are on the list and the address of the computer you connect from, run:') }} <code>php artisan avd:admin-ip-lock status</code></li>
+<li>{{ __('Or, on your server, in the folder of the site, run:') }}{{ \App\Support\LabelGap::admin() }}<code>php artisan avd:admin-ip-lock off</code><br>{{ __('It empties the list, so the admin opens from anywhere again. To lock it again, turn on Developer mode in the account menu, then add your address in Settings > Security > Admin access lock.') }}</li>
+<li>{{ __('To see how many addresses are on the list and the address of the computer you connect from, run:') }}{{ \App\Support\LabelGap::admin() }}<code>php artisan avd:admin-ip-lock status</code></li>
 <li>{!! strtr(e(__('No command line? In your hosting database tool, empty the value of :setting in the :table table.')), [':setting' => '<code>admin_ip_whitelist</code>', ':table' => '<code>settings</code>']) !!}
 {!! strtr(e(__('Then clear the site cache so it reads the change: with your file manager, delete the files in :folder (the usual file cache), or empty the :table table when the site keeps its cache in the database.')), [':folder' => '<code>storage/framework/cache/data</code>', ':table' => '<code>cache</code>']) !!}</li>
 </ol>
 <div class="actions">
 <a href="{{ url('/') }}">{{ __('Go to the site') }}</a>
-<a href="{{ route('logout') }}">{{ __('Log out') }}</a>
+<form method="POST" action="{{ route('logout') }}">@csrf<button type="submit">{{ __('Log out') }}</button></form>
 </div>
 </div>
 </main>

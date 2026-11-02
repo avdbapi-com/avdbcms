@@ -15,12 +15,12 @@
                 <table class="table table-sm table-striped mb-0">
                     @foreach($config as $key => $val)
                     <tr>
-                        <td class="fw-bold ps-3">{{ $key }}</td>
+                        <td class="fw-bold ps-3">{{ __($key) }}</td>
                         <td>
                             @if(in_array($key, ['Password']))
                                 <code>••••••••</code>
                             @else
-                                <code>{{ $val ?: '(not set)' }}</code>
+                                <code>{{ $val ?: __('Not set') }}</code>
                             @endif
                         </td>
                     </tr>
@@ -50,7 +50,7 @@
                 @if(config('mail.default') === 'log')
                     <div class="alert alert-warning small">
                         <i class="fa-solid fa-triangle-exclamation me-1"></i>
-                        {!! __('The mailer is currently :driver: nothing is delivered to inboxes. Every email (password resets, verification, this test) is written to :file instead. Configure SMTP in :link to send real email.', ['driver' => '<code>log</code>', 'file' => '<code>storage/logs/mail.log</code>', 'link' => '<a href="' . route('admin.settings.index', ['tab' => 'email']) . '" class="alert-link">' . __('Settings → Email') . '</a>']) !!}
+                        {!! __('The mailer is currently :driver: nothing is delivered to inboxes. Every email (password resets, verification, this test) is written to :file instead. Configure SMTP in :link to send real email.', ['driver' => '<code>log</code>', 'file' => e(__('the mail log (Tools > Logs, the file mail-....log in storage/logs)')), 'link' => '<a href="' . route('admin.settings.index', ['tab' => 'email']) . '" class="alert-link">' . __('Settings → Email') . '</a>']) !!}
                     </div>
                 @endif
                 @if($errors->has('email'))
