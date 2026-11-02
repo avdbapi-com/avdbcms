@@ -672,6 +672,9 @@ changed happens around it.
 
 ### Fixes
 
+- **Hosts without the PHP intl extension:** numbers, sizes, prices and dates are written with the site's own tables
+  there, in every language. Before, such a host answered an error on every page that prints a number. With intl
+  present nothing changes.
 - **"Load more"** no longer fails with a server error or skips videos when a public video has no publish date. A "load
   more" link that is cut, edited or from before the update shows the first page instead of an error.
 - **Unban** gives a video back the status it had before the ban. Before, every unbanned video became public, also a
@@ -842,6 +845,9 @@ changed happens around it.
   with the same name (for example public_html) no longer stop each other's scheduled tasks, also sites of other accounts
   on the same server. The cron line your site added itself is updated by itself; every other line of the crontab stays
   as it is, also a line you switched off with # or changed yourself.
+- A cron line that a hosting panel runs with the web server's PHP (for example LiteSpeed's `lsphp` on cPanel) now
+  counts as the server's cron: before, the site did not notice those runs, warned that only page views start its
+  tasks, and started its own runs next to the cron's.
 - Your site no longer starts its scheduled tasks after page views while the server's cron runs them, so members no
   longer get the same reminder e-mail twice. The free-trial and card reminders go out once, also when two runs meet in
   the same minute, and no longer stop at a member who deleted the account. A new site no longer runs its scheduled tasks
