@@ -26,14 +26,29 @@ class SeoEndpointTest extends TestCase
             ->withStatus(VideoStatus::PUBLIC)
             ->create();
 
+        // 1.2.3 refresh (CLF-SEO-01): a member's upload is listed in the default language only (its page in every
+        // language names the default-language page as its canonical), so no Vietnamese video sitemap exists for it
         $this->get(route('seo.sitemap'))
             ->assertOk()
             ->assertSee(url('/sitemap-pages-en.xml'), false)
             ->assertSee(url('/sitemap-pages-vi.xml'), false)
             ->assertSee(url('/sitemap-videos-en-1.xml'), false)
-            ->assertSee(url('/sitemap-videos-vi-1.xml'), false)
+            ->assertDontSee(url('/sitemap-videos-vi-1.xml'), false)
             ->assertSee('<?xml-stylesheet type="text/xsl" href="' . url('/sitemap.xsl') . '"?>', false)
             ->assertDontSee('sitemap-videos.xml?from=', false);
+
+        // an AVDBAPI import with a Vietnamese translation: its Vietnamese page is its own canonical, so that sitemap exists
+        $import = Video::factory()
+            ->forUser()
+            ->withStatus(VideoStatus::PUBLIC)
+            ->create(['avdb_id' => 70001, 'slug' => 'vietnamese-sitemap-import']);
+        $import->translations()->create(['locale' => 'vi', 'title' => 'Vietnamese sitemap import title']);
+        SeoSitemapCache::clear();
+
+        $this->get(route('seo.sitemap'))
+            ->assertOk()
+            ->assertSee(url('/sitemap-videos-vi-1.xml'), false)
+            ->assertDontSee(url('/sitemap-videos-fr-1.xml'), false);
     }
 
     public function test_sitemap_stylesheet_endpoint_is_available(): void

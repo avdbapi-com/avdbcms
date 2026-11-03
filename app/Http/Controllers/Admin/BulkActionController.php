@@ -235,6 +235,11 @@ class BulkActionController
                 $msg = trans_choice('Unblocked 1 member.|Unblocked :count members.', $count);
                 if ($changed !== []) {
                     AuditLogController::log(count($changed) === 1 ? 'member.unblocked' : 'members.unblocked', self::memberNames($changed));
+                    // 1.2.3 refresh (N2-SAFE-01): the videos the update banned with an importer-made channel come back with it
+                    $videos = count(\App\Support\BlockedCreatorsPass::restoreVideos(array_map(fn (User $user): int => (int) $user->id, $changed)));
+                    if ($videos > 0) {
+                        $msg .= ' '.trans_choice('1 video the update had banned is back too.|:count videos the update had banned are back too.', $videos, ['count' => number_format($videos)]);
+                    }
                 }
                 break;
             case 'verify':

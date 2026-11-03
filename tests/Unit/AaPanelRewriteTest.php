@@ -32,7 +32,20 @@ class AaPanelRewriteTest extends TestCase
                 ."location ^~ /storage/ {\n    alias /www/wwwroot/example.com/storage/app/public/;\n    location ~ \\.php\$ { return 404; }\n    try_files \$uri =404;\n}\n"
                 ."location ^~ /vendor/ {\n    alias /www/wwwroot/example.com/public/vendor/;\n    location ~ \\.php\$ { return 404; }\n    try_files \$uri =404;\n}\n"
                 ."location ^~ /app/ { return 404; }\n"],
+            // 1.2.3 refresh (verifier WEB-V1-02): the released 1.2.3 rules have every prefix location of today's and lack the
+            // exact robots.txt location (five minutes for the file nginx sends itself): upgraded once.
+            'the rules of the released 1.2.3 (without the robots.txt location)' => [self::withoutRobotsLocation(AaPanelRewrite::rules('/www/wwwroot/example.com'))],
         ];
+    }
+
+    /** The rules without their "location = /robots.txt { ... }" block (the rules the released 1.2.3 wrote). */
+    private static function withoutRobotsLocation(string $rules): string
+    {
+        $without = (string) preg_replace('/location = \/robots\.txt \{[^}]*\}\n/', '', $rules);
+        self::assertStringNotContainsString('robots.txt {', $without);
+        self::assertSame([], array_diff(AaPanelRewrite::prefixLocations($rules), AaPanelRewrite::prefixLocations($without)), 'every prefix location stays');
+
+        return $without;
     }
 
     #[DataProvider('written')]
@@ -86,6 +99,13 @@ class AaPanelRewriteTest extends TestCase
         $this->assertSame([], AaPanelRewrite::sharedLocations(self::VHOST));
         $this->assertTrue(AaPanelRewrite::shouldWrite($preset, [self::VHOST, "location ~ /\\.well-known { allow all; }\nlocation = /old { return 301 /new; }\n# location ^~ /storage/ { }"]));
         $this->assertTrue(AaPanelRewrite::shouldWrite($preset, []));
+
+        // 1.2.3 refresh (verifier WEB-V1-02): an exact location of the rules declared elsewhere in the server block (an
+        // owner's own robots.txt rule) is a duplicate for nginx as well: nothing is written.
+        $this->assertSame(['= /robots.txt'], AaPanelRewrite::sharedLocations("location = /robots.txt { access_log off; }\n"));
+        $this->assertSame(['/robots.txt', '/old'], AaPanelRewrite::exactLocations("location = /robots.txt { access_log off; }\n# location = /artisan { }\nlocation =/old { return 301 /new; }\nlocation ^~ /storage/ { }"));
+        $this->assertFalse(AaPanelRewrite::shouldWrite($preset, [self::VHOST, "location = /robots.txt { access_log off; }\n"]));
+        $this->assertContains('/robots.txt', AaPanelRewrite::exactLocations(AaPanelRewrite::rules('/www/wwwroot/example.com')));
 
         // 1.2.3 round 1b review: the site's own addresses that end like a file (/video/file/, /admin/) and /docker/, as in
         // docs/server-configs/nginx-project-root.conf; round 3 R3-039: /docs/.

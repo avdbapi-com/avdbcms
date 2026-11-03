@@ -10,7 +10,7 @@ https://github.com/avdbapi-com/avdbcms/releases
 The final release of the 1.2 series, and a big one: new member pages, uploads that are no longer lost when the page is
 closed, an admin where every setting can be found, imports that skip videos whose titles, tags or categories use words
 that present a child or a school-age minor, the fixes of a full security review and many other fixes. Sites on 1.2.0,
-1.2.1 or 1.2.2 update with one click in **Tools › Updates**; every other way is in [UPGRADE.md](UPGRADE.md). It has 21
+1.2.1 or 1.2.2 update with one click in **Tools › Updates**; every other way is in [UPGRADE.md](UPGRADE.md). It has 22
 database changes, which the update makes for you (**Finish update** on Home when you update by hand). Before you update,
 check that the **Time zone** in **Settings › Site basics** is yours: the times of older views, subscriptions, saved
 playlists, likes and dislikes and the dates videos were added to playlists are put in the time zone your site has when
@@ -27,7 +27,12 @@ After the update, please check these points:
   are always blocked (words that present a child or a school-age minor), so visitors no longer see them. If Home shows
   "... videos were hidden because their titles, tags or categories use blocked words" under **Needs you**, click
   **Review** and **Unban** any video that was hidden by mistake. Tags and categories whose names use these words are
-  hidden from visitors too: **Content › Categories** and **Content › Tags** mark them.
+  hidden from visitors too: **Content › Categories** and **Content › Tags** mark them. The update also blocks the
+  creator channels that the AVDBAPI and XVIDAPI imports made for a studio, director or actor whose name or description
+  uses these words, and bans their videos. If Home shows "... imported creator channels were blocked because their names
+  or descriptions use blocked words" under **Needs you**, click **Review**: it opens the **Blocked** tab of
+  **Members › All members** with only those channels. **Unblock** gives a channel that was blocked by mistake back,
+  together with the videos the update banned.
 - **Imports:** if you import from AVDBAPI or XVIDAPI, open the new **Blocked words** card on
   **Content › Import videos**. New imports skip every video whose title, tags or categories use one of its words; the
   list is yours to change.
@@ -37,8 +42,10 @@ After the update, please check these points:
   comments and the hiding of videos with blocked words, builds the new notification indexes and, on a site with more
   than 200,000 videos, builds the video indexes of 1.2.3. When it does not run, Home shows "Scheduled tasks are not
   running" under **Needs you**, or "Scheduled tasks run only while people visit the site" when only the page views of
-  your site start them; **Tools › Background jobs › Scheduled tasks** then shows the line to add. A cron line that your
-  site added itself is updated by itself.
+  your site start them; **Tools › Background jobs › Scheduled tasks** then shows the line to add. That line now names a
+  command-line PHP build when your server has one; if you put the line into a hosting panel's cron job yourself (on
+  cPanel with LiteSpeed it could name `lsphp`), copy it again from the page. A cron line that your site added itself is
+  updated by itself.
 - **Time zone:** the cron job and the background jobs now work with your settings, like the pages do. Scheduled imports
   and the daily tasks run at their times in the **Time zone** of **Settings › Site basics** (before, the cron used Paris
   time), so check that it is yours, best before you update (see above). Their e-mails go out through the mail server and
@@ -55,12 +62,25 @@ After the update, please check these points:
   `nginx-cloudpanel-front.conf` and `nginx-hestia-project-root.conf`; on Plesk no nginx file. Write your site's folder
   where the file has `__PROJECT_ROOT__` or an example folder, and run `nginx -t` before you reload nginx. These rules
   keep scripts from running in the upload folders, never hand out database dumps or logs, and let nginx send the videos
-  stored on your server. On aaPanel, the site updates the rules it wrote itself when PHP may write them.
+  stored on your server. They also give robots.txt a life of five minutes, as the site's own answer says, and let the
+  site answer it with the same text when the file is missing: nginx sent the file with no cache instruction, so
+  Cloudflare could hand out an old one for up to two hours after a change. If you merge the new rules into your own by
+  hand, the new block is `location = /robots.txt`, next to `location /` (UPGRADE.md says so under "Nginx rules you
+  copied from the package"); on HestiaCP, where Apache answers robots.txt, keep `txt` out of the domain's
+  **Proxy Extensions**. Behind Cloudflare, purge `/robots.txt` once afterwards. On aaPanel, the site updates the rules
+  it wrote itself when PHP may write them.
 - **Apache and LiteSpeed:** the `.htaccess` files of 1.2.3 keep scripts from running in the upload folders and never
-  hand out database dumps or logs. If you changed one of them (some panels do), the one-click update kept yours and put
-  the new one next to it as `.htaccess.avdbcms-1.2.3`, listed in **Tools › Updates**: take the new rules into your file.
-  After an update by hand, add your own rules to the new file again instead of copying your old file back, as UPGRADE.md
-  says. On OpenLiteSpeed (for example CyberPanel), restart it after the update so that it reads them.
+  hand out database dumps or logs, and the browser-cache rules of `public/.htaccess` now cover the static files only
+  (styles, scripts, fonts, pictures): the pages made for one visitor, the sitemaps and robots.txt no longer get a second
+  cache line and two days in a CDN (a robots.txt the site had just written reached crawlers behind Cloudflare up to two
+  days later), and robots.txt as a file lives five minutes, as the site's own answer says. If you changed one of them
+  (some panels do), the one-click update kept yours and put the new one next to it as `.htaccess.avdbcms-1.2.3`, listed
+  in **Tools › Updates**: take the new rules into your file; for `public/.htaccess` these are two changes, which
+  UPGRADE.md shows under "The public/.htaccess file of Apache and LiteSpeed sites": delete the line
+  `ExpiresDefault "access plus 2 days"` and add the `<Files "robots.txt">` block. After an update by hand, add your own
+  rules to the new file again instead of copying your old file back, as UPGRADE.md says. On OpenLiteSpeed (for example
+  CyberPanel), restart it after the update so that it reads them. Behind Cloudflare, purge `/robots.txt` once
+  afterwards.
 - **Stripe:** if members pay by card, fill in the **Webhook signing secret** in **Money › Payment setup**. Without it,
   your site now refuses Stripe's messages.
 - **Premium sales:** if you sell Premium, open **Money › Earnings**. It now says whether members can buy Premium and,
@@ -73,8 +93,8 @@ After the update, please check these points:
   `.env`. Otherwise your site sees the CDN's address instead of your visitors' addresses.
 - **Tools › Logs › Admin actions** shows what the update changed on your site, for example the Upload18 key, the
   homepage list ad, the Telegram links, the public videos that were never published, the sign-up limit, the Premium page
-  texts, the recount of likes and comments, the older times put in your time zone and the videos hidden because of
-  blocked words.
+  texts, the recount of likes and comments, the older times put in your time zone, the videos hidden because of blocked
+  words and the imported creator channels blocked because of them.
 
 ### New: member pages
 
@@ -161,6 +181,11 @@ phones and in right-to-left languages.
 - **Watch page:** related videos and "Up next" no longer move under the mouse, so their buttons stay still. The
   creator's "show likes" choice is respected, creators get **Edit video** and **Statistics** on their own videos, and
   the raw video ID is gone. Comment menus are no longer cut off, and the tool bar no longer jumps while the page loads.
+- **Actors, directors and studios:** a name that uses words that are always blocked (words that present a child or a
+  school-age minor) is no longer shown to visitors: not in the video's details or their search links, not in the page's
+  title, description or structured data, not in Home's trending actors row and not in the search index. The other names
+  of the same field show as before, and the names stay in the video's details in the admin (**Content › All videos**),
+  where you can change them.
 - **Like** and **Dislike** on the watch page go back to how they were when the site refuses the click (signed out, page
   out of date, view-only demo account, too many tries, no connection), and the message says why. A click on a link or a
   time code no longer opens or closes the description; its links are underlined in dark looks, and long words wrap on
@@ -292,6 +317,11 @@ changed happens around it.
   videos in our test sample). To import it, take leak and leaked out of the list.
 - The import log says how many videos were skipped because of blocked words. No tag or category is made from a blocked
   word, and translated tag names and titles that use a word that is always blocked are never saved.
+- **Creator channels:** the AVDBAPI and XVIDAPI imports no longer make a creator channel for a studio, director or actor
+  whose name uses words that are always blocked, and never reuse one made before: the video itself is imported, under
+  the administrator's account. The import log says so once for each such name, the first time one of its videos is
+  imported that way, and the run's message says how many videos were imported without a creator channel; a run that only
+  checks videos imported before says nothing of it.
 - The update to 1.2.3 bans the videos your site already has whose titles, tags or categories use words that are always
   blocked, so visitors no longer see them. Each keeps its status, so **Unban** brings it back. Home (and the old admin's
   dashboard) says how many, with a link to review them, until you hide the notice; **Content › All videos** shows the
@@ -302,10 +332,19 @@ changed happens around it.
   whether the title, the category or a tag is the reason; the studio's bulk visibility and the admin's bulk bar leave
   those videos as they are and say how many. Private videos, new uploads and the admin's **Ban** and **Unban** are not
   checked.
+- The update also blocks the creator channels that the imports made before for a studio, director or actor whose name,
+  handle or description uses words that are always blocked, and bans their videos (each keeps its status), so visitors
+  no longer see them anywhere: not the channel page, not its videos, not the sitemaps, the search, the creators row or
+  the public API. Home (and the old admin's dashboard) says how many under **Needs you**, with **Review** to the
+  **Blocked** tab of **Members › All members** showing only those channels, until you hide the notice; the list shows
+  the reason under **Blocked**, and **Tools › Logs › Admin actions** has one row with the counts. **Unblock** gives the
+  channel back together with the videos the update banned, and says so. Your own account and your members' accounts are
+  never read. On a big site this goes on in the background after the update.
 - Tags and categories whose names use words that are always blocked are no longer shown to visitors (menus, pages, video
-  cards, search, sitemaps, the public API) or offered to members in the studio. Nothing is deleted: **Content ›
-  Categories** and **Content › Tags** mark them (a hidden category has no place in the menu's order), and renaming one
-  shows it again.
+  cards, search, sitemaps, the public API) or offered to members in the studio. Nothing is deleted:
+  **Content › Categories** and **Content › Tags** mark them (a hidden category has no place in the menu's order), and
+  renaming one shows it again. An actor, director or studio whose name uses these words is hidden from visitors in the
+  same way: see "Watch page and the rest of the site".
 - Importer tags and categories whose translation named a child or a minor now show their English name (or a neutral
   word) in those languages, also where you changed a language file. Translations of importer tag and category names that
   use blocked words are removed from the language files you did not change, and the category "Teen" is marked 18+ in the
@@ -332,6 +371,10 @@ changed happens around it.
   **Creators can change the upload schedule**.
 - **New switches**, both off as before: **Ask for strong passwords** and **Sign-ups from apps** (**Settings › Members &
   comments**, card **Sign-up & login**, More options).
+- **Ask new members to confirm their email** (**Settings › Members & comments**, card **Sign-up & login**) is off on a
+  new site, with both ways to install (**Import SQL backup** and **Run migrations and seeders**); its help says to turn
+  it on once **Settings › Email** can send mail. Before, a site installed with **Run migrations and seeders** had it on,
+  and new members got stuck while the site could not send mail yet. A site that already chose a value keeps it.
 - **What moved where** also lists the 19 tabs of the old Settings page, and names each page of the old admin menu in
   that menu's own words, in every language.
 - **Upload18 connection:** this card on **Settings › Videos & uploads** (under Advanced) no longer needs Developer mode.
@@ -472,11 +515,18 @@ changed happens around it.
 - **Undo this update** back to 1.2.2 or older: a member's upload that Upload18 is still processing stays an unfinished
   draft, and updating again finishes it. Back to 1.2.0 or 1.2.1, the three development files that 1.2.2 removed stay
   removed.
-- The database changes run while your site keeps working. On hosts with a short time limit (for example 30 seconds),
-  the update finishes in steps of about 20 seconds, and the page sends the next step by itself. **Finish update** on
-  Home works the same way: when a click gets too little time, it says "Some of the database changes are done. Click
-  Finish update again for the rest." If the host stops a step anyway, the next one goes on at once (it waits only while
-  your database still works on a change).
+- **Checking the download**, the step after the download, now reads the file's checksum in short pieces and shows how
+  far it is ("Checking the download: 24 MB of 62 MB"). When the host's time limit cuts a request short, the next one
+  goes on where it stopped, and once the checksum is verified it is remembered, so a retry on a slow host goes straight
+  to the next check instead of reading the whole file again. This helps from the next update on: the update to 1.2.3
+  itself still checks its download as 1.2.2 did.
+- The database changes run while your site keeps working. On hosts with a short time limit (for example 30 seconds), the
+  update finishes in steps of about 20 seconds, and the page sends the next step by itself; each step now also counts
+  the time the request had spent before the step began, so it stops in time on a strict host (before, a step of
+  **Undo this update** could end in an error that the page then retried by itself). **Finish update** on Home works the
+  same way: when a click gets too little time, it says "Some of the database changes are done. Click Finish update again
+  for the rest." If the host stops a step anyway, the next one goes on at once (it waits only while your database still
+  works on a change).
 - Some work goes on in the background through the cron job: the times of views, subscriptions, saved playlists, likes
   and dislikes and the dates videos were added to playlists recorded before the update (a little every minute), the
   deletion of the old cache files and, on a big site, the recount of likes and comments, the hiding of videos with
@@ -486,9 +536,10 @@ changed happens around it.
 - The update removes the outdated database dump and the Docker files of the original project's development setup (they
   could not start) that 1.2.0 to 1.2.2 shipped, and the unused pictures of the old sign-in and error pages; a dump you
   made yourself, a Docker file you changed and any picture you changed stay, and **Tools › Logs › Admin actions** says
-  how many files went. For containers, the setup guide describes 1Panel. It also gives the starting data of new installs
-  the new version's copy while your site still has an unchanged copy of an older one, so a new install made from your
-  site folder starts with a working Upload18 key.
+  how many files went, also when you undo the update and update again (before, only the pictures were listed the second
+  time). For containers, the setup guide describes 1Panel. It also gives the starting data of new installs the new
+  version's copy while your site still has an unchanged copy of an older one, so a new install made from your site
+  folder starts with a working Upload18 key.
 - **Undo this update** brings back exactly the files the update removed or replaced when it finished (the old database
   dump, the Docker files, those pictures and the starting data of new installs), and the Undo window says so.
 - The old version's style and script files that an update keeps for pages still open in browsers are now removed by the
@@ -673,10 +724,15 @@ changed happens around it.
 ### Fixes
 
 - **Hosts without the PHP intl extension:** numbers, sizes, prices and dates are written with the site's own tables
-  there, in every language. Before, such a host answered an error on every page that prints a number. With intl
-  present nothing changes.
+  there, in every language, and the Studio's figures use the language's own separators (1.234.567 in German, 1 234 567
+  in French) instead of the English ones. Before, such a host answered an error on every page that prints a number. With
+  intl present nothing changes.
 - **"Load more"** no longer fails with a server error or skips videos when a public video has no publish date. A "load
   more" link that is cut, edited or from before the update shows the first page instead of an error.
+- **Home feed on phones:** it no longer keeps loading page after page while the view sits at the footer (on a phone the
+  footer is taller than the screen). When **More videos load** (**Appearance › Homepage**, card **Main video list**,
+  under Advanced) is set to load while scrolling, the feed loads six pages by itself, then shows a **Load more** button;
+  after a click it goes on by itself again. The two other choices are unchanged.
 - **Unban** gives a video back the status it had before the ban. Before, every unbanned video became public, also a
   private video or a draft. A video banned before this update comes back private: make it public on its page if it
   should be.
@@ -695,6 +751,11 @@ changed happens around it.
 - Video sitemaps list a video imported from AVDBAPI in a language only when it has a translation of that language (or in
   English and the site's default language), and the language alternates, in the sitemaps and on the video's page, point
   only to those pages.
+- A video that has no translations (a member's upload, an XVIDAPI import) is listed in the default language's video
+  sitemap only, and its page offers only that page as a language alternate; channel pages (`/@name`) are listed and
+  linked the same way. Every other language's sitemap listed them too, with every language as an alternate, while each
+  of those pages named the default-language page as its canonical page, so search engines were sent to pages that
+  pointed elsewhere. An AVDBAPI import keeps its translated pages, as above.
 - The page of an imported video in a language it is translated into now names itself as its canonical page, so search
   engines can list it in that language. Before, it pointed to the default-language page.
 - Your choices on **Settings › Google & sharing** now reach search engines through robots.txt: **Custom robots.txt**,
@@ -702,7 +763,9 @@ changed happens around it.
   which had a relative sitemap address. The site writes the file when you change one of these three settings, when you
   open **Settings › Google & sharing**, and at the end of an install. A robots.txt you edited yourself is never lost: it
   stays until you change one of these settings, and then the site keeps it next to the new file and tells you where. If
-  the server does not let the site write the file, the page tells you what to do.
+  the server does not let the site write the file, the page tells you what to do. With the server rules of 1.2.3 (see
+  the checklist), a changed robots.txt reaches crawlers within five minutes, also as /index.php/robots.txt on a site
+  whose web root is the site folder; before, a CDN could keep it for two days (Apache, LiteSpeed) or two hours (nginx).
 - A channel's playlists all show when you load more, and lists no longer skip a row at a page edge.
 - The home spotlight's "Liked" share counts real votes and stays hidden when the creator hides likes. A deleted video
   leaves the spotlight at once.
@@ -858,9 +921,11 @@ changed happens around it.
   command field cannot run and so never started the scheduler), and the command for panels that run cron jobs as root
   (on Windows, the command that creates the task in the Task Scheduler). **Content › Import videos › AVDBAPI** offers
   the same commands, and adding a command next to the site's own line no longer runs the scheduled tasks twice a minute.
-  Home's warning now counts only the server's cron; before, page views made it look as if the cron ran. The cron's runs
-  and the runs your site starts have separate logs, which grow line by line instead of being overwritten and are trimmed
-  when they get large.
+  These lines, and the runs your site starts itself, now use a command-line PHP build when the server has one; a
+  LiteSpeed or CGI build is taken only when no command-line build can be found, and the page says which build was
+  chosen. The queue worker, which those runs start every minute, runs with the same PHP. Home's warning now counts only
+  the server's cron; before, page views made it look as if the cron ran. The cron's runs and the runs your site starts
+  have separate logs, which grow line by line instead of being overwritten and are trimmed when they get large.
 - **Videos stored on your own server** no longer answer with a server error on nginx: your site checks whether nginx can
   send them and otherwise streams them itself. The nginx rules of 1.2.3 let nginx send them (see the checklist), and
   **Tools › Health check** says which one does.

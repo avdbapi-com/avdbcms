@@ -282,9 +282,11 @@ final class AaPanelRewrite
     private static function wouldReplace(string $current): bool
     {
         // Rules of an earlier release: upgraded when they lack one of the current rules' locations (the storage/ one
-        // up to 1.2.0; the upload folders' and the videos' /_internal/ up to 1.2.3) or still let /storage/ run .php5.
+        // up to 1.2.0; the upload folders' and the videos' /_internal/ up to 1.2.3; the exact robots.txt location of
+        // the 1.2.3 refresh) or still let /storage/ run .php5.
         if (str_contains($current, '# AVDBClip auto-configured')) {
             return array_diff(self::prefixLocations(self::rules('/project')), self::prefixLocations($current)) !== []
+                || array_diff(self::exactLocations(self::rules('/project')), self::exactLocations($current)) !== []
                 || ! str_contains($current, self::SCRIPTS);
         }
 
@@ -304,14 +306,20 @@ final class AaPanelRewrite
     }
 
     /**
-     * The prefix locations ("location /x/ {" and "location ^~ /x/ {", not "=" or regular expressions) that both the rules
-     * and $config declare: nginx refuses such a pair in one server block ("duplicate location").
+     * The prefix locations ("location /x/ {" and "location ^~ /x/ {", not regular expressions) and the exact ones
+     * ("location = /x {") that both the rules and $config declare: nginx refuses such a pair in one server block
+     * ("duplicate location").
      *
      * @return list<string>
      */
     public static function sharedLocations(string $config): array
     {
-        return array_values(array_intersect(self::prefixLocations(self::rules('/project')), self::prefixLocations($config)));
+        $rules = self::rules('/project');
+
+        return array_values(array_merge(
+            array_intersect(self::prefixLocations($rules), self::prefixLocations($config)),
+            array_map(static fn (string $path): string => '= '.$path, array_intersect(self::exactLocations($rules), self::exactLocations($config)))
+        ));
     }
 
     /**
@@ -323,6 +331,19 @@ final class AaPanelRewrite
     {
         $text = preg_replace('/#[^\n]*/', '', str_replace("\r", '', $config)) ?? '';
         preg_match_all('/(?:^|[\s;{}])location\s+(?:\^~\s*)?(\/[^\s{;]*)\s*\{/', $text, $matches);
+
+        return array_values(array_unique($matches[1]));
+    }
+
+    /**
+     * The paths of the exact locations ("location = /x {") a piece of nginx configuration declares, comments aside.
+     *
+     * @return list<string>
+     */
+    public static function exactLocations(string $config): array
+    {
+        $text = preg_replace('/#[^\n]*/', '', str_replace("\r", '', $config)) ?? '';
+        preg_match_all('/(?:^|[\s;{}])location\s+=\s*(\/[^\s{;]*)\s*\{/', $text, $matches);
 
         return array_values(array_unique($matches[1]));
     }
@@ -409,6 +430,15 @@ final class AaPanelRewrite
             self::MARK,
             'location / {',
             '    try_files $uri $uri/ /index.php?$query_string;',
+            '}',
+            '',
+            '# robots.txt (the site writes it when its SEO settings are saved): five minutes,',
+            '# as its route gives it, so a change reaches crawlers through a CDN within minutes',
+            '# (nginx\'s own answer for a file carries no Cache-Control). Where the file is',
+            '# missing, the root index.php answers the same text.',
+            'location = /robots.txt {',
+            '    try_files $uri /index.php?$query_string;',
+            '    expires 5m;',
             '}',
             '',
             '# Public-disk files (the php artisan storage:link target) are served straight',

@@ -950,8 +950,9 @@ class Video extends Model implements Likeable, Reportable
             'description' => $this->description,
             // 1.2.3: a category named with a word that is always blocked is not searchable (App\Support\ContentSafety)
             'category' => $this->category && ! \App\Support\ContentSafety::hides((string) $this->category->title) ? $this->category->title : null,
-            'actor' => $this->avdb_actor,
-            'director' => $this->avdb_director,
+            // 1.2.3 refresh 2: no actor or director named with a word that is always blocked (App\Support\ContentSafety)
+            'actor' => \App\Support\ContentSafety::visibleNames($this->avdb_actor),
+            'director' => \App\Support\ContentSafety::visibleNames($this->avdb_director),
             'tags' => $this->relationLoaded('tags')
                 ? $this->tags
                     // 1.2.3: a tag named with a word that is always blocked is not searchable (App\Support\ContentSafety)

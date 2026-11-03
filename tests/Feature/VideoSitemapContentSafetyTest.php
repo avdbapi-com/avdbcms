@@ -129,7 +129,10 @@ class VideoSitemapContentSafetyTest extends TestCase
             }
         }
 
-        $this->assertGreaterThan(20, $checked);
+        // every listed address and alternate answered 200 without noindex: the member's one page in the English sitemap (1),
+        // the French-only import's two pages in the English and the French sitemaps (2 + 2), the two-language import's
+        // three pages in the English, French and Vietnamese ones (3 + 3 + 3)
+        $this->assertSame(14, $checked);
 
         // the French-only import: in English and French only, and its alternates are exactly those two pages
         foreach (['de', 'ar', 'vi'] as $locale) {
@@ -139,7 +142,11 @@ class VideoSitemapContentSafetyTest extends TestCase
         $fr = $this->sitemap('fr');
         $this->assertSame(['en', 'fr', 'x-default'], $this->alternates($fr, $frenchOnly));
         $this->assertSame(['en', 'fr', 'vi', 'x-default'], $this->alternates($fr, $twoLanguages));
-        $this->assertContains('de', $this->alternates($this->sitemap('en'), $member), 'a member\'s video is indexable in every language');
+        // a member's video is indexable in every language, but only its default-language page is its own canonical (its
+        // page in another language names that one): listed there only, with no other page as an alternate (1.2.3 refresh,
+        // CLF-SEO-01: every language's sitemap listed it with 18 alternates that all canonicalized to the English page)
+        $this->assertSame(['en', 'x-default'], $this->alternates($this->sitemap('en'), $member), 'a member\'s video: the default-language page only');
+        $this->assertStringNotContainsString($member->uuid, $fr, 'a member\'s video is not in the French sitemap');
 
         // its German page opens (the German lists show the video: the decision of 29 Oct) but is not to be indexed, which is
         // why no sitemap lists it and no alternate names it
@@ -169,11 +176,17 @@ class VideoSitemapContentSafetyTest extends TestCase
             }
         }
 
-        // a member's video answers in every language, and its page says so
-        $this->flushSession();
-        app()->setLocale('en');
-        preg_match_all('#<link rel="alternate" hreflang="([^"]+)"#', (string) $this->get($this->path($member))->assertOk()->getContent(), $all);
-        $this->assertCount(count(config('languages')) + 1, $all[1]);
+        // a member's video answers in every language; its page names the default-language page only (the one page that
+        // is its own canonical: 1.2.3 refresh, CLF-SEO-01), in English and in German alike
+        foreach (['', '/de'] as $prefix) {
+            $this->flushSession();
+            app()->setLocale('en');
+            $page = $this->visit(url($prefix.$this->path($member)))->assertOk();
+            $this->assertNull($page->headers->get('X-Robots-Tag'), $prefix ?: 'default language');
+            preg_match_all('#<link rel="alternate" hreflang="([^"]+)" href="([^"]+)">#', (string) $page->getContent(), $links, PREG_SET_ORDER);
+            $this->assertSame(['en', 'x-default'], collect($links)->pluck(1)->sort()->values()->all(), $prefix ?: 'default language');
+            $this->assertSame([url($this->path($member))], collect($links)->pluck(2)->unique()->values()->all(), ($prefix ?: 'default language').': both name the default-language page');
+        }
     }
 
     public function test_the_index_lists_no_video_sitemap_of_a_language_where_no_video_answers(): void
@@ -201,19 +214,24 @@ class VideoSitemapContentSafetyTest extends TestCase
         $this->translate($private, 'de', 'QA privater Import', null, null);
         $this->assertIndexLists(['en', 'fr'], ['de', 'ja', 'vi']);
 
-        // a member's upload in Japanese answers in every language; the sitemaps list it in its own language
-        $this->video('QA Japanese upload', $garden, ['language' => 'ja']);
-        $this->assertIndexLists(['en', 'fr', 'ja'], ['de', 'vi']);
+        // a member's upload in Japanese answers in every language; the sitemaps list it in the default language only, where
+        // its page is its own canonical (1.2.3 refresh, CLF-SEO-01; before, in its own language, whose page canonicalized
+        // to the English one): no Japanese sitemap for it
+        $japanese = $this->video('QA Japanese upload', $garden, ['language' => 'ja']);
+        $this->assertIndexLists(['en', 'fr'], ['de', 'ja', 'vi']);
+        $this->assertStringContainsString($japanese->uuid, $this->sitemap('en'));
 
         // an import with its German translation
         $german = $this->video('QA German import', $garden, ['avdb_id' => 66666]);
         $this->translate($german, 'de', 'QA deutscher Import', null, null);
-        $this->assertIndexLists(['en', 'fr', 'ja', 'de'], ['vi']);
+        $this->assertIndexLists(['en', 'fr', 'de'], ['ja', 'vi']);
 
         // the AVDBAPI number 0 is no import (its page answers in every language, as a member's upload): the sitemaps list
-        // it in its own language, so a language it is not listed in stays out of the index
-        $this->video('QA number zero video', $garden, ['avdb_id' => 0, 'language' => 'ja']);
-        $this->assertIndexLists(['en', 'fr', 'ja', 'de'], ['vi']);
+        // it in the default language only, like the member's upload
+        $zero = $this->video('QA number zero video', $garden, ['avdb_id' => 0, 'language' => 'ja']);
+        $this->assertIndexLists(['en', 'fr', 'de'], ['ja', 'vi']);
+        $this->assertStringContainsString($zero->uuid, $this->sitemap('en'));
+        $this->assertStringNotContainsString($zero->uuid, $this->sitemap('fr'));
     }
 
     public function test_the_index_checks_a_language_without_reading_every_imported_video(): void

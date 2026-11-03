@@ -89,6 +89,12 @@ function isPhoneWidth(): boolean {
 const NEXT_PAGE_MARGIN_MIN = 1500;
 const NEXT_PAGE_MARGIN_MAX = 4000;
 
+// An infinite feed starts this many pages on its own in a row; then a "Load more" button, after which it goes on by
+// itself again. With the sentinel's margin alone, a view that sat at the end of the feed (a phone's footer taller than
+// its screen) kept the sentinel "near" after every landed page and loaded the whole catalogue (1.2.3 refresh,
+// CLF-FEED-01); the sentinel also starts nothing while it is above the viewport (useCursorQuery).
+const AUTO_LOAD_PAGES = 6;
+
 // Columns the feed grid really lays out at the current width (Bootstrap row-cols + video.scss):
 // below 768 the mobile setting (1|2); 768-1199 two (row-cols-md/lg-2; the feed-column override starts at
 // 1200); from 1200 the feed's own columns, else 3 (row-cols-xl-3) and from 1400 --avd-grid-columns.
@@ -403,12 +409,14 @@ function Main ({url, columns, loadMode, maxItems, maxRows, widgetTemplateIds, wi
         fetchNextPage,
         hasNextPage,
         ref,
+        autoLoadPaused,
+        loadMore,
     } = useCursorQuery({
         queryKey: ['videos', url],
         queryFn: ({pageParam}) => (pageParam == null && earlyFirstPage(url)) || getVideos(url, pageParam),
         enabled: feedEnabled,
         initialData: shipped.page && shipped.url === url ? {pages: [shipped.page], pageParams: [null]} : undefined,
-    }, {rootMargin: `${nextPageMargin}px 0px`});
+    }, {rootMargin: `${nextPageMargin}px 0px`, autoLoadPages: AUTO_LOAD_PAGES});
 
     // How the first page's cards render (feed-skeleton.scss), latched per URL when it arrives. A first page that
     // arrives while the grid is off screen keeps content-visibility:auto on its cards (data-avd-feed-deferred):
@@ -571,11 +579,14 @@ function Main ({url, columns, loadMode, maxItems, maxRows, widgetTemplateIds, wi
         [gridAdsEnabled, gridLayout, initialSkeletonCount, columnCount, gridPosition, gridMaxPerFeed]
     );
 
+    // The visitor's own request: the "Load more" mode's button, and the button an infinite feed shows after
+    // AUTO_LOAD_PAGES pages on its own (loadMore() lets the sentinel go on after the page).
     const handleLoadMore = () => {
         if (canLoadNext && !isFetchingNextPage) {
-            fetchNextPage();
+            loadMore();
         }
     };
+    const showLoadMore = canLoadNext && (effectiveFeedLoadMode === 'load_more' || (effectiveFeedLoadMode === 'infinite' && autoLoadPaused));
 
     const handlePageNext = () => {
         if (pageIndex + 1 < pages.length) {
@@ -672,9 +683,9 @@ function Main ({url, columns, loadMode, maxItems, maxRows, widgetTemplateIds, wi
                     </Fragment>
                 ))}
                 {isFetchingNextPage && !isPending && !isError && [...Array(nextPageSkeletonCount).keys()].map(i => <VideoSkeleton key={i}/>)}
-                {effectiveFeedLoadMode === 'infinite' && canLoadNext && <span ref={ref}></span>}
+                {effectiveFeedLoadMode === 'infinite' && canLoadNext && !autoLoadPaused && <span ref={ref}></span>}
             </div>
-            {effectiveFeedLoadMode === 'load_more' && canLoadNext && (
+            {showLoadMore && (
                 <div className="avd-feed-controls">
                     <button
                         className="avd-feed-control-btn"

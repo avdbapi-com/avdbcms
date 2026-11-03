@@ -20,6 +20,12 @@
             @endunless
         </div>
         <hr>
+        {{-- 1.2.3 refresh (N2-SAFE-01): the review list of the importer-made creator channels the update blocked for
+             blocked words (the dashboard's Review, App\Support\BlockedCreatorsPass) names its filter --}}
+        @if(request()->query('reason') === \App\Support\BlockedCreatorsPass::FILTER)
+            <div class="alert alert-warning py-2">{{ __('Reason: :reason', ['reason' => \App\Support\BlockedCreatorsPass::label(\App\Support\BlockedCreatorsPass::REASON)]) }} &middot; <a href="{{ route('admin.users.index', ['status' => 'banned']) }}">{{ __('Show all blocked members') }}</a></div>
+        @endif
+        @php($banReasons = \App\Support\BlockedCreatorsPass::reasons($users->getCollection()))
         {!! form(FormBuilder::create(UserFiltersForm::class)) !!}
 
         {{-- Bulk Actions Bar --}}
@@ -128,6 +134,9 @@
                                     <div class="badge bg-danger">
                                         Banned {{$user->banned_at->diffForHumans()}}
                                     </div>
+                                    @if(isset($banReasons[$user->id]))
+                                        <small class="text-muted">{{ $banReasons[$user->id] }}</small>
+                                    @endif
                                 @endif
                                 @if($user->is_premium)
                                     <div class="badge bg-warning">{{__('Premium')}}</div>

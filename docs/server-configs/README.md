@@ -45,7 +45,9 @@ Three nginx panels still need steps in this layout:
   and a dump in `public/` is handed out).
 * HestiaCP (custom document root `public`): no nginx file. Take `gz`, `tgz` and
   `tar` out of the domain's *Proxy Extensions*, so that a dump in `public/` goes to
-  Apache, which refuses it, instead of nginx, which hands it out.
+  Apache, which refuses it, instead of nginx, which hands it out; and `txt`, if it
+  is there, so that `robots.txt` is answered by Apache with the five minutes
+  `public/.htaccess` gives it.
 * Plesk (document root `httpdocs/public`): no nginx file. If *Serve static files
   directly by nginx* is on (Apache & nginx Settings), take `gz`, `tgz` and `tar` out
   of its list, for the same reason. Not tried on a real Plesk (an emulation of its
@@ -75,7 +77,7 @@ there without manual edits on Apache and LiteSpeed, and with one include on ngin
 | aaPanel | nginx | Put the include in `/www/server/panel/vhost/nginx/extension/<domain>/avdbcms.conf` (every `*.conf` there is loaded; leave the URL-rewrite box empty) or in the site's URL-rewrite box, then reload nginx from the panel. Never together with `nginx-aapanel-rewrite.conf` or the laravel5 preset (that file is for the Running directory `/public` only): `nginx -t` refuses the pair. |
 | aaPanel | Apache / OpenLiteSpeed | Nothing: the shipped `.htaccess` is enough. OpenLiteSpeed caches `.htaccess`, so run `/usr/local/lsws/bin/lswsctrl restart` after replacing it. |
 | CloudPanel | nginx (frontend :443 + backend :8080) | The include goes into the **second** server block only (`listen 8080`, above its PHP location); the first block gets [nginx-cloudpanel-front.conf](nginx-cloudpanel-front.conf) **above** the panel's `location ~* ^.+\.(css\|js\|jpg\|...)$` block. Never the include in the first block: its rewrites to `/index.php` reach PHP as `/index.php` through the proxy (every admin page and every video stored on the server showed the home page). Save in the panel's Vhost editor (it runs `nginx -t` and reloads). |
-| HestiaCP | nginx in front of Apache | Not this include (its `location /` duplicates Hestia's, `nginx -t` refuses it): save [nginx-hestia-project-root.conf](nginx-hestia-project-root.conf) as `/home/<user>/conf/web/<domain>/nginx.conf_avdbcms` **and** `nginx.ssl.conf_avdbcms`, and take `gz`, `tgz` and `tar` out of the domain's *Proxy Extensions*. Hestia loads every `nginx.conf_*` / `nginx.ssl.conf_*` file in that folder, so never leave backup copies there. Better: a custom document root on `public` (layout A). |
+| HestiaCP | nginx in front of Apache | Not this include (its `location /` duplicates Hestia's, `nginx -t` refuses it): save [nginx-hestia-project-root.conf](nginx-hestia-project-root.conf) as `/home/<user>/conf/web/<domain>/nginx.conf_avdbcms` **and** `nginx.ssl.conf_avdbcms`, and take `gz`, `tgz` and `tar` (and `txt`, if it is there: `robots.txt` is then Apache's, with its five-minute life) out of the domain's *Proxy Extensions*. Hestia loads every `nginx.conf_*` / `nginx.ssl.conf_*` file in that folder, so never leave backup copies there. Better: a custom document root on `public` (layout A). |
 | CyberPanel | OpenLiteSpeed | Nothing beyond `.htaccess`; restart OpenLiteSpeed after changing it. |
 | 1Panel | OpenResty in Docker | Save the include in the site folder (`/opt/1panel/www/sites/<site>/avdbcms.conf`, seen by the container as `/www/sites/<site>/avdbcms.conf`), reference it from `/opt/1panel/www/conf.d/<site>.conf`, then `docker exec <openresty-container> nginx -t` and `nginx -s reload`. Use container paths inside the include. |
 | Virtualmin | Apache | Nothing beyond `.htaccess`; the default `+SymLinksIfOwnerMatch` works because `public/storage` belongs to the site user. |
@@ -216,6 +218,10 @@ Must return 200:
 * `/build/manifest.json`
 * `/vendor/umami/script.js`
 * `/storage/<any uploaded file>`
+* `/robots.txt` with `Cache-Control: max-age=300` (nginx: the `location = /robots.txt` of every file above; Apache
+  and LiteSpeed: `public/.htaccess`), so that a CDN such as Cloudflare hands out a changed `robots.txt` within
+  minutes instead of its default two hours. HestiaCP: keep `txt` out of the domain's *Proxy Extensions* (Apache
+  answers the file then).
 
 Must not return 200:
 

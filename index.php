@@ -407,11 +407,15 @@ if ($uri !== '/' && !$neverStatic && !str_ends_with($uriLower, '.php') && preg_m
         header('Content-Type: ' . $mime);
         header('Content-Length: ' . filesize($realFile));
 
-        // Cache: uploaded public-disk files for a day, build assets for 30 days
+        // Cache: uploaded public-disk files for a day, build assets for 30 days; robots.txt (written by the site when
+        // its SEO settings are saved) five minutes, as its route and public/.htaccess give it, so a change reaches
+        // crawlers through a CDN within minutes (without a Cache-Control a CDN keeps a 200 for hours).
         if (str_starts_with($uriLower, '/storage/')) {
             header('Cache-Control: public, max-age=86400');
         } elseif (in_array($ext, ['css', 'js', 'mjs', 'png', 'jpg', 'jpeg', 'gif', 'svg', 'ico', 'webp', 'avif', 'woff', 'woff2', 'ttf', 'eot'], true)) {
             header('Cache-Control: public, max-age=2592000, immutable');
+        } elseif ($uriLower === '/robots.txt') {
+            header('Cache-Control: public, max-age=300');
         }
 
         readfile($realFile);

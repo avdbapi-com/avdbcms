@@ -61,6 +61,10 @@ class ForwardedHeadersTrustTest extends TestCase
 
         Route::setRoutes($routes);
         $this->siteLikeAWebRequest();
+
+        // The sign-up confirmation links these tests open exist only while new members must confirm their email (off on
+        // a new site since the 1.2.3 refresh: a member counts as confirmed otherwise), so after the site's settings.
+        config(['site.email_verification_required' => true]);
     }
 
     protected function tearDown(): void

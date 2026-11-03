@@ -186,6 +186,30 @@ PHP;
         $this->assertSame('body{color:#123}', $this->askServer('root-root', '/build/app.css')['body']);
     }
 
+    /**
+     * 1.2.3 refresh (the robots.txt edge lag of the nginx nodes): the project folder's index.php sends robots.txt (the
+     * file the site writes when its SEO settings are saved) with the five-minute life its route and public/.htaccess
+     * give it, at a domain's root and in a folder, as /robots.txt and as /index.php/robots.txt. Without a Cache-Control
+     * a CDN kept the old text for its default hours. The other static files keep their lives (a built asset a month, an
+     * uploaded file a day).
+     */
+    public function test_the_project_folders_index_php_sends_robots_txt_with_a_five_minute_life(): void
+    {
+        foreach (['root-root' => '', 'root-folder' => '/site'] as $server => $folder) {
+            foreach ([$folder.'/robots.txt', $folder.'/index.php/robots.txt'] as $request) {
+                $answer = $this->askServer($server, $request);
+
+                $this->assertSame(200, $answer['status'], $request);
+                $this->assertStringStartsWith('text/plain', $answer['type'], $request);
+                $this->assertSame("User-agent: *\nAllow: /\n", $answer['body'], $request);
+                $this->assertSame('public, max-age=300', $answer['cache'], $request.': five minutes, as the route');
+            }
+
+            $this->assertSame('public, max-age=2592000, immutable', $this->askServer($server, $folder.'/build/app.css')['cache'], $server.': a built asset');
+            $this->assertSame('public, max-age=86400', $this->askServer($server, $folder.'/storage/notes/hello.txt')['cache'], $server.': an uploaded file');
+        }
+    }
+
     public static function tearDownAfterClass(): void
     {
         foreach (self::$servers as $server) {
@@ -209,7 +233,7 @@ PHP;
         parent::tearDownAfterClass();
     }
 
-    /** @return array{status: int, location: string, type: string, body: string} */
+    /** @return array{status: int, location: string, type: string, cache: string, body: string} */
     private function askServer(string $server, string $path): array
     {
         $port = $this->server($server);
@@ -234,8 +258,9 @@ PHP;
         preg_match('#^HTTP/\S+\s+(\d{3})#', $head, $status);
         preg_match('#^Location:\s*(.*?)\r?$#mi', $head, $location);
         preg_match('#^Content-Type:\s*(.*?)\r?$#mi', $head, $type);
+        preg_match('#^Cache-Control:\s*(.*?)\r?$#mi', $head, $cache);
 
-        return ['status' => (int) ($status[1] ?? 0), 'location' => trim((string) ($location[1] ?? '')), 'type' => trim((string) ($type[1] ?? '')), 'body' => $body];
+        return ['status' => (int) ($status[1] ?? 0), 'location' => trim((string) ($location[1] ?? '')), 'type' => trim((string) ($type[1] ?? '')), 'cache' => trim((string) ($cache[1] ?? '')), 'body' => $body];
     }
 
     /** The port of the named test server, started on first use. */
@@ -266,6 +291,7 @@ PHP;
             copy(app_path('Support/SiteAddress.php'), $project.'/app/Support/SiteAddress.php');
             file_put_contents($project.'/public/index.php', self::STUB);
             file_put_contents($project.'/public/build/app.css', 'body{color:#123}');
+            file_put_contents($project.'/public/robots.txt', "User-agent: *\nAllow: /\n");
             file_put_contents($project.'/storage/app/public/notes/hello.txt', 'hello from the public disk');
             file_put_contents($project.'/config/app.php', '<?php return [];');
             file_put_contents($project.'/routes/web.php', '<?php');

@@ -99,6 +99,27 @@ class ServerConfigsTest extends TestCase
         $this->assertStringContainsString('location ~* '.AaPanelRewrite::DUMPS.' { return 404; }', (string) $this->block($config, 'location ^~ /storage/ {'), $name);
     }
 
+    /**
+     * 1.2.3 refresh (N1-ROBOTS-01 on the nginx demo sites, verifier WEB-V1-02): nginx's own answer for the written
+     * robots.txt carried no Cache-Control, so Cloudflare kept it for its default two hours after every change the site
+     * made from Settings > Google & sharing. Every nginx config of the package (and the rules the site writes for aaPanel)
+     * now gives the file the five minutes its route and public/.htaccess give it, and hands a missing file to the site,
+     * whose route answers the same text. An exact location: it wins over a panel's own static-file rules.
+     */
+    #[DataProvider('nginxConfigs')]
+    public function test_every_nginx_config_gives_robots_txt_five_minutes_and_hands_a_missing_file_to_the_site(string $name): void
+    {
+        $config = preg_replace('/#[^\n]*/', '', self::nginx($name));
+
+        $this->assertMatchesRegularExpression('#location = /robots\.txt \{\s*try_files \$uri /index\.php\?\$query_string;\s*expires 5m;#', $config, $name);
+        $this->assertSame(1, substr_count($config, 'location = /robots.txt'), $name.': one robots.txt location');
+
+        if (str_contains($config, 'location ~ \.php$')) {
+            // A whole server block: the file's five minutes never reach the PHP answer, which carries its own Cache-Control.
+            $this->assertLessThan(strpos($config, 'location ~ \.php$'), strpos($config, 'location = /robots.txt'), $name);
+        }
+    }
+
     #[DataProvider('nginxConfigs')]
     public function test_every_nginx_config_is_balanced(string $name): void
     {

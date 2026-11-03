@@ -73,9 +73,12 @@ class SeoController extends Controller
                 }
             }
 
+            // The channel pages are offered in the languages whose page is its own canonical: the default language only
+            // (VideoLanguages::channelCanonicalIn(); 1.2.3 refresh, CLF-SEO-01: every language's profile sitemap listed
+            // every channel while each of those pages named the default-language page as its canonical).
             $profileLastmod = $this->latestProfileUpdatedAt();
             $profilePages = $this->profileSitemapPageCount();
-            foreach ($locales as $locale) {
+            foreach (VideoLanguages::channelCanonicalIn() as $locale) {
                 for ($page = 1; $page <= $profilePages; $page++) {
                     $items[] = [
                         'loc' => $this->baseUrl() . '/sitemap-profiles-' . $locale . '-' . $page . '.xml',
@@ -227,8 +230,12 @@ class SeoController extends Controller
         $locale = $this->requestedLocale() ?: $this->defaultLocale();
         $page = $this->requestedPage();
         $limit = $this->sitemapLimit();
-        $activeLocales = $this->activeLocales();
-        $userIds = $this->profileSitemapUserIds($page, $limit);
+        // The languages whose channel page is its own canonical (VideoLanguages::channelCanonicalIn(): the default
+        // language only; 1.2.3 refresh, CLF-SEO-01): the channels are listed there, each with that page as its one
+        // alternate; another language's profile sitemap lists nothing (the index names none; a page in that language
+        // names the default-language page as its canonical), like a video sitemap of a language with no such page.
+        $channelLocales = VideoLanguages::channelCanonicalIn();
+        $userIds = in_array($locale, $channelLocales, true) ? $this->profileSitemapUserIds($page, $limit) : [];
 
         $users = User::query()
             ->select(['id', 'username', 'slug', 'profile_uid', 'updated_at'])
@@ -250,7 +257,7 @@ class SeoController extends Controller
             $xml .= $this->urlNode(
                 $this->localizedAbsoluteUrl($path, $locale),
                 $user->updated_at,
-                $this->alternateUrlsForPath($path, $activeLocales)
+                $this->alternateUrlsForPath($path, $channelLocales)
             );
         }
 
@@ -564,22 +571,12 @@ class SeoController extends Controller
      */
     private function videoLocales(Video $video, array $activeLocales, ?array $translatedIn = null): array
     {
-        if ($video->avdb_id) {
-            // 1.2.3 round 3 (R3-017, the decision of 29 Oct): only the languages its page is indexable in (English, the
-            // default language, its translations: App\Support\VideoLanguages, the rule of the watch page's hreflang links
-            // and noindex header): a sitemap and its language alternates never offer a page that is not to be indexed
-            return VideoLanguages::indexableIn($video, $activeLocales, $translatedIn);
-        }
-
-        if ($video->language && in_array($video->language, $activeLocales, true)) {
-            return [$video->language];
-        }
-
-        if ($video->language) {
-            return [$this->defaultLocale()];
-        }
-
-        return $activeLocales;
+        // The languages whose page names itself as its canonical (App\Support\VideoLanguages::canonicalIn(), the rule
+        // of the watch page's canonical and hreflang links): an AVDBAPI import where its page is indexable (1.2.3 round
+        // 3 R3-017: English, the default language, its translations; round 4 R3M-01: that page is its own canonical),
+        // every other video in the default language only (1.2.3 refresh, CLF-SEO-01: its page in another language
+        // names the default-language page, so every other language's sitemap offered pages that canonicalize away).
+        return VideoLanguages::canonicalIn($video, $activeLocales, $translatedIn);
     }
 
     private function videoSitemapRelations(string $locale): array
@@ -612,21 +609,17 @@ class SeoController extends Controller
      */
     private function videosIndexableInLocale(string $locale): bool
     {
-        if ($locale === 'en' || $locale === config('app.fallback_locale', 'en')) {
+        // The same videos as videosVisibleInLocaleQuery($locale) (VideoLanguages::constrainCanonical()): every video in
+        // the default language; in another language the AVDBAPI imports whose page is indexable there (1.2.3 refresh,
+        // CLF-SEO-01: a member's upload or another source's import is listed in the default language only, where its
+        // page is its own canonical).
+        if ($locale === $this->defaultLocale()) {
             return $this->fastActiveVideoTableQuery()->exists();
         }
 
-        $own = $this->fastActiveVideoTableQuery()
-            ->where(function (\Illuminate\Database\Query\Builder $query): void {
-                $query->whereNull('videos.avdb_id')->orWhere('videos.avdb_id', 0);
-            })
-            ->where(function (\Illuminate\Database\Query\Builder $query) use ($locale): void {
-                $query->where('videos.language', $locale)->orWhereNull('videos.language');
-            })
-            ->exists();
-
-        if ($own) {
-            return true;
+        if (! VideoLanguages::needsTranslation($locale)) {
+            // English on a site whose default language is another one: an import's English page needs no translation
+            return $this->fastActiveVideoTableQuery()->where('videos.avdb_id', '>', 0)->exists();
         }
 
         return $this->applyFastActiveVideoFilters(
@@ -639,28 +632,17 @@ class SeoController extends Controller
 
     private function applyVideoLocaleVisibility(Builder $query, ?string $locale = null): Builder
     {
-        if (!$locale || $locale === 'en' || $locale === config('app.fallback_locale', 'en')) {
+        if (!$locale) {
             return $query;
         }
 
-        // 1.2.3 round 3 (R3-017, the decision of 29 Oct): an AVDBAPI video only where its page is indexable, with its
-        // translation of the language (App\Support\VideoLanguages): the index lists no sitemap of a language where no
-        // page is, and a sitemap no page that answers noindex
-        VideoLanguages::constrainIndexable($query, $locale);
+        // The videos whose page in this language is its own canonical (App\Support\VideoLanguages::constrainCanonical():
+        // every video in the default language; elsewhere an AVDBAPI import where its page is indexable, 1.2.3 round 3
+        // R3-017 and the decision of 29 Oct): the index lists no sitemap of a language where no such page is, and a
+        // sitemap no page that answers noindex or names another page as its canonical (1.2.3 refresh, CLF-SEO-01).
+        VideoLanguages::constrainCanonical($query, $locale);
 
-        // the AVDBAPI number 0 is no import (the watch page, videoLocales()): its own language, as a member's upload
-        return $query->where(function (Builder $outer) use ($locale) {
-            $outer->where(function (Builder $avdb) {
-                $avdb->where('avdb_id', '>', 0);
-            })
-                ->orWhere(function (Builder $native) use ($locale) {
-                    $native->where(fn (Builder $none) => $none->whereNull('avdb_id')->orWhere('avdb_id', 0))
-                        ->where(function (Builder $language) use ($locale) {
-                            $language->where('language', $locale)
-                                ->orWhereNull('language');
-                        });
-                });
-        });
+        return $query;
     }
 
     private function fastActiveVideoEloquentQuery(): Builder

@@ -29,7 +29,7 @@ use Throwable;
  *
  *   start      admin's password checked by the controller; pre-checks; the plan (plan.json)
  *   downloading  the .sha256 asset, then the zip in slices (Downloader)
- *   verifying  SHA-256 (+ the API digest), the zip's entries (ZipEntries), its manifest: version, PHP, min_from
+ *   verifying  SHA-256 in pieces, kept once it matches (+ the API digest), the zip's entries (ZipEntries), its manifest
  *   unpacking  into storage/app/updates/<version>/staging, every file checked against the manifest (Unpacker)
  *   backing-up the database into Tools > Backups (backup_before_update_<to>_...sql.gz), in steps (DatabaseBackup)
  *   preparing  the live files hashed and compared (SwapPlanner), the file backup folder and backup.json, write test,
@@ -116,6 +116,9 @@ final class Updater
 
     /** Tests: the seconds of work of one request of Finish (null: BUDGET). */
     public static ?float $finishSeconds = null;
+
+    /** Tests: the seconds of work of one request of a pre-swap step (null: budget()). */
+    public static ?float $stepSeconds = null;
 
     /** Step logs of finished updates and undos kept in storage/app/updates/logs. */
     private const KEEP_LOGS = 10;
@@ -375,12 +378,12 @@ final class Updater
                 return $this->answer($plan, $this->secrets);
             }
 
-            $deadline = microtime(true) + $this->budget();
+            $deadline = microtime(true) + (self::$stepSeconds ?? $this->budget());
 
             try {
                 $plan = match ($plan['status']) {
                     'checking', 'downloading' => $this->download($plan, $deadline),
-                    'verifying' => $this->verify($plan),
+                    'verifying' => $this->verify($plan, $deadline),
                     'unpacking' => $this->unpack($plan, $deadline),
                     'backing-up' => $this->backUp($plan, $deadline, $admin),
                     'preparing' => ($plan['kind'] ?? 'update') === 'undo' ? $this->prepareUndo($plan, $deadline) : $this->prepare($plan, $deadline),
@@ -817,7 +820,10 @@ final class Updater
             'checking', 'downloading' => ! empty($plan['download']['total'])
                 ? __('Downloading: :done of :total', ['done' => self::size($plan['download']['done'] ?? 0), 'total' => self::size($plan['download']['total'])])
                 : __('Downloading: :done', ['done' => self::size($plan['download']['done'] ?? 0)]),
-            'verifying' => __('Checking the download...'),
+            // The hash of the zip, read in pieces across requests where it has to be (verify()); its listing has no count.
+            'verifying' => ! empty($plan['hashing']['size'])
+                ? __('Checking the download: :done of :total', ['done' => self::size($plan['hashing']['done'] ?? 0), 'total' => self::size($plan['hashing']['size'])])
+                : __('Checking the download...'),
             'unpacking' => __('Unpacking: :done of :total files', ['done' => number_format((int) ($plan['unpack']['next'] ?? 0)), 'total' => number_format((int) ($plan['unpack']['total'] ?? 0))]),
             // The answer of the last unpack step says backing-up before the backup has listed its tables.
             'backing-up' => count((array) ($plan['db']['tables'] ?? [])) === 0 ? __('Backing up the database...') : __('Backing up the database: table :done of :total', [
@@ -929,6 +935,7 @@ final class Updater
     {
         return match ($plan['status'] ?? '') {
             'checking', 'downloading' => ['done' => (int) ($plan['download']['done'] ?? 0), 'total' => (int) ($plan['download']['total'] ?? 0)],
+            'verifying' => ! empty($plan['hashing']['size']) ? ['done' => (int) ($plan['hashing']['done'] ?? 0), 'total' => (int) $plan['hashing']['size']] : null,
             'unpacking' => ['done' => (int) ($plan['unpack']['next'] ?? 0), 'total' => (int) ($plan['unpack']['total'] ?? 0)],
             'backing-up' => count((array) ($plan['db']['tables'] ?? [])) > 0 ? ['done' => (int) ($plan['db']['table'] ?? 0), 'total' => count((array) $plan['db']['tables'])] : null,
             'preparing' => isset($plan['prepare']['total']) ? ['done' => (int) $plan['prepare']['done'], 'total' => (int) $plan['prepare']['total']] : null,
@@ -993,12 +1000,24 @@ final class Updater
         return $plan;
     }
 
-    private function verify(array $plan): array
+    /**
+     * The zip's SHA-256 against the .sha256 asset (and the API digest), then its listing against its manifest. Before
+     * 1.2.3 both happened in one request with nothing saved, and on a slow disk with a 30 s host limit (RP4-01: the
+     * hash of a 62 MB zip alone took 25-30 s, the listing of a phar:// open on a host without the zip extension a few
+     * seconds more) every killed request hashed the whole zip from the first byte again, so verify could never finish.
+     * Now the hash is read in pieces (Checksum::piece) with the progress kept in plan.json 'hashing' after each piece
+     * and stops at the step's deadline like the download does, so a request the host kills loses one piece at most;
+     * and once the hash matches it is kept in 'verified' with the zip's size and mtime, so a request cut off in the
+     * listing goes straight back to the listing. This helps updates FROM 1.2.3 on: an update from an older release
+     * runs that release's verify (pre-swap code).
+     */
+    private function verify(array $plan, float $deadline): array
     {
         $job = $this->job($plan);
         $zip = $job.'/'.self::zipName($plan);
 
         if (! is_file($zip)) {
+            unset($plan['verified'], $plan['hashing']);
             $plan['status'] = 'downloading';
             $plan['download'] = ['done' => 0, 'total' => $plan['release']['zip']['size'] ?? null, 'slice' => Downloader::FIRST_SLICE];
 
@@ -1009,17 +1028,57 @@ final class Updater
             $plan['checksum'] = $this->downloader->checksum((array) $plan['release']);
         }
 
-        $actual = Checksum::file($zip);
+        clearstatcache(true, $zip);
+        $size = (int) @filesize($zip);
+        $mtime = (int) @filemtime($zip);
+        $kept = is_array($plan['verified'] ?? null) ? $plan['verified'] : null;
         $digest = $plan['release']['zip']['digest'] ?? null;
 
-        if (! Checksum::matches((string) $plan['checksum'], $actual) || ($digest !== null && ! Checksum::matches((string) $digest, $actual))) {
-            @unlink($zip);
+        if ($kept !== null && ($kept['size'] ?? null) === $size && ($kept['mtime'] ?? null) === $mtime && is_string($kept['sha256'] ?? null)) {
+            // The same file as the kept hash was read from: a retry after a request the host cut off in the listing.
+            $actual = (string) $kept['sha256'];
+            unset($plan['hashing']);
+            $this->log($plan, 'verify', 'SHA-256 kept from the earlier try, not read again');
+        } else {
+            $hashing = is_array($plan['hashing'] ?? null) ? $plan['hashing'] : null;
 
-            throw new UpdateException(__('The download is damaged (its SHA-256 does not match). Nothing on your site was changed. Try again.'), 'verify', false,
-                'sha256 mismatch'.($digest !== null && Checksum::matches((string) $plan['checksum'], $actual) ? ' (the API digest)' : ''));
+            if ($hashing === null || ($hashing['size'] ?? null) !== $size || ($hashing['mtime'] ?? null) !== $mtime) {
+                $this->log($plan, 'verify', 'reading the SHA-256 of '.self::size($size));
+            }
+
+            do {
+                $hashing = Checksum::piece($zip, $hashing);
+                $plan['hashing'] = $hashing;
+                $plan['step_at'] = time();
+                $this->store->put($plan);
+            } while (! isset($hashing['sha256']) && microtime(true) < $deadline);
+
+            if (! isset($hashing['sha256'])) {
+                $this->log($plan, 'verify', 'hashed '.self::size($hashing['done']).' of '.self::size($hashing['size']).', the next request goes on');
+
+                return $plan;
+            }
+
+            $actual = (string) $hashing['sha256'];
+            $size = (int) $hashing['size'];
+            $mtime = (int) $hashing['mtime'];
+            unset($plan['hashing']);
+
+            if (! Checksum::matches((string) $plan['checksum'], $actual) || ($digest !== null && ! Checksum::matches((string) $digest, $actual))) {
+                @unlink($zip);
+                unset($plan['verified']);
+                $this->store->put($plan);
+
+                throw new UpdateException(__('The download is damaged (its SHA-256 does not match). Nothing on your site was changed. Try again.'), 'verify', false,
+                    'sha256 mismatch'.($digest !== null && Checksum::matches((string) $plan['checksum'], $actual) ? ' (the API digest)' : ''));
+            }
+
+            // Kept before the zip's listing is read, so a retry the host cuts off there skips the hash.
+            $plan['verified'] = ['sha256' => $actual, 'size' => $size, 'mtime' => $mtime];
+            $this->store->put($plan);
+            $this->log($plan, 'verify', 'SHA-256 matches the .sha256 file'.($digest !== null ? ' and the API digest' : ''));
         }
 
-        $this->log($plan, 'verify', 'SHA-256 matches the .sha256 file'.($digest !== null ? ' and the API digest' : ''));
         $guard = ZipEntries::guard(ZipEntries::read($zip));
         $manifest = (new Unpacker($zip, (string) $plan['engine']))->manifest();
 
@@ -3319,17 +3378,41 @@ final class Updater
         @file_put_contents($job.'/update.log', date('Y-m-d H:i:s')."\t".$step."\t".str_replace(["\r", "\n", "\t"], ' ', $message)."\n", FILE_APPEND | LOCK_EX);
     }
 
-    /** Seconds of work in this request: BUDGET, less where PHP stops scripts sooner. */
+    /**
+     * Seconds of work in this request: BUDGET, but stopping 8 s before PHP's own time limit would end the request, with
+     * the time this request already spent before the step began counted in (JUDGE-1). budget() used to subtract 8 s from
+     * the whole max_execution_time without that boot time, so a step could run past the limit where PHP cannot raise it
+     * (one auto-retried 500 during an Undo in the e2e). TimeBudget::phpLimitEnds() knows when the limit ends from the
+     * request's start, or from raise() where the host let PHP push it out.
+     */
     private function budget(): float
     {
-        $limit = (int) ini_get('max_execution_time');
-
+        // Push PHP's limit out where the host allows it (TimeBudget::raise records when its clock started anew, so
+        // phpLimitEnds() below reflects the new end; where the host forbids it, the request's start still counts).
         if (function_exists('set_time_limit')) {
-            @set_time_limit(120);
-            $limit = (int) ini_get('max_execution_time');
+            TimeBudget::raise(120);
         }
 
-        return $limit > 0 ? max(3.0, min(self::BUDGET, $limit - 8)) : self::BUDGET;
+        $now = microtime(true);
+
+        // A floor so each request still gets some work done (as before), even when little time is left.
+        return max(3.0, self::stepDeadline($now, TimeBudget::phpLimitEnds($now)) - $now);
+    }
+
+    /**
+     * The deadline (microtime) of one pre-swap step: at most BUDGET from $now, and never nearer than 8 s to when PHP's
+     * own time limit would end the request ($phpLimitEnds, microtime; null: none PHP can tell). The boot time is already
+     * in $phpLimitEnds, so a step that starts late stops early enough (JUDGE-1). budget() keeps its own floor.
+     */
+    public static function stepDeadline(float $now, ?float $phpLimitEnds): float
+    {
+        $deadline = $now + self::BUDGET;
+
+        if ($phpLimitEnds !== null) {
+            $deadline = min($deadline, $phpLimitEnds - 8.0);
+        }
+
+        return $deadline;
     }
 
     /**

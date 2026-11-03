@@ -7,6 +7,7 @@ use Carbon\CarbonInterface;
 use NumberFormatter;
 use Throwable;
 use App\Support\Intl;
+use App\Support\LocalNumber;
 
 /**
  * Numbers and dates on studio pages (member design section 7, perf-19).
@@ -39,7 +40,13 @@ final class StudioFormat
             }
         }
 
-        return number_format($value, $decimals, '.', ',');
+        // Without intl: the member's language's separators (App\Support\LocalNumber, the CLDR table the short counts
+        // use: "1.234.567,5" in German, "1 234 567,5" in French) and, as intl writes it, no decimals that are zeros
+        // (1.2.3 refresh: the fallback wrote every language's figures the English way).
+        [$point, $thousands] = LocalNumber::separators();
+        $out = number_format($value, $decimals, $point, $thousands);
+
+        return $decimals > 0 && str_contains($out, $point) ? rtrim(rtrim($out, '0'), $point) : $out;
     }
 
     /** "96%" (a whole percentage of a part of a total; null when the total is 0). */

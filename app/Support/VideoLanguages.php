@@ -33,8 +33,10 @@ use Illuminate\Support\Facades\DB;
 final class VideoLanguages
 {
     /**
-     * The request attribute with the languages a watch page is indexable in (an AVDBAPI import's only): the layout prints
-     * its hreflang links for those (App\Http\Controllers\VideoController::showVideo()).
+     * The request attribute with the languages whose page a page's hreflang links name (the pages that are their own
+     * canonical): the layout prints its hreflang links for those only. The watch page sets it to canonicalIn()
+     * (App\Http\Controllers\VideoController::showVideo()), the channel page to channelCanonicalIn()
+     * (App\Http\Controllers\UserController::show()).
      */
     public const HREFLANG = 'video.languages';
 
@@ -154,6 +156,69 @@ final class VideoLanguages
 
         return array_values(array_filter($locales, fn (string $locale): bool => ! self::needsTranslation($locale)
             || in_array($locale, $translatedIn, true)));
+    }
+
+    /**
+     * The languages of $locales in which this video's watch page names ITSELF as its canonical (1.2.3 refresh,
+     * CLF-SEO-01), in the order given: an AVDBAPI import in the languages it is indexable in (round 4 R3M-01: an
+     * import's translated page is its own canonical); every other video (a member's upload, another source's import,
+     * whatever its own language) in the site's default language only, as its page in every language names the
+     * default-language page (videos/show.blade.php, as in 1.2.2). The video sitemaps list a video in these languages
+     * only and the hreflang links of its page name these pages only: a sitemap or an alternate never offers a page
+     * that points search engines elsewhere (every language's sitemap listed every member upload with 18 alternates
+     * while each of those pages canonicalized to the default-language page).
+     *
+     * @param  list<string>  $locales
+     * @param  list<string>|null  $translatedIn  as for indexableIn()
+     * @return list<string>
+     */
+    public static function canonicalIn(Video $video, array $locales, ?array $translatedIn = null): array
+    {
+        if (self::translated($video)) {
+            return self::indexableIn($video, $locales, $translatedIn);
+        }
+
+        $default = self::defaultLocale();
+
+        return in_array($default, $locales, true) ? [$default] : [];
+    }
+
+    /**
+     * Keeps the rows of $table whose watch page in this language is its own canonical: the same rule as canonicalIn(),
+     * as conditions of the caller's one query. The default language keeps every video; another language keeps the
+     * AVDBAPI imports whose page is indexable there (constrainIndexable(): English needs no translation, any other
+     * language its stored one).
+     */
+    public static function constrainCanonical(EloquentBuilder|QueryBuilder $query, string $locale, string $table = 'videos'): void
+    {
+        if ($locale === self::defaultLocale()) {
+            return;
+        }
+
+        $query->where($table.'.avdb_id', '>', 0);
+        self::constrainIndexable($query, $locale, $table);
+    }
+
+    /**
+     * The languages in which a channel page (/@name, App\Http\Controllers\UserController::show()) names ITSELF as its
+     * canonical: the site's default language only (users/show.blade.php names $user->route, the default-language
+     * address, in every language, as in 1.2.2), the same rule as canonicalIn() gives a video without translations. The
+     * profile sitemaps list a channel in these languages only (App\Http\Controllers\SeoController::profilesSitemap(),
+     * and the index names no profile sitemap of another language) and the channel page's hreflang links name these
+     * pages only (1.2.3 refresh, CLF-SEO-01: every language's profile sitemap listed every channel with 18 alternates
+     * while each of those pages named the default-language page as its canonical).
+     *
+     * @return list<string>
+     */
+    public static function channelCanonicalIn(): array
+    {
+        return [self::defaultLocale()];
+    }
+
+    /** The site's default language (Settings > Languages), whose pages carry no language in their address. */
+    public static function defaultLocale(): string
+    {
+        return (string) config('site.default_locale', config('app.locale', 'en'));
     }
 
     /**

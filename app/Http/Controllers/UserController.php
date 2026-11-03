@@ -9,6 +9,7 @@ use App\Support\AvdbCreatorAvatarFactory;
 use App\Support\FeedAdSlots;
 use App\Support\LocalNumber;
 use App\Support\SafeCursor;
+use App\Support\VideoLanguages;
 use App\Support\WatchHistory;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
@@ -106,6 +107,11 @@ class UserController
         ])->loadSum([
             'videos as videos_views_count' => fn ($query) => $query->active()->forLocale(),
         ], 'views');
+
+        // The page's language links name the pages that are their own canonical: the default-language page only, which
+        // this page names as its canonical in every language (users/show.blade.php; the same rule as a member's upload,
+        // VideoLanguages::channelCanonicalIn(); 1.2.3 refresh, CLF-SEO-01), as the profile sitemaps list it.
+        $request->attributes->set(VideoLanguages::HREFLANG, VideoLanguages::channelCanonicalIn());
 
         return view('users.show', [
             'user' => $user,

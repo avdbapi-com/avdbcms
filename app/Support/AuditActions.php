@@ -38,6 +38,8 @@ final class AuditActions
         'update.premium_page_texts' => 'Update: Premium page texts corrected',
         // the videos, tags and categories with words that are always blocked (App\Support\BlockedWordsPass)
         'update.blocked_words' => 'Update: videos with blocked words hidden',
+        // the importer-made creator channels with such words, blocked with their videos (App\Support\BlockedCreatorsPass)
+        'update.blocked_creators' => 'Update: imported creator channels with blocked words blocked',
         // Money > Payment setup.
         'money.payment_key.saved' => 'Payment key saved',
         'money.payment_key.removed' => 'Payment key removed',

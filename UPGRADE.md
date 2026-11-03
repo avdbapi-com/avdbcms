@@ -462,6 +462,40 @@ aaPanel's URL rewrite box are written again by the site. Compare your copy with 
   show the home page). **HestiaCP**: the new `docs/server-configs/nginx-hestia-project-root.conf` replaces
   `nginx-project-root.conf` as `nginx.conf_avdbcms` (Nginx refuses the old file there). The steps:
   [COMMUNITY_SETUP_GUIDE.md](COMMUNITY_SETUP_GUIDE.md), Panel 4 and Panel 5.
+- The refresh of 1.2.3 (3 Nov 2026) adds to every Nginx file of the package, and to the rules the site writes into
+  aaPanel's URL rewrite box, a `location = /robots.txt { try_files $uri /index.php?$query_string; expires 5m; }`
+  block (`nginx-cloudpanel-front.conf`: `try_files $uri @avdbcms_app;`). Nginx sent `robots.txt` (the file the site
+  writes from **Settings › Google & sharing**) without a `Cache-Control` header, so a CDN kept it for its default time
+  (Cloudflare: two hours) after every change; with the block it lives five minutes, as the site's own answer says, and
+  a missing file is answered by the site. Copy the block into your copy of the rules, next to `location /` (aaPanel
+  sites whose rules the site wrote get it by themselves). HestiaCP: no block (Apache answers `robots.txt` there
+  through `public/.htaccess`); keep `txt` out of the domain's **Proxy Extensions**. Then purge
+  `https://your-domain/robots.txt` once at the CDN.
+
+## The `public/.htaccess` file of Apache and LiteSpeed sites
+
+The refresh of 1.2.3 (3 Nov 2026) changes `public/.htaccess`: its browser-cache rules (`mod_expires`) now cover the
+static files only (styles, scripts, fonts, pictures). Before, `ExpiresDefault "access plus 2 days"` gave every other
+answer without an `Expires` header of its own — the pages made for one visitor, `robots.txt` and the sitemaps — a
+second `Cache-Control` line and a two-day life in a CDN such as Cloudflare: a `robots.txt` the site had just written
+reached crawlers up to two days later. `robots.txt` as a file now lives five minutes, as its own route says.
+
+A `public/.htaccess` that is exactly as a release shipped it gets the new file with the update. If you changed that
+file, the one-click update keeps your copy and saves the new one next to it as `.htaccess.avdbcms-1.2.3` (the table
+above); copy these two changes into yours:
+
+1. In the `<IfModule mod_expires.c>` block, delete the line `ExpiresDefault "access plus 2 days"`. Keep the
+   `ExpiresByType` lines (the new file adds `ExpiresByType image/avif "access plus 1 month"`).
+2. In the `<IfModule mod_headers.c>` block, add:
+
+   ```apache
+   <Files "robots.txt">
+       Header set Cache-Control "public, max-age=300"
+   </Files>
+   ```
+
+A site behind Cloudflare: purge `https://your-domain/robots.txt` once after the update (**Caching › Configuration ›
+Purge by URL**), so the edge forgets the copy it kept for two days.
 
 ## If something goes wrong
 

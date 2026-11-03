@@ -190,11 +190,16 @@ return new class extends Migration
         return $removed;
     }
 
+    /**
+     * One Admin actions row each time the files are actually removed. removeFrom() only returns them when they were there
+     * and are gone now, so a Finish that runs this twice (the migration, then removeLeftovers()) writes one row; but after
+     * "Undo this update" put the files back and the update is run again, removing them again writes its own row, as the
+     * unused-pictures migration does (J2-P1: the dump and the Docker files used to stay silent on that second removal).
+     */
     private function audit(string $details): void
     {
         try {
-            if (Schema::hasTable('admin_audit_logs')
-                && ! DB::table('admin_audit_logs')->where('action', self::AUDIT_ACTION)->where('details', $details)->exists()) {
+            if (Schema::hasTable('admin_audit_logs')) {
                 DB::table('admin_audit_logs')->insert([
                     'user_id' => null,
                     'action' => self::AUDIT_ACTION,

@@ -31,4 +31,16 @@ class UserFilters extends MySQLFilter
                 $query->scopes('active');
             }));
     }
+
+    /**
+     * ?reason=blocked-words: the importer-made creator channels the refresh of 1.2.3 blocked because their names or
+     * descriptions use words that are always blocked (App\Support\BlockedCreatorsPass; Home's "Needs you" links to
+     * them). Any other value changes nothing.
+     */
+    public function reason(string $reason): Builder
+    {
+        return $reason === \App\Support\BlockedCreatorsPass::FILTER
+            ? \App\Support\BlockedCreatorsPass::constrain($this->builder)
+            : $this->builder;
+    }
 }

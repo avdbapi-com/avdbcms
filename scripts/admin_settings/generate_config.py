@@ -175,6 +175,17 @@ MOVED_CARDS = [
 # value)}. The spec stays as it was reviewed; apply_setting_fixes() puts the new value in before the config and the
 # Ctrl+K rows are built, and stops when the spec holds neither value (the spec was edited: check the fix again).
 SETTING_FIXES = {
+    # 1.2.3 refresh (RI4-P1, owner's zero-config rule): "Ask new members to confirm their email" starts OFF, the same as
+    # the bundled example.sql and the migration insert, so a site whose email is not set up yet never leaves new members
+    # unable to upload or comment. The help tells the owner to turn it on once Settings > Email can send mail. A site that
+    # already stored a value keeps it (the migration only inserts on a fresh install; this default is for new installs).
+    "email_verification_required": {
+        "default": ("'1'", "'0'"),
+        "help": (
+            "New members must click a link in an email before they can upload or comment. Needs working email.",
+            "New members must click a link in an email before they can upload or comment. It starts off; turn it on once your site can send email (Settings > Email > Send a test email), or new members get stuck.",
+        ),
+    },
     # 1.2.3 member redesign (member design 6.19, QA channel-11): a channel's accent follows the look until the creator
     # picks one. New installs start with the look colour; a site that has "coral" stored keeps it (never rewritten).
     "channel_default_accent": {

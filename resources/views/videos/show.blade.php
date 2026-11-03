@@ -18,9 +18,11 @@
     $metaValue = fn ($value) => in_array(mb_strtolower(trim((string) $value)), ['', 'updating', 'unknown', 'n/a', 'na', 'none', 'null', '-', '--', '---', '----'], true) ? null : trim((string) $value);
     $videoAvdbCode = $metaValue($video->avdb_code) ?: ($video->avdb_id ? $video->original_file_name : null);
     $videoCode = $metaValue($video->xvid_code) ?: ($videoAvdbCode ?: ($video->isImported ? $video->original_file_name : null));
-    $videoActor = $metaValue($video->xvid_actor) ?: $metaValue($video->avdb_actor);
-    $videoDirector = $metaValue($video->avdb_director);
-    $videoAuthor = $metaValue($video->xvid_author) ?: $metaValue($video->avdb_writer);
+    // 1.2.3 refresh 2: an actor, director or studio named with a word that is always blocked is never shown either (not in
+    // the rows, their search links or the page's description; App\Support\ContentSafety::visibleNames)
+    $videoActor = \App\Support\ContentSafety::visibleNames($metaValue($video->xvid_actor) ?: $metaValue($video->avdb_actor));
+    $videoDirector = \App\Support\ContentSafety::visibleNames($metaValue($video->avdb_director));
+    $videoAuthor = \App\Support\ContentSafety::visibleNames($metaValue($video->xvid_author) ?: $metaValue($video->avdb_writer));
     $videoQuality = trim((string) $video->xvid_quality);
     $videoDuration = trim((string) $video->duration);
     // The video's internal id (UUID) is not a fact for viewers (watch-42): it is in the page's address already.

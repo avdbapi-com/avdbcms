@@ -179,6 +179,20 @@ class ImportAvdbVideos extends Command
 
     private int $blocked = 0;
 
+    /**
+     * 1.2.3 refresh 2 (N2-SAFE-01): the directors and actors of this run whose name uses a word that is always blocked
+     * (by their creator key: whether the run log has said so already, which it does only once a new video went to the
+     * administrator's account because of it), how many imported videos went there instead of a creator channel because
+     * of that, and whether the last creator resolved for a new video was such a one.
+     *
+     * @var array<string, bool>
+     */
+    private array $blockedCreatorKeys = [];
+
+    private int $creatorBlocked = 0;
+
+    private bool $lastCreatorBlocked = false;
+
     /** @var array<int, string>|null the titles of the local categories the AVDB categories map to */
     private ?array $localCategoryTitles = null;
 
@@ -1081,6 +1095,9 @@ class ImportAvdbVideos extends Command
             }
 
             $this->imported++;
+            if ($this->lastCreatorBlocked) {
+                $this->creatorBlocked++;
+            }
 
             return true;
         } catch (\Throwable $e) {
@@ -1123,6 +1140,9 @@ class ImportAvdbVideos extends Command
         $this->lastDurationBackfillImportedCount = $this->lastDurationBackfillStartedAt = 0;
         $this->safety = null;
         $this->blocked = 0;
+        $this->blockedCreatorKeys = [];
+        $this->creatorBlocked = 0;
+        $this->lastCreatorBlocked = false;
         $this->localCategoryTitles = null;
     }
 
@@ -1488,16 +1508,18 @@ class ImportAvdbVideos extends Command
 
     private function avdbCreatorUserIdForNewVideo(array $item, int $catId, Carbon $publishedAt): int
     {
+        $this->lastCreatorBlocked = false;
+
         if (! $this->creatorAssignmentEnabled) {
             return $this->fallbackImportUserId();
         }
 
-        $candidate = $this->avdbCreatorCandidateFromItem($item);
+        $candidate = $this->avdbCreatorCandidateFromItem($item, true);
         if ($candidate === null) {
             return $this->fallbackImportUserId();
         }
 
-        return $this->firstOrCreateAvdbCreator($candidate, $item, $catId, $publishedAt)?->id
+        return $this->firstOrCreateAvdbCreator($candidate, $item, $catId, $publishedAt, true)?->id
             ?? $this->fallbackImportUserId();
     }
 
@@ -1577,21 +1599,82 @@ class ImportAvdbVideos extends Command
         return AvdbCreatorAvatarFactory::needsRepair($user);
     }
 
-    private function avdbCreatorCandidateFromItem(array $item): ?array
+    /**
+     * @param  bool  $forNewVideo  resolved for a video being imported (the only case the run log and the run's message
+     *                             report a director or actor without a channel; an existing video keeps its creator
+     *                             whatever its item says, so a re-run over existing videos says nothing)
+     */
+    private function avdbCreatorCandidateFromItem(array $item, bool $forNewVideo = false): ?array
     {
+        $candidate = null;
         $director = $this->firstCreatorName($item['director'] ?? '');
         if ($director !== null) {
-            return $this->avdbCreatorCandidate('director', $director);
-        }
-
-        $actor = $this->firstCreatorName($item['actor'] ?? '');
-        if ($actor !== null) {
-            return $this->avdbCreatorCandidate('actor', $actor);
+            $candidate = $this->avdbCreatorCandidate('director', $director);
+        } else {
+            $actor = $this->firstCreatorName($item['actor'] ?? '');
+            if ($actor !== null) {
+                $candidate = $this->avdbCreatorCandidate('actor', $actor);
+            }
         }
 
         // Tags are content labels, not reliable creator identities. Falling
         // back to tags produced fake channels such as numeric codes.
-        return null;
+
+        // 1.2.3 refresh 2 (N2-SAFE-01): a director or actor whose name uses a word that is always blocked never gets a
+        // creator channel (a new video goes to the administrator's account; an existing video keeps its creator).
+        if ($candidate !== null && $this->creatorIsBlocked($candidate, $forNewVideo)) {
+            return null;
+        }
+
+        return $candidate;
+    }
+
+    /**
+     * Whether this director or actor may not have a creator channel: their name (or the handle it gives) uses a word
+     * that is always blocked. Noted for the run (the name is not checked again); said in the run log, never with the
+     * word, once a new video goes to the administrator's account because of it ($forNewVideo) and only once per name.
+     *
+     * @param  array{source: string, name: string, key: string}  $candidate
+     */
+    private function creatorIsBlocked(array $candidate, bool $forNewVideo = false): bool
+    {
+        $key = (string) $candidate['key'];
+
+        if (! isset($this->blockedCreatorKeys[$key])) {
+            if (ContentSafety::hardMatchAny([(string) $candidate['name'], Str::slug((string) $candidate['name'])]) === null) {
+                return false;
+            }
+
+            $this->blockedCreatorKeys[$key] = false;
+        }
+
+        if ($forNewVideo) {
+            $this->noteBlockedCreator($key);
+        }
+
+        return true;
+    }
+
+    /**
+     * A new video goes to the administrator's account because its director or actor may not have a channel: counted
+     * for the video, and said in the run log the first time in this run for that name; see creatorIsBlocked().
+     */
+    private function noteBlockedCreator(string $key): void
+    {
+        $this->lastCreatorBlocked = true;
+
+        if (($this->blockedCreatorKeys[$key] ?? false) === true) {
+            return;
+        }
+
+        $this->blockedCreatorKeys[$key] = true;
+        $this->write('No creator channel for a director or actor whose name uses blocked words: their videos go to the administrator\'s account.');
+    }
+
+    /** "3 videos imported without a creator channel: blocked words in the director or actor name." (the run log) */
+    private function creatorBlockedLine(int $count): string
+    {
+        return $this->counted($count, 'video').' imported without a creator channel: blocked words in the director or actor name.';
     }
 
     private function firstCreatorName(mixed $value): ?string
@@ -1653,7 +1736,11 @@ class ImportAvdbVideos extends Command
         return Str::limit($name, 100, '');
     }
 
-    private function firstOrCreateAvdbCreator(array $candidate, array $item, int $catId, Carbon $publishedAt): ?User
+    /**
+     * @param  bool  $forNewVideo  for a video being imported: a director or actor refused a channel here is then said
+     *                             in the run log and counted (see creatorIsBlocked(); an existing video keeps its creator)
+     */
+    private function firstOrCreateAvdbCreator(array $candidate, array $item, int $catId, Carbon $publishedAt, bool $forNewVideo = false): ?User
     {
         $key = (string) $candidate['key'];
         $this->lastAvdbCreatorProfileChanged = false;
@@ -1666,6 +1753,18 @@ class ImportAvdbVideos extends Command
             $user = $this->findExistingAvdbCreator($key, $email);
 
             if ($user) {
+                // 1.2.3 refresh 2 (N2-SAFE-01): a channel made before this check whose stored name or description uses
+                // a word that is always blocked is not reused (nor restored or refreshed): the video goes to the
+                // administrator's account.
+                if (ContentSafety::hardMatchAny([$user->username, $user->description, $user->getAttribute('avdb_creator_name')]) !== null) {
+                    $this->blockedCreatorKeys[$key] ??= false;
+                    if ($forNewVideo) {
+                        $this->noteBlockedCreator($key);
+                    }
+
+                    return null;
+                }
+
                 if ($user->trashed()) {
                     $user->restore();
                 }
@@ -1679,6 +1778,17 @@ class ImportAvdbVideos extends Command
             $createdAt = $this->avdbCreatorCreatedAt($key, $publishedAt);
             $username = $this->uniqueAvdbCreatorUsername((string) $candidate['name'], $key);
             $slug = $this->uniqueAvdbCreatorSlug($username, $key);
+            $description = $this->avdbCreatorDescription($candidate, $item, $catId);
+
+            // ... and no channel is made whose handle or description would use such a word (N2-SAFE-01).
+            if (ContentSafety::hardMatchAny([$username, $slug, $description]) !== null) {
+                $this->blockedCreatorKeys[$key] ??= false;
+                if ($forNewVideo) {
+                    $this->noteBlockedCreator($key);
+                }
+
+                return null;
+            }
 
             $attributes = [
                 'username' => $username,
@@ -1686,7 +1796,7 @@ class ImportAvdbVideos extends Command
                 'email' => $email,
                 'password' => Str::random(48),
                 'email_verified_at' => $createdAt,
-                'description' => $this->avdbCreatorDescription($candidate, $item, $catId),
+                'description' => $description,
                 'avatar' => AvdbCreatorAvatarFactory::ensure($candidate),
                 'country' => $this->countryCodeFromItem($item),
                 'website' => null,
@@ -3698,6 +3808,7 @@ class ImportAvdbVideos extends Command
             'thumbs_downloaded' => $this->thumbsDownloaded,
             'tags_created' => $this->tagsCreated,
             'blocked' => $this->blocked,
+            'creator_blocked' => $this->creatorBlocked,
         ];
     }
 
@@ -4071,9 +4182,14 @@ class ImportAvdbVideos extends Command
             SeoSitemapCache::clear();
         }
 
-        // 1.2.3: the run's message names what blocked words kept out ("Skipped 3 videos: blocked words.").
+        // 1.2.3: the run's message names what blocked words kept out ("Skipped 3 videos: blocked words."), and the
+        // videos that got no creator channel because of them (refresh 2, N2-SAFE-01).
         if ($this->blocked > 0) {
             $message .= ' '.$this->blockedLine($this->blocked);
+        }
+
+        if ($this->creatorBlocked > 0) {
+            $message .= ' '.$this->creatorBlockedLine($this->creatorBlocked);
         }
 
         if ($this->run && $this->run->started_at) {
@@ -4236,6 +4352,7 @@ class ImportAvdbVideos extends Command
         $this->thumbsDownloaded = (int) ($snapshot['thumbs_downloaded'] ?? $this->thumbsDownloaded);
         $this->tagsCreated = (int) ($snapshot['tags_created'] ?? $this->tagsCreated);
         $this->blocked = (int) ($snapshot['blocked'] ?? $this->blocked);
+        $this->creatorBlocked = (int) ($snapshot['creator_blocked'] ?? $this->creatorBlocked);
     }
 
     private function isTransientDatabaseError(QueryException $e): bool
@@ -4288,6 +4405,7 @@ class ImportAvdbVideos extends Command
         $this->info("Updated:   {$this->updated}");
         $this->info("Skipped:   {$this->skipped}");
         $this->info("Blocked:   {$this->blocked} (blocked words, counted in Skipped)");
+        $this->info("NoChannel: {$this->creatorBlocked} (blocked words in the creator name, counted in Imported)");
         $this->info("LangSkip:  {$this->langSkipped}");
         $this->info("Failed:    {$this->failed}");
         $this->info("Thumbs:    {$this->thumbsDownloaded}");

@@ -28,6 +28,10 @@
         ];
         $impersonate = AdminNav::url(['route' => 'admin.impersonate', 'params' => ['id' => '__ID__']]);
         $me = auth()->id();
+        // 1.2.3 refresh (N2-SAFE-01): why a blocked member of this page is blocked, when the block has a stored reason
+        // (the importer-made creator channels the update blocked for blocked words, App\Support\BlockedCreatorsPass).
+        $reasonFilter = request()->query('reason') === \App\Support\BlockedCreatorsPass::FILTER;
+        $banReasons = \App\Support\BlockedCreatorsPass::reasons($users->getCollection());
     @endphp
 
     <x-admin.page-header page="members.all"
@@ -42,6 +46,10 @@
                 </form>
             @endunless
         </x-slot:actions>
+        @if ($reasonFilter)
+            <p class="ad-small ad-note"><x-admin.status type="danger">{{ __('Reason: :reason', ['reason' => \App\Support\BlockedCreatorsPass::label(\App\Support\BlockedCreatorsPass::REASON)]) }}</x-admin.status>
+                <a href="{{ route('admin.users.index', ['status' => 'banned'], false) }}">{{ __('Show all blocked members') }}</a></p>
+        @endif
     </x-admin.page-header>
 
     <form id="ad-users-bulk" method="POST" action="{{ route('admin.bulk.users') }}" hidden>@csrf</form>
@@ -85,6 +93,9 @@
             <form method="GET" action="{{ route('admin.users.index') }}" class="ad-filter" role="search" aria-label="{{ __('Find members') }}">
                 @if ($status !== '')
                     <input type="hidden" name="status" value="{{ $status }}">
+                @endif
+                @if ($reasonFilter)
+                    <input type="hidden" name="reason" value="{{ \App\Support\BlockedCreatorsPass::FILTER }}">
                 @endif
                 <span class="ad-search-field">
                     {{ AdminTheme::icon('search', 'sm') }}
@@ -151,6 +162,9 @@
                 </td>
                 <td class="c-meta">
                     <x-admin.status :type="$tone">{{ $label }}</x-admin.status>
+                    @if ($state === 'banned' && isset($banReasons[$user->id]))
+                        <small class="ad-muted">{{ $banReasons[$user->id] }}</small>
+                    @endif
                     @if (ViewOnlyDemo::isViewOnlyUser($user))
                         <x-admin.status type="info" data-view-only-badge="1">{{ __('View-only') }}</x-admin.status>
                     @endif

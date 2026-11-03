@@ -57,11 +57,19 @@ class AdaptiveTrendingCollectionsService
             'lookback_days' => BoundedConfig::integer('site.trending_collections_lookback_days', self::DEFAULT_LOOKBACK_DAYS, self::MIN_LOOKBACK_DAYS, self::MAX_LOOKBACK_DAYS),
         ];
 
-        return DiscoverySnapshots::answer('actors', $params, self::CACHE_SECONDS, function () use ($params): array {
+        $actors = DiscoverySnapshots::answer('actors', $params, self::CACHE_SECONDS, function () use ($params): array {
             $since = now()->subDays($params['lookback_days']);
 
             return $this->viewWindow($since)['few'] ? [$this->exactCollections($params, $since), true] : [collect(), false];
         });
+
+        // 1.2.3 refresh 2: an actor named with a word that is always blocked is never offered (App\Support\ContentSafety;
+        // filtered after the answer was read, as the categories are, so a kept answer needs no new count)
+        return ($actors instanceof Collection ? $actors : collect($actors))
+            ->reject(fn ($row): bool => \App\Support\ContentSafety::hides(is_object($row)
+                ? (string) ($row->actor_name ?? '')
+                : (is_array($row) ? (string) ($row['actor_name'] ?? '') : '')))
+            ->values();
     }
 
     /**

@@ -158,6 +158,14 @@ class ImportXvidVideos extends Command
     /** 1.2.3: the blocked words of this run (App\Support\ContentSafety), and how many items they kept out. */
     private ?ContentSafety $safety = null;
     private int $blocked = 0;
+    /**
+     * 1.2.3 refresh 2 (N2-SAFE-01): the studios and actors of this run whose name uses a word that is always blocked
+     * (by their creator cache key), how many imported videos went to the administrator's account instead of a creator
+     * channel because of that, and whether the last creator resolved was such a one.
+     */
+    private array $blockedCreatorKeys = [];
+    private int $creatorBlocked = 0;
+    private bool $lastCreatorBlocked = false;
 
     public function handle(): int
     {
@@ -528,6 +536,9 @@ class ImportXvidVideos extends Command
             }
 
             $this->imported++;
+            if ($this->lastCreatorBlocked) {
+                $this->creatorBlocked++;
+            }
             return true;
         } catch (\Throwable $e) {
             $this->failed++;
@@ -596,6 +607,9 @@ class ImportXvidVideos extends Command
         $this->fallbackImportUserId = null;
         $this->safety = null;
         $this->blocked = 0;
+        $this->blockedCreatorKeys = [];
+        $this->creatorBlocked = 0;
+        $this->lastCreatorBlocked = false;
     }
 
     /**
@@ -711,6 +725,7 @@ class ImportXvidVideos extends Command
     {
         $creatorName = null;
         $source = 'creator';
+        $this->lastCreatorBlocked = false;
 
         if ($author !== '' && ! in_array(strtolower($author), ['updating', 'unknown', 'n/a', 'none'], true)) {
             $creatorName = $author;
@@ -728,12 +743,31 @@ class ImportXvidVideos extends Command
         }
 
         $cacheKey = $source . ':' . Str::slug($creatorName);
+        if (isset($this->blockedCreatorKeys[$cacheKey])) {
+            $this->lastCreatorBlocked = true;
+
+            return $this->fallbackImportUserId();
+        }
+
         if (isset($this->xvidCreatorUserCache[$cacheKey])) {
             return $this->xvidCreatorUserCache[$cacheKey];
         }
 
+        // 1.2.3 refresh 2 (N2-SAFE-01): a studio or actor whose name uses a word that is always blocked (or whose
+        // channel's handle or description would) never gets a creator channel: the video goes to the administrator's
+        // account instead. The run log says so once per name, never with the word.
+        $description = "Official creator channel for {$creatorName}.";
+        if (ContentSafety::hardMatchAny([$creatorName, Str::slug($creatorName), $description]) !== null) {
+            return $this->withoutCreatorChannel($cacheKey);
+        }
+
         $email = 'creator.' . substr(hash('sha1', $cacheKey), 0, 16) . '@xvidapi.local';
         $user = User::where('email', $email)->first();
+
+        // ... and a channel made before this check whose stored name or description uses such a word is not reused.
+        if ($user && ContentSafety::hardMatchAny([$user->username, $user->description]) !== null) {
+            return $this->withoutCreatorChannel($cacheKey);
+        }
 
         if (! $user) {
             $username = Str::slug($creatorName);
@@ -749,7 +783,7 @@ class ImportXvidVideos extends Command
                 'email_verified_at' => $publishedAt,
                 'created_at' => $publishedAt,
                 'updated_at' => $publishedAt,
-                'description' => "Official creator channel for {$creatorName}.",
+                'description' => $description,
             ]);
 
             $avatarCandidate = [
@@ -765,6 +799,25 @@ class ImportXvidVideos extends Command
 
         $this->xvidCreatorUserCache[$cacheKey] = (int) $user->id;
         return (int) $user->id;
+    }
+
+    /**
+     * The administrator's account for a video whose studio or actor may not have a creator channel (blocked words,
+     * N2-SAFE-01): noted for the run (the name is not looked up again) and said once in the run log.
+     */
+    private function withoutCreatorChannel(string $cacheKey): int
+    {
+        $this->blockedCreatorKeys[$cacheKey] = true;
+        $this->lastCreatorBlocked = true;
+        $this->write('No creator channel for a studio or actor whose name uses blocked words: its videos go to the administrator\'s account.');
+
+        return $this->fallbackImportUserId();
+    }
+
+    /** "3 videos imported without a creator channel: blocked words in the studio or actor name." (the run log) */
+    private function creatorBlockedLine(int $count): string
+    {
+        return $count.' '.($count === 1 ? 'video' : 'videos').' imported without a creator channel: blocked words in the studio or actor name.';
     }
 
     private function fallbackImportUserId(): int
@@ -1431,9 +1484,14 @@ class ImportXvidVideos extends Command
             return;
         }
 
-        // 1.2.3: the run's message names what blocked words kept out ("Skipped 3 videos: blocked words.").
+        // 1.2.3: the run's message names what blocked words kept out ("Skipped 3 videos: blocked words."), and the
+        // videos that got no creator channel because of them (refresh 2, N2-SAFE-01).
         if ($this->blocked > 0) {
             $message .= ' '.$this->blockedLine($this->blocked);
+        }
+
+        if ($this->creatorBlocked > 0) {
+            $message .= ' '.$this->creatorBlockedLine($this->creatorBlocked);
         }
 
         $this->run->forceFill([
@@ -1474,6 +1532,7 @@ class ImportXvidVideos extends Command
             ['Updated', $this->updated],
             ['Skipped (Duplicate)', $this->skipped - $this->blocked],
             ['Skipped (Blocked words)', $this->blocked],
+            ['Without creator channel (Blocked words)', $this->creatorBlocked],
             ['Failed', $this->failed],
             ['Tags Created', $this->tagsCreated],
             ['Tag Translations Added', $this->tagTranslationsCreated],

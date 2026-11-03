@@ -23,9 +23,12 @@ return new class extends Migration
                     'updated_at' => now(),
                 ]);
         } else {
+            // RI4-P1 (owner's zero-config rule): a fresh install in migrations+seeders mode starts with email
+            // confirmation OFF, the same as the bundled example.sql, so a site whose email is not set up yet never
+            // leaves new members unable to upload or comment. The admin turns it on once Settings > Email can send mail.
             DB::table('settings')->insert([
                 'key' => 'email_verification_required',
-                'value' => '1',
+                'value' => '0',
                 'group' => 'users',
                 'created_at' => now(),
                 'updated_at' => now(),

@@ -96,12 +96,14 @@ class UntranslatedImportPageTest extends TestCase
             $this->assertSame(['en', 'fr', 'x-default'], $this->hreflangs($html), $locale);
         }
 
-        // a member's upload and an import of another source are indexable in every language: no noindex in German either
+        // a member's upload and an import of another source are indexable in every language: no noindex in German either.
+        // Their hreflang links name the default-language page only (1.2.3 refresh, CLF-SEO-01: the page in every language
+        // names that page as its canonical, so no other page is offered as an alternate).
         foreach ([$this->video('QA member upload'), $this->video('QA other source import', ['xvid_id' => 4242])] as $video) {
             $page = $this->page($video, 'de');
             $this->assertSame(200, $page->getStatusCode(), $video->title);
             $this->assertNull($page->headers->get('X-Robots-Tag'), $video->title);
-            $this->assertCount(count(config('languages')) + 1, $this->hreflangs((string) $page->getContent()), $video->title.': every language');
+            $this->assertSame(['en', 'x-default'], $this->hreflangs((string) $page->getContent()), $video->title.': the default-language page only');
         }
 
         // a signed-in member gets the same page and the same header
@@ -293,6 +295,22 @@ class UntranslatedImportPageTest extends TestCase
         sort($indexableIn);
         $this->assertSame(['en', 'fr'], $indexableIn);
         $this->assertSame($languages, VideoLanguages::indexableIn($upload, $languages));
+
+        // the third rule (1.2.3 refresh, CLF-SEO-01): where a page names itself as its canonical, the sitemaps' and the
+        // hreflang links' rule: an import where it is indexable, any other video in the default language only
+        $canonicalIn = VideoLanguages::canonicalIn($import, $languages, $read);
+        sort($canonicalIn);
+        $this->assertSame(['en', 'fr'], $canonicalIn, 'an import: its indexable pages');
+        $this->assertSame(['en'], VideoLanguages::canonicalIn($upload, $languages), 'a member\'s upload in Japanese: the default language only');
+        $this->assertSame(['en'], VideoLanguages::canonicalIn($zero, $languages), 'the number 0: as a member\'s upload');
+        $this->assertSame(['en'], VideoLanguages::canonicalIn($upload, ['en', 'ja']), 'in the order given, the default language first or not');
+        $this->assertSame([], VideoLanguages::canonicalIn($upload, ['ja', 'fr']), 'without the default language: nowhere');
+
+        foreach (['en' => [$import->id, $upload->id, $zero->id], 'fr' => [$import->id], 'de' => [], 'ja' => []] as $locale => $ids) {
+            $query = DB::table('videos')->whereIn('videos.id', [$import->id, $upload->id, $zero->id]);
+            VideoLanguages::constrainCanonical($query, $locale);
+            $this->assertSame($ids, $query->orderBy('videos.id')->pluck('videos.id')->map(fn ($id): int => (int) $id)->all(), $locale.': the query form of canonicalIn()');
+        }
 
         // the query form keeps exactly the indexable rows
         foreach (['de' => [$upload->id, $zero->id], 'fr' => [$import->id, $upload->id, $zero->id]] as $locale => $ids) {

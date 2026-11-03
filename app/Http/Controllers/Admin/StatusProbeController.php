@@ -425,12 +425,20 @@ class StatusProbeController
     {
         $path = CronController::findPhpBinary();
         $usable = PhpBinary::usable($path);
+        // Which build was chosen (CLF-SCHED-01): a real command-line build is preferred; a non-CLI build (LiteSpeed's
+        // lsphp) is a last choice that still works, and the detail says so (its output starts with the shebang line).
+        $sapi = $usable ? PhpBinary::sapiOf($path) : null;
+        $nonCli = $usable && $sapi !== null && $sapi !== 'cli';
 
         return [
             'status' => $usable ? 'ok' : 'warn',
             'label' => $usable ? __('PHP can run background work') : __('PHP cannot run background work'),
-            'detail' => $usable ? null : __('Runs that start a PHP process (scheduled tasks, imports) fall back to slower ways; the host may block them.'),
-            'data' => ['path' => $path, 'usable' => $usable],
+            'detail' => match (true) {
+                ! $usable => __('Runs that start a PHP process (scheduled tasks, imports) fall back to slower ways; the host may block them.'),
+                $nonCli => __('Using a non-command-line PHP build (:sapi); a command-line (CLI) build is preferred for scheduled tasks and the queue worker.', ['sapi' => $sapi]),
+                default => null,
+            },
+            'data' => ['path' => $path, 'usable' => $usable, 'sapi' => $sapi],
         ];
     }
 

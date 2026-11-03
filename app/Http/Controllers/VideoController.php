@@ -72,9 +72,10 @@ class VideoController extends Controller
         // page in another language answers "noindex, follow" (the header below; the layout's robots meta says the same)
         $translatedIn = \App\Support\VideoLanguages::languagesOf($video); // one query, for an AVDBAPI import only
 
-        if ($translatedIn !== null) {
-            request()->attributes->set(\App\Support\VideoLanguages::HREFLANG, \App\Support\VideoLanguages::indexableIn($video, array_keys(config('languages', [])), $translatedIn));
-        }
+        // The hreflang links name the pages that are their own canonical (VideoLanguages::canonicalIn(), the rule of the
+        // sitemaps): an import's indexable pages; any other video's default-language page only (1.2.3 refresh,
+        // CLF-SEO-01: its page in every language names the default-language page, which the links offered as 18 pages).
+        request()->attributes->set(\App\Support\VideoLanguages::HREFLANG, \App\Support\VideoLanguages::canonicalIn($video, array_keys(config('languages', [])), $translatedIn));
 
         $robots = \App\Support\VideoLanguages::robots($video, app()->getLocale(), $translatedIn);
 

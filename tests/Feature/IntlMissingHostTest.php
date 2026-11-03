@@ -49,12 +49,88 @@ class IntlMissingHostTest extends TestCase
         Intl::$forced = false;
         $this->assertFalse(Intl::available());
 
-        foreach (['app/Support/BillingFormat.php', 'app/Support/LocalNumber.php', 'app/Support/NumberFormat.php',
-            'app/Support/SiteDate.php', 'app/Support/Studio/StudioFormat.php', 'app/Support/Studio/ZoneLabel.php'] as $file) {
-            $source = (string) file_get_contents(base_path($file));
+        // every PHP file and view of the site (1.2.3 refresh: the six formatters were listed by name; a guard added
+        // anywhere else went unseen), App\Support\Intl itself aside (its comment names the wrong test)
+        $scanned = 0;
+
+        foreach ($this->sourceFiles() as $file) {
+            $source = (string) file_get_contents($file);
+            $scanned++;
             $this->assertDoesNotMatchRegularExpression('/class_exists\(\s*\\\\?(NumberFormatter|IntlDateFormatter)::class/',
-                $source, $file.' must not take the polyfill class for the intl extension');
+                $source, str_replace(base_path().DIRECTORY_SEPARATOR, '', $file).' must not take the polyfill class for the intl extension (ask App\Support\Intl::available())');
         }
+
+        $this->assertGreaterThan(500, $scanned, 'app/ and resources/views were scanned');
+    }
+
+    /**
+     * The studio's figures without intl: the member's language's separators (App\Support\LocalNumber's table), and no
+     * decimals that are zeros, as intl writes them (1.2.3 refresh: "1,234,567" in every language).
+     */
+    public function test_the_studio_figures_use_the_languages_separators_without_intl(): void
+    {
+        $expected = [
+            'en' => ['1,234,567', '12.5', '12', '1,234,567.5'],
+            'ar' => ['1,234,567', '12.5', '12', '1,234,567.5'],
+            'de' => ['1.234.567', '12,5', '12', '1.234.567,5'],
+            'es' => ['1.234.567', '12,5', '12', '1.234.567,5'],
+            'fr' => ["1\u{202F}234\u{202F}567", '12,5', '12', "1\u{202F}234\u{202F}567,5"],
+            'id' => ['1.234.567', '12,5', '12', '1.234.567,5'],
+            'ja' => ['1,234,567', '12.5', '12', '1,234,567.5'],
+            'pt' => ['1.234.567', '12,5', '12', '1.234.567,5'],
+            'ru' => ["1\u{00A0}234\u{00A0}567", '12,5', '12', "1\u{00A0}234\u{00A0}567,5"],
+            'tr' => ['1.234.567', '12,5', '12', '1.234.567,5'],
+            'vi' => ['1.234.567', '12,5', '12', '1.234.567,5'],
+        ];
+
+        foreach ($expected as $locale => [$whole, $half, $zeros, $big]) {
+            app()->setLocale($locale);
+            $this->forgetCachedFormatters();
+
+            $this->assertSame($whole, StudioFormat::number(1234567), $locale);
+            $this->assertSame($half, StudioFormat::number(12.5, 1), $locale.': a decimal');
+            $this->assertSame($zeros, StudioFormat::number(12.0, 1), $locale.': no decimals that are zeros, as intl');
+            $this->assertSame($big, StudioFormat::number(1234567.5, 1), $locale.': both');
+            $this->assertSame('0', StudioFormat::number(null), $locale);
+            $this->assertSame(LocalNumber::format(1234567), StudioFormat::number(1234567), $locale.': the same separators as the short counts');
+            $this->assertStringContainsString($whole, StudioFormat::signedHtml(1234567), $locale);
+        }
+
+        // with intl on this machine, the fallback writes what intl writes (the languages whose grouping intl starts at
+        // four digits; Spanish groups from five)
+        if (! extension_loaded('intl')) {
+            $this->markTestIncomplete('intl is not loaded here: the fallback was compared with its table only');
+        }
+
+        foreach (array_keys($expected) as $locale) {
+            app()->setLocale($locale);
+            Intl::$forced = true;
+            $this->forgetCachedFormatters();
+            $withIntl = [StudioFormat::number(1234567), StudioFormat::number(12.5, 1), StudioFormat::number(12.0, 1), StudioFormat::number(1234567.5, 1)];
+            Intl::$forced = false;
+            $this->forgetCachedFormatters();
+            $without = [StudioFormat::number(1234567), StudioFormat::number(12.5, 1), StudioFormat::number(12.0, 1), StudioFormat::number(1234567.5, 1)];
+
+            $this->assertSame($withIntl, $without, $locale.': without intl as with it');
+        }
+    }
+
+    /** @return list<string> every .php file under app/ and resources/views, App\Support\Intl aside */
+    private function sourceFiles(): array
+    {
+        $files = [];
+
+        foreach ([app_path(), resource_path('views')] as $root) {
+            foreach (new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($root, \FilesystemIterator::SKIP_DOTS)) as $item) {
+                if ($item->isFile() && str_ends_with($item->getFilename(), '.php') && $item->getPathname() !== app_path('Support'.DIRECTORY_SEPARATOR.'Intl.php')) {
+                    $files[] = $item->getPathname();
+                }
+            }
+        }
+
+        sort($files);
+
+        return $files;
     }
 
     public function test_numbers_and_dates_are_written_without_intl_in_every_language(): void

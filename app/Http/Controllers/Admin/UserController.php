@@ -193,12 +193,21 @@ class UserController
             'banned_at' => null
         ]);
 
+        $message = __('Member unblocked');
+
         // a member who was not blocked: nothing changed, nothing is written (judge R2CD-RV-03)
         if ($user->wasChanged('banned_at')) {
             AuditLogController::log('member.unblocked', AuditDetails::member($user));
+
+            // 1.2.3 refresh (N2-SAFE-01): the videos the update banned with an importer-made channel come back with it
+            $videos = count(\App\Support\BlockedCreatorsPass::restoreVideos([(int) $user->id]));
+
+            if ($videos > 0) {
+                $message .= '. '.trans_choice('1 video the update had banned is back too.|:count videos the update had banned are back too.', $videos, ['count' => number_format($videos)]);
+            }
         }
 
-        return redirect()->to(url()->previous())->withSuccess(__('Member unblocked'));
+        return redirect()->to(url()->previous())->withSuccess($message);
     }
 
     public function toggleAdmin (User $user) : RedirectResponse {

@@ -9,6 +9,17 @@ final class PhpBinary
     /** What the version probe prints before PHP_VERSION_ID (versionId()): only the number after it is read. */
     private const VERSION_MARK = 'AVDB_PHP_VERSION_ID=';
 
+    /** What the SAPI probe prints before PHP_SAPI (sapi()): only the word after it is read (a PHP may print lines first). */
+    private const SAPI_MARK = 'AVDB_PHP_SAPI=';
+
+    /**
+     * Added to a real command-line build's score (candidateScore()): a CLI build is strongly preferred for the cron line,
+     * the site's own scheduler runs and the queue worker (CLF-SCHED-01). It dwarfs the memory and version terms, so any
+     * CLI build outranks any non-CLI one (LiteSpeed's lsphp, a CGI build), which stays usable as a last choice: artisan
+     * runs under it, only its output starts with the shebang line a cron line then logs.
+     */
+    private const CLI_SCORE = 1_000_000;
+
     /**
      * How long the answer of resolve() is kept (seconds). Working it out runs every candidate binary for its version and
      * extensions: about 1.6 s on Windows, on every visit of Content > Import videos (R3-077, 3.5-4.2 s a page). A kept
@@ -406,7 +417,10 @@ final class PhpBinary
             return $scores[$path];
         }
 
-        $score = self::memoryScore($path) * 1000;
+        // A real CLI build wins over any non-CLI one (lsphp, CGI): it is the right build for the cron line, the site's
+        // own scheduler runs and the queue worker, where a non-CLI build's output starts with the shebang line.
+        $score = self::sapi($path) === 'cli' ? self::CLI_SCORE : 0;
+        $score += self::memoryScore($path) * 1000;
         $versionId = self::versionId($path);
 
         if ($versionId !== null) {
@@ -558,6 +572,42 @@ final class PhpBinary
             $output = self::runCliSnippet($path, $code);
 
             return $output === null || trim($output) === '' ? ['v' => false, 'ttl' => self::NONE_SECONDS] : ['v' => str_contains($output, 'EXT_OK')];
+        });
+    }
+
+    /**
+     * The PHP_SAPI of the build at $path (lower case): 'cli' for a command-line build, 'litespeed' for LiteSpeed's lsphp,
+     * 'cgi-fcgi' for a CGI build, etc.; null when it could not be read. Kept like the version and extensions, by the
+     * file's size and time. Tools > Scheduled tasks and the "php" status probe show it so the owner sees which build runs
+     * the scheduler (CLF-SCHED-01).
+     */
+    public static function sapiOf(?string $path): ?string
+    {
+        $path = trim((string) $path);
+
+        return $path === '' ? null : self::sapi($path);
+    }
+
+    private static function sapi(string $path): ?string
+    {
+        // This very process's binary, run as the CLI it is: no probe needed (and no exec in a plain CLI run).
+        if ($path === (string) PHP_BINARY && PHP_SAPI === 'cli') {
+            return 'cli';
+        }
+
+        // kept until the binary changes, at most PROBE_SECONDS (like the version); a probe that could not run only
+        // NONE_SECONDS, an answer that is no SAPI (not a PHP binary) as long as resolve()'s own answer
+        return self::remembered('sapi', [self::signature($path)], self::probeSeconds($path), static function () use ($path): array {
+            // Behind a marker of its own, like the version: a PHP may print warning lines (OPcache ASLR on Windows) first.
+            $output = self::runCliSnippet($path, "echo '".self::SAPI_MARK."', PHP_SAPI;");
+
+            if ($output === null || trim($output) === '') {
+                return ['v' => null, 'ttl' => self::NONE_SECONDS];
+            }
+
+            return preg_match('/'.preg_quote(self::SAPI_MARK, '/').'([A-Za-z0-9_-]+)/', $output, $matches) === 1
+                ? ['v' => strtolower($matches[1])]
+                : ['v' => null, 'ttl' => self::RESOLVE_SECONDS];
         });
     }
 

@@ -966,7 +966,10 @@ class TranslationWordsRoundThreeTest extends TestCase
 
     public function test_the_preact_counts_use_arabic_and_russian_plural_forms(): void
     {
-        $this->assertTrue(class_exists(\MessageFormatter::class), 'ext-intl');
+        // the check needs ICU's plural rules (MessageFormatter): a host without intl skips it, the values stay in the files
+        if (! extension_loaded('intl') || ! class_exists(\MessageFormatter::class)) {
+            $this->markTestSkipped('ext-intl is not loaded: the plural forms are checked where it is');
+        }
         $say = function (string $locale, string $key, int $n): string {
             $value = (string) ($this->jsFile($locale)[$key] ?? '');
             // Latin digits, like the site's number formatting; the plural rules are the language's

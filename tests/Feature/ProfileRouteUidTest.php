@@ -155,8 +155,11 @@ class ProfileRouteUidTest extends TestCase
             ->assertSee($user->route, false);
     }
 
-    public function test_profile_sitemap_uses_requested_locale_url_and_hreflang_links(): void
+    public function test_profile_sitemap_lists_the_default_language_page_only_with_itself_as_the_one_alternate(): void
     {
+        // 1.2.3 refresh (CLF-SEO-01): a channel page names the default-language page as its canonical in every
+        // language, so it is listed in the default language's profile sitemap only, with that page as its one
+        // alternate; the Turkish profile sitemap lists nothing (up to 1.2.3 it listed /tr/@... with 18 alternates).
         $user = User::factory()->create([
             'slug' => 'localized-profile',
             'profile_uid' => 'b2c3d4e5',
@@ -171,12 +174,16 @@ class ProfileRouteUidTest extends TestCase
                 'avdb_id' => 987654,
             ]);
 
-        $this->get('/sitemap-profiles-tr-1.xml')
+        $this->get('/sitemap-profiles-en-1.xml')
             ->assertOk()
-            ->assertSee('<loc>' . url('/tr/@localized-profile-b2c3d4e5') . '</loc>', false)
-            ->assertSee('hreflang="tr"', false)
-            ->assertSee('href="' . url('/tr/@localized-profile-b2c3d4e5') . '"', false)
-            ->assertSee('hreflang="x-default"', false)
-            ->assertDontSee('<loc>' . $user->route . '</loc>', false);
+            ->assertSee('<loc>' . $user->route . '</loc>', false)
+            ->assertSee('hreflang="en" href="' . $user->route . '"', false)
+            ->assertSee('hreflang="x-default" href="' . $user->route . '"', false)
+            ->assertDontSee('hreflang="tr"', false)
+            ->assertDontSee(url('/tr/@localized-profile-b2c3d4e5'), false);
+
+        $turkish = $this->get('/sitemap-profiles-tr-1.xml')->assertOk();
+        $this->assertStringNotContainsString('<url>', (string) $turkish->getContent());
+        $this->assertStringNotContainsString('@localized-profile-b2c3d4e5', (string) $turkish->getContent());
     }
 }

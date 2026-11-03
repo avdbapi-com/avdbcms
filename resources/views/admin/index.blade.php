@@ -41,6 +41,23 @@
             </div>
         @endif
 
+        {{-- 1.2.3 refresh (N2-SAFE-01): the importer-made creator channels blocked for words that are always blocked
+             (App\Support\BlockedCreatorsPass), with their videos, as on the new admin's Home. --}}
+        @if (($blockedCreatorsHidden ?? 0) > 0)
+            <div class="alert alert-warning d-flex flex-wrap align-items-center gap-2" role="status" id="blocked-creators-notice">
+                <div class="flex-grow-1">
+                    <strong>{{ trans_choice('1 imported creator channel was blocked because its name or description uses blocked words|:count imported creator channels were blocked because their names or descriptions use blocked words', $blockedCreatorsHidden, ['count' => number_format($blockedCreatorsHidden)]) }}</strong>
+                    {{ __('They and their videos are banned, so visitors no longer see them. Review them and unblock any channel that was blocked by mistake.') }}
+                </div>
+                <a href="{{ route('admin.users.index', ['status' => 'banned', 'reason' => \App\Support\BlockedCreatorsPass::FILTER]) }}" class="btn btn-sm btn-warning">{{ __('Review') }}</a>
+                <form method="POST" action="{{ route('admin.home.dismiss') }}" class="m-0">
+                    @csrf
+                    <input type="hidden" name="notice" value="{{ \App\Support\BlockedCreatorsPass::NOTICE }}">
+                    <button type="submit" class="btn btn-sm btn-outline-secondary">{{ __('Hide this notice') }}</button>
+                </form>
+            </div>
+        @endif
+
         {{-- Quick Actions: on a phone the buttons go to the next line whole (they broke inside their words, R2A-056). --}}
         <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
             <h3 class="mb-0"><i class="fa-solid fa-chart-line me-2"></i>{{__('Dashboard')}}</h3>

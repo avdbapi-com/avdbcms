@@ -137,6 +137,8 @@ function Test-SkippedReleasePath {
 
     if ($path -in @(
         'CURRENT_STATE.md',
+        # The working tree's own notes for AI assistants (private: never part of a package).
+        'AGENTS.md',
         # The upstream project's development Docker stack (it cannot start; containers: 1Panel).
         'docker-compose.yml',
         'scratch_themes.json',
@@ -406,6 +408,7 @@ function Assert-CleanReleaseZip {
                 ($name.StartsWith('database/install/') -and $leaf -like '*.sql' -and $name -ne 'database/install/example.sql') -or
                 ($name.StartsWith('database/seeders/') -and $name -notin @('database/seeders/DatabaseSeeder.php', 'database/seeders/CategorySeeder.php', 'database/seeders/PlanSeeder.php')) -or
                 $name -eq 'CURRENT_STATE.md' -or
+                $name -eq 'AGENTS.md' -or
                 $name -eq 'scratch_themes.json' -or
                 $name -eq 'theme_test_report.json' -or
                 $name.StartsWith('.agents/') -or

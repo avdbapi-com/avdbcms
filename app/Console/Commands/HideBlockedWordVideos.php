@@ -2,14 +2,16 @@
 
 namespace App\Console\Commands;
 
+use App\Support\BlockedCreatorsPass;
 use App\Support\BlockedWordsPass;
 use Illuminate\Console\Command;
 
 /**
  * Goes on with the pass of the update to 1.2.3 that hides the videos whose title, tags or category use words that are
- * always blocked (App\Support\BlockedWordsPass), in short slices: the scheduler starts it every minute while the pass is
- * not finished (on a site too big for the update's own slice), and each run goes on where the last one stopped. Quiet
- * when it had nothing to do.
+ * always blocked (App\Support\BlockedWordsPass), and with the pass of its refresh that blocks the creator channels the
+ * importers made whose name or description uses one (App\Support\BlockedCreatorsPass), in short slices: the scheduler
+ * starts it every minute while a pass is not finished (on a site too big for the update's own slice), and each run goes
+ * on where the last one stopped. Quiet when it had nothing to do.
  */
 class HideBlockedWordVideos extends Command
 {
@@ -19,7 +21,9 @@ class HideBlockedWordVideos extends Command
 
     public function handle(): int
     {
-        $result = BlockedWordsPass::run((float) max(1, min(600, (int) $this->option('seconds'))));
+        $seconds = (float) max(1, min(600, (int) $this->option('seconds')));
+        $deadline = microtime(true) + $seconds;
+        $result = BlockedWordsPass::run($seconds);
 
         if ($result['checked'] > 0) {
             $this->info(sprintf('%s - blocked words: %s videos checked, %s hidden, %s', now()->format('Y-m-d H:i:s'),
@@ -27,12 +31,21 @@ class HideBlockedWordVideos extends Command
                 $result['done'] ? 'every video is done' : 'the next run goes on'));
         }
 
+        // the creator channels, with what is left of the run's time (at least one slice)
+        $creators = BlockedCreatorsPass::run(max(0.0, $deadline - microtime(true)));
+
+        if ($creators['checked'] > 0) {
+            $this->info(sprintf('%s - blocked words: %s members checked, %s creator channels blocked with %s videos, %s', now()->format('Y-m-d H:i:s'),
+                number_format($creators['checked']), number_format($creators['hidden']), number_format($creators['videos']),
+                $creators['done'] ? 'every member is done' : 'the next run goes on'));
+        }
+
         return self::SUCCESS;
     }
 
-    /** Whether the scheduler should start this command (the pass is not finished). */
+    /** Whether the scheduler should start this command (a pass is not finished). */
     public static function due(): bool
     {
-        return BlockedWordsPass::due();
+        return BlockedWordsPass::due() || BlockedCreatorsPass::due();
     }
 }

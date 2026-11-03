@@ -36,9 +36,10 @@ class AdminController
 {
     /**
      * Notices an administrator can hide on Home (AdminPreferences "dismissed"); 'blocked-words': the videos the update to
-     * 1.2.3 hid (App\Support\BlockedWordsPass::NOTICE).
+     * 1.2.3 hid (App\Support\BlockedWordsPass::NOTICE); 'blocked-creators': the importer-made creator channels its
+     * refresh blocked (App\Support\BlockedCreatorsPass::NOTICE).
      */
-    public const NOTICES = ['home-checklist', 'blocked-words'];
+    public const NOTICES = ['home-checklist', 'blocked-words', 'blocked-creators'];
 
     /** @var array<string, true>|null see hasTable() */
     private ?array $tables = null;
@@ -50,9 +51,14 @@ class AdminController
     {
         // 1.2.3: on a site too big for the update's own slice, a visit of Home goes on with the hiding of the videos that
         // use words that are always blocked for a few seconds, after the page is sent (App\Support\BlockedWordsPass; the
-        // scheduler does the same every minute, so a site whose cron job does not run yet still gets there).
-        if (\App\Support\BlockedWordsPass::due()) {
-            app()->terminating(static fn () => rescue(fn () => \App\Support\BlockedWordsPass::run(\App\Support\BlockedWordsPass::VISIT_SECONDS), null, false));
+        // scheduler does the same every minute, so a site whose cron job does not run yet still gets there), and with the
+        // refresh's blocking of the importer-made creator channels that use one (App\Support\BlockedCreatorsPass).
+        if (\App\Support\BlockedWordsPass::due() || \App\Support\BlockedCreatorsPass::due()) {
+            app()->terminating(static function (): void {
+                $deadline = microtime(true) + \App\Support\BlockedWordsPass::VISIT_SECONDS;
+                rescue(fn () => \App\Support\BlockedWordsPass::run(\App\Support\BlockedWordsPass::VISIT_SECONDS), null, false);
+                rescue(fn () => \App\Support\BlockedCreatorsPass::run(max(0.0, $deadline - microtime(true))), null, false);
+            });
         }
 
         if (! AdminPreferences::usesNewAdmin($request->user())) {
@@ -608,6 +614,21 @@ class AdminController
             ];
         }
 
+        // 1.2.3 refresh (N2-SAFE-01): the creator channels the importers made whose names or descriptions use words that
+        // are always blocked, blocked with their videos (App\Support\BlockedCreatorsPass), with the list to review them.
+        $creators = self::dismissed(request(), \App\Support\BlockedCreatorsPass::NOTICE) ? 0 : \App\Support\BlockedCreatorsPass::hiddenCount();
+
+        if ($creators > 0) {
+            $needs[] = [
+                'icon' => 'eye-off',
+                'tone' => 'warn',
+                'title' => trans_choice('1 imported creator channel was blocked because its name or description uses blocked words|:count imported creator channels were blocked because their names or descriptions use blocked words', $creators, ['count' => number_format($creators)]),
+                'text' => __('They and their videos are banned, so visitors no longer see them. Review them and unblock any channel that was blocked by mistake.'),
+                'action' => [__('Review'), route('admin.users.index', ['status' => 'banned', 'reason' => \App\Support\BlockedCreatorsPass::FILTER], false)],
+                'dismiss' => \App\Support\BlockedCreatorsPass::NOTICE,
+            ];
+        }
+
         if ($counts['failed_imports'] !== []) {
             $first = $counts['failed_imports'][0];
             $failedMessage = rtrim(Str::limit($first['message'], 90), ': ');
@@ -735,6 +756,8 @@ class AdminController
             'pendingMigrations' => PendingMigrations::count(),
             // 1.2.3: and says how many videos the update hid for blocked words, as Home's "Needs you" does
             'blockedWordsHidden' => self::dismissed(request(), \App\Support\BlockedWordsPass::NOTICE) ? 0 : \App\Support\BlockedWordsPass::hiddenCount(),
+            // ... and how many importer-made creator channels the refresh blocked (App\Support\BlockedCreatorsPass)
+            'blockedCreatorsHidden' => self::dismissed(request(), \App\Support\BlockedCreatorsPass::NOTICE) ? 0 : \App\Support\BlockedCreatorsPass::hiddenCount(),
             // ... and a link to Tools > Updates when a newer AVDBCMS is out (no other new page in the old admin).
             'availableRelease' => $this->availableRelease(),
             'todayUsers' => $data['users_count_today'],

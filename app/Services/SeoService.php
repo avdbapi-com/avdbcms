@@ -246,8 +246,9 @@ class SeoService
             // 1.2.3: never the name of a category named with a word that is always blocked (App\Support\ContentSafety)
             'category' => $video->localized_type_name ?: ($video->category?->title && ! \App\Support\ContentSafety::hides((string) $video->category->title) ? decode_html_entities($video->category->title) : ''),
             'tags' => $tagNames,
-            'actor' => $video->avdb_actor,
-            'director' => $video->avdb_director,
+            // 1.2.3 refresh 2: never an actor or director named with a word that is always blocked (App\Support\ContentSafety)
+            'actor' => \App\Support\ContentSafety::visibleNames($video->avdb_actor),
+            'director' => \App\Support\ContentSafety::visibleNames($video->avdb_director),
             'code' => $video->avdb_code ?: ($video->avdb_id ? $video->original_file_name : ''),
             'username' => $video->user?->username,
             'user' => $video->user?->username,
@@ -418,12 +419,13 @@ class SeoService
             $schema['keywords'] = implode(', ', $keywords);
         }
 
-        $actors = $this->peopleSchema($video->avdb_actor);
+        // 1.2.3 refresh 2: never a person named with a word that is always blocked (App\Support\ContentSafety)
+        $actors = $this->peopleSchema(\App\Support\ContentSafety::visibleNames($video->avdb_actor));
         if ($actors !== []) {
             $schema['actor'] = $actors;
         }
 
-        $directors = $this->peopleSchema($video->avdb_director);
+        $directors = $this->peopleSchema(\App\Support\ContentSafety::visibleNames($video->avdb_director));
         if ($directors !== []) {
             $schema['director'] = $directors;
         }

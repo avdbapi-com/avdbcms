@@ -42,21 +42,26 @@ class PanelNginxConfigsTest extends TestCase
         $projectRoot = $this->locations(self::read('docs/server-configs/nginx-project-root.conf'));
         $hestia = $this->locations(self::read(self::HESTIA));
 
-        // Left out: the location / and the three rewrites to /index.php (they break behind Hestia's proxy), and the two
+        // Left out: the location / and the three rewrites to /index.php (they break behind Hestia's proxy), the two
         // public/ upload folders (Hestia's server block has no root of its own: Apache answers them through the project
-        // folder's .htaccess, which refuses scripts and dumps there).
+        // folder's .htaccess, which refuses scripts and dumps there) and the robots.txt location of the 1.2.3 refresh
+        // (no root here either: Apache answers robots.txt with the five minutes public/.htaccess gives it, and the
+        // file's header tells the owner to keep txt out of the domain's Proxy Extensions).
         $left = array_values(array_filter($projectRoot, static fn (string $location): bool => ! in_array($location, [
             'location / { try_files $uri $uri/ /index.php?$query_string; }',
+            'location = /robots.txt { try_files $uri /index.php?$query_string; expires 5m; }',
             'location ^~ /video/file/ { rewrite ^ /index.php last; }',
             'location ^~ /admin/ { rewrite ^ /index.php last; }',
             'location ~* '.AaPanelRewrite::DUMPS.' { rewrite ^ /index.php last; }',
         ], true) && ! str_starts_with($location, 'location ^~ /public/storage/ {') && ! str_starts_with($location, 'location ^~ /public/uploads/ {')));
 
-        $this->assertCount(count($projectRoot) - 6, $left, 'the six left out are in the project-root file');
+        $this->assertCount(count($projectRoot) - 7, $left, 'the seven left out are in the project-root file');
         $this->assertSame($left, $hestia);
 
         $code = self::code(self::read(self::HESTIA));
         $this->assertStringNotContainsString('location / {', $code);
+        $this->assertStringNotContainsString('robots.txt {', $code, 'no root of its own: Apache answers robots.txt');
+        $this->assertStringContainsString('and txt, if it is in the list, so that robots.txt is', self::read(self::HESTIA), 'the Proxy Extensions step names txt');
         $this->assertDoesNotMatchRegularExpression('/(^|[\s;{])rewrite\s/', $code);
         $this->assertStringNotContainsString('gzip', $code);
         $this->assertSame(substr_count($code, '{'), substr_count($code, '}'));
@@ -76,6 +81,11 @@ class PanelNginxConfigsTest extends TestCase
         foreach (array_merge(['/index.php/'], AaPanelRewrite::APPLICATION_PREFIXES) as $prefix) {
             $this->assertMatchesRegularExpression('#location \^~ '.preg_quote($prefix, '#').' \{\s*try_files /\.avdbcms-application @avdbcms_app;\s*\}#', $code, $prefix);
         }
+
+        // 1.2.3 refresh (verifier WEB-V1-02): robots.txt five minutes from the Document Root (CloudPanel's own static-file
+        // block gave it no Cache-Control), a missing file to the application (ServerConfigsTest: the other nginx files).
+        $this->assertMatchesRegularExpression('#location = /robots\.txt \{\s*try_files \$uri @avdbcms_app;\s*expires 5m;\s*\}#', $code);
+        $this->assertSame(1, substr_count($code, 'location = /robots.txt'));
 
         $app = (string) $this->block($code, 'location @avdbcms_app {');
         $this->assertStringContainsString('proxy_pass http://127.0.0.1:8080;', $app);

@@ -98,6 +98,19 @@ final class LocalNumber
         return preg_split('/[-_@]/', $locale)[0] ?: 'en';
     }
 
+    /**
+     * The decimal and thousands separators of a language, for a host without intl (the table above; "." and "," for
+     * the languages that write numbers the English way): [decimal, thousands]. The studio's figures
+     * (App\Support\Studio\StudioFormat::number()) fall back on them too (1.2.3 refresh: they fell back on the
+     * English separators in every language).
+     *
+     * @return array{0: string, 1: string}
+     */
+    public static function separators(?string $locale = null): array
+    {
+        return self::SEPARATORS[self::language($locale)] ?? ['.', ','];
+    }
+
     /** A number with a fixed count of decimals (already rounded by the caller) in the language's separators. */
     private static function decimal(int|float $number, int $decimals, ?string $language = null): string
     {

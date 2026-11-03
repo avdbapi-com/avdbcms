@@ -20,7 +20,8 @@ use Throwable;
  *    Japanese original), and an age under 18 written out (HARD_AGE). Fixed here, never a setting and never shown in the
  *    admin: an item that uses one is never imported, the update hides the videos that use one (App\Support\
  *    BlockedWordsPass), and a tag or a category named with one is never shown to visitors (visibleCategories(),
- *    visibleTags()). Adult-only words stay out (teen 18+, 18 or 19 years old, university and college students), and so
+ *    visibleTags()), nor an actor, director or studio named with one (visibleNames(); no creator channel for them
+ *    either: hardMatchAny()). Adult-only words stay out (teen 18+, 18 or 19 years old, university and college students), and so
  *    does childhood friend (two adults who grew up together): the matcher only matches whole words, so child never
  *    matches childhood.
  *    (These comments never quote a catalogue text as it is: the release's translation merge counts a quoted text
@@ -308,6 +309,28 @@ final class ContentSafety
         return self::firstMatch(self::hardPattern(), $text);
     }
 
+    /**
+     * The word of the hard list the first of these texts uses (normalised), or null. The importers ask it before they
+     * make or reuse a creator channel from a studio, director or actor name (the name, the handle and the description
+     * the channel gets), and the update's pass over the channels they made before 1.2.3's refresh asks it for each
+     * channel's stored texts (App\Support\BlockedCreatorsPass). Only the hard list: the site's own words keep items
+     * out, never a person or a studio.
+     *
+     * @param  iterable<mixed>  $texts
+     */
+    public static function hardMatchAny(iterable $texts): ?string
+    {
+        foreach ($texts as $text) {
+            $word = self::hardMatch(is_string($text) || $text instanceof \Stringable ? (string) $text : null);
+
+            if ($word !== null) {
+                return $word;
+            }
+        }
+
+        return null;
+    }
+
     /** The word of $words (the owner's list when null) $text uses (normalised), or null. */
     public static function siteMatch(?string $text, ?array $words = null): ?string
     {
@@ -369,6 +392,42 @@ final class ContentSafety
         return $categories->reject(fn ($category): bool => is_object($category)
             && ($keep === null || (int) ($category->id ?? 0) !== $keep)
             && self::hides((string) ($category->title ?? '')))->values();
+    }
+
+    /**
+     * The people and studio names visitors may see of a catalogue field (an import's actors, director or studio: names
+     * separated by commas, semicolons or bars): a name that uses a word of the hard list is left out, as a tag or a
+     * category named with one is (1.2.3 refresh 2, N2-SAFE-01: such a name gets no creator channel either, and it is
+     * no fact for visitors). The watch page (its details rows, their search links and the page's description), the SEO
+     * templates' placeholders, the page's structured data, the home page's trending-actors rail and the search index
+     * ask it; the admin keeps the stored field. Null when nothing may be shown.
+     */
+    public static function visibleNames(?string $names): ?string
+    {
+        $names = trim((string) $names);
+
+        if ($names === '') {
+            return null;
+        }
+
+        $kept = [];
+
+        foreach (preg_split('/\s*[,;|]\s*/u', $names) ?: [] as $name) {
+            $name = trim($name);
+
+            if ($name !== '' && ! self::hides($name)) {
+                $kept[] = $name;
+            }
+        }
+
+        if ($kept === []) {
+            return null;
+        }
+
+        $visible = implode(', ', array_values(array_unique($kept)));
+
+        // (a phrase of the list written across the separators: nothing of the field is shown)
+        return self::hides($visible) ? null : $visible;
     }
 
     /** Forget what this process remembered (tests). */

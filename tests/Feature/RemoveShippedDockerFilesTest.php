@@ -93,16 +93,19 @@ class RemoveShippedDockerFilesTest extends TestCase
         $this->assertDirectoryDoesNotExist($this->root.'/docker', 'the empty folder goes too');
         $this->assertSame([], $migration->removeFrom($this->root), 'nothing left: safe to run again');
 
-        // What up() does on the site's folder: the files go (Windows line endings too), Admin actions says so once.
+        // What up() does on the site's folder: the files go (Windows line endings too) and Admin actions says so. J2-P1:
+        // a row each time they are actually removed. Gone already writes nothing; but after "Undo this update" put them
+        // back and the update is run again, removing them again writes its own row, as the unused-pictures migration does
+        // (the Docker files and the schema dump used to stay silent on that second removal).
         $this->plant(true);
-        $this->assertTrue($migration->clean($this->root));
-        $this->assertFalse($migration->clean($this->root));
+        $this->assertTrue($migration->clean($this->root), 'first removal: a row');
+        $this->assertFalse($migration->clean($this->root), 'nothing left: no row');
         $this->plant();
-        $this->assertTrue($migration->clean($this->root));
+        $this->assertTrue($migration->clean($this->root), 'put back by an undo and removed again: another row (J2-P1)');
         $migration->up();
 
         $rows = DB::table('admin_audit_logs')->where('action', 'update.removed_files')->pluck('details')->all();
-        $this->assertSame([$migration::AUDIT_DETAILS], $rows);
+        $this->assertSame([$migration::AUDIT_DETAILS, $migration::AUDIT_DETAILS], $rows, 'one row per actual removal (J2-P1)');
         $this->assertLessThanOrEqual(120, mb_strlen($migration::AUDIT_DETAILS));
         $migration->down();
     }

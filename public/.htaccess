@@ -33,9 +33,13 @@
     RewriteRule ^ index.php [L]
 </IfModule>
 
+# Browser and CDN life of the STATIC files only (styles, scripts, fonts, pictures): each kind below, nothing else. No
+# ExpiresDefault: it gave every answer that carries no Expires header of its own - the pages made for one visitor
+# (Cache-Control: no-store, private), robots.txt, the sitemaps - a second Cache-Control line and a two-day life in a
+# CDN (1.2.3 refresh: a changed robots.txt reached crawlers behind Cloudflare up to two days later). The pages and the
+# crawler files send their own Cache-Control (the application), robots.txt as a file gets its five minutes below.
 <IfModule mod_expires.c>
     ExpiresActive On
-    ExpiresDefault "access plus 2 days"
     ExpiresByType text/css "access plus 1 year"
     ExpiresByType application/javascript "access plus 1 year"
     ExpiresByType application/x-javascript "access plus 1 year"
@@ -45,6 +49,7 @@
     ExpiresByType font/ttf "access plus 1 year"
     ExpiresByType font/otf "access plus 1 year"
     ExpiresByType image/webp "access plus 1 month"
+    ExpiresByType image/avif "access plus 1 month"
     ExpiresByType image/jpeg "access plus 1 month"
     ExpiresByType image/png "access plus 1 month"
     ExpiresByType image/gif "access plus 1 month"
@@ -57,9 +62,14 @@
     <FilesMatch "\.(js|css|woff2|woff|ttf)$">
         Header set Cache-Control "public, max-age=31536000, immutable"
     </FilesMatch>
-    <FilesMatch "\.(jpg|jpeg|png|gif|webp|svg|ico)$">
+    <FilesMatch "\.(jpg|jpeg|png|gif|webp|avif|svg|ico)$">
         Header set Cache-Control "public, max-age=2592000, stale-while-revalidate=86400"
     </FilesMatch>
+    # robots.txt is written by the site when its SEO settings are saved (Settings > Google & sharing): five minutes, the
+    # same life its route gives it, so a change reaches crawlers through a CDN within minutes, never after two days.
+    <Files "robots.txt">
+        Header set Cache-Control "public, max-age=300"
+    </Files>
 </IfModule>
 
 
